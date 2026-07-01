@@ -43,6 +43,7 @@ import type {
   TestAuthor,
 } from "../mock/interfaces.js";
 import type { ChatUsage, Provider } from "./provider.js";
+import type { FoundryCostMeter } from "./cost.js";
 import { detectHacks } from "../hack-detector.js";
 import { fullEval } from "../eval-runner.js";
 
@@ -70,6 +71,8 @@ export interface FoundryLayerOptions {
   complexity?: number;
   /** Fixture names the hack detector watches for (R8). */
   fixtureNames?: string[];
+  /** Stage-4 cost meter: prices real usage and enforces hard caps (N5/R3). */
+  meter?: FoundryCostMeter;
 }
 
 /** Extract the first fenced code block, else the whole trimmed text. */
@@ -122,6 +125,9 @@ export class FoundryModelLayer implements ModelLayer {
       temperature: role.temperature ?? 0,
     });
     this.usage.push({ role: roleName, model: role.model, usage: res.usage });
+    // Cost cap check AFTER recording: the crossing call throws, the spend stays
+    // on the record (CostCapExceededError propagates as the kill-switch, R3).
+    this.opts.meter?.add(roleName, role.model, res.usage);
     return res.text;
   }
 

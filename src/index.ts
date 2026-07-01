@@ -18,3 +18,4 @@ export { MockModelLayer, defaultMockConfig, alwaysFailConfig } from "./mock/mock
 export * from "./foundry/provider.js";
 export * from "./foundry/model-layer.js";
 export * from "./foundry/spawn.js";
+export * from "./foundry/cost.js";

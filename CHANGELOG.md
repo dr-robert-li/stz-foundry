@@ -9,6 +9,21 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.4.0] — Per-provider cost/budget tracking (Foundry stage 4)
+
+`src/foundry/cost.ts`: real provider usage priced per model (input / output /
+cache-read at distinct rates; local models $0 by omission; unknown hosted
+models **reported** in `unpricedModels`, never guessed), aggregated per role,
+and hard-capped — `maxTokens` (N5) and `maxUsd` (R3) — at the single seam
+every foundry LLM call passes through (`FoundryModelLayer.ask`). The crossing
+call throws `CostCapExceededError` with the spend kept on record; a breach
+inside a specimen is contained by the stage-3 spawn layer (specimens are
+expendable, frozen roles halt the run).
+
+Earned deterministically (`test/foundry-cost.test.ts`): pricing math,
+aggregation, both caps, unpriced-model reporting, and cap→spawn-containment
+composition. 272 tests green. Ledger: `experiments/foundry-progression/stage-4.md`.
+
 ## [1.3.0] — Spawn/concurrency + stuck-kill (Foundry stage 3)
 
 `src/foundry/spawn.ts`: specimens now genuinely run in parallel (F6) under a
