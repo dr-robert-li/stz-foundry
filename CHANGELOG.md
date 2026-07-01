@@ -9,6 +9,22 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.1.0] — Provider abstraction (Foundry stage 1)
+
+The BYO-LLM seam: `src/foundry/provider.ts`, a zero-dependency `Provider`
+interface with two wire adapters — **anthropic** (Messages API, with top-level
+`cache_control: {type:"ephemeral"}` prompt caching mandatory on every call and
+`cache_read_input_tokens` surfaced for verification) and **openai**
+(OpenAI-compatible `/chat/completions`, which also reaches LiteLLM and local
+Ollama/vLLM endpoints, keyless operation supported). Bounded retries
+(429/5xx/network with injectable backoff; 4xx never retries), `ProviderError`
+with status/snippet/attempts.
+
+Earned deterministically against real in-process `node:http` servers
+(`test/foundry-provider.test.ts`): request shapes, mandatory caching directive,
+usage mapping, retry/no-retry/exhaustion. 255 tests green.
+Ledger: `experiments/foundry-progression/stage-1.md`.
+
 ## [1.0.0] — STZ Foundry: identity + new-npm-package CI/CD (Foundry stage 0)
 
 The project becomes **STZ Foundry** (`stz-foundry`) — the evolution of
