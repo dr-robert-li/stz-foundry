@@ -22,7 +22,7 @@ import { writeManifest, migrate } from "./migrate.js";
 
 const AGENTS_MD = `# AGENTS.md — STZ table of contents
 
-This repo is managed by **slice-tournament-zoo (STZ)**. Progressive disclosure:
+This repo is managed by **STZ Foundry (stz-foundry)**. Progressive disclosure:
 load the tier summary you need, fetch full bodies only on named-anchor reference.
 
 | Tier | Purpose |
@@ -145,7 +145,7 @@ const LOGO = String.raw`
 
 function cmdHelp(): void {
   console.log(LOGO);
-  console.log(`slice-tournament-zoo: adversarial slice tournaments with a replayable audit trail
+  console.log(`stz-foundry: adversarial slice tournaments with a replayable audit trail
 
 Usage:
   stz init [dir]       scaffold the .stz/ taxonomy + AGENTS.md (default: cwd)

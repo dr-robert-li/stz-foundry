@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 /** The npm package name. A code constant — see file header. */
-export const PACKAGE_NAME = "slice-tournament-zoo";
+export const PACKAGE_NAME = "stz-foundry";
 
 /**
  * Schema version of the `.stz/` taxonomy tree. Bump when `TIERS` (or the

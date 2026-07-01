@@ -20,7 +20,7 @@ describe("version identity seam (F19)", () => {
   });
 
   it("pins the package name as a code constant", () => {
-    expect(PACKAGE_NAME).toBe("slice-tournament-zoo");
+    expect(PACKAGE_NAME).toBe("stz-foundry");
     expect(readJson("package.json").name).toBe(PACKAGE_NAME);
   });
 

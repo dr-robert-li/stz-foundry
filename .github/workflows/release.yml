@@ -6,9 +6,16 @@ name: Release
 #   npm version patch        # bumps package.json + commits + tags vX.Y.Z
 #   git push --follow-tags
 #
-# Auth: npm Trusted Publishing (OIDC, no token) — the package is set to "require
-# 2FA and disallow tokens", so OIDC is the only path and there is nothing to leak,
-# expire, or revoke. `--provenance` stamps a verified link back to this commit+run.
+# This repo publishes the **stz-foundry** package — a NEW npm package, distinct
+# from the upstream `slice-tournament-zoo` release this project forked from.
+# A name guard below hard-fails the run if package.json ever names anything
+# else, so this workflow can never overwrite the upstream npm release.
+#
+# Auth: npm Trusted Publishing (OIDC, no token). One-time setup on npmjs.com is
+# required for the new package: after the FIRST manual `npm publish` (or via
+# granular token), configure Trusted Publishing for dr-robert-li/stz-foundry →
+# .github/workflows/release.yml, then set "require 2FA and disallow tokens".
+# `--provenance` stamps a verified link back to this commit+run.
 
 on:
   push:
@@ -44,6 +51,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Guard — this repo publishes stz-foundry, never the upstream package
+        run: |
+          NAME="$(node -p "require('./package.json').name")"
+          if [ "$NAME" != "stz-foundry" ]; then
+            echo "::error::package.json name is '$NAME'; this workflow only publishes 'stz-foundry'"; exit 1
+          fi
+
       - name: Guard — tag matches package.json version
         run: |
           PKG="v$(node -p "require('./package.json').version")"
@@ -67,8 +81,8 @@ jobs:
             f {print}
           ' CHANGELOG.md > RELEASE_NOTES.md
           {
-            echo "**npm:** https://www.npmjs.com/package/slice-tournament-zoo/v/$VER";
-            echo "(\`npm i slice-tournament-zoo@$VER\` — published with provenance)";
+            echo "**npm:** https://www.npmjs.com/package/stz-foundry/v/$VER";
+            echo "(\`npm i stz-foundry@$VER\` — published with provenance)";
           } >> RELEASE_NOTES.md
 
       - name: Create GitHub release

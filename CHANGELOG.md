@@ -1,10 +1,40 @@
 # Changelog
 
-All notable changes to slice-tournament-zoo (STZ) are recorded here.
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+All notable changes to STZ Foundry (`stz-foundry`, formerly slice-tournament-zoo)
+are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project aims to follow [Semantic Versioning](https://semver.org/).
 
+Entries at 0.9.6 and below are the upstream slice-tournament-zoo record,
+preserved verbatim.
+
 ## [Unreleased]
+
+## [1.0.0] — STZ Foundry: identity + new-npm-package CI/CD (Foundry stage 0)
+
+The project becomes **STZ Foundry** (`stz-foundry`) — the evolution of
+slice-tournament-zoo into a standalone BYO-LLM foundry. 1.x is built stage by
+stage under the earned-capability discipline; the ledger lives in
+`experiments/foundry-progression/`.
+
+### Changed
+- **Package identity**: npm name `stz-foundry` (a NEW package — the upstream
+  `slice-tournament-zoo` npm release is never overwritten), version 1.0.0,
+  repository/homepage/bugs → `dr-robert-li/stz-foundry`. Second bin alias
+  `stz-foundry` alongside `stz`.
+- **`src/version.ts`**: `PACKAGE_NAME` re-pinned to `stz-foundry`, so
+  `stz update`/`registryLatestUrl()` and every printed remediation command
+  target the new package.
+- **Release workflow redone**: a fail-closed name guard refuses to publish
+  anything but `stz-foundry`; release notes/links point at the new package;
+  Trusted-Publishing one-time setup for the new name documented in-line.
+- Plugin manifests (`.claude-plugin/`) at 1.0.0 with Foundry descriptions.
+
+### Added
+- `test/foundry-identity.test.ts` — the stage-0 earn instrument (identity pin,
+  bin duality, workflow name-guard presence, no stale identity literals in the
+  update path). 249 tests green.
+- `experiments/foundry-progression/` — the Foundry rebuild progression ledger
+  (stage-0 record: build, eval design, results, honesty caveats).
 
 ## [0.9.6] — Contract Plane (bounded project-local RSI, earned-capability)
 

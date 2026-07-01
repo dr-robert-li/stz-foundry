@@ -1,12 +1,12 @@
 {
   "name": "stz",
-  "version": "0.9.6",
-  "description": "Slice-tournament-zoo: a full interactive pipeline (elicit, research, validate, standards, tests, slice) feeding per-slice adversarial tournaments. N specimens implement a contract in parallel, a frozen sealed suite plus a layered hack detector gate them, pairwise LLM judges rank the survivors, and a replayable markdown audit trail records every decision.",
+  "version": "1.0.0",
+  "description": "STZ Foundry: a full interactive pipeline (elicit, research, validate, standards, tests, slice) feeding per-slice adversarial tournaments. N specimens implement a contract in parallel, a frozen sealed suite plus a layered hack detector gate them, pairwise LLM judges rank the survivors, and a replayable markdown audit trail records every decision. Evolution of slice-tournament-zoo with a standalone BYO-LLM foundry runner.",
   "author": {
     "name": "Robert Li",
     "email": "dr.robert.li.au@gmail.com"
   },
-  "homepage": "https://github.com/dr-robert-li/slice-tournament-zoo",
+  "homepage": "https://github.com/dr-robert-li/stz-foundry",
   "license": "Apache-2.0",
   "keywords": [
     "agentic",
@@ -14,6 +14,8 @@
     "grpo",
     "reward-hacking",
     "audit",
-    "subagents"
+    "subagents",
+    "byo-llm",
+    "foundry"
   ]
 }

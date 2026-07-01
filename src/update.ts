@@ -3,7 +3,7 @@
  * print the exact command(s) to fix it. Two distribution channels mean two
  * things can be stale independently:
  *
- *   - the **npm CLI** (`slice-tournament-zoo` on PATH), and
+ *   - the **npm CLI** (`stz-foundry` on PATH), and
  *   - the **Claude Code plugin** (the bundled `stz bridge` the `/stz:*`
  *     commands call via `${CLAUDE_PLUGIN_ROOT}`).
  *
