@@ -9,6 +9,20 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.3.0] — Spawn/concurrency + stuck-kill (Foundry stage 3)
+
+`src/foundry/spawn.ts`: specimens now genuinely run in parallel (F6) under a
+bounded pool, each with an optional wall-clock stuck-kill (R10 — the roadmap
+gap). Killed/crashed specimens are contained (journaled `specimen-killed`
+events, replayable N1), output order is scheduling-independent (N6), and an
+all-killed round collapses into the existing no-passers escalation FSM.
+`runSlice` gains `specimenConcurrency` / `specimenTimeoutMs`.
+
+Earned deterministically with measured wall-clock concurrency (parallel <
+250ms where sequential is 400ms), pool-bound, stuck-kill, crash-containment,
+ordering, and pipeline-composition tests (`test/foundry-spawn.test.ts`).
+264 tests green. Ledger: `experiments/foundry-progression/stage-3.md`.
+
 ## [1.2.0] — FoundryModelLayer (Foundry stage 2)
 
 The real `ModelLayer` over the provider seam: every tournament role

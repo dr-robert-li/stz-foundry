@@ -47,6 +47,7 @@ import {
   type PressureLog,
 } from "../pressure.js";
 import { diffSpecs, renderSpecDiff, isFaithful, type Spec } from "../specdiff.js";
+import { spawnSpecimens } from "../foundry/spawn.js";
 
 export interface OrchestratorOptions {
   root: string;
@@ -57,6 +58,10 @@ export interface OrchestratorOptions {
   poolRemaining?: number;
   /** Progress sink (defaults to no-op; CLI passes console.log). */
   log?: (msg: string) => void;
+  /** Max specimens in flight at once (stage 3; default: all N in parallel). */
+  specimenConcurrency?: number;
+  /** Per-specimen wall-clock kill in ms (R10 stuck-detection; default: none). */
+  specimenTimeoutMs?: number;
 }
 
 export interface SliceResult {
@@ -231,9 +236,17 @@ export async function runSlice(opts: OrchestratorOptions): Promise<SliceResult> 
     charge("tournament", "specimen");
     log(`[${manifest.id}] round ${rounds}: spawning ${n} specimens [${strategies.join(", ")}] (worktrees STUBBED → prototype dirs)`);
 
+    // Spawn concurrently under the bounded pool with stuck-kill (stage 3/R10).
+    const spawned = await spawnSpecimens(model.specimen, manifest, strategies, refinement, {
+      concurrency: opts.specimenConcurrency,
+      timeoutMs: opts.specimenTimeoutMs,
+    });
+    for (const k of spawned.killed) {
+      state = appendEvent(state, "tournament", "specimen-killed", `${k.strategy}: ${k.reason} — ${k.detail}`);
+      log(`[${manifest.id}] specimen (${k.strategy}) ${k.reason}: ${k.detail}`);
+    }
     const outputs: SpecimenOutput[] = [];
-    for (const strat of strategies) {
-      const out = await model.specimen.implement(manifest, strat, refinement);
+    for (const out of spawned.outputs) {
       charge("tournament", "specimen");
       outputs.push(out);
       // Materialize into prototypes/specimen-X/ (worktree stand-in).
