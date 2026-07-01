@@ -1,0 +1,30 @@
+{
+  "arm": "A — selection-gene, proxy-exhaustion test (cron, in-sample)",
+  "prereg": "PREREG.md (abc4240)",
+  "proxies": ["sealed_passRate", "malformed_conformance", "codeHealth(inverse-LOC)"],
+  "pool": [
+    {"id":"c1","sealed":1.0,"malformed":0.923,"codeHealth":0.538,"truth":0.9767},
+    {"id":"c2","sealed":0.9936,"malformed":0.923,"codeHealth":0.495,"truth":0.9767},
+    {"id":"c3","sealed":0.9992,"malformed":0.923,"codeHealth":0.559,"truth":0.9535},
+    {"id":"c4","sealed":0.9992,"malformed":0.923,"codeHealth":0.533,"truth":0.9767},
+    {"id":"c5","sealed":0.9992,"malformed":0.923,"codeHealth":0.557,"truth":1.0},
+    {"id":"c6","sealed":1.0,"malformed":1.0,"codeHealth":0.525,"truth":0.9767},
+    {"id":"c7","sealed":0.9606,"malformed":0.923,"codeHealth":0.567,"truth":0.9767},
+    {"id":"c8","sealed":0.9485,"malformed":0.923,"codeHealth":0.563,"truth":0.9767}
+  ],
+  "truth_best": "c5 (truth 1.0)",
+  "argmax_by_proxy": {"sealed":"c1","malformed":"c6","codeHealth":"c7"},
+  "truth_best_is_argmax_of_any_proxy": false,
+  "baseline_shipped_winner_truth": 0.9767,
+  "best_achievable_over_all_weight_tuples": 0.9767,
+  "mutation_kill_followup": {
+    "tested": true,
+    "per_specimen_survivors": {"c1":2,"c2":0,"c3":0,"c4":0,"c5":0,"c6":2,"c7":0,"c8":0},
+    "kill_leaders_fewest_survivors": ["c2","c3","c4","c5","c7","c8"],
+    "ranks_truth_best_first_alone": false,
+    "note": "mutation-kill (the STZ-designed correctness proxy) does NOT discriminate c5: it ties the truth-best (c5, 1.0) with the truth-WORST (c3, 0.9535). The flagged gap is now closed."
+  },
+  "deviation_from_prereg": "Still a cron-only, in-sample probe (not the cross-slice train/test, and coverage not separately computed). But the proxy most likely to matter — mutation-kill — is now tested.",
+  "verdict": "Proxy exhaustion on cron for the FULL computable proxy set {sealed, malformed, codeHealth, mutation-kill}: none ranks the truth-best c5 first; baseline already at the achievable max (0.9767). STRUCTURAL reason (earned, not asserted): all four proxies are SEALED-SUITE-DERIVED, and c5's truth advantage is OUTSIDE the sealed suite by construction (c5 is sealed-WORSE 0.9992 yet truth-BEST 1.0). No sealed-derived weighting can reach it. Since evolution cannot beat baseline in-sample, the cross-slice train/test is moot.",
+  "the_real_open_lever": "the ONLY selection signal independent of the sealed suite is the JUDGE (LLM reasoning over code+contract). Prior CONTROLS-2 showed a frozen judge picks the spec-correct candidate 3/3. Evolving/testing the judge as a selection gene (rubricId), train/test across slices vs the numeric-proxy baseline, is the honest path to a possible competency positive — NOT more numeric-weight evolution."
+}

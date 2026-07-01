@@ -1,0 +1,81 @@
+name: Release
+
+# Push a version tag and CI does the rest: gate → npm publish with provenance →
+# GitHub release. Tag must match package.json version (a guard checks it).
+#
+#   npm version patch        # bumps package.json + commits + tags vX.Y.Z
+#   git push --follow-tags
+#
+# Auth: npm Trusted Publishing (OIDC, no token) — the package is set to "require
+# 2FA and disallow tokens", so OIDC is the only path and there is nothing to leak,
+# expire, or revoke. `--provenance` stamps a verified link back to this commit+run.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # create the GitHub release
+  id-token: write   # OIDC for provenance (and Trusted Publishing)
+
+jobs:
+  release:
+    name: publish + github release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # NOTE: no `registry-url:` — it injects a placeholder NODE_AUTH_TOKEN into
+      # .npmrc that shadows OIDC and makes `npm publish` 404 under Trusted
+      # Publishing. The default registry is npmjs; OIDC handles auth.
+      # Node 24 ships npm >= 11 natively (Trusted Publishing needs npm >= 11.5.1).
+      - name: Set up Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      # belt-and-suspenders: ensure a Trusted-Publishing-capable npm, and prove it
+      - name: Ensure recent npm
+        run: |
+          npm install -g npm@latest
+          echo "node $(node -v) / npm $(npm -v)"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Guard — tag matches package.json version
+        run: |
+          PKG="v$(node -p "require('./package.json').version")"
+          if [ "$PKG" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} != package.json ${PKG}"; exit 1
+          fi
+
+      - name: Typecheck + test
+        run: npm run typecheck && npm test
+
+      - name: Publish to npm (Trusted Publishing OIDC + provenance)
+        run: npm publish --provenance --access public
+
+      - name: Extract changelog section
+        id: notes
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          awk -v v="$VER" '
+            $0 ~ "^## \\["v"\\]" {f=1; next}
+            f && /^## \[/ {exit}
+            f {print}
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          {
+            echo "**npm:** https://www.npmjs.com/package/slice-tournament-zoo/v/$VER";
+            echo "(\`npm i slice-tournament-zoo@$VER\` — published with provenance)";
+          } >> RELEASE_NOTES.md
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file RELEASE_NOTES.md \
+            --verify-tag
