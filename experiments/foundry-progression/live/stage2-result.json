@@ -1,0 +1,29 @@
+{
+  "model": "granite4.1:30b",
+  "seconds": 453,
+  "winner": "a",
+  "halted": false,
+  "faithful": false,
+  "rounds": 1,
+  "ranking": [
+    "a",
+    "b"
+  ],
+  "advantages": [
+    {
+      "specimen": "a",
+      "reward": 0.9500000000000001,
+      "advantage": 0.9999997600000562
+    },
+    {
+      "specimen": "b",
+      "reward": 0.8666666666666667,
+      "advantage": -0.9999997600000589
+    }
+  ],
+  "llmCalls": 7,
+  "tokens": {
+    "in": 1148,
+    "out": 761
+  }
+}

@@ -1,0 +1,11 @@
+{"id":"slice-live-clamp-elicitor-0","phase":"elicitation","role":"elicitor","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":0}
+{"id":"slice-live-clamp-researcher-1","phase":"research","role":"researcher","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":1}
+{"id":"slice-live-clamp-test-author-2","phase":"test-authoring","role":"test-author","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":2}
+{"id":"slice-live-clamp-planner-3","phase":"planning","role":"planner","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":3}
+{"id":"slice-live-clamp-specimen-4","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":4}
+{"id":"slice-live-clamp-specimen-5","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":5}
+{"id":"slice-live-clamp-specimen-6","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":6}
+{"id":"slice-live-clamp-specimen-7","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":7}
+{"id":"slice-live-clamp-specimen-8","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":8}
+{"id":"slice-live-clamp-judge-9","phase":"judgment","role":"judge","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":9}
+{"id":"slice-live-clamp-documenter-10","phase":"judgment","role":"documenter","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":10}

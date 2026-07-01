@@ -16,3 +16,4 @@ export * from "./mock/orchestrator.js";
 export * as llm from "./mock/interfaces.js";
 export { MockModelLayer, defaultMockConfig, alwaysFailConfig } from "./mock/mock.js";
 export * from "./foundry/provider.js";
+export * from "./foundry/model-layer.js";

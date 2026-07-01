@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "sliceId": "slice-live-clamp",
+  "currentPhase": "judgment",
+  "phaseStatus": {
+    "elicitation": "done",
+    "research": "done",
+    "ground-truth-validation": "done",
+    "standards": "done",
+    "test-authoring": "done",
+    "planning": "done",
+    "tournament": "done",
+    "judgment": "done"
+  },
+  "escalation": "normal",
+  "retryCount": 0,
+  "replanCount": 0,
+  "activeSpecimens": [
+    "a",
+    "b"
+  ],
+  "budget": {
+    "tokenCap": 200000,
+    "wallClockMs": 1800000,
+    "tokensSpent": 22000
+  },
+  "events": [
+    {
+      "seq": 0,
+      "phase": "elicitation",
+      "kind": "phase-running",
+      "detail": "elicitation → running"
+    },
+    {
+      "seq": 1,
+      "phase": "elicitation",
+      "kind": "phase-done",
+      "detail": "elicitation → done"
+    },
+    {
+      "seq": 2,
+      "phase": "research",
+      "kind": "phase-running",
+      "detail": "research → running"
+    },
+    {
+      "seq": 3,
+      "phase": "research",
+      "kind": "phase-done",
+      "detail": "research → done"
+    },
+    {
+      "seq": 4,
+      "phase": "ground-truth-validation",
+      "kind": "phase-done",
+      "detail": "ground-truth-validation → done"
+    },
+    {
+      "seq": 5,
+      "phase": "standards",
+      "kind": "phase-running",
+      "detail": "standards → running"
+    },
+    {
+      "seq": 6,
+      "phase": "standards",
+      "kind": "phase-done",
+      "detail": "standards → done"
+    },
+    {
+      "seq": 7,
+      "phase": "test-authoring",
+      "kind": "phase-running",
+      "detail": "test-authoring → running"
+    },
+    {
+      "seq": 8,
+      "phase": "test-authoring",
+      "kind": "phase-done",
+      "detail": "test-authoring → done"
+    },
+    {
+      "seq": 9,
+      "phase": "planning",
+      "kind": "phase-running",
+      "detail": "planning → running"
+    },
+    {
+      "seq": 10,
+      "phase": "planning",
+      "kind": "phase-done",
+      "detail": "planning → done"
+    },
+    {
+      "seq": 11,
+      "phase": "tournament",
+      "kind": "phase-running",
+      "detail": "tournament → running"
+    },
+    {
+      "seq": 12,
+      "phase": "tournament",
+      "kind": "phase-done",
+      "detail": "tournament → done"
+    },
+    {
+      "seq": 13,
+      "phase": "judgment",
+      "kind": "phase-running",
+      "detail": "judgment → running"
+    },
+    {
+      "seq": 14,
+      "phase": "judgment",
+      "kind": "winner",
+      "detail": "winner=a, ranking=[a,b]"
+    },
+    {
+      "seq": 15,
+      "phase": "judgment",
+      "kind": "phase-done",
+      "detail": "judgment → done"
+    }
+  ],
+  "callCount": 11,
+  "failureReport": null
+}

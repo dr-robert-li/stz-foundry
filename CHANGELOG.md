@@ -9,6 +9,25 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.2.0] — FoundryModelLayer (Foundry stage 2)
+
+The real `ModelLayer` over the provider seam: every tournament role
+(test-author, strategist, specimen, judge, documenter, planner) is a
+`{provider, model}` pair; the elicitor stays deterministic (done-predicates are
+human-supplied, never model-invented — F2 preserved standalone); the **real
+eval runner** does all gating (executed LLM-authored sealed harness, V8
+coverage, mutation survival, hack-pattern detection — no model self-reports).
+Cache-stable prompt split (static role instructions in `system`, volatile
+content in the user turn); per-role usage accumulation for stage-4 pricing.
+
+Earned twice (`experiments/foundry-progression/stage-2.md`):
+deterministic scripted-provider e2e through the real `runSlice` with a
+planted-broken specimen culled by the executed suite; and a **live local-model
+tournament** — granite4.1:30b on Ollama, 7 calls, 453s, $0 API — where the
+model authored a real executable sealed harness, both specimens passed the
+executed gate, and the judge + GRPO advantage picked the winner. 258 tests
+green.
+
 ## [1.1.0] — Provider abstraction (Foundry stage 1)
 
 The BYO-LLM seam: `src/foundry/provider.ts`, a zero-dependency `Provider`
