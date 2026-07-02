@@ -9,6 +9,13 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.7.1] — STZ-F banner alignment
+
+Fixed-width letter columns in the STZ-F ASCII banner (README + CLI help);
+the hyphen and F no longer wobble against the Z's diagonal. First release
+cut end-to-end by the tag-and-release pipeline (gate → lockstep bump → tag →
+Trusted Publishing → GitHub release).
+
 ## [1.7.0] — /stz-f-* command prefix, operator README, tag-and-release pipeline
 
 - **Command prefix**: every in-session command moves from `/stz-*` to
