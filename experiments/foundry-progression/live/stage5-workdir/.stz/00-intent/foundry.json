@@ -1,0 +1,30 @@
+{
+  "providers": {
+    "local": {
+      "kind": "openai",
+      "baseUrl": "http://127.0.0.1:11435/v1"
+    },
+    "system": {
+      "kind": "openai",
+      "baseUrl": "http://127.0.0.1:11434/v1"
+    }
+  },
+  "roles": {
+    "default": {
+      "provider": "local",
+      "model": "ornith:9b"
+    },
+    "testAuthor": {
+      "provider": "system",
+      "model": "qwen3.6:latest",
+      "maxTokens": 16384
+    }
+  },
+  "pricing": {},
+  "caps": {
+    "maxTokens": 500000
+  },
+  "n": 2,
+  "votesPerPair": 1,
+  "specimenTimeoutMs": 600000
+}

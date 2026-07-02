@@ -1,0 +1,15 @@
+{"id":"slice-live-slugify-elicitor-0","phase":"elicitation","role":"elicitor","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":0}
+{"id":"slice-live-slugify-researcher-1","phase":"research","role":"researcher","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":1}
+{"id":"slice-live-slugify-test-author-2","phase":"test-authoring","role":"test-author","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":2}
+{"id":"slice-live-slugify-planner-3","phase":"planning","role":"planner","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":3}
+{"id":"slice-live-slugify-specimen-4","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":4}
+{"id":"slice-live-slugify-specimen-5","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":5}
+{"id":"slice-live-slugify-specimen-6","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":6}
+{"id":"slice-live-slugify-specimen-7","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":7}
+{"id":"slice-live-slugify-specimen-8","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":8}
+{"id":"slice-live-slugify-specimen-9","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":9}
+{"id":"slice-live-slugify-specimen-10","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":10}
+{"id":"slice-live-slugify-specimen-11","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":11}
+{"id":"slice-live-slugify-specimen-12","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":12}
+{"id":"slice-live-slugify-specimen-13","phase":"tournament","role":"specimen","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":13}
+{"id":"slice-live-slugify-documenter-14","phase":"judgment","role":"documenter","model":"mock","temperature":0,"seed":0,"promptTokens":1200,"completionTokens":800,"seq":14}

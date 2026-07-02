@@ -21,6 +21,7 @@
  *    into priced cost tracking).
  */
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import type {
@@ -81,6 +82,147 @@ export function extractCode(text: string): string {
   return (m ? m[1]! : text).trim() + "\n";
 }
 
+/**
+ * Syntax-validate generated ESM (stage-5 live-earn hardening). Local models
+ * routinely emit TypeScript annotations or duplicate exports into a `.mjs`
+ * file; `node --check` catches both in milliseconds and returns the parser's
+ * own message so a bounded re-ask can quote it. Returns null when valid.
+ */
+export function checkEsmSyntax(code: string): string | null {
+  const dir = mkdtempSync(join(tmpdir(), "stz-syntax-"));
+  try {
+    const p = join(dir, "candidate.mjs");
+    writeFileSync(p, code, "utf8");
+    const r = spawnSync("node", ["--check", p], { encoding: "utf8", timeout: 10_000 });
+    return r.status === 0 ? null : (r.stderr || "syntax check failed").slice(0, 500);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Sealed-harness self-check (stage-5 live-earn hardening): the harness must be
+ * *executable by Node* and speak the wire contract (final stdout line =
+ * `{"passed","total","passRate"}`) even against a trivial dummy impl — a
+ * harness that crashes on import (the observed deno-URL-import failure) would
+ * otherwise zero every specimen and burn the whole escalation budget on a
+ * defective instrument. Pass/fail against the dummy is irrelevant; only
+ * executability + parseable verdict are checked. Returns null when sane.
+ */
+export function contractExportNames(contract: string): string[] {
+  const names = new Set<string>();
+  for (const m of contract.matchAll(/(?:export\s+)?(?:async\s+)?function\s+(\w+)/g)) names.add(m[1]!);
+  for (const m of contract.matchAll(/export\s+const\s+(\w+)/g)) names.add(m[1]!);
+  return [...names];
+}
+
+/**
+ * Reference smoke gate (the upstream stz-test-author contract, ported): the
+ * sealed suite is only accepted if the author's own reference implementation
+ * PASSES it. Catches the over-strict-suite class observed live (a suite that
+ * invents expectations beyond the contract zeroes every faithful specimen and
+ * burns the escalation budget). Returns null when the reference passes, else
+ * the harness's own output for the bounded re-ask to quote.
+ */
+export function referenceSmokeCheck(harnessCode: string, referenceCode: string): string | null {
+  const dir = mkdtempSync(join(tmpdir(), "stz-smoke-"));
+  try {
+    const harnessPath = join(dir, "sealed.mjs");
+    const refPath = join(dir, "reference.mjs");
+    writeFileSync(harnessPath, harnessCode, "utf8");
+    writeFileSync(refPath, referenceCode, "utf8");
+    const r = spawnSync("node", [harnessPath, refPath], { encoding: "utf8", timeout: 20_000 });
+    const lines = (r.stdout ?? "").trim().split("\n").filter(Boolean);
+    const last = lines[lines.length - 1] ?? "";
+    try {
+      const parsed = JSON.parse(last) as { passRate?: unknown };
+      if (parsed.passRate === 1) return null;
+    } catch {
+      /* fall through */
+    }
+    return (
+      "the author's own reference implementation FAILED the harness — harness output:\n" +
+      (r.stdout ?? "").slice(0, 800) +
+      ((r.stderr ?? "") ? `\nstderr: ${(r.stderr ?? "").slice(0, 300)}` : "")
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Reference export gate: the smoke gate is only meaningful when the reference
+ * actually exports the contract's names — a reference that default-exports (or
+ * misnames) makes every harness case throw "x is not a function", which the
+ * smoke gate would misattribute to the HARNESS and re-ask the wrong side
+ * (observed live: ornith:9b default-exported slugify and burned both harness
+ * re-asks on a defect the harness never had). Returns null when sane.
+ */
+export function referenceExportCheck(referenceCode: string, exportNames: string[]): string | null {
+  if (exportNames.length === 0) return null;
+  const dir = mkdtempSync(join(tmpdir(), "stz-ref-exports-"));
+  try {
+    const refPath = join(dir, "reference.mjs");
+    const probePath = join(dir, "probe.mjs");
+    writeFileSync(refPath, referenceCode, "utf8");
+    writeFileSync(
+      probePath,
+      `const m = await import(process.argv[2]);\n` +
+        `const missing = ${JSON.stringify(exportNames)}.filter((n) => typeof m[n] !== "function");\n` +
+        `if (missing.length) { console.error("missing named export(s): " + missing.join(", ")); process.exit(1); }\n`,
+      "utf8",
+    );
+    const r = spawnSync("node", [probePath, refPath], { encoding: "utf8", timeout: 20_000 });
+    if (r.status === 0) return null;
+    return (
+      "the reference implementation does not expose the contract's named exports: " +
+      (r.stderr || "import failed").slice(0, 300)
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+export function harnessSelfCheck(harnessCode: string, exportNames: string[] = []): string | null {
+  const syntax = checkEsmSyntax(harnessCode);
+  if (syntax) return syntax;
+  const dir = mkdtempSync(join(tmpdir(), "stz-harness-check-"));
+  try {
+    const harnessPath = join(dir, "sealed.mjs");
+    const dummyPath = join(dir, "dummy.mjs");
+    writeFileSync(harnessPath, harnessCode, "utf8");
+    // A dummy exporting the contract's names as identity-ish no-ops: a
+    // defensive harness (typeof-checks its imports) must still reach its
+    // verdict line; the dummy is EXPECTED to fail the tests themselves.
+    const dummy =
+      exportNames.map((n) => `export function ${n}(...a) { return a[0]; }`).join("\n") +
+      "\nexport default ((...a) => a[0]);\n";
+    writeFileSync(dummyPath, dummy, "utf8");
+    const r = spawnSync("node", [harnessPath, dummyPath], { encoding: "utf8", timeout: 20_000 });
+    const lines = (r.stdout ?? "").trim().split("\n").filter(Boolean);
+    const last = lines[lines.length - 1] ?? "";
+    try {
+      const parsed = JSON.parse(last) as { passRate?: unknown };
+      if (typeof parsed.passRate === "number") return null;
+      // Parsed but mistyped — name the real defect so the re-ask can fix it
+      // (observed live: passRate emitted as a rounded STRING via toFixed).
+      return (
+        `harness printed a final JSON line but passRate is ${JSON.stringify(parsed.passRate)} ` +
+        `(a ${typeof parsed.passRate}) — it must be the raw NUMBER passed/total, not a string, ` +
+        `never rounded or toFixed`
+      );
+    } catch {
+      /* fall through */
+    }
+    return (
+      `harness did not print a final JSON line {"passed","total","passRate"} ` +
+      `(stdout tail: ${JSON.stringify(last).slice(0, 200)}; stderr: ${(r.stderr ?? "").slice(0, 200)})`
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 /** Parse "- claim" / "* claim" / bare lines into spec claims. */
 function extractClaims(text: string): string[] {
   return text
@@ -94,9 +236,12 @@ const SPECIMEN_IDS = "abcdefghijklmnop";
 /** The sealed-harness wire contract the eval runner executes (eval-runner.ts). */
 const SEALED_HARNESS_CONTRACT =
   "The harness is ONE Node.js ESM file. It is invoked as: node sealed.mjs <absolute-path-to-impl.mjs>. " +
-  "It must: (1) dynamically import the module at process.argv[2]; (2) run its test cases " +
-  "against the imported functions; (3) print AS ITS FINAL STDOUT LINE exactly one JSON object " +
-  '{"passed":N,"total":M,"passRate":R} where R === N/M; (4) call process.exit(0) if R === 1, else process.exit(1). ' +
+  "It must: (1) dynamically import the module at process.argv[2] — its first line is EXACTLY " +
+  "`const mod = await import(process.argv[2]);` (a static `import … from process.argv[2]` is a " +
+  "SyntaxError); (2) run its test cases against the imported functions; (3) print AS ITS FINAL " +
+  'STDOUT LINE exactly one JSON object {"passed":N,"total":M,"passRate":R} where R === N/M — ' +
+  "all three are raw JSON numbers (passRate = passed/total, never a string, never rounded or toFixed); " +
+  "(4) call process.exit(0) if R === 1, else process.exit(1). " +
   "Never import any test library. Never read the network or filesystem beyond the impl import.";
 
 export class FoundryModelLayer implements ModelLayer {
@@ -142,20 +287,99 @@ export class FoundryModelLayer implements ModelLayer {
 
   testAuthor: TestAuthor = {
     authorTests: async (manifest: SliceManifest) => {
-      const text = await this.ask(
-        "testAuthor",
+      const system =
         "You are a frozen test author for an adversarial coding tournament. You write a SEALED " +
-          "held-out test harness the implementers will never see. Be adversarial: cover edge cases, " +
-          "rejection cases for invalid input the contract implies, and discriminating inputs that " +
-          "separate a correct implementation from a plausible-but-wrong one. Stay strictly within " +
-          "the contract: never fail behaviour the contract leaves open. " +
-          SEALED_HARNESS_CONTRACT +
-          " Reply with ONLY the harness code in a single fenced code block.",
+        "held-out test harness the implementers will never see. Be adversarial: cover edge cases, " +
+        "rejection cases for invalid input the contract implies, and discriminating inputs that " +
+        "separate a correct implementation from a plausible-but-wrong one. Stay strictly within " +
+        "the contract: never fail behaviour the contract leaves open. " +
+        SEALED_HARNESS_CONTRACT +
+        " Write PLAIN JavaScript (no TypeScript annotations). Import NOTHING except node built-ins " +
+        "via the node: prefix. Reply with ONLY the harness code in a single fenced code block.";
+      const user =
         `Contract:\n${manifest.contract}\n\nDone predicates:\n` +
-          manifest.donePredicates.map((d) => `- ${d.expr} (${d.kind})`).join("\n"),
-      );
+        manifest.donePredicates.map((d) => `- ${d.expr} (${d.kind})`).join("\n");
+      const exportNames = contractExportNames(manifest.contract);
+
+      let code = extractCode(await this.ask("testAuthor", system, user));
+      let defect = harnessSelfCheck(code, exportNames);
+      if (defect) {
+        // ONE bounded re-ask quoting the validator's message (never a loop) —
+        // a defective instrument would zero every specimen (observed live:
+        // a deno-URL import crashed Node and burned the escalation budget).
+        code = extractCode(
+          await this.ask(
+            "testAuthor",
+            system,
+            `${user}\n\nYour previous harness failed validation and was rejected:\n${defect}\n` +
+              "Produce a corrected harness. Reply with ONLY the code in a single fenced code block.",
+          ),
+        );
+        defect = harnessSelfCheck(code, exportNames);
+        if (defect) {
+          throw new Error(`test author produced an unusable sealed harness twice: ${defect}`);
+        }
+      }
+
+      // Reference smoke gate: ask the author for its own reference impl and
+      // require the harness to pass it (satisfiability proof — the upstream
+      // stz-test-author contract). One bounded harness re-ask on failure.
+      const refSystem =
+        "You are the same frozen test author. Now write the REFERENCE implementation of the " +
+        "contract — the straightforward, contract-faithful implementation your sealed harness must " +
+        "accept. PLAIN JavaScript, one self-contained Node.js ESM file, named exports per the " +
+        "contract, no dependencies. The contract's TypeScript signature is documentation ONLY — " +
+        "Node cannot parse type annotations: write `export function f(s) {` never " +
+        "`export function f(s: string): string {`. Reply with ONLY the code in a single fenced code block.";
+      let ref = extractCode(await this.ask("testAuthor", refSystem, `Contract:\n${manifest.contract}`));
+      const refSyntax = checkEsmSyntax(ref);
+      if (refSyntax) {
+        ref = extractCode(
+          await this.ask(
+            "testAuthor",
+            refSystem,
+            `Contract:\n${manifest.contract}\n\nYour previous code failed to parse:\n${refSyntax}\n` +
+              "Produce corrected PLAIN JavaScript. Reply with ONLY the code in a single fenced code block.",
+          ),
+        );
+      }
+      // The smoke gate is only as good as its reference: a reference missing
+      // the contract's named exports fails every case and frames the harness.
+      let refDefect = referenceExportCheck(ref, exportNames);
+      if (refDefect) {
+        ref = extractCode(
+          await this.ask(
+            "testAuthor",
+            refSystem,
+            `Contract:\n${manifest.contract}\n\nYour previous reference was rejected:\n${refDefect}\n` +
+              "Export the contract's functions as NAMED exports. Reply with ONLY the corrected code " +
+              "in a single fenced code block.",
+          ),
+        );
+        refDefect = referenceExportCheck(ref, exportNames);
+        if (refDefect) throw new Error(`test author produced an unusable reference twice: ${refDefect}`);
+      }
+
+      let smoke = referenceSmokeCheck(code, ref);
+      if (smoke) {
+        code = extractCode(
+          await this.ask(
+            "testAuthor",
+            system,
+            `${user}\n\nYour previous harness was rejected by the reference smoke gate: ${smoke}\n` +
+              "The harness may only test behaviour the contract mandates — never invented " +
+              "expectations. Fix the HARNESS (not the reference). Reply with ONLY the corrected " +
+              "harness code in a single fenced code block.",
+          ),
+        );
+        const recheck = harnessSelfCheck(code, exportNames);
+        if (recheck) throw new Error(`re-asked sealed harness is unusable: ${recheck}`);
+        smoke = referenceSmokeCheck(code, ref);
+        if (smoke) throw new Error(`sealed harness failed the reference smoke gate twice: ${smoke}`);
+      }
+
       return {
-        sealed: { "held-out/sealed.mjs": extractCode(text) },
+        sealed: { "held-out/sealed.mjs": code },
         rubric:
           "correctness against the sealed suite, contract fidelity, edge-case handling, code clarity",
       };
@@ -186,20 +410,35 @@ export class FoundryModelLayer implements ModelLayer {
     implement: async (manifest, strategy, refinement) => {
       const id = SPECIMEN_IDS[this.specimenOrdinal % SPECIMEN_IDS.length]! as SpecimenId;
       this.specimenOrdinal++;
-      const text = await this.ask(
-        "specimen",
+      const system =
         "You are one competing implementer in an adversarial tournament. Implement the contract " +
-          "as ONE self-contained Node.js ESM file (.mjs) using the assigned strategy. Export exactly " +
-          "the functions the contract names (named exports). Satisfy the SPIRIT of the contract — " +
-          "your output is graded by a sealed suite you cannot see and inspected for grader-gaming " +
-          "patterns; special-casing suspected test inputs disqualifies you. No dependencies, no " +
-          "network, no filesystem. Reply with ONLY the code in a single fenced code block.",
+        "as ONE self-contained Node.js ESM file (.mjs) using the assigned strategy. Write PLAIN " +
+        "JavaScript — NO TypeScript type annotations. Export exactly the functions the contract " +
+        "names (named exports), each defined ONCE. Satisfy the SPIRIT of the contract — " +
+        "your output is graded by a sealed suite you cannot see and inspected for grader-gaming " +
+        "patterns; special-casing suspected test inputs disqualifies you. No dependencies, no " +
+        "network, no filesystem. Reply with ONLY the code in a single fenced code block.";
+      const user =
         `Contract:\n${manifest.contract}\n\nStrategy: ${strategy}\n` +
-          (refinement ? `\nRefinement context from prior failed round:\n${refinement}\n` : ""),
-      );
+        (refinement ? `\nRefinement context from prior failed round:\n${refinement}\n` : "");
+
+      let code = extractCode(await this.ask("specimen", system, user));
+      const defect = checkEsmSyntax(code);
+      if (defect) {
+        // ONE bounded re-ask; if still broken, ship it anyway — the gate culls
+        // it (specimens are expendable; only the harness may halt a run).
+        code = extractCode(
+          await this.ask(
+            "specimen",
+            system,
+            `${user}\nYour previous code failed to parse as JavaScript:\n${defect}\n` +
+              "Produce corrected PLAIN JavaScript. Reply with ONLY the code in a single fenced code block.",
+          ),
+        );
+      }
       return {
         specimen: id,
-        files: { "impl.mjs": extractCode(text) },
+        files: { "impl.mjs": code },
         strategy,
       } satisfies SpecimenOutput;
     },

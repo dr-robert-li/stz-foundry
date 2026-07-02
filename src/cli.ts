@@ -19,6 +19,7 @@ import type { SliceManifest } from "./types.js";
 import { STZ_VERSION } from "./version.js";
 import { checkLatest, buildVerdict, formatVerdict } from "./update.js";
 import { writeManifest, migrate } from "./migrate.js";
+import { runFoundry, FOUNDRY_CONFIG_TEMPLATE } from "./foundry/runner.js";
 
 const AGENTS_MD = `# AGENTS.md — STZ table of contents
 
@@ -134,6 +135,58 @@ async function cmdRun(dir: string): Promise<void> {
   console.log(`artifacts: ${result.artifacts.length} under ${STZ_DIR}/`);
 }
 
+/**
+ * `stz foundry <init|run>` — the standalone BYO-LLM runner (stage 5).
+ *   init [dir]                 write .stz/00-intent/foundry.json template
+ *   run <manifest.json> [dir]  run one slice tournament via providers
+ */
+async function cmdFoundry(argv: string[]): Promise<void> {
+  const [sub, arg1, arg2] = argv;
+  if (sub === "init") {
+    const dir = arg1 ?? process.cwd();
+    if (!existsSync(join(dir, STZ_DIR))) await scaffold(dir);
+    const cfgPath = join(dir, STZ_DIR, "00-intent", "foundry.json");
+    if (existsSync(cfgPath)) {
+      console.log(`${cfgPath} already exists — not overwriting.`);
+      return;
+    }
+    await writeFile(cfgPath, JSON.stringify(FOUNDRY_CONFIG_TEMPLATE, null, 2) + "\n", "utf8");
+    console.log(`Wrote ${cfgPath} (local-first template; API keys via env names only).`);
+    return;
+  }
+  if (sub === "run") {
+    if (!arg1) {
+      console.error("usage: stz foundry run <manifest.json> [dir] [--config path]");
+      process.exitCode = 1;
+      return;
+    }
+    const dir = arg2 && !arg2.startsWith("--") ? arg2 : process.cwd();
+    const cfgFlag = argv.indexOf("--config");
+    const configPath =
+      cfgFlag >= 0 ? argv[cfgFlag + 1]! : join(dir, STZ_DIR, "00-intent", "foundry.json");
+    const manifest = JSON.parse(await readFile(arg1, "utf8")) as SliceManifest;
+    if (!existsSync(join(dir, STZ_DIR))) await scaffold(dir);
+    const { result, cost } = await runFoundry({
+      root: dir,
+      configPath,
+      manifest,
+      log: console.log,
+    });
+    console.log("\n── foundry result ──");
+    console.log(`winner: ${result.winner ? "specimen-" + result.winner : "none (halted)"}`);
+    console.log(`rounds: ${result.rounds}, faithful: ${result.faithful}`);
+    console.log(
+      `cost: ${cost.calls} calls, ${cost.inputTokens + cost.outputTokens} tokens, $${cost.usd.toFixed(4)}` +
+        (cost.unpricedModels.length ? ` (unpriced: ${cost.unpricedModels.join(", ")})` : ""),
+    );
+    console.log(`cost report: ${join(STZ_DIR, "90-audit", "foundry-cost.md")}`);
+    if (result.halted) process.exitCode = 2;
+    return;
+  }
+  console.error(`unknown foundry subcommand: ${sub ?? "(none)"}\nusage: stz foundry <init|run>`);
+  process.exitCode = 1;
+}
+
 const LOGO = String.raw`
   ██████╗  ████████╗ ███████╗
  ██╔════╝  ╚══██╔══╝ ╚══███╔╝
@@ -153,6 +206,8 @@ Usage:
   stz update [--check] check npm for a newer release + plugin/CLI drift
   stz migrate [dir]    bring an existing .stz/ tree up to the current schema
   stz bridge <cmd>     deterministic orchestration bridge (used by the /stz:* commands)
+  stz foundry init [dir]                 write a foundry.json template (local-first)
+  stz foundry run <manifest.json> [dir]  run a slice tournament standalone (BYO LLM)
   stz --version        print the installed version
   stz help             show this help
 
@@ -186,6 +241,10 @@ async function main(): Promise<void> {
       // Deterministic orchestration bridge called by the /stz:run command
       // between Task-subagent spawns. Everything after "bridge" is its argv.
       await runBridge(process.argv.slice(3));
+      break;
+    case "foundry":
+      // Standalone BYO-LLM runner (stage 5): no agent host in the loop.
+      await cmdFoundry(process.argv.slice(3));
       break;
     case "help":
     case undefined:

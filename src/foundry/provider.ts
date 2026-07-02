@@ -19,8 +19,14 @@
  *   - **Bounded retries**: 429/5xx/network errors retry up to `maxAttempts`
  *     with fixed backoff; 4xx client errors never retry. The sleep is
  *     injectable so tests run in zero wall-clock time.
- *   - **Zero dependencies**: global `fetch` (Node 20+), nothing else.
+ *   - **Zero dependencies**: node:http/https, nothing else. Not global fetch:
+ *     undici enforces a 300s headers timeout, and a local inference server
+ *     (Ollama) answers a non-streaming completion only after FULL generation —
+ *     long generations on slow hardware exceed 300s and surface as spurious
+ *     "fetch failed" network errors. node:http has no client timeout.
  */
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -90,6 +96,36 @@ function retryable(status: number): boolean {
   return status === 429 || status >= 500;
 }
 
+/** One POST over node:http(s) — no client timeout, unlike fetch/undici. */
+function rawPost(
+  url: string,
+  headers: Record<string, string>,
+  payload: string,
+): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = (u.protocol === "https:" ? httpsRequest : httpRequest)(
+      u,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "content-length": Buffer.byteLength(payload),
+          ...headers,
+        },
+      },
+      (res) => {
+        let text = "";
+        res.setEncoding("utf8");
+        res.on("data", (c) => (text += c));
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, text }));
+      },
+    );
+    req.on("error", reject);
+    req.end(payload);
+  });
+}
+
 /** POST JSON with bounded retry. Shared by both adapters. */
 async function postJson(
   url: string,
@@ -101,22 +137,18 @@ async function postJson(
   let lastStatus: number | null = null;
   let lastSnippet = "";
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    let res: Response;
+    let res: { status: number; text: string };
     try {
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json", ...headers },
-        body: JSON.stringify(body),
-      });
+      res = await rawPost(url, headers, JSON.stringify(body));
     } catch (e) {
       lastStatus = null;
       lastSnippet = String(e);
       if (attempt < maxAttempts) await sleep(500 * attempt);
       continue;
     }
-    if (res.ok) return res.json();
+    if (res.status >= 200 && res.status < 300) return JSON.parse(res.text);
     lastStatus = res.status;
-    lastSnippet = (await res.text()).slice(0, 300);
+    lastSnippet = res.text.slice(0, 300);
     if (!retryable(res.status)) {
       throw new ProviderError(
         `provider request failed (${res.status}, non-retryable)`,

@@ -1,0 +1,11 @@
+{
+  "id": "slice-live-slugify",
+  "name": "slugify",
+  "contract": "export function slugify(s: string): string — lowercases, trims, collapses whitespace runs into single hyphens, and strips every character that is not a-z, 0-9, or hyphen. Throws TypeError when s is not a string.",
+  "donePredicates": [{ "id": "basic", "expr": "slugify('Hello  World!') === 'hello-world'", "kind": "test" }],
+  "traceTier": "minimal",
+  "complexity": 1,
+  "dependsOn": [],
+  "judge": { "votesPerPair": 1 },
+  "summary": "Foundry stage-5 LIVE earn: slugify tournament via the standalone CLI on local Ollama."
+}

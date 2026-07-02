@@ -9,6 +9,28 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.5.0] — Standalone foundry runner CLI (Foundry stage 5)
+
+`src/foundry/runner.ts` + `stz foundry <init|run>`: the CLI-ownable
+spawn-and-collect loop. A secret-free `foundry.json` (providers by wire shape,
+API keys by env-var name only, per-role model overrides, pricing, caps,
+tournament knobs) drives the full adversarial tournament through the provider
+seam — no agent host, no vendor CLI, local-first. Real-usage cost report
+written to `.stz/90-audit/foundry-cost.md`.
+
+Live-earn hardening from the local Ollama run: `provider.ts` speaks
+`node:http/https` (undici's 300s headers timeout killed slow non-streaming
+local generations); `referenceExportCheck` re-asks a reference that hides the
+contract's named exports (it was framing the harness at the smoke gate);
+`harnessSelfCheck` names a parsed-but-mistyped `passRate`; sealed-harness and
+reference prompts pin the dynamic-import first line, raw JSON numbers, and
+no-TS-annotations with literal examples.
+
+Earned deterministically (`test/foundry-runner.test.ts`, config validation +
+scripted e2e) **and live**: qwen3.6 test author + ornith:9b specimens, winner
+26/26 in round 2, loser culled at 0.19, $0. 287 tests green. Ledger:
+`experiments/foundry-progression/stage-5.md`.
+
 ## [1.4.0] — Per-provider cost/budget tracking (Foundry stage 4)
 
 `src/foundry/cost.ts`: real provider usage priced per model (input / output /

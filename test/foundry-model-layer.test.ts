@@ -12,7 +12,12 @@ import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ChatRequest, ChatResponse, Provider } from "../src/foundry/provider.js";
-import { FoundryModelLayer, extractCode } from "../src/foundry/model-layer.js";
+import {
+  FoundryModelLayer,
+  extractCode,
+  referenceExportCheck,
+  harnessSelfCheck,
+} from "../src/foundry/model-layer.js";
 import { runSlice } from "../src/mock/orchestrator.js";
 import type { SliceManifest } from "../src/types.js";
 
@@ -85,6 +90,7 @@ class ScriptedProvider implements Provider {
   }
 
   private route(system: string, user: string): string {
+    if (system.includes("REFERENCE implementation")) return IMPL_BASIC;
     if (system.includes("test author")) return SEALED_HARNESS;
     if (system.includes("strategy-diversification"))
       return "clamp-basic\nclamp-verbose\nclamp-broken";
@@ -174,6 +180,61 @@ describe("FoundryModelLayer e2e over the real pipeline (stage 2)", () => {
       rmSync(root, { recursive: true, force: true });
     }
   }, 120_000);
+});
+
+describe("referenceExportCheck (stage 5 hardening)", () => {
+  it("accepts a reference with the contract's named exports", () => {
+    expect(referenceExportCheck("export function slugify(s) { return s; }\n", ["slugify"])).toBeNull();
+  });
+
+  it("rejects a default-only reference (the observed live failure)", () => {
+    const defect = referenceExportCheck("export default function slugify(s) { return s; }\n", ["slugify"]);
+    expect(defect).toContain("named export");
+    expect(defect).toContain("slugify");
+  });
+
+  it("re-asks the REFERENCE (not the harness) and proceeds when corrected", async () => {
+    // First reference reply default-exports (frames the harness as broken);
+    // the corrected re-ask reply names the export. authorTests must succeed.
+    let refCalls = 0;
+    const provider: Provider = {
+      kind: "openai",
+      baseUrl: "scripted://ref-retry",
+      chat: async (req: ChatRequest): Promise<ChatResponse> => {
+        const system = req.system ?? "";
+        let text: string;
+        if (system.includes("REFERENCE implementation")) {
+          refCalls++;
+          text =
+            refCalls === 1
+              ? "```js\nexport default function clamp(x, lo, hi) { if (lo > hi) throw new RangeError(); return Math.min(Math.max(x, lo), hi); }\n```"
+              : "```js\nexport function clamp(x, lo, hi) { if (lo > hi) throw new RangeError(); return Math.min(Math.max(x, lo), hi); }\n```";
+        } else {
+          text = SEALED_HARNESS;
+        }
+        return { text, model: req.model, usage: { inputTokens: 1, outputTokens: 1, cacheReadInputTokens: 0 } };
+      },
+    };
+    const role = { provider, model: "scripted-ref" };
+    const layer = new FoundryModelLayer({
+      roles: { testAuthor: role, strategist: role, specimen: role, judge: role, documenter: role, planner: role },
+    });
+    const out = await layer.testAuthor.authorTests(MANIFEST);
+    expect(refCalls).toBe(2);
+    expect(out.sealed["held-out/sealed.mjs"]).toContain("passRate");
+  }, 60_000);
+});
+
+describe("harnessSelfCheck passRate typing (stage 5 hardening)", () => {
+  it("names the defect when passRate is a rounded string (the observed live failure)", () => {
+    const harness =
+      'console.log(JSON.stringify({ passed: 11, total: 24, passRate: (11 / 24).toFixed(4) }));\n' +
+      "process.exit(1);\n";
+    const defect = harnessSelfCheck(harness, []);
+    expect(defect).toContain("passRate");
+    expect(defect).toContain("string");
+    expect(defect).toContain("NUMBER");
+  });
 });
 
 describe("extractCode (stage 2)", () => {
