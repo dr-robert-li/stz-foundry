@@ -46,7 +46,7 @@ doubt, push logic down into `src/` so it can be tested and replayed.
 2. Add a thin handler in `src/bridge.ts` that reads `--flags`, calls the function,
    and `print()`s one JSON object. Register it in the `runBridge` switch.
 3. Add tests next to the existing ones in `test/`.
-4. If a `/stz-f-*` command should call it, update that command's markdown in
+4. If a `/stz-f:*` command should call it, update that command's markdown in
    `commands/`.
 
 ## Tests & quality bar

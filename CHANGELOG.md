@@ -9,6 +9,16 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.7.2] — /stz-f:* command form + robust ASCII banner
+
+- Plugin command files drop the redundant prefix (`commands/new.md`,
+  `commands/run.md`, …): the plugin namespace already supplies it, so
+  commands now surface as `/stz-f:new`, `/stz-f:run` instead of the doubled
+  `/stz-f:stz-f-new`. All docs, hooks, agents, and source comments updated.
+- STZ-F banner rebuilt in pure ASCII (README + CLI help): the Unicode
+  box-drawing art rendered as misaligned hollow boxes under some browser
+  font fallbacks; plain ASCII is robust everywhere.
+
 ## [1.7.1] — STZ-F banner alignment
 
 Fixed-width letter columns in the STZ-F ASCII banner (README + CLI help);

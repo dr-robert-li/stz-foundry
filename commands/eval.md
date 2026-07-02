@@ -12,7 +12,7 @@ else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null |
 echo "using bridge: $STZ"
 ```
 
-# /stz-f-eval — Phase-0 baseline measurement
+# /stz-f:eval — Phase-0 baseline measurement
 
 You cannot claim "better SWE outcomes" without a stable, held-out, **repo-local**
 baseline. This command produces one. Evaluation is chronological — never shuffle

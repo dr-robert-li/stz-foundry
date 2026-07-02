@@ -16,10 +16,10 @@ else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null |
 echo "using bridge: $STZ"
 ```
 
-# /stz-f-slice — slice disaggregation (phase 6)
+# /stz-f:slice — slice disaggregation (phase 6)
 
 You are the STZ orchestrator. Read state first: `$STZ bridge project-status
---root .`. Require testing-conventions `done`; else point at `/stz-f-tests`. Note
+--root .`. Require testing-conventions `done`; else point at `/stz-f:tests`. Note
 `runConfig.granularity` from the same output — it tunes how finely to slice. Also
 read the hoisted `darkFactory` flag: when `true`, the co-design gate below is
 auto-approved (see Dark-factory).
@@ -58,14 +58,14 @@ user shape it together before committing.
    slice-disaggregation`.
 
 4. Run `$STZ bridge project-status --root .` and report the first runnable slice.
-   Hand off: **▶ Next up: `/stz-f-run <first-slice-id>`** (then `/stz-f-pipeline` to
+   Hand off: **▶ Next up: `/stz-f:run <first-slice-id>`** (then `/stz-f:pipeline` to
    drive the rest).
 
 ## --auto
 
 Even with `--auto`, the final "Approve as-is" stays a human gate — the slice
 breakdown is too consequential to auto-accept. After approval, chain to
-`/stz-f-run <first>` (or hand to `/stz-f-pipeline`).
+`/stz-f:run <first>` (or hand to `/stz-f:pipeline`).
 
 ## Dark-factory
 

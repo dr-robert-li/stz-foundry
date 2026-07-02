@@ -8,7 +8,7 @@
  * detection, GRPO, selection, state, audit) must stay exact and replayable.
  *
  * This module is that deterministic half, exposed as JSON-in / JSON-out
- * subcommands the `/stz-f-run` command calls between agent spawns. The command
+ * subcommands the `/stz-f:run` command calls between agent spawns. The command
  * owns spawn-and-collect; the bridge owns all compute. If a tally or comparison
  * is ever tempting to write in the command markdown, it belongs here instead.
  *
@@ -127,7 +127,7 @@ function print(obj: unknown): void {
 }
 
 /**
- * Report the bundled engine's identity (F19). The `/stz-f-*` commands and a
+ * Report the bundled engine's identity (F19). The `/stz-f:*` commands and a
  * SessionStart hook call this to compare the plugin's engine against a global
  * `stz` CLI and surface channel drift deterministically (no version parsing
  * from prose).
@@ -197,7 +197,7 @@ async function begin(args: Record<string, string>): Promise<void> {
   // Preserve a project-seeded state if one exists: `project-seed-slices` already
   // marked the four early phases done at the project level. A fresh `freshState`
   // here would clobber that back to pending, so the slice could never read
-  // complete (the pipeline "reset"). Only seed fresh for a standalone /stz-f-run.
+  // complete (the pipeline "reset"). Only seed fresh for a standalone /stz-f:run.
   let state = stateExists(root, manifest.id)
     ? await loadState(root, manifest.id)
     : freshState(manifest.id, manifest.complexity);
@@ -315,7 +315,7 @@ function culledFromEvals(
 }
 
 /**
- * Bounded cross-round escalation (F14), driven from the command-level `/stz-f-run`
+ * Bounded cross-round escalation (F14), driven from the command-level `/stz-f:run`
  * loop. Call this ONCE after a gate that yielded zero passers. It is the single
  * deterministic owner of "are we allowed another round?": it advances the
  * escalation FSM over `state.json`, persists the new counts, and on retry/replan
@@ -427,7 +427,7 @@ async function selectCmd(args: Record<string, string>): Promise<void> {
   const { root, slice } = args as { root: string; slice: string };
   const evals = loadEvals(root, slice);
   const votes = existsSync(votesPath(root, slice)) ? readJSON<PairwiseVote[]>(votesPath(root, slice)) : [];
-  // 0.9.6 Contract Plane (flag-gated): only when the /stz-f-run command passes a
+  // 0.9.6 Contract Plane (flag-gated): only when the /stz-f:run command passes a
   // per-specimen contract-scores file (i.e. RunConfig.contract.enabled + a bound
   // slice) do specimens get contract-gated. Absent ⇒ exactly 0.9.5 selection.
   const contractScores = args["contract-scores"]
@@ -502,7 +502,7 @@ async function finalize(args: Record<string, string>): Promise<void> {
   // already set planning; skip phases already done so events aren't duplicated)
   // so the slice is `isComplete` and `project-status` derives it as "done".
   // Without this, test-authoring/tournament stay "pending" forever, the slice
-  // reads "running", and `/stz-f-pipeline` never advances past it (or re-runs it on
+  // reads "running", and `/stz-f:pipeline` never advances past it (or re-runs it on
   // resume) — the orchestrator had to hand-patch state.json every slice.
   let state = await loadState(root, slice);
   for (const p of ["test-authoring", "planning", "tournament", "judgment"] as const) {
@@ -651,7 +651,7 @@ async function projectSeedSlices(args: Record<string, string>): Promise<void> {
       body: `# ${m.id} — ${m.name}\n\n## Contract\n\n\`${m.contract}\`\n\n## Depends on\n${m.dependsOn.join(", ") || "—"}\n`,
     });
     // Seed per-slice state: the four early phases were settled at the project
-    // level, so they start `done`; the tournament half remains for /stz-f-run.
+    // level, so they start `done`; the tournament half remains for /stz-f:run.
     let st = freshState(m.id, m.complexity ?? 1);
     for (const p of ["elicitation", "research", "ground-truth-validation", "standards"] as const) {
       st = setPhaseStatus(st, p, "done");
@@ -675,7 +675,7 @@ async function sliceAddInternal(root: string, entry: ProjectSliceEntry): Promise
 }
 
 /**
- * project-set-config: persist the run configuration captured during `/stz-f-new`.
+ * project-set-config: persist the run configuration captured during `/stz-f:new`.
  * Reads a (possibly partial) config JSON, merges it over the defaults, validates
  * and clamps, then writes run-config.json + a human-readable run-config.md and
  * appends an event. Prints the resolved config.
@@ -814,7 +814,7 @@ async function projectStatus(args: Record<string, string>): Promise<void> {
     darkFactory: runConfig.darkFactory,
     runConfigSet: runConfigExists(root) && !runConfigBroken,
     runConfigBroken: runConfigBroken || undefined,
-    note: slicingDone ? undefined : "slice execution gated until /stz-f-slice completes slice-disaggregation",
+    note: slicingDone ? undefined : "slice execution gated until /stz-f:slice completes slice-disaggregation",
   });
 }
 

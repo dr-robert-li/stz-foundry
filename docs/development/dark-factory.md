@@ -15,7 +15,7 @@ the whole run after the fact.
 ## The one gate that never closes
 
 Dark-factory skips every *downstream* human gate, but **not** the F2 done-predicate
-gate in `/stz-f-new`. Elicitation may not exit with zero machine-checkable
+gate in `/stz-f:new`. Elicitation may not exit with zero machine-checkable
 predicates, and acceptance criteria are never auto-invented — the predicates are
 the contract the autonomous run executes against. So the question is offered only
 *after* the predicate gate is satisfied; by the time dark-factory drives anything,
@@ -23,13 +23,13 @@ the contract is already locked.
 
 Gates that ARE skipped when `darkFactory` is on:
 
-- `/stz-f-slice` "Approve as-is" — the proposed slice DAG is auto-approved.
-- `/stz-f-run` step 8b winner-approval — the selected winner is auto-accepted. The
+- `/stz-f:slice` "Approve as-is" — the proposed slice DAG is auto-approved.
+- `/stz-f:run` step 8b winner-approval — the selected winner is auto-accepted. The
   full ranking, GRPO advantages, and any disqualified specimens with their hack
   findings still land in the audit tree; nothing is hidden, only un-prompted.
 
 A halted slice does not stall the factory: it is reported and the rest of the DAG
-continues. Every halt surfaces in the final `/stz-f-summary` completion report.
+continues. Every halt surfaces in the final `/stz-f:summary` completion report.
 
 This is also how the autonomous run handles the decisions it must not make alone.
 Two human-only gates can arise mid-run:
@@ -51,7 +51,7 @@ review. The factory defers that decision; it does not guess.
 `darkFactory` is a boolean on the persisted run config (`00-intent/run-config.json`).
 It is set two ways:
 
-1. **At the end of elicitation** — `/stz-f-new` asks once, after the predicate gate.
+1. **At the end of elicitation** — `/stz-f:new` asks once, after the predicate gate.
 2. **At any point** — `stz bridge project-dark-factory --root . --on` (or `--off`).
 
 The toggle is a deliberate **load-modify-save**: it reads the existing config,
@@ -72,6 +72,6 @@ The deterministic plumbing — the config field, normalization/coercion, the
 load-modify-save toggle (with a regression test proving it never resets sibling
 fields), persistence, and the hoisted status surface — is covered end-to-end in
 `test/project.test.ts`. The autonomous *orchestration loop itself* lives in command
-markdown (`/stz-f-pipeline`, `/stz-f-run`, `/stz-f-slice`) and is driven by the agent,
+markdown (`/stz-f:pipeline`, `/stz-f:run`, `/stz-f:slice`) and is driven by the agent,
 so it is not unit-tested; the tests cover the flag plumbing those commands read,
 not the agent loop.

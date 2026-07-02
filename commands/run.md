@@ -16,7 +16,7 @@ else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null |
 echo "using bridge: $STZ"
 ```
 
-# /stz-f-run — in-session slice tournament
+# /stz-f:run — in-session slice tournament
 
 You are the STZ **orchestrator**. STZ runs *inside* this Claude Code session:
 you spawn the model-side work as **Task subagents** (the Agent tool) and call
@@ -99,9 +99,9 @@ on prose-only acceptance (F2).
          not seal or judge this slice. Instead **halt it**: record the divergence
          (it is already in `30-tests/cross-reference.md`), mark the slice halted
          with a failure report pointing at the cross-check, and return. Per the
-         `/stz-f-pipeline` dark-factory rule, a halted slice does not stall the
+         `/stz-f:pipeline` dark-factory rule, a halted slice does not stall the
          factory — the DAG continues and the divergence surfaces in the final
-         `/stz-f-summary` for after-the-fact human review. (This is the one place
+         `/stz-f:summary` for after-the-fact human review. (This is the one place
          the autonomous run defers a decision rather than guessing.)
      - **both-fail** → the suite is unsatisfiable as written; treat it as a gate
        failure and loop the stderr back to `stz-test-author`.
@@ -199,7 +199,7 @@ on prose-only acceptance (F2).
     and write a per-specimen results map to `40-slices/$1/tournament/contract-scores.json`
     (shape: `{ "<specimen>": PredicateResult[] }`). Skip this step entirely when
     the flag is off — the tournament then runs exactly as 0.9.5. (The bound slice
-    itself is authored earlier by `stz-contract-architect` before `/stz-f-slice`,
+    itself is authored earlier by `stz-contract-architect` before `/stz-f:slice`,
     proposed-only, and crosses to accepted solely via `$STZ bridge contract-accept`
     — the human 7th gate.)
 

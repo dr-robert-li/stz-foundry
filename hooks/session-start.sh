@@ -17,7 +17,7 @@ if [ -d ".stz" ] || [ -f ".claude-plugin/plugin.json" ]; then
 ```
 # slice-tournament-zoo (STZ) is active
 
-Run a slice as an in-session tournament with: /stz-f-run [slice-id]
+Run a slice as an in-session tournament with: /stz-f:run [slice-id]
 
 You are the orchestrator. Spawn specimen/judge/test-author/documenter work as
 parallel Task subagents; call the `stz bridge` CLI for every deterministic

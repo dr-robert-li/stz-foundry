@@ -3,12 +3,11 @@
 # STZ Foundry
 
 <pre>
- ██████╗ ████████╗ ███████╗        ███████╗
-██╔════╝ ╚══██╔══╝ ╚══███╔╝        ██╔════╝
-╚█████╗     ██║      ███╔╝  █████╗ █████╗
- ╚═══██╗    ██║     ███╔╝   ╚════╝ ██╔══╝
-██████╔╝    ██║    ███████╗        ██║
-╚═════╝     ╚═╝    ╚══════╝        ╚═╝
+ ____   _____  _____          _____
+/ ___| |_   _||__  /         |  ___|
+\___ \   | |    / /   _____  | |_
+ ___) |  | |   / /_  |_____| |  _|
+|____/   |_|  /____|         |_|
 </pre>
 
 [![CI](https://github.com/dr-robert-li/stz-foundry/actions/workflows/ci.yml/badge.svg)](https://github.com/dr-robert-li/stz-foundry/actions/workflows/ci.yml)
@@ -22,7 +21,7 @@
 > parallel by N competing **specimens**. Survivors are selected by an eval gate
 > and pairwise LLM judges against a **frozen, sealed** test suite the
 > implementers never see. Every run leaves a markdown **audit trail** a human
-> can replay. Run it inside Claude Code (`/stz-f-*` commands) or fully
+> can replay. Run it inside Claude Code (`/stz-f:*` commands) or fully
 > standalone against **any LLM you bring** — Anthropic, OpenAI-compatible,
 > or local Ollama/vLLM at $0.
 
@@ -69,7 +68,7 @@ For the in-session commands, also install the Claude Code plugin:
 /plugin install stz-f
 ```
 
-Restart the session so the `/stz-f-*` commands and subagents load. The plugin
+Restart the session so the `/stz-f:*` commands and subagents load. The plugin
 uses the npm `stz` CLI when present; otherwise it resolves its own bundled
 copy — no PATH setup needed.
 
@@ -78,18 +77,18 @@ copy — no PATH setup needed.
 Take a project from idea to completion report, one command per phase:
 
 ```text
-/stz-f-new        elicit intent + machine-checkable done-predicates
-/stz-f-research   external (docs, prior art) + internal (codebase) research
-/stz-f-validate   ground-truth every research claim against reality
-/stz-f-standards  style, architecture, naming conventions
-/stz-f-tests      test strategy, locked BEFORE implementation
-/stz-f-slice      break the work into a DAG of vertical slices
-/stz-f-run <id>   the adversarial tournament, once per slice
-/stz-f-summary    aggregate everything into one completion report
+/stz-f:new        elicit intent + machine-checkable done-predicates
+/stz-f:research   external (docs, prior art) + internal (codebase) research
+/stz-f:validate   ground-truth every research claim against reality
+/stz-f:standards  style, architecture, naming conventions
+/stz-f:tests      test strategy, locked BEFORE implementation
+/stz-f:slice      break the work into a DAG of vertical slices
+/stz-f:run <id>   the adversarial tournament, once per slice
+/stz-f:summary    aggregate everything into one completion report
 ```
 
-`/stz-f-pipeline` is the dashboard: it shows phase and per-slice status and
-dispatches the next step. `/stz-f-pipeline --auto` walks the whole DAG
+`/stz-f:pipeline` is the dashboard: it shows phase and per-slice status and
+dispatches the next step. `/stz-f:pipeline --auto` walks the whole DAG
 automatically; dark-factory mode (lights-out, every downstream gate skipped)
 is described in
 [`docs/development/dark-factory.md`](docs/development/dark-factory.md).
@@ -97,12 +96,12 @@ is described in
 For a single one-off slice with no project setup:
 
 ```text
-/stz-f-run payment-validator
+/stz-f:run payment-validator
 ```
 
-Advanced (opt-in, default-off): `/stz-f-contract` (typed, human-gated
-correctness predicates), `/stz-f-inject` (adversarial suite hardening),
-`/stz-f-evolve` (the bounded harness-evolution meta-loop).
+Advanced (opt-in, default-off): `/stz-f:contract` (typed, human-gated
+correctness predicates), `/stz-f:inject` (adversarial suite hardening),
+`/stz-f:evolve` (the bounded harness-evolution meta-loop).
 
 ## Quickstart 2 — the standalone foundry runner (BYO LLM)
 

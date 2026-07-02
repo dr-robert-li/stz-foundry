@@ -1,7 +1,7 @@
 # The bridge CLI directly
 
 STZ's deterministic half is exposed as `stz bridge <subcommand>` — JSON in,
-JSON out, over the `.stz/` tree. The `/stz-f-*` commands call it between subagent
+JSON out, over the `.stz/` tree. The `/stz-f:*` commands call it between subagent
 spawns, but it is scriptable on its own. Each subcommand prints one JSON object
 and writes its artifacts under `.stz/`.
 
@@ -50,7 +50,7 @@ by a `seal-amend`. Full contract:
 section of [`sealed-suite.md`](./sealed-suite.md).
 
 `escalate` is the deterministic owner of bounded cross-round failure handling
-(F14). The `/stz-f-run` command calls it once after a gate that produced zero
+(F14). The `/stz-f:run` command calls it once after a gate that produced zero
 passers; it advances the retry→replan→halt FSM over `state.json` (hard ceiling:
 ≤1 retry, ≤1 replan), persists the new counts, and writes the PDR `refinement.md`
 the next round's specimens consume (on retry/replan) or a `failure-report.md` and
@@ -64,7 +64,7 @@ frozen suite, `seal-verify` gating each round.
 persisted run config without touching any other field (deliberately NOT routed
 through `project-set-config`, whose normalize-over-defaults merge would reset
 fan-out/models/strictness). It is the single source of truth for autonomous mode —
-the `/stz-f-*` commands read the hoisted `darkFactory` flag from `project-status` at
+the `/stz-f:*` commands read the hoisted `darkFactory` flag from `project-status` at
 each phase, so engaging it mid-run takes effect at the next phase. See
 [`dark-factory.md`](./dark-factory.md) for the gate-skipping contract.
 

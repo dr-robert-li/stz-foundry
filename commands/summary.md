@@ -16,7 +16,7 @@ else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null |
 echo "using bridge: $STZ"
 ```
 
-# /stz-f-summary — completion & summary (phase 12)
+# /stz-f:summary — completion & summary (phase 12)
 
 You are the STZ orchestrator. Read state first: `$STZ bridge project-status
 --root .`. This is best run once the slices you care about are `done`, but it

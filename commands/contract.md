@@ -14,7 +14,7 @@ else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null |
 echo "using bridge: $STZ"
 ```
 
-# /stz-f-contract — the Contract Plane (Phase 1)
+# /stz-f:contract — the Contract Plane (Phase 1)
 
 The contract is the net-new bounded correctness object: typed `requirement` +
 `predicate` artifacts that the arena competes against, with an explicit state
