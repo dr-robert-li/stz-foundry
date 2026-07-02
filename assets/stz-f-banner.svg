@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="460" height="120" viewBox="0 0 460 120" role="img" aria-label="STZ-F">
+  <style>
+    text {
+      font-family: "SFMono-Regular", "Menlo", "Consolas", "Liberation Mono", monospace;
+      font-size: 18px;
+      fill: #8b949e;
+      white-space: pre;
+    }
+  </style>
+  <text x="12" y="24" xml:space="preserve"> ____   _____  _____          _____</text>
+  <text x="12" y="44" xml:space="preserve">/ ___| |_   _||__  /         |  ___|</text>
+  <text x="12" y="64" xml:space="preserve">\___ \   | |    / /   _____  | |_</text>
+  <text x="12" y="84" xml:space="preserve"> ___) |  | |   / /_  |_____| |  _|</text>
+  <text x="12" y="104" xml:space="preserve">|____/   |_|  /____|         |_|</text>
+</svg>

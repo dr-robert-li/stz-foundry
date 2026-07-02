@@ -2,13 +2,7 @@
 
 # STZ Foundry
 
-<pre>
- ____   _____  _____          _____
-/ ___| |_   _||__  /         |  ___|
-\___ \   | |    / /   _____  | |_
- ___) |  | |   / /_  |_____| |  _|
-|____/   |_|  /____|         |_|
-</pre>
+<img src="assets/stz-f-banner.svg" alt="STZ-F" width="460">
 
 [![CI](https://github.com/dr-robert-li/stz-foundry/actions/workflows/ci.yml/badge.svg)](https://github.com/dr-robert-li/stz-foundry/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/dr-robert-li/stz-foundry/blob/main/LICENSE)
