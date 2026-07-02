@@ -93,16 +93,25 @@ jobs:
           git commit -m "v$VER"
           git push origin main
 
-      - name: Guard — tag does not already exist
+      - name: Guard — tag is new, or already points at this commit (idempotent re-run)
         id: ver
         run: |
           VER="$(node -p "require('./package.json').version")"
           echo "version=$VER" >> "$GITHUB_OUTPUT"
-          if git ls-remote --exit-code --tags origin "refs/tags/v$VER" >/dev/null 2>&1; then
-            echo "::error::tag v$VER already exists — bump the version first"; exit 1
+          REMOTE="$(git ls-remote --tags origin "refs/tags/v$VER^{}" | cut -f1)"
+          if [ -z "$REMOTE" ]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          elif [ "$REMOTE" = "$(git rev-parse HEAD)" ]; then
+            # a prior run tagged this commit but failed later (e.g. npm publish
+            # before Trusted Publishing was configured) — safe to resume.
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "tag v$VER already points at HEAD — resuming the failed release"
+          else
+            echo "::error::tag v$VER exists on a DIFFERENT commit — bump the version first"; exit 1
           fi
 
       - name: Create and push tag
+        if: steps.ver.outputs.exists == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
