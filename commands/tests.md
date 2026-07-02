@@ -11,15 +11,16 @@ every bridge call below:
 
 ```bash
 if command -v stz >/dev/null 2>&1; then STZ='stz';
+elif command -v stz-f >/dev/null 2>&1; then STZ='stz-f';
 elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/bin/stz.mjs" ]; then STZ="node ${CLAUDE_PLUGIN_ROOT}/bin/stz.mjs";
-else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null | sort -V | tail -1)"; fi
+else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz-f/*/bin/stz.mjs 2>/dev/null | sort -V | tail -1)"; fi
 echo "using bridge: $STZ"
 ```
 
 # /stz-f:tests — testing conventions (phase 5)
 
 You are the STZ orchestrator. Read state first: `$STZ bridge project-status
---root .`. Require standards `done`; else point at `/stz-f:standards`. Note
+--root .`. Require standards `done`; else point at `/stz-f:conventions`. Note
 `runConfig.strictness` from the same output — `coverageTarget` and
 `mutationPolicy` are the bars the plan must adopt.
 

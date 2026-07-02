@@ -281,7 +281,7 @@ export type SlicingGranularity = "coarse" | "balanced" | "fine";
 /** Mutation-testing bar for `/stz-f:tests`. */
 export type MutationPolicy = "off" | "lenient" | "standard" | "strict";
 
-/** Conventions/lint bar for `/stz-f:standards`. */
+/** Conventions/lint bar for `/stz-f:conventions`. */
 export type ConventionStrictness = "relaxed" | "standard" | "strict";
 
 /** The per-role subagents whose model can be chosen up front. */
@@ -307,7 +307,7 @@ export interface StrictnessConfig {
  * 00-intent/run-config.json — the run configuration the user sets during
  * `/stz-f:new`, applied downstream: `granularity` → `/stz-f:slice`, `fanout` → the
  * specimen count N in `/stz-f:run`, `models` → the per-role subagent model
- * overrides, `strictness` → `/stz-f:standards` and `/stz-f:tests`.
+ * overrides, `strictness` → `/stz-f:conventions` and `/stz-f:tests`.
  *
  * `models` values are FREE-FORM strings (the get-shit-done "Other" pattern):
  * the suggested combos use spawn aliases (`opus`/`sonnet`/`haiku`/`fable`) so

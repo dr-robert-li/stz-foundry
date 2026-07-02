@@ -50,7 +50,7 @@
 ## Install
 
 ```bash
-npm i -g stz-foundry                 # the `stz` CLI (also `stz-foundry`)
+npm i -g stz-foundry                 # the `stz` CLI (aliases: `stz-f`, `stz-foundry`)
 # or straight from GitHub:
 npm i -g dr-robert-li/stz-foundry
 ```
@@ -74,7 +74,7 @@ Take a project from idea to completion report, one command per phase:
 /stz-f:new        elicit intent + machine-checkable done-predicates
 /stz-f:research   external (docs, prior art) + internal (codebase) research
 /stz-f:validate   ground-truth every research claim against reality
-/stz-f:standards  style, architecture, naming conventions
+/stz-f:conventions  style, architecture, naming conventions
 /stz-f:tests      test strategy, locked BEFORE implementation
 /stz-f:slice      break the work into a DAG of vertical slices
 /stz-f:run <id>   the adversarial tournament, once per slice
@@ -230,18 +230,6 @@ Contributor docs:
   [`docs/development/bridge-cli.md`](docs/development/bridge-cli.md).
 - **Sealed-suite integrity** — the guide-vs-sensor contract:
   [`docs/development/sealed-suite.md`](docs/development/sealed-suite.md).
-- **Requirement-to-test mapping** — [`docs/TESTPLAN.md`](docs/TESTPLAN.md).
-- **Roadmap** — built, deferred, planned: [`docs/ROADMAP.md`](docs/ROADMAP.md).
-
-Provenance and audit ledgers (how each capability EARNED its existence):
-
-- **The Foundry rebuild ledger** — stages 0–6 of the BYO-LLM runner, each
-  with a deterministic or live earn:
-  [`experiments/foundry-progression/`](experiments/foundry-progression/).
-- **The 0.9.6 Contract Plane ledger** —
-  [`experiments/0.9.6-progression/`](experiments/0.9.6-progression/).
-- **Upstream experiment records** — [`experiments/`](experiments/).
-
 ## Contributing
 
 Contributions welcome — read [`CONTRIBUTING.md`](CONTRIBUTING.md) first. The

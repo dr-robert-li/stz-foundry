@@ -11,8 +11,9 @@ every bridge call below:
 
 ```bash
 if command -v stz >/dev/null 2>&1; then STZ='stz';
+elif command -v stz-f >/dev/null 2>&1; then STZ='stz-f';
 elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/bin/stz.mjs" ]; then STZ="node ${CLAUDE_PLUGIN_ROOT}/bin/stz.mjs";
-else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null | sort -V | tail -1)"; fi
+else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz-f/*/bin/stz.mjs 2>/dev/null | sort -V | tail -1)"; fi
 echo "using bridge: $STZ"
 ```
 
@@ -37,7 +38,7 @@ computed by the bridge; do not eyeball counts or re-tally in your head.
    `🏭 dark-factory: ON — autonomous, no human gates` (then follow the autonomous
    section below instead of the Dispatch AUQ).
 3. **Phases table** — one row per `projectPhases` entry, in pipeline order
-   (elicitation, research, ground-truth, standards, testing-conventions,
+   (elicitation, research, ground-truth, conventions [internal name: standards], testing-conventions,
    slice-disaggregation). Marker: `✓` done, `▶` the first non-done phase (the
    "next"), `○` the rest.
 
@@ -80,7 +81,7 @@ Phases
 | elicitation          | ✓      |
 | research             | ✓      |
 | ground-truth         | ✓      |
-| standards            | ✓      |
+| conventions          | ✓      |
 | testing-conventions  | ✓      |
 | slice-disaggregation | ✓      |
 

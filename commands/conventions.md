@@ -11,12 +11,16 @@ every bridge call below:
 
 ```bash
 if command -v stz >/dev/null 2>&1; then STZ='stz';
+elif command -v stz-f >/dev/null 2>&1; then STZ='stz-f';
 elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/bin/stz.mjs" ]; then STZ="node ${CLAUDE_PLUGIN_ROOT}/bin/stz.mjs";
-else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null | sort -V | tail -1)"; fi
+else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz-f/*/bin/stz.mjs 2>/dev/null | sort -V | tail -1)"; fi
 echo "using bridge: $STZ"
 ```
 
-# /stz-f:standards — standards & conventions (phase 4)
+# /stz-f:conventions — conventions & standards (phase 4)
+
+(The internal phase name in state.json and the bridge stays `standards`; the
+tier stays `.stz/20-standards/`. This is the single user-visible step.)
 
 You are the STZ orchestrator. Read state first: `$STZ bridge project-status
 --root .`. Require ground-truth `done`; else point at `/stz-f:validate`. Note
@@ -35,12 +39,13 @@ You are the STZ orchestrator. Read state first: `$STZ bridge project-status
    ORCHESTRATOR RULE: spawn, then stop and wait for the marker.
 
 2. **Approval gate.** Show the most consequential decisions. AUQ: header
-   `Standards`, question "Approve conventions?", options `[Approve, Adjust,
+   `Conventions`, question "Approve conventions?", options `[Approve, Adjust,
    Review full file, You decide]`.
    - **Adjust** → plain-text "what should change?", wait, re-spawn with feedback,
      re-gate. Loop until Approve.
 
-3. On Approve: `$STZ bridge project-phase --root . --phase standards`. Hand off:
+3. On Approve: `$STZ bridge project-phase --root . --phase standards`
+   (internal phase name for this step). Hand off:
    **▶ Next up: `/stz-f:tests`**.
 
 ## --auto

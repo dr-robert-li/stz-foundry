@@ -12,7 +12,13 @@ interface contract but never your tests or your reference.
 ## Your task
 
 Given the slice contract and its done-predicates, write a held-out test suite
-into `.stz/30-tests/held-out/`. Aim for tests that a specimen cannot satisfy by
+into `.stz/30-tests/held-out/`.
+
+**Ownership boundary (hard rule).** Under `held-out/` you own ONLY the files
+you write: your suite files and `reference/`. NEVER delete, modify, or inspect
+anything else there — including files or directories you did not create, on
+this run or a re-invocation. Other pipeline stages place sealed artifacts
+beside yours; touching them corrupts the seal. Aim for tests that a specimen cannot satisfy by
 gaming:
 
 - cover the obvious happy path AND the edge cases (empty input, boundaries,

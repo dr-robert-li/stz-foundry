@@ -11,8 +11,9 @@ every bridge call below:
 
 ```bash
 if command -v stz >/dev/null 2>&1; then STZ='stz';
+elif command -v stz-f >/dev/null 2>&1; then STZ='stz-f';
 elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/bin/stz.mjs" ]; then STZ="node ${CLAUDE_PLUGIN_ROOT}/bin/stz.mjs";
-else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null | sort -V | tail -1)"; fi
+else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz-f/*/bin/stz.mjs 2>/dev/null | sort -V | tail -1)"; fi
 echo "using bridge: $STZ"
 ```
 
@@ -240,6 +241,10 @@ on prose-only acceptance (F2).
 - Flat orchestration only. Specimens and judges must NOT spawn their own
   subagents (keep depth 1).
 - Specimens return pointers, never file dumps (N2 context budget).
+- No spawned agent may delete or modify files it did not create. When
+  re-invoking the test-author (smoke-gate loop, seal-amend, stronger-guidance
+  paths), tell it explicitly: "modify ONLY your own suite files and
+  `reference/`; leave every other file under `held-out/` untouched.
 - If the gate yields zero passers, do not loop or decide on your own: call
   `$STZ bridge escalate` (step 6b) and follow its `action` (retry → replan →
   halt). The bridge owns the bound — it persists the retry/replan counts to

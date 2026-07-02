@@ -31,7 +31,8 @@ Your value is entirely in being **independent**. Therefore:
 ## Your task
 
 Write a **complete, correct** implementation of the contract into
-`.stz/30-tests/held-out/reference-b/`. It must be a real solution — not a stub —
+`.stz/30-tests/held-out/reference-b/`. Write ONLY into `reference-b/` — never
+delete, modify, or inspect anything else under `held-out/`. It must be a real solution — not a stub —
 because the cross-check runs the sealed suite against it. It is sealed alongside
 the suite and the primary reference and is **never** visible to specimens (a full
 solution would hand out the answer); do not place it in any prototype/specimen

@@ -11,8 +11,9 @@ every bridge call below:
 
 ```bash
 if command -v stz >/dev/null 2>&1; then STZ='stz';
+elif command -v stz-f >/dev/null 2>&1; then STZ='stz-f';
 elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/bin/stz.mjs" ]; then STZ="node ${CLAUDE_PLUGIN_ROOT}/bin/stz.mjs";
-else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null | sort -V | tail -1)"; fi
+else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz-f/*/bin/stz.mjs 2>/dev/null | sort -V | tail -1)"; fi
 echo "using bridge: $STZ"
 ```
 
@@ -40,10 +41,10 @@ You are the STZ orchestrator. Read state first: `$STZ bridge project-status
    - Loop until Approve.
 
 3. On Approve: `$STZ bridge project-phase --root . --phase ground-truth`. Hand off:
-   **▶ Next up: `/stz-f:standards`**.
+   **▶ Next up: `/stz-f:conventions`**.
 
 ## --auto
 
 With `--auto`, auto-Approve ONLY if nothing was refuted. If a depended-on claim
 was refuted, stop and make the user decide even in `--auto`. Otherwise chain to
-`/stz-f:standards --auto`.
+`/stz-f:conventions --auto`.

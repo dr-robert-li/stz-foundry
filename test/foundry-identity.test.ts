@@ -19,9 +19,10 @@ describe("foundry identity (stage 0)", () => {
     expect(major).toBeGreaterThanOrEqual(1);
   });
 
-  it("both bin names resolve to the same entrypoint", () => {
+  it("all three bin names resolve to the same entrypoint", () => {
     const pkg = JSON.parse(read("package.json"));
     expect(pkg.bin.stz).toBe("bin/stz.mjs");
+    expect(pkg.bin["stz-f"]).toBe("bin/stz.mjs");
     expect(pkg.bin["stz-foundry"]).toBe("bin/stz.mjs");
   });
 

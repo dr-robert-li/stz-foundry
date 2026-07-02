@@ -9,6 +9,27 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.7.4] — conventions rename, stz-f alias, resolver fix, held-out ownership guards
+
+- `/stz-f:standards` → **`/stz-f:conventions`**: the step was already single —
+  one command spawning the `stz-conventions` agent — but wore two names. The
+  user-visible name is now conventions everywhere (command file, pipeline
+  dashboard labels, hand-offs, docs). Internal phase enum, state.json keys,
+  and the `.stz/20-standards/` tier are unchanged — no migration.
+- **`stz-f` shell alias**: third bin entry (`stz`, `stz-f`, `stz-foundry` all
+  invoke the same CLI); identity test asserts all three.
+- **Resolver fix**: every command's plugin-cache fallback still globbed the
+  pre-rename `cache/*/stz/*` dir — now `cache/*/stz-f/*` (verified against
+  the installed plugin), and the PATH check tries `stz-f` after `stz`.
+- **Held-out ownership guards**: a live run's re-invoked test-author deleted
+  `reference-b/` (the cross-family reference it is deliberately blind to)
+  as a perceived stray. Root cause: both reference authors share
+  `held-out/` and, unlike specimens, had no "don't touch files you didn't
+  create" rule. Guards added to `stz-test-author`, `stz-cross-reference`,
+  and the `/stz-f:run` orchestrator rules.
+- README: doc-guide trimmed (TESTPLAN/ROADMAP/provenance ledgers removed),
+  install line names all three CLI aliases.
+
 ## [1.7.3] — STZF shade-art banner
 
 Header replaced with the STZF shade art: README embeds it as
