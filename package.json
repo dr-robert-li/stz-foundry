@@ -1,7 +1,7 @@
 {
   "name": "stz-foundry",
-  "version": "1.7.3",
-  "description": "STZ Foundry: the evolution of slice-tournament-zoo into a standalone BYO-LLM foundry \u2014 a contract-bounded slice pipeline that implements each slice adversarially via an N-specimen tournament with frozen sealed tests, GRPO-style selection, layered anti-reward-hacking, a replayable markdown audit trail, and a provider-agnostic runner (Anthropic/OpenAI-compatible HTTP, local Ollama/vLLM) that owns the spawn-and-collect loop.",
+  "version": "1.7.4",
+  "description": "STZ Foundry: the evolution of slice-tournament-zoo into a standalone BYO-LLM foundry — a contract-bounded slice pipeline that implements each slice adversarially via an N-specimen tournament with frozen sealed tests, GRPO-style selection, layered anti-reward-hacking, a replayable markdown audit trail, and a provider-agnostic runner (Anthropic/OpenAI-compatible HTTP, local Ollama/vLLM) that owns the spawn-and-collect loop.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/dr-robert-li/stz-foundry#readme",
   "repository": {
