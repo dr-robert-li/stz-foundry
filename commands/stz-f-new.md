@@ -16,7 +16,7 @@ else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null |
 echo "using bridge: $STZ"
 ```
 
-# /stz:new — elicitation (phase 1)
+# /stz-f-new — elicitation (phase 1)
 
 You are the STZ **orchestrator** beginning a project. This phase is interactive:
 you interrogate the user with AskUserQuestion (AUQ) to extract intent. No
@@ -79,7 +79,7 @@ consume. Fire ONE grouped AUQ (≤4 questions) covering granularity, fan-out, an
 strictness, then a second focused AUQ for the model combination. Every choice has
 a sensible default — the user may "You decide" any of them.
 
-- **Slicing granularity** (header `Slicing`) — how finely `/stz:slice` breaks the
+- **Slicing granularity** (header `Slicing`) — how finely `/stz-f-slice` breaks the
   work: `[coarse, balanced, fine, You decide]`. → `granularity`.
 - **Specimen fan-out** (header `Fan-out`) — how many specimens N each slice's
   tournament runs: `[3, 4, 6, You decide]` (clamped to 2–16; 4 is the workstation
@@ -129,8 +129,8 @@ human checkpoint that can never be skipped), offer the autonomous end-to-end run
 Fire ONE AUQ: header `Dark mode`, question "Run the rest of the pipeline as a
 dark factory — fully autonomous, no human in the loop, just a completion summary
 at the end? (You can flip this any time.)", options:
-- **Stay hands-on** (default) — keep the human gates (`/stz:slice` approval and
-  the `/stz:run` winner approval). Recommended for the first run on a project.
+- **Stay hands-on** (default) — keep the human gates (`/stz-f-slice` approval and
+  the `/stz-f-run` winner approval). Recommended for the first run on a project.
 - **Engage dark factory** — skip every downstream human gate and drive
   research → … → slicing → every per-slice tournament → summary autonomously.
   The done-predicates you just confirmed are the contract it runs against.
@@ -142,8 +142,8 @@ config you just set). With `--auto`, default to **off** unless the idea-doc or t
 user explicitly asked for an unattended run.
 
 Then show the user the captured intent and the predicates (and whether dark-factory
-is engaged), and hand off: **▶ Next up: `/stz:research`** (or, if dark-factory is
-on, immediately chain into `/stz:pipeline --auto` yourself and do not stop until
+is engaged), and hand off: **▶ Next up: `/stz-f-research`** (or, if dark-factory is
+on, immediately chain into `/stz-f-pipeline --auto` yourself and do not stop until
 the completion report — see that command's dark-factory behaviour).
 
 ## The `--dark` flag (engage at any point)
@@ -162,4 +162,4 @@ With `--auto` (optionally `@idea-doc`), ask only the questions whose answers are
 genuinely ambiguous, default the rest (including the whole run config — call
 `project-set-config` with an empty `{}` to persist the defaults), but STILL
 confirm at least one done-predicate with the user (never auto-invent acceptance),
-then chain to `/stz:research --auto`.
+then chain to `/stz-f-research --auto`.

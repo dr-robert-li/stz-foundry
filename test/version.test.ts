@@ -45,7 +45,7 @@ describe("version drift guard — all manifests agree (the bug F19 fixes)", () =
     const market = readJson(".claude-plugin/marketplace.json");
     expect(plugin).toBe(pkg);
     expect(market.metadata.version).toBe(pkg);
-    const stzEntry = market.plugins.find((p: any) => p.name === "stz");
+    const stzEntry = market.plugins.find((p: any) => p.name === "stz-f");
     expect(stzEntry.version).toBe(pkg);
   });
 });

@@ -57,9 +57,9 @@ decision (JSON in, JSON out, over the `.stz/` tree). On top of the spine:
   (project-init, project-phase, project-write-intent, project-record-area,
   project-set-config, project-dark-factory, project-config, slice-add,
   project-seed-slices, project-status, summary);
-- the full command surface: `/stz:new`, `/stz:research`, `/stz:validate`,
-  `/stz:standards`, `/stz:tests`, `/stz:slice`, `/stz:merge`, `/stz:summary`,
-  `/stz:pipeline`, and `/stz:run`;
+- the full command surface: `/stz-f-new`, `/stz-f-research`, `/stz-f-validate`,
+  `/stz-f-standards`, `/stz-f-tests`, `/stz-f-slice`, `/stz-f-merge`, `/stz-f-summary`,
+  `/stz-f-pipeline`, and `/stz-f-run`;
 - eleven subagents: the per-slice specimen, judge, test-author,
   cross-reference, documenter and the project-level researcher, validator,
   conventions, test-planner, slicer, summarizer;
@@ -94,7 +94,7 @@ and 22, with a `prepublishOnly` (typecheck + test) guard before any npm publish.
   highest-advantage on the same run.
 - **No runaway loops.** The escalation ceiling (retry, replan, halt) is proven to
   hold; the per-slice token cap throws rather than overspending. The same FSM now
-  drives the real command path: `/stz:run` calls `stz bridge escalate` on a
+  drives the real command path: `/stz-f-run` calls `stz bridge escalate` on a
   no-passers gate, which advances the retry→replan→halt state over `state.json`
   and writes the PDR refinement the next round consumes — the loop is no longer
   mock-only.
@@ -106,14 +106,14 @@ and 22, with a `prepublishOnly` (typecheck + test) guard before any npm publish.
   with elicitation Q&A, approval gates, a DAG co-design step, a dashboard, and
   `--auto` chaining. The front phases were run live end to end for a `slugify`
   project (`examples/full-pipeline/`).
-- **A run config set once and obeyed everywhere (0.3.0).** `/stz:new` batches its
+- **A run config set once and obeyed everywhere (0.3.0).** `/stz-f-new` batches its
   questions per area and captures slicing granularity, specimen fan-out N (2–16),
   a per-role model map (planning/research/execution/testing/validation/judging,
   with suggested combos plus free-form "Other"), and a strictness bar
   (coverage/mutation/conventions). It persists as `00-intent/run-config.json` via
   `stz bridge project-set-config` (validated, clamped, defaults for anything
-  unset) and rides on every `project-status` read, so the slicer, `/stz:run`'s N,
-  each subagent's `model`, and `/stz:standards` + `/stz:tests` all consume it.
+  unset) and rides on every `project-status` read, so the slicer, `/stz-f-run`'s N,
+  each subagent's `model`, and `/stz-f-standards` + `/stz-f-tests` all consume it.
 - **Dark-factory mode (0.4.0).** An opt-in fully autonomous run: once the F2
   predicate gate is satisfied, the orchestrator drives every phase → per-slice
   tournament → summary with no human in the loop, skipping the downstream approval
@@ -133,7 +133,7 @@ and 22, with a `prepublishOnly` (typecheck + test) guard before any npm publish.
   hand-waving the distinction.
 - **Tabulated pipeline dashboard (0.5.4).** `project-status` emits a computed
   `progress` rollup and dashboard-ready slice rows (winner/faithful), so
-  `/stz:pipeline` renders the same fixed phases/slices tables every tick rather
+  `/stz-f-pipeline` renders the same fixed phases/slices tables every tick rather
   than ad-hoc prose.
 - **Installs as a plugin, and ships on npm.** The commands resolve the bundled
   bridge with no PATH setup; the CLI is also published to npm (`npx stz init`).
@@ -145,7 +145,7 @@ and 22, with a `prepublishOnly` (typecheck + test) guard before any npm publish.
   single `src/version.ts` seam sources the version from `package.json` and a test
   guards against the three version manifests drifting apart.
 - **Real escalation path wired (0.7.0).** `stz bridge escalate` is the
-  deterministic owner of bounded cross-round failure handling. `/stz:run` calls it
+  deterministic owner of bounded cross-round failure handling. `/stz-f-run` calls it
   on a no-passers gate; it advances the retry→replan→halt FSM over `state.json`,
   writes the PDR refinement the next round consumes, and on halt writes
   `failure-report.md`. The escalation loop now lives in the real command path, not
@@ -344,7 +344,7 @@ ROUND R (R = 1..maxRounds-1)
   GRPO advantage computed; convergenceRate checked against prior round
   If convergenceRate < convergenceThreshold for plateauRounds consecutive rounds → CONVERGED, halt
   Pairwise judge → winner_R candidate
-  interfaceHash verified: if mismatch → winner_R disqualified, contract drift escalated to /stz:slice
+  interfaceHash verified: if mismatch → winner_R disqualified, contract drift escalated to /stz-f-slice
   assembled-crate merge-validate: if fails → round rejected, merge defect surfaced
   If both pass: winner_R promoted, RoundSnapshot appended to state.json, proceed to R+1
 
@@ -389,7 +389,7 @@ The resolution is a three-condition promotion gate enforced by the new
 
 1. **Interface hash parity** — `interfaceHash` in `state.json` must match the
    candidate winner's exported interface. A mismatch means the round exposed a
-   contract ambiguity; escalate to `/stz:slice` for re-planning, do not promote.
+   contract ambiguity; escalate to `/stz-f-slice` for re-planning, do not promote.
 2. **Assembled-crate `merge-validate` pass** — run the full cross-slice merge
    validation (existing `merge.ts` logic) against the assembled crate with the
    candidate winner substituted for the prior round winner. Any unsanctioned
@@ -449,7 +449,7 @@ export interface ConvergenceConfig {
 }
 ```
 
-Suggested operator presets offered at `/stz:new` elicitation (Area F):
+Suggested operator presets offered at `/stz-f-new` elicitation (Area F):
 
 | Preset | `maxRounds` | `convergenceThreshold` | `plateauRounds` | `feedPressureLog` | Use when |
 |---|---|---|---|---|---|
@@ -494,9 +494,9 @@ Two new optional fields on `SliceState`:
 Both commands follow the existing bridge contract: JSON in, JSON out, all
 decisions made by the CLI rather than the orchestrator agent.
 
-#### `/stz:new` elicitation additions (Area F)
+#### `/stz-f-new` elicitation additions (Area F)
 
-A new batched question area added to `/stz:new` for convergence tuning:
+A new batched question area added to `/stz-f-new` for convergence tuning:
 
 ```
 Area F — Convergence tuning
@@ -514,7 +514,7 @@ Area F — Convergence tuning
 | `convergenceRate` stays high through round 4 | Rich strategy space | Increase `maxRounds` |
 | `groupStddev` collapses early | Diversity death; pressure log over-constraining | Set `feedPressureLog: false` |
 | `rewardDelta` is negative | Round winner regressed | Hard block; prior winner retained |
-| `interfaceHashMatch: false` | Contract ambiguous; implementations diverged on interface | Escalate to `/stz:slice` for re-planning |
+| `interfaceHashMatch: false` | Contract ambiguous; implementations diverged on interface | Escalate to `/stz-f-slice` for re-planning |
 
 #### Token budget note
 
@@ -664,7 +664,7 @@ the rolling document fed to that round) alongside the existing `tokenCost` field
 | `convergenceRate` stays high through round 4 | Rich strategy space | Increase `maxRounds` |
 | `groupStddev < diversityFloor` | Diversity collapse; auto-recovery triggered | `feedPressureLog` suppressed for next round automatically; operator notified via `round-status` |
 | `rewardDelta < 0` | Regression; sampling artifact or exhausted space | Escalation retry fired automatically; escalation ceiling applies |
-| `interfaceHashMatch: false` | Contract ambiguity exposed | Escalate to `/stz:slice` for re-planning; round not promoted |
+| `interfaceHashMatch: false` | Contract ambiguity exposed | Escalate to `/stz-f-slice` for re-planning; round not promoted |
 | `activeStrategyTokens` growing | Rolling doc not summarising correctly | Inspect `50-pressure/active-strategy.md`; reduce manually if needed |
 | Convergence halt before `maxRounds` | Loop converged early | Normal; prior winner retained as slice winner |
 

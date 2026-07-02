@@ -16,7 +16,7 @@ else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null |
 echo "using bridge: $STZ"
 ```
 
-# /stz:pipeline — the dashboard
+# /stz-f-pipeline — the dashboard
 
 You are the STZ orchestrator running a single-terminal command center, like a
 manager view. This command is read-only with respect to state: it reads
@@ -57,7 +57,7 @@ computed by the bridge; do not eyeball counts or re-tally in your head.
 
 5. **Frontier line** — `next: <next>` and `frontier: [<frontier…>]` (the frontier
    slices have all deps done and can run in parallel). If `blocked` is true, say
-   `slice execution blocked until /stz:slice completes slice-disaggregation`.
+   `slice execution blocked until /stz-f-slice completes slice-disaggregation`.
 6. **Run config line** — from `runConfig`: `granularity · N=<fanout> · cov≥<…> ·
    mutation <…> · conventions <…> · models{planning/research/execution/testing/
    validation/judging}`. Tag `(defaults)` when `runConfigSet` is false, or
@@ -67,7 +67,7 @@ Status glyphs (reuse everywhere): `✓ done` · `▶ running`/next · `○ pendi
 `✗ halted`.
 
 If `project-status` returns `{error:"cycle"}` or `{error:"dangling"}`, surface it
-plainly and stop — the DAG must be fixed in `/stz:slice` first.
+plainly and stop — the DAG must be fixed in `/stz-f-slice` first.
 
 ### Worked example (what one render looks like)
 
@@ -100,37 +100,37 @@ models{plan=sonnet research=haiku exec=sonnet test=sonnet val=sonnet judge=opus}
 
 AUQ: header `Dispatch`, question "What next?", options are the recommended next
 action first, then alternatives. Examples by state:
-- early phases incomplete → `[Run /stz:<next-phase>, Refresh, Stop]`
-- slicing done, slices pending → `[Run next /stz:run, Run a frontier slice,
-  /stz:summary, Refresh]`
-- all slices done → `[Run /stz:summary, Refresh, Stop]`
+- early phases incomplete → `[Run /stz-f-<next-phase>, Refresh, Stop]`
+- slicing done, slices pending → `[Run next /stz-f-run, Run a frontier slice,
+  /stz-f-summary, Refresh]`
+- all slices done → `[Run /stz-f-summary, Refresh, Stop]`
 
 Selecting a project-phase command runs it inline. Selecting tournament work
-dispatches `/stz:run <id>`. When the frontier holds more than one slice, you MAY
+dispatches `/stz-f-run <id>`. When the frontier holds more than one slice, you MAY
 run them as parallel background agents (the DAG says they are independent), then
 refresh. Loop until the user stops or all slices are done, then recommend
-`/stz:summary`.
+`/stz-f-summary`.
 
 ## --auto
 
 With `--auto`, follow the recommended next action without prompting, looping
 phase → phase → per-slice runs → summary, pausing only at the two human gates
-(`/stz:new` predicate confirmation and `/stz:slice` "Approve as-is").
+(`/stz-f-new` predicate confirmation and `/stz-f-slice` "Approve as-is").
 
 ## Dark-factory mode (autonomous, no human in the loop)
 
 When `project-status` reports `darkFactory:true` (or the run was invoked
-`/stz:pipeline --dark`, which first runs `$STZ bridge project-dark-factory
+`/stz-f-pipeline --dark`, which first runs `$STZ bridge project-dark-factory
 --root . --on` then proceeds), drive the whole pipeline to completion with NO
 prompts:
 
 - Skip the dispatch AUQ entirely. At each tick, run the recommended next action
   directly, then refresh — exactly the `--auto` loop, but the two human gates are
-  *also* skipped: do NOT pause at `/stz:slice` "Approve as-is" (auto-approve the
-  proposed DAG) or at the `/stz:run` winner-approval gate (auto-accept the
+  *also* skipped: do NOT pause at `/stz-f-slice` "Approve as-is" (auto-approve the
+  proposed DAG) or at the `/stz-f-run` winner-approval gate (auto-accept the
   selected winner). Each downstream command sees `darkFactory:true` and skips its
   own gate; you do not re-ask.
-- The ONE gate that still holds is the F2 predicate gate in `/stz:new` — if
+- The ONE gate that still holds is the F2 predicate gate in `/stz-f-new` — if
   elicitation never produced a machine-checkable predicate, stop and say so
   rather than inventing acceptance. (In practice elicitation is already done
   before dark-factory drives anything.)
@@ -138,12 +138,12 @@ prompts:
   agents (the DAG says they are independent), then refresh. Loop until every
   slice is `done` or `halted`.
 - **The one decision the factory defers, never guesses:** a `seal-crosscheck`
-  divergence (`/stz:run` step 2) needs human adjudication and must not
-  auto-rewrite. With no human present, `/stz:run` halts that slice rather than
+  divergence (`/stz-f-run` step 2) needs human adjudication and must not
+  auto-rewrite. With no human present, `/stz-f-run` halts that slice rather than
   sealing on an unresolved blind-spot signal. That is the normal halted-slice
   path: the DAG keeps going and the divergence is surfaced in the summary below.
   Do not hand-resolve it mid-run; that is what the after-the-fact review is for.
-- **End with the summary, not a prompt.** Run `/stz:summary` and present the
+- **End with the summary, not a prompt.** Run `/stz-f-summary` and present the
   completion report (per-slice winner, faithful?, culled count, any halted
   slices with their failure reports) as the final artifact. A halted slice does
   not stall the factory — report it and continue the rest of the DAG; surface all

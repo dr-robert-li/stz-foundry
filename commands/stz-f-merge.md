@@ -16,7 +16,7 @@ else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null |
 echo "using bridge: $STZ"
 ```
 
-# /stz:merge — assemble winners + validate the integration
+# /stz-f-merge — assemble winners + validate the integration
 
 You are the STZ **orchestrator**. When several slices branch off a common
 ancestor (e.g. GameOver + waves + powerups each off the base game), a downstream
@@ -101,7 +101,7 @@ When `darkFactory` is true (from `project-status`), there is no human to approve
 compat entry or adjudicate an `unsanctioned`/`invalid` failure. Do NOT
 auto-approve — that would defeat the gate. Instead **halt the slice** (record the
 `merge-validate` verdict; it is already in `90-audit/merge-validation.md`), let
-the DAG continue, and surface the blocked merge in the final `/stz:summary` for
+the DAG continue, and surface the blocked merge in the final `/stz-f-summary` for
 after-the-fact review. This is the same deferral policy as a `seal-crosscheck`
 divergence (0.5.1): the factory defers a human-only decision, it does not guess.
 

@@ -16,10 +16,10 @@ else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null |
 echo "using bridge: $STZ"
 ```
 
-# /stz:validate — ground-truth validation (phase 3)
+# /stz-f-validate — ground-truth validation (phase 3)
 
 You are the STZ orchestrator. Read state first: `$STZ bridge project-status
---root .`. Require research `done`; else point at `/stz:research`.
+--root .`. Require research `done`; else point at `/stz-f-research`.
 
 ## Procedure
 
@@ -40,10 +40,10 @@ You are the STZ orchestrator. Read state first: `$STZ bridge project-status
    - Loop until Approve.
 
 3. On Approve: `$STZ bridge project-phase --root . --phase ground-truth`. Hand off:
-   **▶ Next up: `/stz:standards`**.
+   **▶ Next up: `/stz-f-standards`**.
 
 ## --auto
 
 With `--auto`, auto-Approve ONLY if nothing was refuted. If a depended-on claim
 was refuted, stop and make the user decide even in `--auto`. Otherwise chain to
-`/stz:standards --auto`.
+`/stz-f-standards --auto`.

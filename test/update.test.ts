@@ -38,7 +38,7 @@ describe("buildVerdict — pure remediation logic", () => {
     expect(v.ahead).toBe(false);
     expect(v.commands).toEqual([
       `npm i -g ${PACKAGE_NAME}@latest`,
-      "/plugin update stz",
+      "/plugin update stz-f",
     ]);
   });
 
@@ -58,7 +58,7 @@ describe("buildVerdict — pure remediation logic", () => {
   it("detects plugin/CLI drift even when not stale", () => {
     const v = buildVerdict({ installed: "0.6.0", latest: "0.6.0", pluginVersion: "0.5.6" });
     expect(v.drift).toBe(true);
-    expect(v.commands).toEqual(["/plugin update stz"]);
+    expect(v.commands).toEqual(["/plugin update stz-f"]);
   });
 
   it("passes a check failure reason through with null latest", () => {

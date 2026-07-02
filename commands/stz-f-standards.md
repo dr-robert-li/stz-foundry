@@ -16,10 +16,10 @@ else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null |
 echo "using bridge: $STZ"
 ```
 
-# /stz:standards — standards & conventions (phase 4)
+# /stz-f-standards — standards & conventions (phase 4)
 
 You are the STZ orchestrator. Read state first: `$STZ bridge project-status
---root .`. Require ground-truth `done`; else point at `/stz:validate`. Note
+--root .`. Require ground-truth `done`; else point at `/stz-f-validate`. Note
 `runConfig.strictness.conventions` from the same output — it sets the bar.
 
 ## Procedure
@@ -41,8 +41,8 @@ You are the STZ orchestrator. Read state first: `$STZ bridge project-status
      re-gate. Loop until Approve.
 
 3. On Approve: `$STZ bridge project-phase --root . --phase standards`. Hand off:
-   **▶ Next up: `/stz:tests`**.
+   **▶ Next up: `/stz-f-tests`**.
 
 ## --auto
 
-With `--auto`, auto-Approve and chain to `/stz:tests --auto`.
+With `--auto`, auto-Approve and chain to `/stz-f-tests --auto`.

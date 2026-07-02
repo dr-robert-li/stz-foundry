@@ -1,0 +1,135 @@
+name: Tag and Release
+
+# One-button release: run this workflow (Actions → "Tag and Release" → Run
+# workflow), pick a bump level (or "none" to release the version already in
+# package.json), and the pipeline does the rest:
+#
+#   gate (typecheck + full suite)
+#     → optional `npm version <bump>` commit on main
+#     → create + push the vX.Y.Z tag
+#     → npm publish (Trusted Publishing OIDC + provenance)
+#     → GitHub release with the CHANGELOG section as notes
+#
+# Publishing happens INLINE here (not by chaining release.yml): tags pushed
+# with GITHUB_TOKEN deliberately do not trigger other workflows, so a
+# tag-only pipeline would silently never publish. release.yml still covers
+# hand-pushed tags (`git push --follow-tags`); both share the same guards.
+#
+# Auth: npm Trusted Publishing (OIDC, no token) — configured on npmjs.com for
+# dr-robert-li/stz-foundry. `--provenance` stamps a verified link back to
+# this commit + run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump (none = release package.json as-is)"
+        type: choice
+        default: none
+        options: [none, patch, minor, major]
+
+permissions:
+  contents: write   # push the version commit + tag, create the GitHub release
+  id-token: write   # OIDC for npm Trusted Publishing + provenance
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  tag-and-release:
+    name: gate → tag → npm publish → github release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      # NOTE: no `registry-url:` — it injects a placeholder NODE_AUTH_TOKEN
+      # into .npmrc that shadows OIDC under Trusted Publishing.
+      - name: Set up Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Ensure Trusted-Publishing-capable npm
+        run: |
+          npm install -g npm@latest
+          echo "node $(node -v) / npm $(npm -v)"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Guard — this repo publishes stz-foundry, never the upstream package
+        run: |
+          NAME="$(node -p "require('./package.json').name")"
+          if [ "$NAME" != "stz-foundry" ]; then
+            echo "::error::package.json name is '$NAME'; this workflow only publishes 'stz-foundry'"; exit 1
+          fi
+
+      - name: Gate — typecheck + full suite
+        run: npm run typecheck && npm test
+
+      - name: Bump version (optional)
+        if: inputs.bump != 'none'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # bumps package.json (+lock), commits "vX.Y.Z" — the F19 drift guard
+          # requires the plugin manifests to move in lockstep, so bump them too.
+          npm version "${{ inputs.bump }}" --no-git-tag-version
+          VER="$(node -p "require('./package.json').version")"
+          node -e "
+            for (const p of ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json']) {
+              const fs = require('fs'); const c = JSON.parse(fs.readFileSync(p, 'utf8'));
+              if (c.version) c.version = '$VER';
+              if (c.metadata?.version) c.metadata.version = '$VER';
+              for (const pl of c.plugins ?? []) if (pl.version) pl.version = '$VER';
+              fs.writeFileSync(p, JSON.stringify(c, null, 2) + '\n');
+            }"
+          npm test          # re-run the drift guard against the bumped manifests
+          git add package.json package-lock.json .claude-plugin/
+          git commit -m "v$VER"
+          git push origin main
+
+      - name: Guard — tag does not already exist
+        id: ver
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VER" >/dev/null 2>&1; then
+            echo "::error::tag v$VER already exists — bump the version first"; exit 1
+          fi
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ steps.ver.outputs.version }}" -m "v${{ steps.ver.outputs.version }}"
+          git push origin "v${{ steps.ver.outputs.version }}"
+
+      - name: Publish to npm (Trusted Publishing OIDC + provenance)
+        run: npm publish --provenance --access public
+
+      - name: Extract changelog section
+        run: |
+          VER="${{ steps.ver.outputs.version }}"
+          awk -v v="$VER" '
+            $0 ~ "^## \\["v"\\]" {f=1; next}
+            f && /^## \[/ {exit}
+            f {print}
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          {
+            echo "**npm:** https://www.npmjs.com/package/stz-foundry/v/$VER";
+            echo "(\`npm i stz-foundry@$VER\` — published with provenance)";
+          } >> RELEASE_NOTES.md
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.ver.outputs.version }}" \
+            --title "v${{ steps.ver.outputs.version }}" \
+            --notes-file RELEASE_NOTES.md \
+            --verify-tag

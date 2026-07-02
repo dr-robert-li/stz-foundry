@@ -4,7 +4,7 @@
  * things can be stale independently:
  *
  *   - the **npm CLI** (`stz-foundry` on PATH), and
- *   - the **Claude Code plugin** (the bundled `stz bridge` the `/stz:*`
+ *   - the **Claude Code plugin** (the bundled `stz bridge` the `/stz-f-*`
  *     commands call via `${CLAUDE_PLUGIN_ROOT}`).
  *
  * A "sustainable" pathway therefore does three things: detect a newer npm
@@ -118,7 +118,7 @@ export function buildVerdict(input: VerdictInput): UpdateVerdict {
   if (stale) commands.push(`npm i -g ${PACKAGE_NAME}@latest`);
   // The plugin updates through Claude Code's plugin manager, not npm. Surface it
   // whenever a newer release exists OR the two channels have drifted apart.
-  if (stale || drift) commands.push("/plugin update stz");
+  if (stale || drift) commands.push("/plugin update stz-f");
 
   return {
     packageName: PACKAGE_NAME,
@@ -195,7 +195,7 @@ export function formatVerdict(v: UpdateVerdict): string {
   if (v.drift) {
     lines.push(
       `⚠ Channel drift: plugin engine ${v.pluginVersion} ≠ CLI ${v.installed}. ` +
-        `The /stz:* commands may use a different version than the CLI.`,
+        `The /stz-f-* commands may use a different version than the CLI.`,
     );
   }
   if (v.commands.length) {

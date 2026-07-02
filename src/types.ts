@@ -275,13 +275,13 @@ export interface ProjectState {
 // ── Run configuration (0.3.0 — captured during elicitation, consumed
 //    downstream) ─────────────────────────────────────────────────────────────
 
-/** How finely `/stz:slice` breaks the work into vertical slices. */
+/** How finely `/stz-f-slice` breaks the work into vertical slices. */
 export type SlicingGranularity = "coarse" | "balanced" | "fine";
 
-/** Mutation-testing bar for `/stz:tests`. */
+/** Mutation-testing bar for `/stz-f-tests`. */
 export type MutationPolicy = "off" | "lenient" | "standard" | "strict";
 
-/** Conventions/lint bar for `/stz:standards`. */
+/** Conventions/lint bar for `/stz-f-standards`. */
 export type ConventionStrictness = "relaxed" | "standard" | "strict";
 
 /** The per-role subagents whose model can be chosen up front. */
@@ -297,7 +297,7 @@ export type StzRole = (typeof STZ_ROLES)[number];
 
 /** Strictness bar applied to standards and testing conventions. */
 export interface StrictnessConfig {
-  /** Coverage target in [0, 1] — `/stz:tests` strategy + per-slice eval. */
+  /** Coverage target in [0, 1] — `/stz-f-tests` strategy + per-slice eval. */
   coverageTarget: number;
   mutationPolicy: MutationPolicy;
   conventions: ConventionStrictness;
@@ -305,9 +305,9 @@ export interface StrictnessConfig {
 
 /**
  * 00-intent/run-config.json — the run configuration the user sets during
- * `/stz:new`, applied downstream: `granularity` → `/stz:slice`, `fanout` → the
- * specimen count N in `/stz:run`, `models` → the per-role subagent model
- * overrides, `strictness` → `/stz:standards` and `/stz:tests`.
+ * `/stz-f-new`, applied downstream: `granularity` → `/stz-f-slice`, `fanout` → the
+ * specimen count N in `/stz-f-run`, `models` → the per-role subagent model
+ * overrides, `strictness` → `/stz-f-standards` and `/stz-f-tests`.
  *
  * `models` values are FREE-FORM strings (the get-shit-done "Other" pattern):
  * the suggested combos use spawn aliases (`opus`/`sonnet`/`haiku`/`fable`) so
@@ -323,7 +323,7 @@ export interface RunConfig {
   /**
    * Dark-factory mode (0.4.0). When true the pipeline runs end-to-end with no
    * human in the loop: the orchestrator skips every interactive gate it can
-   * legitimately skip (the `/stz:slice` "approve as-is" gate and the `/stz:run`
+   * legitimately skip (the `/stz-f-slice` "approve as-is" gate and the `/stz-f-run`
    * winner-approval gate) and drives every phase → per-slice run → summary
    * autonomously, surfacing only the final completion report. The one gate it
    * may NOT skip is the F2 done-predicate confirmation in elicitation — a run

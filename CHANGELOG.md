@@ -9,6 +9,27 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.7.0] — /stz-f-* command prefix, operator README, tag-and-release pipeline
+
+- **Command prefix**: every in-session command moves from `/stz-*` to
+  `/stz-f-*` (`/stz-f-new`, `/stz-f-run`, `/stz-f-pipeline`, …); the plugin is
+  now installed as `stz-f`. Cross-references in commands, hooks, source
+  comments, and `stz update` remediation output moved with it. Subagent names
+  (`stz-judge`, `stz-researcher`, …) are unchanged.
+- **README rebuilt for operators**: STZ Foundry header (STZ-F ASCII banner),
+  two quickstarts (in-session pipeline; standalone BYO-LLM foundry runner with
+  a worked foundry.json + slice manifest), the audit-trail reading guide, a
+  documentation map surfacing the earn ledgers (foundry-progression,
+  0.9.6-progression), contributing, and license. The CLI banner and help now
+  read STZ-F / STZ Foundry.
+- **New CI/CD pipeline** `.github/workflows/tag-and-release.yml`
+  (workflow_dispatch): gate (typecheck + suite) → optional lockstep version
+  bump (package.json + both plugin manifests, drift-guard re-run) → tag
+  creation + push → npm publish (Trusted Publishing OIDC + provenance) →
+  GitHub release with CHANGELOG notes. Publishing is inline because
+  GITHUB_TOKEN tag pushes deliberately do not trigger release.yml; release.yml
+  still covers hand-pushed tags.
+
 ## [1.6.0] — Docs staleness sweep (Foundry stage 6)
 
 Every LIVE doc (README, CONTRIBUTING, src/README, docs/CLAUDE.md,

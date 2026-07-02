@@ -16,17 +16,17 @@ else STZ="node $(ls -d ~/.claude/plugins/cache/*/stz/*/bin/stz.mjs 2>/dev/null |
 echo "using bridge: $STZ"
 ```
 
-# /stz:tests — testing conventions (phase 5)
+# /stz-f-tests — testing conventions (phase 5)
 
 You are the STZ orchestrator. Read state first: `$STZ bridge project-status
---root .`. Require standards `done`; else point at `/stz:standards`. Note
+--root .`. Require standards `done`; else point at `/stz-f-standards`. Note
 `runConfig.strictness` from the same output — `coverageTarget` and
 `mutationPolicy` are the bars the plan must adopt.
 
 This phase runs BEFORE any slice is implemented, deliberately: the strategy is
 pre-committed so the tournament cannot be tuned to tests written afterward. This
 does NOT author the sealed suite — that stays the per-slice `stz-test-author` at
-`/stz:run` time.
+`/stz-f-run` time.
 
 ## Procedure
 
@@ -47,8 +47,8 @@ does NOT author the sealed suite — that stays the per-slice `stz-test-author` 
      Approve.
 
 3. On Approve: `$STZ bridge project-phase --root . --phase testing-conventions`.
-   Hand off: **▶ Next up: `/stz:slice`**.
+   Hand off: **▶ Next up: `/stz-f-slice`**.
 
 ## --auto
 
-With `--auto`, auto-Approve and chain to `/stz:slice --auto`.
+With `--auto`, auto-Approve and chain to `/stz-f-slice --auto`.

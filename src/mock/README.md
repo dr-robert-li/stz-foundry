@@ -2,7 +2,7 @@
 
 This folder holds the **deterministic mock run** — a self-contained, no-network
 demo of the STZ pipeline. It is a testing and illustration aid, not part of the
-production path. The production harness runs in-session through the `/stz:*`
+production path. The production harness runs in-session through the `/stz-f-*`
 commands and the `stz bridge` CLI (`src/bridge.ts`, `src/project.ts`); none of
 those depend on anything in this folder.
 

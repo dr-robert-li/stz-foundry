@@ -188,31 +188,31 @@ async function cmdFoundry(argv: string[]): Promise<void> {
 }
 
 const LOGO = String.raw`
-  ██████╗  ████████╗ ███████╗
- ██╔════╝  ╚══██╔══╝ ╚══███╔╝
- ╚█████╗      ██║      ███╔╝
-  ╚═══██╗     ██║     ███╔╝
- ██████╔╝     ██║    ███████╗
- ╚═════╝      ╚═╝    ╚══════╝
+  ██████╗  ████████╗ ███████╗       ███████╗
+ ██╔════╝  ╚══██╔══╝ ╚══███╔╝       ██╔════╝
+ ╚█████╗      ██║      ███╔╝ █████╗ █████╗
+  ╚═══██╗     ██║     ███╔╝  ╚════╝ ██╔══╝
+ ██████╔╝     ██║    ███████╗       ██║
+ ╚═════╝      ╚═╝    ╚══════╝       ╚═╝
 `;
 
 function cmdHelp(): void {
   console.log(LOGO);
-  console.log(`stz-foundry: adversarial slice tournaments with a replayable audit trail
+  console.log(`STZ Foundry (stz-foundry): adversarial slice tournaments with a replayable audit trail
 
 Usage:
   stz init [dir]       scaffold the .stz/ taxonomy + AGENTS.md (default: cwd)
   stz run  [dir]       run the bundled demo slice through the mock pipeline
   stz update [--check] check npm for a newer release + plugin/CLI drift
   stz migrate [dir]    bring an existing .stz/ tree up to the current schema
-  stz bridge <cmd>     deterministic orchestration bridge (used by the /stz:* commands)
+  stz bridge <cmd>     deterministic orchestration bridge (used by the /stz-f-* commands)
   stz foundry init [dir]                 write a foundry.json template (local-first)
   stz foundry run <manifest.json> [dir]  run a slice tournament standalone (BYO LLM)
   stz --version        print the installed version
   stz help             show this help
 
-In Claude Code, install the plugin and drive the full pipeline with /stz:new,
-/stz:research, /stz:slice, /stz:pipeline, and friends. See the README.
+In Claude Code, install the plugin and drive the full pipeline with /stz-f-new,
+/stz-f-research, /stz-f-slice, /stz-f-pipeline, and friends. See the README.
 `);
 }
 
@@ -238,7 +238,7 @@ async function main(): Promise<void> {
       console.log(STZ_VERSION);
       break;
     case "bridge":
-      // Deterministic orchestration bridge called by the /stz:run command
+      // Deterministic orchestration bridge called by the /stz-f-run command
       // between Task-subagent spawns. Everything after "bridge" is its argv.
       await runBridge(process.argv.slice(3));
       break;
