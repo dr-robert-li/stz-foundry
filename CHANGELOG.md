@@ -9,6 +9,14 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.7.3] — STZF shade-art banner
+
+Header replaced with the STZF shade art: README embeds it as
+`assets/stz-f-logo.svg` (each ░▒▓█ cell rendered as a vector rect at
+matching opacity — immune to font fallback, verified rendering on GitHub),
+and `stz help` prints the art verbatim (terminals render shade glyphs
+natively).
+
 ## [1.7.2] — /stz-f:* command form + robust ASCII banner
 
 - Plugin command files drop the redundant prefix (`commands/new.md`,
