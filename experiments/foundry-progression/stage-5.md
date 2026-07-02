@@ -83,6 +83,18 @@ Ollama 0.30.6 @ 11434), all other roles `ornith:9b` (user-level Ollama 0.31.1
   refinement, sealed suite (frontmattered audit copy), prototypes, journal,
   foundry-cost report.
 
+## Repeatability rerun (same day)
+
+A clean rerun from an empty audit tree initially DIED at the smoke gate:
+qwen3.6 this time invented hyphen-trimming and accent-transliteration
+expectations (the same defect class ornith showed) and one re-ask wasn't
+enough. Hardening: the smoke re-ask now instructs the author to recompute
+every failing expectation by mechanically applying only the contract's rules
+(or delete the case), and the gate allows TWO bounded re-asks before dying.
+With that in place the rerun completed: winner `specimen-a` at 24/24
+(verified directly against the sealed suite), 2 rounds, 12 calls,
+47 528 tokens, $0.
+
 ## Honesty caveats
 
 - `faithful=false` in the live run: the spec-diff shows 0 intent claims kept —

@@ -1,5 +1,5 @@
 ---
-summary: "Spec diff slice-live-slugify: 16 missing, 6 added, 0 kept."
+summary: "Spec diff slice-live-slugify: 10 missing, 6 added, 0 kept."
 ---
 
 # Spec diff — slice-live-slugify
@@ -9,28 +9,22 @@ Canonical audit record: intent spec vs. as-built spec.
 ## ✅ Delivered as planned (0)
 _none_
 
-## ⚠️ Planned but missing (16)
-- `slugify` returns a string for any valid string input.
-- `slugify('Hello World!') === 'hello-world'`.
-- `slugify('  Hello   World  ') === 'hello-world'`.
-- `slugify('HELLO WORLD') === 'hello-world'`.
-- `slugify('a-b-c') === 'a-b-c'`.
-- `slugify('12345') === '12345'`.
-- `slugify('Hello World 123!@#') === 'hello-world-123'`.
-- `slugify('---') === '-'`.
-- `slugify('a--b') === 'a-b'`.
-- `slugify('') === ''`.
-- `slugify` throws a `TypeError` when called with `null`.
-- `slugify` throws a `TypeError` when called with `undefined`.
-- `slugify` throws a `TypeError` when called with a number.
-- `slugify` throws a `TypeError` when called with an object.
-- `slugify('a b c') === 'a-b-c'`.
-- `slugify('  ') === ''`.
+## ⚠️ Planned but missing (10)
+- slugify returns a string for any valid string input
+- slugify throws TypeError when called with non-string arguments (e.g., number, null, undefined)
+- slugify lowercases all alphabetic characters in the output
+- slugify trims leading whitespace from the input before processing
+- slugify trims trailing whitespace from the input before processing
+- Consecutive whitespace characters are collapsed into a single hyphen `-`
+- Characters outside [a-z], [0-9], and `-` are removed from the output
+- The `!` character is stripped (not preserved) in the output
+- Internal runs of non-alphanumeric, non-hyphen characters produce a single hyphen separator
+- slugify('Hello  World!') === 'hello-world'
 
 ## ➕ Built beyond plan (6)
-- Throws `TypeError` if input is not a string
-- Converts the entire input to lowercase before further processing
-- Trims leading and trailing whitespace from the input
-- Replaces every sequence of one or more whitespace characters with a single hyphen (`-`)
-- Removes all characters that are not letters (a–z), digits (0–9), or hyphens
-- Returns the resulting string, which contains only lowercase letters, digits, and hyphens
+- Throws a TypeError when the input is not a string.
+- Converts the input to lowercase before further processing.
+- Removes leading and trailing whitespace via trim().
+- Collapses consecutive whitespace characters into single hyphens.
+- Strips all characters that are not lowercase letters, digits, or hyphens.
+- Returns the final processed string.

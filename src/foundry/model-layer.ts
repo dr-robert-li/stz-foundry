@@ -360,23 +360,32 @@ export class FoundryModelLayer implements ModelLayer {
         if (refDefect) throw new Error(`test author produced an unusable reference twice: ${refDefect}`);
       }
 
+      // TWO bounded re-asks: local authors routinely invent expectations the
+      // contract never mandates (hyphen-trimming, accent transliteration —
+      // both observed live); the derivation instruction below fixes most of
+      // them, and a second round is far cheaper than killing the run.
       let smoke = referenceSmokeCheck(code, ref);
-      if (smoke) {
+      for (let round = 0; smoke && round < 2; round++) {
         code = extractCode(
           await this.ask(
             "testAuthor",
             system,
             `${user}\n\nYour previous harness was rejected by the reference smoke gate: ${smoke}\n` +
               "The harness may only test behaviour the contract mandates — never invented " +
-              "expectations. Fix the HARNESS (not the reference). Reply with ONLY the corrected " +
+              "expectations. For EVERY failing case above, recompute the expected value by " +
+              "mechanically applying ONLY the contract's stated rules, step by step; if the " +
+              "contract does not mandate a transformation (e.g. trimming legal characters, " +
+              "collapsing legal duplicates, transliterating accents), the harness must NOT " +
+              "expect it — either correct that case's expected value or delete the case. " +
+              "Fix the HARNESS (not the reference). Reply with ONLY the corrected " +
               "harness code in a single fenced code block.",
           ),
         );
         const recheck = harnessSelfCheck(code, exportNames);
         if (recheck) throw new Error(`re-asked sealed harness is unusable: ${recheck}`);
         smoke = referenceSmokeCheck(code, ref);
-        if (smoke) throw new Error(`sealed harness failed the reference smoke gate twice: ${smoke}`);
       }
+      if (smoke) throw new Error(`sealed harness failed the reference smoke gate 3 times: ${smoke}`);
 
       return {
         sealed: { "held-out/sealed.mjs": code },

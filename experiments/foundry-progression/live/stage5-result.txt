@@ -1,12 +1,12 @@
 [slice-live-slugify] elicitation: 1 predicates, complexity 1
 [slice-live-slugify] test-author: sealed 1 held-out file(s)
-[slice-live-slugify] round 1: spawning 2 specimens [regex-replace-and-collapse, char-by-char-state-machine] (worktrees STUBBED → prototype dirs)
+[slice-live-slugify] round 1: spawning 2 specimens [regex-replace-and-collapse, char-by-char-iteration] (worktrees STUBBED → prototype dirs)
 [slice-live-slugify] no passers → retry: Re-running tournament with pressure log + K=4 surviving summaries as PDR refinement context.
-[slice-live-slugify] round 2: spawning 2 specimens [regex-replace-and-collapse, char-by-char-state-machine] (worktrees STUBBED → prototype dirs)
+[slice-live-slugify] round 2: spawning 2 specimens [regex-replace-and-collapse, char-by-char-iteration] (worktrees STUBBED → prototype dirs)
 [slice-live-slugify] winner=specimen-a; faithful=false
 
 ── foundry result ──
 winner: specimen-a
 rounds: 2, faithful: false
-cost: 11 calls, 41570 tokens, $0.0000 (unpriced: qwen3.6:latest, ornith:9b)
+cost: 12 calls, 47528 tokens, $0.0000 (unpriced: qwen3.6:latest, ornith:9b)
 cost report: .stz/90-audit/foundry-cost.md

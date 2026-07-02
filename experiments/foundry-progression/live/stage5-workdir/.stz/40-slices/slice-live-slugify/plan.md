@@ -1,22 +1,16 @@
 ---
-summary: "Intent spec for slice-live-slugify: 16 claims."
+summary: "Intent spec for slice-live-slugify: 10 claims."
 ---
 
 # Intent spec — slice-live-slugify
 
-- `slugify` returns a string for any valid string input.
-- `slugify('Hello World!') === 'hello-world'`.
-- `slugify('  Hello   World  ') === 'hello-world'`.
-- `slugify('HELLO WORLD') === 'hello-world'`.
-- `slugify('a-b-c') === 'a-b-c'`.
-- `slugify('12345') === '12345'`.
-- `slugify('Hello World 123!@#') === 'hello-world-123'`.
-- `slugify('---') === '-'`.
-- `slugify('a--b') === 'a-b'`.
-- `slugify('') === ''`.
-- `slugify` throws a `TypeError` when called with `null`.
-- `slugify` throws a `TypeError` when called with `undefined`.
-- `slugify` throws a `TypeError` when called with a number.
-- `slugify` throws a `TypeError` when called with an object.
-- `slugify('a b c') === 'a-b-c'`.
-- `slugify('  ') === ''`.
+- slugify returns a string for any valid string input
+- slugify throws TypeError when called with non-string arguments (e.g., number, null, undefined)
+- slugify lowercases all alphabetic characters in the output
+- slugify trims leading whitespace from the input before processing
+- slugify trims trailing whitespace from the input before processing
+- Consecutive whitespace characters are collapsed into a single hyphen `-`
+- Characters outside [a-z], [0-9], and `-` are removed from the output
+- The `!` character is stripped (not preserved) in the output
+- Internal runs of non-alphanumeric, non-hyphen characters produce a single hyphen separator
+- slugify('Hello  World!') === 'hello-world'
