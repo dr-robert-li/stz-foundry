@@ -2,6 +2,7 @@
 
 **Robert Li**
 slice-tournament-zoo (STZ), 2026-06
+*Part II addendum: STZ Foundry (stz-foundry 1.8.0), 2026-07 — §10–§15*
 
 ## Abstract
 
@@ -338,3 +339,254 @@ harness genome, archive, and bridge commands are documented in `docs/CLAUDE.md` 
 14. Cognition, Devin 2.0, Mar 2025. https://cognition.ai/blog/devin-2
 15. Darwin Gödel Machine; HarnessX; SIA. Harness-level recursive self-improvement (2024-2026), as surveyed in `docs/ROADMAP.md`.
 16. Epoch AI. arm64 images for SWE-bench Verified. `ghcr.io/epoch-research/swe-bench.eval.arm64.*`
+
+
+---
+
+# Part II — From research harness to standalone foundry: the rebuild, the live earns, and the first end-to-end field run
+
+*Added 2026-07. Part I (§1-§9) is preserved verbatim as the earned record of the
+0.x research programme; its negative results are load-bearing inputs to
+everything below and are not re-litigated. Part II covers the 1.x rebuild of
+STZ into **STZ Foundry** (`stz-foundry`), the live local-model earns that
+hardened it, and the first complete dark-factory field run.*
+
+## 10. The Foundry rebuild (1.0.0 → 1.8.0)
+
+Part I's harness ran only inside an agent host (Claude Code), so every
+tournament was bound to one vendor's CLI and one billing plane. The largest
+unbuilt roadmap item was a **standalone BYO-LLM harness**: a runner that owns
+the spawn-and-collect loop and talks to models directly. The rebuild kept the
+0.x discipline — each stage must EARN its existence with a deterministic eval
+(and, where marked, a live local-inference run at $0 marginal cost) before the
+next stage is built; a stage that cannot be earned is frozen as a documented
+negative. The stage ledger is `experiments/foundry-progression/` (stages 0–6,
+all earned):
+
+- **Stage 0** — identity rebrand + release CI that can never overwrite the
+  upstream npm package (a hard name guard, pinned by test).
+- **Stage 1** — the provider seam: one adapter each for the Anthropic Messages
+  API and OpenAI-compatible chat completions (which buys Ollama, vLLM, and
+  LiteLLM for free). Bounded retries; prompt caching mandatory on the
+  Anthropic path; zero dependencies.
+- **Stage 2** — `FoundryModelLayer`: the real `ModelLayer` over providers, so
+  the SAME deterministic pipeline (eval gate, GRPO selection, hack detection,
+  escalation FSM) that Part I earned runs unchanged over direct HTTP models.
+  Live earn: a full mini-tournament on a local 30 B model, $0.
+- **Stage 3** — genuine specimen concurrency with a bounded pool, per-specimen
+  wall-clock stuck-kill, and crash containment.
+- **Stage 4** — real-usage cost governance: per-model pricing, per-role
+  aggregation, hard token/USD caps enforced at the single seam every LLM call
+  passes through; unknown models are reported, never guessed.
+- **Stage 5** — the standalone CLI (`stz foundry init|run`): a secret-free
+  config (API keys by env-var name only; a config embedding a key is
+  rejected), per-role model overrides, and the full tournament with a
+  per-role cost report. Live earn on local Ollama, discussed next.
+- **Stage 6** — documentation staleness sweep with a regression guard.
+
+Distribution updated accordingly: `npm i -g stz-foundry` (CLI: `stz`,
+`stz-f`, `stz-foundry`); Claude Code plugin `stz-f` driving the `/stz-f:*`
+commands; releases cut by a one-button gate → lockstep-version → tag → npm
+Trusted Publishing (OIDC + provenance) → GitHub release pipeline.
+
+## 11. What the live earns taught: the instrument is a moving part
+
+The stage-5 live earn — small local models (9 B–30 B) driving every role on a
+workstation already saturated by a concurrent training job — was the most
+productive failure series of the rebuild. Every failure fell into one of two
+classes, and learning to tell them apart is itself a finding:
+
+**Class 1 — instrument defects, fixed in the instrument.** Five distinct
+defects surfaced only under live conditions, each converted into a
+deterministic guard or a sharper frozen prompt, all regression-tested:
+
+1. *Transport truncation masquerading as model failure.* A non-streaming
+   local completion answers only after full generation; the HTTP client's
+   300-second header timeout killed long generations and surfaced as a
+   spurious "network error" retry-storm — which had earlier been
+   mis-attributed to the model producing empty output. The provider now
+   speaks raw `node:http` with no client timeout (the cost caps are the real
+   bound). Lesson: on slow inference, transport defaults are part of the
+   experiment.
+2. *The reference framing the harness.* A reference implementation that
+   default-exports makes every harness case throw, and the smoke gate blamed
+   (and re-asked) the harness — burning its bounded repair budget on the
+   wrong side. A probe-import export check now validates the reference before
+   the smoke gate runs, and re-asks the REFERENCE.
+3. *Syntactic failure modes of small models* (static `import` of a runtime
+   path; TypeScript annotations copied verbatim from the contract into
+   plain-JS files). Fixed by dictating the exact first line and giving literal
+   do/don't examples in the frozen prompts — validator messages alone were
+   too terse for a small model to act on.
+4. *Wire-format drift* (`passRate` emitted as a rounded string via
+   `toFixed`). The self-check now names the actual defect
+   ("parsed-but-mistyped") instead of a generic failure, so the bounded
+   re-ask can fix it.
+5. *Invented expectations* — the test author asserting transformations the
+   contract never mandates (trimming legal characters, transliterating
+   accents). The reference smoke gate caught this every time; the fix that
+   finally converged was a re-ask instructing the author to *recompute each
+   failing expectation by mechanically applying only the contract's stated
+   rules, or delete the case*, plus a second bounded round.
+
+**Class 2 — model ceilings, correctly rejected rather than patched.** One
+local model persistently invented expectations beyond the contract across
+both re-asks. The gate killed both harnesses. The fix was a stronger
+test-author model, not a weaker gate — the asymmetry Part I §6 predicted
+(the sealed suite is the selection signal; a defective instrument zeroes
+every specimen) held exactly, and the validators' job is to make the
+distinction legible instead of burning the escalation budget on it.
+
+The composite lesson extends Part I's "selection-signal quality is the
+lever": **for a local-model foundry, suite-authoring strength is the binding
+constraint.** Specimens can be small (a 9 B model won tournaments); the test
+author could not be. The economical configuration that emerged — a stronger
+model on the frozen test-author role, small models everywhere else — is now
+directly expressible via per-role overrides in `foundry.json`.
+
+A second field lesson concerned **shared workspaces**: a re-invoked
+test-author deleted the cross-family reference (`reference-b/`) it is
+deliberately blind to, "tidying" an unrecognized sibling directory. The
+blindness that makes the cross-check meaningful is exactly what made the
+directory look like a stray. Specimens already had an ownership boundary
+("write only your directory"); the reference authors did not. All frozen
+roles now carry one, worded to preserve the blindness. Deliberate
+information asymmetries need matching write-boundary asymmetries.
+
+## 12. Field demonstration: a complete dark-factory run (example-stz-f)
+
+The first end-to-end field run took a one-line intent — "a playable Space
+Invaders as a single self-contained HTML file" — through the full pipeline in
+dark-factory mode (autonomous, human gates skipped): elicitation with five
+machine-checkable done-predicates, research with ground-truth validation (14
+claims confirmed, 2 refuted, 3 unverifiable), conventions + four ADRs, a
+two-layer test strategy (Node `vm` unit/property layer for coverage and
+mutation; sealed Playwright e2e as the P1–P5 authority), a six-slice DAG, and
+N=4 tournaments per slice. Artifacts: `example-stz-f/.stz/` (SUMMARY.md is
+the narrative record). Outcome: **all six slices done and faithful, 18
+specimens culled, one human adjudication, a shipped game passing all five
+predicates.**
+
+Three observations carry evidentiary weight:
+
+**The gate caught a real, ship-blocking bug — cleanly.** In slice-05 the
+contract pinned that a bullet hitting a shield cell "reduces integrity and is
+consumed" — spent cells keep absorbing. One specimen implemented the more
+"realistic" opposite (destroyed cells become holes), documented its choice,
+and failed the sealed suite while the sole contract-faithful specimen passed.
+This is the Part I mechanism doing its field job: a plausible, well-reasoned,
+wrong-per-contract implementation eliminated by a suite its author never saw.
+
+**The crosscheck halt is the most valuable autonomous behavior observed.**
+In slice-02 the two independently-authored references diverged (16/16 vs
+12/16). The factory did not guess: it halted the slice with a failure report
+offering three one-step resolutions. Adjudication took one human decision —
+one root cause was a genuine specification gap (whether array membership
+alone makes a bullet "live"; the ADR pinned the field contract but not the
+element contract), the other a real bug in reference B (dt-scaled movement
+violating the fixed-timestep ADR). The surfaced rule became an explicit
+convention restated in every downstream slice manifest. This validates the
+design stance Part I could only assert: test-DESIGN ambiguity is the one
+signal an autonomous run must defer, because "fixing" it autonomously means
+choosing an interpretation and baking it into the selection instrument for
+every later slice. (The run also exposed two robustness gaps since fixed:
+that halt class was not durably persisted to state — now the `slice-halt`
+bridge primitive — and a linear six-slice DAG let the one halt starve four
+downstream slices — now the fan-out-by-default `sequencing` knob, alongside
+a user-set `retryPolicy` for the no-passers halt class, which remains
+policy-bounded and distinct from the always-human crosscheck class.)
+
+**Judge preference dominates when the gate saturates — as Part I predicted.**
+In three of six slices, all (or all-but-one) specimens passed the sealed
+suite at 1.00, and the tournament ranking was decided purely by the judge's
+code-quality/convention preference. Part I §6 found the judge noisy and
+appearance-weighted as a *correctness* signal; the field run shows its
+benign counterpart: at correctness ties it functions as a style/convention
+tie-breaker, which is defensible — provided the audit record labels those
+rankings as preference, not defect (the summary does). The practical rule:
+read `testPassRate` before reading the ranking.
+
+## 13. Where the tournament beats a linear pipeline — and where it does not
+
+Six substrates (Part I), six live-earn slices, and one field project support
+a placement rule.
+
+**Strong fit — correctness is decidable and defects are expensive:**
+
+- *Contract-shaped units with sharp pass/fail:* parsers, validators, codecs,
+  pricing/billing logic, protocol handlers, game/simulation state machines.
+  A linear pipeline ships the first thing that compiles; the tournament makes
+  N attempts race a suite none of them wrote. The slice-05 shield bug is the
+  canonical field case.
+- *Self-grading risk:* a linear agent writes the code AND the tests that
+  bless it. The frozen author / sealed suite / crosscheck stack exists
+  because self-graded agents game their graders (Part I, R1/L1-L4).
+- *Audit-required environments:* the `.stz/` trail (who competed, why losers
+  lost, judge votes, spec-diff, cost) is the deliverable; a linear pipeline
+  cannot reconstruct it retroactively.
+- *Ambiguity you want surfaced, not guessed:* the crosscheck halt converts a
+  specification gap into a durable, adjudicable artifact *before* anything is
+  graded against a possibly-biased suite.
+- *Cheap-inference regimes:* with local models via the foundry runner,
+  redundancy is nearly free — N mediocre specimens + a sharp gate beat one
+  attempt at $0, provided the test-author role gets the strong model (§11).
+- *Lights-out batch work over a DAG*, with the halt semantics of §12.
+
+**Poor fit — use a linear pipeline:**
+
+- Spec-discovery work (UI feel, exploratory design): no machine-checkable
+  predicate → no gate → the tournament degenerates to expensive dice rolls.
+  Part I's rule survives contact with the field: *if you cannot write a
+  sealed suite for it, STZ has no lever.*
+- Single-obvious-path changes: every specimen writes the same code; the N×
+  multiplier buys selection pressure over nothing.
+- Deep-context refactors of large existing codebases: specimens work from
+  the contract surface; a linear agent steeped in full repo context wins.
+- Saturated-gate regimes (slice-03/04/06): when every specimen passes, you
+  are paying tournament prices for a style preference. Detectable in the
+  audit trail; a future economizer could shrink N when a slice's predicted
+  difficulty is low.
+
+## 14. What's next
+
+- **Field-scale contract plane.** §8.1's open cell stands: the 0.9.6 typed
+  predicates earned mechanism, not field outcome. The Space Invaders run
+  suggests the natural experiment — architectural predicates ("zero runtime
+  dependencies", "only files under src/ change") on a real issue stream,
+  measured against the linear baseline.
+- **Retry-policy telemetry.** The `retryPolicy` knobs (bounded/unbounded
+  retries and replans) are new; nothing yet measures where extra rounds
+  actually recover a winner vs burn budget — the Part I iterate-arm result
+  (iteration cannot cross a gradient the sealed suite cannot see) predicts
+  low recovery except where the refinement context changes the strategy mix.
+  Instrument it before recommending defaults beyond 2+1.
+- **Fan-out economics.** `sequencing: fanout` multiplies concurrent cost by
+  frontier width × N with no throttle. A `maxParallelSlices` cap and
+  difficulty-scaled N (shrink the tournament when the gate is predicted to
+  saturate) are the obvious next knobs; the saturated slices of §12 supply
+  the training signal.
+- **Test-author strength on local stacks.** §11's binding-constraint finding
+  is one data point on one slice family. A systematic sweep (author model ×
+  specimen model × contract complexity) would turn it into a placement rule
+  with numbers.
+- **A calibrated tie-breaker.** Part I's judge-calibration gate (0.9.5)
+  guards promotions; the field run suggests a cheaper use — at gate
+  saturation, rank ties by measured judge reliability on the task family, or
+  simply ship the cheapest passer and say so in the audit trail.
+- **The Part I open cells stand.** Frontier-versus-frontier at scale,
+  cross-slice amortization on a family that genuinely shares a bug class,
+  and a non-sealed-derived numeric proxy remain open; the foundry makes the
+  first two materially cheaper to run (local fleets, $0 marginal).
+
+## 15. Reproducibility (Part II)
+
+The rebuild ledger is `experiments/foundry-progression/` (stages 0–6, each
+with its earn record; the stage-5 live run's complete audit tree is committed
+under `live/stage5-workdir/`). The field demonstration's full `.stz/` tree —
+including the slice-02 failure report and its resolution, the slice-05
+pressure log, and per-role cost — lives in the `example-stz-f` project
+(SUMMARY.md is the entry point). The deterministic spine, the escalation
+FSM with its policy bounds, the `slice-halt` primitive, and the provider
+seam are all pinned by the test suite (`npm test`, 299 green at 1.8.0).
+Install: `npm i -g stz-foundry`; plugin: `/plugin install stz-f`;
+standalone: `stz foundry init && stz foundry run <manifest>`.
