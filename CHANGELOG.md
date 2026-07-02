@@ -9,6 +9,34 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.8.0] — configurable retry/replan policy, durable crosscheck halts, sequencing knob
+
+Born from the first full dark-factory run (Space Invaders), where a linear
+DAG + a hard-coded halt ceiling left four slices starved behind one halt.
+
+- **`retryPolicy` (run-config)**: independent `retries` and `replans` knobs
+  for the no-passers escalation FSM — `0` halts immediately, `n` bounds the
+  stage, `-1` is unbounded (dangerous; only the token/USD hard caps stop it).
+  Defaults: 2 retries, 1 replan. Order unchanged: retries → replans → halt.
+  Honored by the bridge `escalate`, the mock orchestrator, and the standalone
+  foundry runner (`FoundryConfig.retryPolicy`); resolved policy persists into
+  slice state so escalation replays from state.json alone. Elicited in
+  `/stz-f:new` area E with an explicit danger warning on the infinite options.
+- **`slice-halt` bridge primitive**: seal-crosscheck ambiguity halts were
+  prose-only — nothing persisted to state.json. Now durable
+  (escalation=halted, failureReport, failed phase, failure-report.md) and
+  ALWAYS human-in-the-loop: never consumed by retryPolicy, never skipped by
+  dark-factory (auto-"fixing" a test-design ambiguity can bake a suite
+  blind-spot into every downstream slice). Documented in README +
+  docs/development/dark-factory.md.
+- **`sequencing` (run-config)**: `fanout` (default) instructs the slicer to
+  minimize false dependencies so independent slices run in parallel; `linear`
+  chains slices one tournament at a time. Consumed by `/stz-f:slice` (DAG
+  shape) and `/stz-f:pipeline` (dispatch).
+- 299 tests green (11 new: FSM policy semantics incl. unbounded stages,
+  normalizeRunConfig clamps, bridge slice-halt persistence, orchestrator
+  retries:0 halt).
+
 ## [1.7.4] — conventions rename, stz-f alias, resolver fix, held-out ownership guards
 
 - `/stz-f:standards` → **`/stz-f:conventions`**: the step was already single —

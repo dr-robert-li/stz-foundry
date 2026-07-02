@@ -39,3 +39,13 @@ approves. End with the exact line:
 ## SLICE PROPOSAL COMPLETE
 
 Do not spawn subagents.
+
+
+## Sequencing (run-config `sequencing`)
+
+- **fanout** (default): add a `dependsOn` edge ONLY when a slice genuinely
+  consumes another slice's contract. False dependencies serialize the build
+  and let one halted slice starve everything downstream — prefer a wide DAG
+  so independent slices can run in parallel.
+- **linear**: chain the slices in build order (each depends on the previous);
+  the operator wants one tournament at a time.

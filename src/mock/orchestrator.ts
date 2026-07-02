@@ -21,6 +21,7 @@ import type {
   Phase,
   SliceManifest,
   SliceState,
+  RetryPolicy,
   SpecimenId,
 } from "../types.js";
 import { PHASES } from "../types.js";
@@ -62,6 +63,8 @@ export interface OrchestratorOptions {
   specimenConcurrency?: number;
   /** Per-specimen wall-clock kill in ms (R10 stuck-detection; default: none). */
   specimenTimeoutMs?: number;
+  /** No-passers escalation bounds (run-config retryPolicy; default 1+1). */
+  retryPolicy?: RetryPolicy;
 }
 
 export interface SliceResult {
@@ -282,7 +285,7 @@ export async function runSlice(opts: OrchestratorOptions): Promise<SliceResult> 
       const culled = buildPressure(manifest.id, evals, outputs, []);
       await persistPressure(root, manifest.id, culled, []);
       artifacts.push(`50-pressure/${manifest.id}`);
-      const { next, action } = onNoPassers(esc);
+      const { next, action } = onNoPassers(esc, opts.retryPolicy);
       esc = next;
       state.escalation = esc.stage;
       state = appendEvent(state, "judgment", `escalation-${action.type}`, action.note);

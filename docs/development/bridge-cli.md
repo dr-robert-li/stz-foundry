@@ -52,7 +52,7 @@ section of [`sealed-suite.md`](./sealed-suite.md).
 `escalate` is the deterministic owner of bounded cross-round failure handling
 (F14). The `/stz-f:run` command calls it once after a gate that produced zero
 passers; it advances the retry→replan→halt FSM over `state.json` (hard ceiling:
-≤1 retry, ≤1 replan), persists the new counts, and writes the PDR `refinement.md`
+run-config `retryPolicy`; default 2 retries, 1 replan), persists the new counts, and writes the PDR `refinement.md`
 the next round's specimens consume (on retry/replan) or a `failure-report.md` and
 a `judgment: failed` phase (on halt). `gate` stays a pure read and never mutates
 escalation, so the two can't double-advance; the FSM's ceiling makes even a stray

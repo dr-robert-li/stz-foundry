@@ -1,15 +1,19 @@
 /**
  * Bounded failure escalation (F14, R1 mitigation).
  *
- *   no passers → 1 GRPO retry round (losers' pressure log as negative context)
- *             → 1 replanning loop (failure analysis fed back into planning)
+ *   no passers → GRPO retry rounds (losers' pressure log as negative context)
+ *             → replanning loops (failure analysis fed back into planning)
  *             → halt with a structured failure report.
  *
- * Hard ceiling. This FSM is the single source of truth for "are we allowed to
- * try again?" — the orchestrator must consult it and never loop on its own.
- * The ceiling is exactly: at most 1 retry and at most 1 replan, ever.
+ * This FSM is the single source of truth for "are we allowed to try again?" —
+ * the orchestrator must consult it and never loop on its own. The bounds are
+ * policy-driven (run-config `retryPolicy`, persisted into slice state so the
+ * FSM is replayable from state.json alone): `0` halts immediately, `n` bounds
+ * that stage, `-1` never exhausts it (dangerous — only the token/USD hard
+ * caps stop the run). Defaults preserve the earned ceiling: retries then
+ * replans then halt.
  */
-import type { EscalationStage } from "./types.js";
+import type { EscalationStage, RetryPolicy } from "./types.js";
 
 export interface EscalationState {
   stage: EscalationStage;
@@ -19,6 +23,14 @@ export interface EscalationState {
 
 export const MAX_RETRIES = 1;
 export const MAX_REPLANS = 1;
+
+/** Engine default when no policy is configured — the earned 1 retry + 1 replan. */
+export const DEFAULT_RETRY_POLICY: RetryPolicy = { retries: MAX_RETRIES, replans: MAX_REPLANS };
+
+/** `-1` means unbounded; any other value is the cap itself. */
+function withinCap(count: number, cap: number): boolean {
+  return cap === -1 || count < cap;
+}
 
 export function initialEscalation(): EscalationState {
   return { stage: "normal", retryCount: 0, replanCount: 0 };
@@ -32,13 +44,16 @@ export type EscalationAction =
 /**
  * Given the current escalation state after a tournament produced no gate-passers,
  * decide the next action and return the advanced state. Pure function: same
- * input → same output (N6).
+ * input (state + policy) → same output (N6).
  */
-export function onNoPassers(s: EscalationState): {
+export function onNoPassers(
+  s: EscalationState,
+  policy: RetryPolicy = DEFAULT_RETRY_POLICY,
+): {
   next: EscalationState;
   action: EscalationAction;
 } {
-  if (s.retryCount < MAX_RETRIES) {
+  if (withinCap(s.retryCount, policy.retries)) {
     return {
       next: { stage: "grpo-retry", retryCount: s.retryCount + 1, replanCount: s.replanCount },
       action: {
@@ -47,7 +62,7 @@ export function onNoPassers(s: EscalationState): {
       },
     };
   }
-  if (s.replanCount < MAX_REPLANS) {
+  if (withinCap(s.replanCount, policy.replans)) {
     return {
       next: { stage: "replan", retryCount: s.retryCount, replanCount: s.replanCount + 1 },
       action: {
@@ -73,14 +88,21 @@ export function isHalted(s: EscalationState): boolean {
 /**
  * Drive the FSM to terminal state from a given start, recording the action
  * sequence. Used to prove the ceiling holds (test) and to dry-run the path.
+ * Throws if a BOUNDED policy fails to terminate; unbounded (`-1`) policies
+ * must not be traced (they never halt by design).
  */
-export function escalationTrace(start = initialEscalation()): EscalationAction[] {
+export function escalationTrace(
+  start = initialEscalation(),
+  policy: RetryPolicy = DEFAULT_RETRY_POLICY,
+): EscalationAction[] {
+  if (policy.retries === -1 || policy.replans === -1)
+    throw new Error("escalationTrace: unbounded policy never terminates");
   const actions: EscalationAction[] = [];
   let s = start;
   // Bound the loop independently as a belt-and-suspenders guard; the FSM must
-  // terminate in at most MAX_RETRIES + MAX_REPLANS + 1 steps.
-  for (let guard = 0; guard < MAX_RETRIES + MAX_REPLANS + 5; guard++) {
-    const { next, action } = onNoPassers(s);
+  // terminate in at most retries + replans + 1 steps.
+  for (let guard = 0; guard < policy.retries + policy.replans + 5; guard++) {
+    const { next, action } = onNoPassers(s, policy);
     actions.push(action);
     s = next;
     if (action.type === "halt") return actions;

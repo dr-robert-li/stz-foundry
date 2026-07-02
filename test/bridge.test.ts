@@ -225,36 +225,43 @@ describe("bridge escalate — cross-round bounded escalation the command drives 
     expect(await readFile(join(root, STZ_DIR, "50-pressure/slice-01/refinement.md"), "utf8")).toMatch(/refinement/i);
     expect(await readFile(join(root, STZ_DIR, "50-pressure/slice-01/pressure.md"), "utf8")).toMatch(/specimen-/);
 
-    // Round 2 → replan (retry budget spent). Planning re-opens.
+    // Round 2 → second retry (default retryPolicy is 2 retries).
+    captured = "";
+    await runBridge(["escalate", "--root", root, "--slice", "slice-01"]);
+    const r1b = lastJSON<{ action: string; round: number; retryCount: number }>();
+    expect(r1b.action).toBe("retry");
+    expect(r1b.retryCount).toBe(2);
+
+    // Round 3 → replan (retry budget spent). Planning re-opens.
     captured = "";
     await runBridge(["escalate", "--root", root, "--slice", "slice-01"]);
     const r2 = lastJSON<{ action: string; round: number; replanCount: number }>();
     expect(r2.action).toBe("replan");
-    expect(r2.round).toBe(2);
+    expect(r2.round).toBe(3);
     expect(r2.replanCount).toBe(1);
     state = await loadState(root, "slice-01");
     expect(state.escalation).toBe("replan");
     expect(state.phaseStatus.planning).toBe("running"); // command rewrites intent before re-spawn
 
-    // Round 3 → halt (both budgets spent). Failure report + phase failed.
+    // Round 4 → halt (both budgets spent). Failure report + phase failed.
     captured = "";
     await runBridge(["escalate", "--root", root, "--slice", "slice-01"]);
     const r3 = lastJSON<{ action: string; round: number; failureReportPath: string }>();
     expect(r3.action).toBe("halt");
-    expect(r3.round).toBe(3);
+    expect(r3.round).toBe(4);
     expect(r3.failureReportPath).toMatch(/failure-report\.md$/);
     state = await loadState(root, "slice-01");
     expect(state.escalation).toBe("halted");
     expect(state.phaseStatus.judgment).toBe("failed");
     expect(state.failureReport).toMatch(/No specimen passed/);
     const report = await readFile(join(root, STZ_DIR, "40-slices/slice-01/failure-report.md"), "utf8");
-    expect(report).toMatch(/3 round\(s\)/);
+    expect(report).toMatch(/4 round\(s\)/);
     expect(report).toMatch(/specimen-a/);
   });
 
-  it("never exceeds the ceiling — a stray fourth call stays halted (fail-safe)", async () => {
+  it("never exceeds the ceiling — a stray extra call stays halted (fail-safe)", async () => {
     await setupFailedField();
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       captured = "";
       await runBridge(["escalate", "--root", root, "--slice", "slice-01"]);
     }
@@ -263,7 +270,7 @@ describe("bridge escalate — cross-round bounded escalation the command drives 
     await runBridge(["escalate", "--root", root, "--slice", "slice-01"]);
     const extra = lastJSON<{ action: string; retryCount: number; replanCount: number }>();
     expect(extra.action).toBe("halt");
-    expect(extra.retryCount).toBe(1);
+    expect(extra.retryCount).toBe(2);
     expect(extra.replanCount).toBe(1);
     const state = await loadState(root, "slice-01");
     expect(state.escalation).toBe("halted");
@@ -282,6 +289,48 @@ const passRate = passed/total;
 console.log(JSON.stringify({passed, total, passRate}));
 process.exit(passRate === 1 ? 0 : 1);
 `;
+
+describe("bridge slice-halt + configurable retryPolicy (1.8.0)", () => {
+  it("escalate honors run-config retryPolicy {0,0}: first no-passers halts", async () => {
+    const manifestPath = join(root, "m.json");
+    await writeFile(manifestPath, JSON.stringify(manifest), "utf8");
+    await runBridge(["begin", "--root", root, "--manifest", manifestPath]);
+    await writeFile(join(root, STZ_DIR, "00-intent", "run-config.json"),
+      JSON.stringify({ retryPolicy: { retries: 0, replans: 0 } }), "utf8");
+    await writeSpecimen("a", { "impl.ts": "export const run = (x:number)=>x;\n" });
+    captured = "";
+    await runBridge(["record-eval", "--root", root, "--slice", "slice-01", "--specimen", "a",
+      "--metrics", await metricsFile({ testPassRate: 0.4, coverage: 0.5, mutationScore: 0.1 })]);
+    captured = "";
+    await runBridge(["gate", "--root", root, "--slice", "slice-01"]);
+    captured = "";
+    await runBridge(["escalate", "--root", root, "--slice", "slice-01"]);
+    const r = lastJSON<{ action: string }>();
+    expect(r.action).toBe("halt");
+    const state = await loadState(root, "slice-01");
+    expect(state.escalation).toBe("halted");
+    expect(state.retryPolicy).toEqual({ retries: 0, replans: 0 });
+    expect(state.failureReport).toMatch(/retryPolicy: 0 retries, 0 replans/);
+  });
+
+  it("slice-halt persists a durable non-escalation halt (crosscheck class)", async () => {
+    const manifestPath = join(root, "m.json");
+    await writeFile(manifestPath, JSON.stringify(manifest), "utf8");
+    await runBridge(["begin", "--root", root, "--manifest", manifestPath]);
+    captured = "";
+    await runBridge(["slice-halt", "--root", root, "--slice", "slice-01",
+      "--phase", "test-authoring",
+      "--reason", "Seal-crosscheck divergence: ambiguous bullet-liveness expectation. Human decision required."]);
+    const r = lastJSON<{ action: string; failureReportPath: string }>();
+    expect(r.action).toBe("halt");
+    const state = await loadState(root, "slice-01");
+    expect(state.escalation).toBe("halted");
+    expect(state.failureReport).toMatch(/crosscheck divergence/i);
+    expect(state.phaseStatus["test-authoring"]).toBe("failed");
+    expect(await readFile(join(root, STZ_DIR, "40-slices/slice-01/failure-report.md"), "utf8"))
+      .toMatch(/Human decision required/);
+  });
+});
 
 describe("seal-crosscheck — cross-family reference gate (0.5.0)", () => {
   async function setup(refBSrc: string): Promise<{ sealed: string; refA: string; refB: string }> {

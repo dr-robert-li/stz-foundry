@@ -229,6 +229,19 @@ async function setConfig(partial: Partial<RunConfig>): Promise<void> {
 }
 
 describe("run configuration — 0.3.0 elicitation choices, consumed downstream", () => {
+  it("retryPolicy + sequencing: defaults, clamps, rejects (1.8.0)", () => {
+    const d = defaultRunConfig();
+    expect(d.retryPolicy).toEqual({ retries: 2, replans: 1 });
+    expect(d.sequencing).toBe("fanout");
+    const c = normalizeRunConfig({ retryPolicy: { retries: -5, replans: 200 } as RunConfig["retryPolicy"], sequencing: "linear" });
+    expect(c.retryPolicy).toEqual({ retries: -1, replans: 99 }); // clamped to [-1, 99]
+    expect(c.sequencing).toBe("linear");
+    expect(normalizeRunConfig({ retryPolicy: { retries: 0 } as RunConfig["retryPolicy"] }).retryPolicy)
+      .toEqual({ retries: 0, replans: 1 }); // partial merges over default
+    expect(() => normalizeRunConfig({ retryPolicy: { retries: "lots" } as unknown as RunConfig["retryPolicy"] })).toThrow(/retryPolicy.retries/);
+    expect(() => normalizeRunConfig({ sequencing: "zigzag" as RunConfig["sequencing"] })).toThrow(/sequencing/);
+  });
+
   it("normalizeRunConfig fills every field from a sparse partial", () => {
     const c = normalizeRunConfig({ fanout: 6 });
     const d = defaultRunConfig();

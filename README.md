@@ -87,6 +87,15 @@ automatically; dark-factory mode (lights-out, every downstream gate skipped)
 is described in
 [`docs/development/dark-factory.md`](docs/development/dark-factory.md).
 
+Two run-config knobs (set during `/stz-f:new`) shape autonomous runs: **retry
+policy** — what happens when a tournament finds no passer (halt immediately /
+retry n times, default 2 / retry unbounded — dangerous, stopped only by the
+token/USD caps); and **sequencing** — fan-out (independent slices in
+parallel, the default) vs linear (one at a time). One halt class is always
+human-in-the-loop regardless: a seal-crosscheck ambiguity (test-design
+judgment) durably halts its slice for adjudication while the rest of the DAG
+continues.
+
 For a single one-off slice with no project setup:
 
 ```text

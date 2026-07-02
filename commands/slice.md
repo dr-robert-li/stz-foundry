@@ -21,7 +21,7 @@ echo "using bridge: $STZ"
 
 You are the STZ orchestrator. Read state first: `$STZ bridge project-status
 --root .`. Require testing-conventions `done`; else point at `/stz-f:tests`. Note
-`runConfig.granularity` from the same output — it tunes how finely to slice. Also
+`runConfig.granularity` and `runConfig.sequencing` from the same output — it tunes how finely to slice. Also
 read the hoisted `darkFactory` flag: when `true`, the co-design gate below is
 auto-approved (see Dark-factory).
 
@@ -33,7 +33,10 @@ user shape it together before committing.
 1. **Spawn one `stz-slicer` subagent** (model: `runConfig.models.planning`).
    Pass it the `runConfig.granularity` from project-status: `coarse` → prefer
    fewer, larger slices; `balanced` → the default; `fine` → prefer more, smaller
-   single-responsibility slices. It reads all prior tiers and proposes a DAG,
+   single-responsibility slices. Also pass `runConfig.sequencing`: `fanout` →
+   minimize false dependencies (a dependsOn edge ONLY where a slice consumes
+   another's contract; wide DAG so independent slices run in parallel);
+   `linear` → chain slices in build order. It reads all prior tiers and proposes a DAG,
    writing `.stz/40-slices/proposed-dag.md` and a machine `slices.json` (an array
    of full slice manifests with `dependsOn` and the per-slice subset of
    done-predicates), returning the DAG and `## SLICE PROPOSAL COMPLETE`.

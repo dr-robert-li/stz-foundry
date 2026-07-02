@@ -123,6 +123,20 @@ describe("F14 failure path — bounded escalation to halt", () => {
     expect(exists("40-slices/slice-01/failure-report.md")).toBe(true);
   });
 
+  it("retryPolicy {0,0} halts on the first no-passer round — no retries (1.8.0)", async () => {
+    const model = new MockModelLayer(alwaysFailConfig());
+    const result = await runSlice({
+      root, manifest: { ...manifest, complexity: 5 }, model, n: 4,
+      retryPolicy: { retries: 0, replans: 0 },
+    });
+    expect(result.halted).toBe(true);
+    expect(result.rounds).toBe(1);
+    const state = await loadState(root, "slice-01");
+    expect(state.escalation).toBe("halted");
+    expect(state.retryCount).toBe(0);
+    expect(state.replanCount).toBe(0);
+  });
+
   it("escalation events appear in the replayable journal", async () => {
     const model = new MockModelLayer(alwaysFailConfig());
     await runSlice({ root, manifest, model, n: 4 });

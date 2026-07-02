@@ -28,6 +28,7 @@ import { join } from "node:path";
 import type {
   EvalResult,
   PairwiseVote,
+  Phase,
   SliceManifest,
   ProjectManifest,
   ProjectPhase,
@@ -58,7 +59,7 @@ import {
 } from "./project.js";
 import { detectHacks, suspicionScore } from "./hack-detector.js";
 import { STZ_VERSION, SCHEMA_VERSION, PACKAGE_NAME } from "./version.js";
-import { onNoPassers, type EscalationState } from "./escalation.js";
+import { onNoPassers, DEFAULT_RETRY_POLICY, type EscalationState } from "./escalation.js";
 import { evalGate, select, pairings } from "./selection.js";
 import { diffSpecs, renderSpecDiff, isFaithful, unmatchedIntentIds, mismatchedAsBuiltIds, type Spec } from "./specdiff.js";
 import { seal, verifySeal, amendSeal, heldOutFiles } from "./seal.js";
@@ -325,7 +326,7 @@ function culledFromEvals(
  *
  * The sealed suite is NOT touched here: retry/replan re-enter the tournament with
  * the SAME frozen suite (the command re-runs `seal-verify` each round). Re-using
- * the FSM's hard ceiling (≤1 retry, ≤1 replan) means even a stray double-call is
+ * the FSM's policy bound (run-config `retryPolicy`) means even a stray double-call is
  * fail-safe — it halts early, it never loops.
  */
 async function escalateCmd(args: Record<string, string>): Promise<void> {
@@ -340,7 +341,16 @@ async function escalateCmd(args: Record<string, string>): Promise<void> {
   };
   // The round that just failed (1-based): rounds already consumed + this one.
   const failedRound = cur.retryCount + cur.replanCount + 1;
-  const { next, action } = onNoPassers(cur);
+  // Resolve the escalation bounds: the state's persisted copy wins (replay
+  // stability); else the project run-config; else the engine default. Persist
+  // on first use so every later escalate replays from state.json alone.
+  let policy = state.retryPolicy;
+  if (!policy) {
+    const rc = await loadRunConfig(root);
+    policy = rc?.retryPolicy ?? DEFAULT_RETRY_POLICY;
+    state.retryPolicy = policy;
+  }
+  const { next, action } = onNoPassers(cur, policy);
   state.escalation = next.stage;
   state.retryCount = next.retryCount;
   state.replanCount = next.replanCount;
@@ -358,8 +368,8 @@ async function escalateCmd(args: Record<string, string>): Promise<void> {
     const report =
       `# Failure report — ${slice}\n\n` +
       `No specimen passed the sealed-suite gate after ${failedRound} round(s) ` +
-      `(${next.retryCount} retry, ${next.replanCount} replan). The bounded-escalation ` +
-      `budget (≤1 retry, ≤1 replan) is exhausted; halting per F14.\n\n` +
+      `(${next.retryCount} retry, ${next.replanCount} replan). The escalation ` +
+      `budget (retryPolicy: ${policy.retries} retries, ${policy.replans} replans) is exhausted; halting per F14.\n\n` +
       `## Per-specimen gate outcomes (final round)\n` +
       evals
         .map((e) => {
@@ -411,6 +421,44 @@ async function escalateCmd(args: Record<string, string>): Promise<void> {
     retryCount: state.retryCount,
     replanCount: state.replanCount,
     refinementPath: stzPath(root, join("50-pressure", slice, "refinement.md")),
+  });
+}
+
+/**
+ * `slice-halt` — durable non-escalation halt (e.g. seal-crosscheck divergence).
+ * These halts are ALWAYS human-in-the-loop: they are never consumed by the
+ * retryPolicy and never skipped by dark-factory — a test-DESIGN ambiguity
+ * auto-"fixed" can bake a suite blind-spot into every downstream slice.
+ * Persists what the escalate path persists (escalation="halted",
+ * failureReport, failed phase, failure-report.md) so the halt is durable and
+ * machine-visible to `project-status`, not prose-only.
+ */
+async function sliceHaltCmd(args: Record<string, string>): Promise<void> {
+  const { root, slice } = args as { root: string; slice: string };
+  const phase = (args.phase ?? "test-authoring") as Phase;
+  if (!args.reason) {
+    console.error("slice-halt requires --reason (a markdown file path or an inline string).");
+    process.exitCode = 1;
+    return;
+  }
+  const reason = existsSync(args.reason) ? readFileSync(args.reason, "utf8") : args.reason;
+
+  let state = await loadState(root, slice);
+  const report = `# Failure report — ${slice}\n\n${reason.trim()}\n`;
+  state.escalation = "halted";
+  state.failureReport = report;
+  state = setPhaseStatus(state, phase, "failed");
+  state = appendEvent(state, phase, "slice-halt", "halted for human review (non-escalation halt)");
+  await writeDoc(root, join(sliceRel(slice), "failure-report.md"), {
+    frontmatter: { summary: `Halt (${phase}): human decision required.` },
+    body: report,
+  });
+  await saveState(root, state);
+  print({
+    action: "halt",
+    phase,
+    escalation: state.escalation,
+    failureReportPath: stzPath(root, join(sliceRel(slice), "failure-report.md")),
   });
 }
 
@@ -1468,7 +1516,7 @@ function evalBaselineCmd(args: Record<string, string>): void {
 }
 
 const BRIDGE_COMMANDS = [
-  "version", "begin", "record-eval", "eval", "gate", "escalate", "record-votes", "select", "finalize",
+  "version", "begin", "record-eval", "eval", "gate", "escalate", "slice-halt", "record-votes", "select", "finalize",
   "project-init", "project-phase", "project-write-intent", "project-record-area", "project-set-config",
   "project-dark-factory", "project-config", "slice-add", "project-seed-slices", "project-status", "summary",
   "seal", "seal-verify", "seal-crosscheck", "seal-amend", "merge-validate", "merge-compat-propose",
@@ -1489,6 +1537,7 @@ export async function runBridge(argv: string[]): Promise<void> {
     case "eval": evalCmd(args); break;
     case "gate": gate(args); break;
     case "escalate": await escalateCmd(args); break;
+    case "slice-halt": await sliceHaltCmd(args); break;
     case "record-votes": recordVotes(args); break;
     case "select": await selectCmd(args); break;
     case "finalize": await finalize(args); break;

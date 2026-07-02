@@ -75,3 +75,21 @@ fields), persistence, and the hoisted status surface — is covered end-to-end i
 markdown (`/stz-f:pipeline`, `/stz-f:run`, `/stz-f:slice`) and is driven by the agent,
 so it is not unit-tested; the tests cover the flag plumbing those commands read,
 not the agent loop.
+
+
+## Halts the factory cannot absorb
+
+Two halt classes behave differently under autonomy:
+
+- **No-passers tournament halts** are governed by the run-config
+  `retryPolicy` (`{retries, replans}`, set during `/stz-f:new`): `0` halts
+  immediately, `n` bounds the automated attempts, `-1` retries without bound —
+  dangerous, and stopped only by the token/USD hard caps. Dark-factory obeys
+  the same policy.
+- **Seal-crosscheck ambiguity halts** (two independent references diverge on
+  the sealed suite) are ALWAYS human-in-the-loop, regardless of retryPolicy or
+  dark-factory. Auto-"fixing" a test-design ambiguity can bake a suite
+  blind-spot into every downstream slice — the exact failure class the
+  crosscheck exists to catch. The slice halts durably (`stz bridge
+  slice-halt`), the DAG continues around it, and the divergence surfaces in
+  the completion summary for adjudication.

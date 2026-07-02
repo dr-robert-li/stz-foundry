@@ -21,7 +21,7 @@
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
-import type { SliceManifest } from "../types.js";
+import type { SliceManifest, RetryPolicy } from "../types.js";
 import { createProvider, type Provider, type ProviderKind } from "./provider.js";
 import { FoundryModelLayer, type FoundryRoles, type RoleModel } from "./model-layer.js";
 import { FoundryCostMeter, type CostCaps, type PricingTable } from "./cost.js";
@@ -53,6 +53,8 @@ export interface FoundryConfig {
   votesPerPair?: number;
   specimenConcurrency?: number;
   specimenTimeoutMs?: number;
+  /** No-passers escalation bounds (0 = halt, n = bounded, -1 = unbounded). */
+  retryPolicy?: RetryPolicy;
 }
 
 const ROLE_NAMES = ["testAuthor", "strategist", "specimen", "judge", "documenter", "planner"] as const;
@@ -152,6 +154,7 @@ export async function runFoundry(opts: FoundryRunOptions): Promise<FoundryRunRes
     n: config.n ?? 4,
     specimenConcurrency: config.specimenConcurrency,
     specimenTimeoutMs: config.specimenTimeoutMs,
+    retryPolicy: config.retryPolicy,
     log: opts.log,
   });
 

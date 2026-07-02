@@ -97,9 +97,13 @@ on prose-only acceptance (F2).
        Resolve before sealing.
        - **In dark-factory mode** (`darkFactory` true, from step 0) there is no
          human to adjudicate, and divergence must NOT auto-rewrite either — so do
-         not seal or judge this slice. Instead **halt it**: record the divergence
-         (it is already in `30-tests/cross-reference.md`), mark the slice halted
-         with a failure report pointing at the cross-check, and return. Per the
+         not seal or judge this slice. Instead **halt it durably**:
+         `$STZ bridge slice-halt --root . --slice $1 --phase test-authoring
+         --reason 30-tests/cross-reference.md` (or pass an inline summary) —
+         this persists `escalation=halted` + the failure report to state.json
+         so the halt is machine-visible, then return. Crosscheck-ambiguity
+         halts are ALWAYS human-in-the-loop: they are never consumed by the
+         run-config `retryPolicy` and never skipped by dark-factory. Per the
          `/stz-f:pipeline` dark-factory rule, a halted slice does not stall the
          factory — the DAG continues and the divergence surfaces in the final
          `/stz-f:summary` for after-the-fact human review. (This is the one place
@@ -182,7 +186,7 @@ on prose-only acceptance (F2).
     The suite stays **frozen** across every round: never re-run step 2
     (test-author / seal) on a retry or replan — re-authoring or re-sealing
     mid-slice destroys the anti-hacking guarantee. Only `seal-verify` (4b) runs
-    each round. The FSM ceiling is hard (≤1 retry, ≤1 replan), so `escalate`
+    each round. The FSM bound is policy-driven (run-config `retryPolicy`; default 2 retries + 1 replan), so `escalate`
     returns `halt` after at most two re-rounds — trust its `action`, never loop
     past it.
 
@@ -248,5 +252,7 @@ on prose-only acceptance (F2).
 - If the gate yields zero passers, do not loop or decide on your own: call
   `$STZ bridge escalate` (step 6b) and follow its `action` (retry → replan →
   halt). The bridge owns the bound — it persists the retry/replan counts to
-  `state.json` and halts deterministically after ≤1 retry + ≤1 replan, so the
+  `state.json` and halts deterministically when the run-config `retryPolicy`
+  bounds (default 2 retries + 1 replan; `-1` = unbounded, capped only by the
+  token/USD kill-switches) are exhausted, so the
   escalation is replayable from state, not dependent on you counting rounds.

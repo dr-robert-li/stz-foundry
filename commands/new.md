@@ -92,6 +92,20 @@ a sensible default — the user may "You decide" any of them.
   the user wants finer control, ask for coverage target / mutation policy
   (`off|lenient|standard|strict`) / conventions (`relaxed|standard|strict`)
   individually in plain text.
+- **Sequencing** (header `Sequencing`) — DAG shape + dispatch:
+  `[Fan-out (default), Linear, You decide]`. Fan-out: the slicer minimizes
+  false dependencies and independent slices run in parallel (faster; one halt
+  doesn't starve the rest — but parallel tournaments multiply token burn:
+  frontier width × N specimens). Linear: one slice at a time, predictable
+  cost. → `sequencing` (`fanout`|`linear`).
+- **Retry policy** (header `Retries`) — what happens when a tournament round
+  produces NO gate-passers, in or out of dark-factory:
+  - retries: `[2 (default), Halt immediately (0), Custom n, Infinite (-1) — DANGEROUS]`
+  - replans after retries exhausted: `[1 (default), 0, Custom n, Infinite (-1) — DANGEROUS]`
+  Infinite options MUST carry the warning: an unbounded loop can burn tokens
+  without limit — only the hard token/USD caps stop it. → `retryPolicy:
+  {retries, replans}`. NOTE: seal-crosscheck ambiguity halts are NOT governed
+  by this policy — they always stop for a human (test-design judgment).
 - **Model combination per role** (header `Models`) — which model handles each of
   planning, research, execution, testing, validation, judging. Offer a few
   suggested combos as options, each with a one-line rationale, plus free-form
@@ -106,7 +120,7 @@ a sensible default — the user may "You decide" any of them.
   Use spawn aliases (`opus` / `sonnet` / `haiku` / `fable`) so the values drop
   straight into an Agent `model` override; a free-form model id is also accepted.
 
-Assemble a config file `{granularity, fanout, models:{planning,research,
+Assemble a config file `{granularity, fanout, sequencing, retryPolicy:{retries,replans}, models:{planning,research,
 execution,testing,validation,judging}, strictness:{coverageTarget,mutationPolicy,
 conventions}}` (omit any field to keep its default) and persist it:
 `$STZ bridge project-set-config --root . --config <that file>`. Echo back the

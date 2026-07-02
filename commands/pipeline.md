@@ -59,7 +59,7 @@ computed by the bridge; do not eyeball counts or re-tally in your head.
 5. **Frontier line** — `next: <next>` and `frontier: [<frontier…>]` (the frontier
    slices have all deps done and can run in parallel). If `blocked` is true, say
    `slice execution blocked until /stz-f:slice completes slice-disaggregation`.
-6. **Run config line** — from `runConfig`: `granularity · N=<fanout> · cov≥<…> ·
+6. **Run config line** — from `runConfig`: `granularity · <sequencing> · retries <retries>/<replans> · N=<fanout> · cov≥<…> ·
    mutation <…> · conventions <…> · models{planning/research/execution/testing/
    validation/judging}`. Tag `(defaults)` when `runConfigSet` is false, or
    `(run-config.json corrupt — using defaults)` when `runConfigBroken` is true.
@@ -93,7 +93,7 @@ Slices
 | ▶ slice-03   | slice-01  | ○ pending  | —      | —        |
 
 next: slice-03 · frontier: [slice-03]
-run config: balanced · N=4 · cov≥0.9 · mutation standard · conventions standard ·
+run config: balanced · fanout · retries 2/1 · N=4 · cov≥0.9 · mutation standard · conventions standard ·
 models{plan=sonnet research=haiku exec=sonnet test=sonnet val=sonnet judge=opus} (defaults)
 ```
 
@@ -107,9 +107,10 @@ action first, then alternatives. Examples by state:
 - all slices done → `[Run /stz-f:summary, Refresh, Stop]`
 
 Selecting a project-phase command runs it inline. Selecting tournament work
-dispatches `/stz-f:run <id>`. When the frontier holds more than one slice, you MAY
-run them as parallel background agents (the DAG says they are independent), then
-refresh. Loop until the user stops or all slices are done, then recommend
+dispatches `/stz-f:run <id>`. When the frontier holds more than one slice:
+`runConfig.sequencing` decides — `fanout` → you SHOULD run them as parallel
+background agents (the DAG says they are independent); `linear` → dispatch
+exactly ONE slice per tick even when the frontier is wider. Then refresh. Loop until the user stops or all slices are done, then recommend
 `/stz-f:summary`.
 
 ## --auto
@@ -135,9 +136,10 @@ prompts:
   elicitation never produced a machine-checkable predicate, stop and say so
   rather than inventing acceptance. (In practice elicitation is already done
   before dark-factory drives anything.)
-- When the frontier holds independent slices, run them as parallel background
-  agents (the DAG says they are independent), then refresh. Loop until every
-  slice is `done` or `halted`.
+- When the frontier holds independent slices and `runConfig.sequencing` is
+  `fanout`, run them as parallel background agents (the DAG says they are
+  independent); with `linear`, one slice per tick. Loop until every slice is
+  `done` or `halted`.
 - **The one decision the factory defers, never guesses:** a `seal-crosscheck`
   divergence (`/stz-f:run` step 2) needs human adjudication and must not
   auto-rewrite. With no human present, `/stz-f:run` halts that slice rather than

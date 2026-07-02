@@ -200,6 +200,11 @@ export interface SliceState {
   /** How many GRPO retries / replans consumed (ceiling enforced by F14). */
   retryCount: number;
   replanCount: number;
+  /**
+   * Resolved escalation bounds persisted at first escalate (replayable from
+   * state.json alone). Absent ⇒ the engine default (1 retry + 1 replan).
+   */
+  retryPolicy?: RetryPolicy;
   activeSpecimens: SpecimenId[];
   budget: Budget;
   /** Append-only event log — the replay spine. */
@@ -278,6 +283,25 @@ export interface ProjectState {
 /** How finely `/stz-f:slice` breaks the work into vertical slices. */
 export type SlicingGranularity = "coarse" | "balanced" | "fine";
 
+/**
+ * DAG shape preference for `/stz-f:slice` + dispatch mode for `/stz-f:pipeline`.
+ * `fanout`: minimize false dependencies, run independent frontier slices in
+ * parallel. `linear`: chain slices, one tournament at a time.
+ */
+export type Sequencing = "fanout" | "linear";
+
+/**
+ * No-passers escalation bounds (run-config `retryPolicy`). For each knob:
+ * `0` = halt immediately, `n>0` = bounded, `-1` = unbounded (dangerous — only
+ * the token/USD hard caps stop the run). Order is fixed: exhaust retries →
+ * exhaust replans → halt. Crosscheck-ambiguity halts are NOT governed by this
+ * policy — they are always human-in-the-loop.
+ */
+export interface RetryPolicy {
+  retries: number;
+  replans: number;
+}
+
 /** Mutation-testing bar for `/stz-f:tests`. */
 export type MutationPolicy = "off" | "lenient" | "standard" | "strict";
 
@@ -332,6 +356,10 @@ export interface RunConfig {
    * `stz bridge project-dark-factory` (the invoke-anytime flag).
    */
   darkFactory: boolean;
+  /** No-passers escalation bounds; see RetryPolicy. Active in and out of dark-factory. */
+  retryPolicy: RetryPolicy;
+  /** DAG shape + dispatch preference; see Sequencing. Default "fanout". */
+  sequencing: Sequencing;
   /**
    * Harness-level recursive self-improvement (0.9.0). Optional + default-off:
    * absent or `enabled:false` ⇒ STZ runs exactly as before (the per-slice

@@ -24,6 +24,7 @@ import {
   type SliceRunStatus,
   type RunConfig,
   type SlicingGranularity,
+  type Sequencing,
   type MutationPolicy,
   type ConventionStrictness,
   type StzRole,
@@ -230,10 +231,16 @@ export function defaultRunConfig(): RunConfig {
     },
     // Human-in-the-loop by default — a fully autonomous run is opt-in (0.4.0).
     darkFactory: false,
+    // 2 tournament retries then 1 replan then halt ("default 2" per the
+    // operator spec). 0 = halt immediately, -1 = unbounded (dangerous).
+    retryPolicy: { retries: 2, replans: 1 },
+    // Wide DAG by default — false dependencies serialize the build.
+    sequencing: "fanout",
   };
 }
 
 const GRANULARITIES: readonly SlicingGranularity[] = ["coarse", "balanced", "fine"];
+const SEQUENCINGS: readonly Sequencing[] = ["fanout", "linear"];
 const MUTATION_POLICIES: readonly MutationPolicy[] = ["off", "lenient", "standard", "strict"];
 const CONVENTION_STRICTNESS: readonly ConventionStrictness[] = ["relaxed", "standard", "strict"];
 
@@ -294,6 +301,24 @@ export function normalizeRunConfig(partial: Partial<RunConfig> | undefined): Run
     darkFactory = p.darkFactory === true || String(p.darkFactory).trim().toLowerCase() === "true";
   }
 
+  if (p.sequencing !== undefined && !SEQUENCINGS.includes(p.sequencing)) {
+    throw new Error(`invalid sequencing: ${p.sequencing} (expected ${SEQUENCINGS.join("|")})`);
+  }
+  const sequencing = p.sequencing ?? base.sequencing;
+
+  // retryPolicy knobs: integers, -1 = unbounded, clamped to [-1, 99]. Stringy
+  // numbers accepted (CLI args); anything non-numeric is a hard error.
+  const retryPolicy = { ...base.retryPolicy };
+  if (p.retryPolicy !== undefined) {
+    for (const knob of ["retries", "replans"] as const) {
+      const raw = (p.retryPolicy as unknown as Record<string, unknown>)[knob];
+      if (raw === undefined) continue;
+      const n = Math.round(Number(raw));
+      if (!Number.isFinite(n)) throw new Error(`invalid retryPolicy.${knob}: ${raw}`);
+      retryPolicy[knob] = Math.max(-1, Math.min(99, n));
+    }
+  }
+
   // Harness-level RSI (0.9.0) is opt-in: only attached when present, so existing
   // serialized configs (and their tests) keep their exact shape when it is absent.
   const harness = p.harness !== undefined ? normalizeHarnessConfig(p.harness) : undefined;
@@ -309,6 +334,8 @@ export function normalizeRunConfig(partial: Partial<RunConfig> | undefined): Run
       conventions: s.conventions ?? base.strictness.conventions,
     },
     darkFactory,
+    retryPolicy,
+    sequencing,
     ...(harness ? { harness } : {}),
   };
 }
