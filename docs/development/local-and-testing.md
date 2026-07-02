@@ -9,8 +9,8 @@ CI, and quick smoke tests. The operator-facing install and usage live in the
 If you only want the deterministic engine and the mock pipeline:
 
 ```bash
-git clone https://github.com/dr-robert-li/slice-tournament-zoo
-cd slice-tournament-zoo
+git clone https://github.com/dr-robert-li/stz-foundry
+cd stz-foundry
 npm install
 npm test            # 93 deterministic tests
 npm run typecheck

@@ -33,6 +33,20 @@ describe("foundry identity (stage 0)", () => {
     expect(wf).not.toContain("npmjs.com/package/slice-tournament-zoo");
   });
 
+  it("live docs carry no upstream identity refs (stage 6 staleness sweep)", () => {
+    // Historical records (CHANGELOG, docs/PAPER.md, experiments/) intentionally
+    // keep the upstream name as provenance; every LIVE doc must not.
+    for (const rel of [
+      "README.md",
+      "CONTRIBUTING.md",
+      "src/README.md",
+      "docs/CLAUDE.md",
+      "docs/development/local-and-testing.md",
+    ]) {
+      expect(read(rel), rel).not.toContain("slice-tournament-zoo");
+    }
+  });
+
   it("update remediation commands point at the new package", () => {
     // registryLatestUrl and the printed `npm i -g` remediation both derive from
     // PACKAGE_NAME; a stale literal anywhere in update.ts would reintroduce the

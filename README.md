@@ -11,9 +11,9 @@
  ╚═════╝      ╚═╝    ╚══════╝
 </pre>
 
-[![CI](https://github.com/dr-robert-li/slice-tournament-zoo/actions/workflows/ci.yml/badge.svg)](https://github.com/dr-robert-li/slice-tournament-zoo/actions/workflows/ci.yml)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/dr-robert-li/slice-tournament-zoo/blob/main/LICENSE)
-[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://github.com/dr-robert-li/slice-tournament-zoo/blob/main/package.json)
+[![CI](https://github.com/dr-robert-li/stz-foundry/actions/workflows/ci.yml/badge.svg)](https://github.com/dr-robert-li/stz-foundry/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/dr-robert-li/stz-foundry/blob/main/LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://github.com/dr-robert-li/stz-foundry/blob/main/package.json)
 
 </div>
 
@@ -65,9 +65,9 @@ dependency without any `${CLAUDE_PLUGIN_ROOT}` fallback.
 ### Via npm (global CLI)
 
 ```bash
-npm i -g slice-tournament-zoo               # from npm
+npm i -g stz-foundry               # from npm
 # or install straight from GitHub (no npm publish needed):
-npm i -g dr-robert-li/slice-tournament-zoo
+npm i -g dr-robert-li/stz-foundry
 ```
 
 This puts `stz` on your `PATH` (`stz`, `stz init`, `stz run`, `stz bridge …`)
@@ -79,7 +79,7 @@ Node.js 20+. Run `stz` with no arguments to see the banner and commands.
 From inside Claude Code, add the marketplace and install the plugin:
 
 ```text
-/plugin marketplace add dr-robert-li/slice-tournament-zoo
+/plugin marketplace add dr-robert-li/stz-foundry
 /plugin install stz
 ```
 
@@ -98,7 +98,7 @@ needed (Node.js 20+ is the only requirement; the bundled copy fetches `tsx` via
 `npx` on first use, so that first call needs network).
 
 > Developing STZ itself, or running the engine without Claude Code? See
-> [`docs/development/local-and-testing.md`](https://github.com/dr-robert-li/slice-tournament-zoo/blob/main/docs/development/local-and-testing.md).
+> [`docs/development/local-and-testing.md`](https://github.com/dr-robert-li/stz-foundry/blob/main/docs/development/local-and-testing.md).
 
 ## Updating
 
@@ -120,7 +120,7 @@ checkout — it also reports **drift** between the CLI and the plugin's bundled
 engine:
 
 ```bash
-npm i -g slice-tournament-zoo@latest      # update the CLI
+npm i -g stz-foundry@latest      # update the CLI
 /plugin update stz                        # update the plugin (inside Claude Code)
 ```
 
@@ -223,7 +223,7 @@ stz bridge project-dark-factory --root . --on    # engage; --off to disengage
 The toggle only flips the `darkFactory` flag in the run config — it never resets
 your fan-out / models / strictness. `project-status` hoists the flag to the top
 level, so engaging it between phases takes effect immediately. See
-[`docs/development/dark-factory.md`](https://github.com/dr-robert-li/slice-tournament-zoo/blob/main/docs/development/dark-factory.md) for the full
+[`docs/development/dark-factory.md`](https://github.com/dr-robert-li/stz-foundry/blob/main/docs/development/dark-factory.md) for the full
 contract.
 
 The DAG ordering and per-slice seeding are backed by the deterministic
@@ -236,7 +236,7 @@ any slice runs. When `/stz:slice` seeds the DAG, each slice inherits those early
 phases as done, leaving only the tournament half for `/stz:run`. Project status
 is derived from each slice's own `state.json`, so an interrupted pipeline resumes
 by re-reading state. A worked run of the front phases (a `slugify` library) lives
-in [`examples/full-pipeline/`](https://github.com/dr-robert-li/slice-tournament-zoo/tree/main/examples/full-pipeline).
+in [`examples/full-pipeline/`](https://github.com/dr-robert-li/stz-foundry/tree/main/examples/full-pipeline).
 
 ### Run a slice as a tournament (in Claude Code)
 
@@ -352,7 +352,7 @@ project phases run for a `slugify` library through to a seeded slice DAG.
 
 ```text
 /plugin uninstall stz
-/plugin marketplace remove dr-robert-li/slice-tournament-zoo
+/plugin marketplace remove dr-robert-li/stz-foundry
 ```
 
 ### Remove the CLI
@@ -446,21 +446,21 @@ and mechanism-only verdicts).
 For contributors and anyone going past day-to-day operation:
 
 - **Contributing** — setup, the architecture rule, the quality bar:
-  [`CONTRIBUTING.md`](https://github.com/dr-robert-li/slice-tournament-zoo/blob/main/CONTRIBUTING.md).
-- **Source layout** — the `src/` module map: [`src/README.md`](https://github.com/dr-robert-li/slice-tournament-zoo/blob/main/src/README.md).
+  [`CONTRIBUTING.md`](https://github.com/dr-robert-li/stz-foundry/blob/main/CONTRIBUTING.md).
+- **Source layout** — the `src/` module map: [`src/README.md`](https://github.com/dr-robert-li/stz-foundry/blob/main/src/README.md).
 - **Local development & testing** — run the engine without Claude Code, the mock
-  pipeline, CI checks: [`docs/development/local-and-testing.md`](https://github.com/dr-robert-li/slice-tournament-zoo/blob/main/docs/development/local-and-testing.md).
+  pipeline, CI checks: [`docs/development/local-and-testing.md`](https://github.com/dr-robert-li/stz-foundry/blob/main/docs/development/local-and-testing.md).
 - **The bridge CLI** — the deterministic `stz bridge` subcommands:
-  [`docs/development/bridge-cli.md`](https://github.com/dr-robert-li/slice-tournament-zoo/blob/main/docs/development/bridge-cli.md).
+  [`docs/development/bridge-cli.md`](https://github.com/dr-robert-li/stz-foundry/blob/main/docs/development/bridge-cli.md).
 - **Sealed-suite integrity** — the guide-vs-sensor contract behind the frozen
-  held-out suite: [`docs/development/sealed-suite.md`](https://github.com/dr-robert-li/slice-tournament-zoo/blob/main/docs/development/sealed-suite.md).
-- **Requirement-to-test mapping** — [`docs/TESTPLAN.md`](https://github.com/dr-robert-li/slice-tournament-zoo/blob/main/docs/TESTPLAN.md).
+  held-out suite: [`docs/development/sealed-suite.md`](https://github.com/dr-robert-li/stz-foundry/blob/main/docs/development/sealed-suite.md).
+- **Requirement-to-test mapping** — [`docs/TESTPLAN.md`](https://github.com/dr-robert-li/stz-foundry/blob/main/docs/TESTPLAN.md).
 - **Roadmap — what is built, deferred, and planned next** —
-  [`docs/ROADMAP.md`](https://github.com/dr-robert-li/slice-tournament-zoo/blob/main/docs/ROADMAP.md).
+  [`docs/ROADMAP.md`](https://github.com/dr-robert-li/stz-foundry/blob/main/docs/ROADMAP.md).
 
 ## License
 
-[Apache-2.0](https://github.com/dr-robert-li/slice-tournament-zoo/blob/main/LICENSE).
+[Apache-2.0](https://github.com/dr-robert-li/stz-foundry/blob/main/LICENSE).
 
 ## Research
 

@@ -9,6 +9,16 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.6.0] — Docs staleness sweep (Foundry stage 6)
+
+Every LIVE doc (README, CONTRIBUTING, src/README, docs/CLAUDE.md,
+docs/development/local-and-testing.md) is grep-clean of the upstream
+`slice-tournament-zoo` identity — repo URLs, npm install paths, plugin
+marketplace slugs, and titles now name `stz-foundry`. Historical records
+(CHANGELOG ≤0.9.6 entries, docs/PAPER.md, experiments/) keep the upstream
+name as provenance, deliberately. The stage-0 identity guard grew a live-docs
+sweep test so a stale ref can never return unnoticed.
+
 ## [1.5.0] — Standalone foundry runner CLI (Foundry stage 5)
 
 `src/foundry/runner.ts` + `stz foundry <init|run>`: the CLI-ownable

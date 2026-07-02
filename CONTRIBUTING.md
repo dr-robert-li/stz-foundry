@@ -1,4 +1,4 @@
-# Contributing to slice-tournament-zoo (STZ)
+# Contributing to STZ Foundry (stz-foundry)
 
 Thanks for your interest in STZ. This guide covers how to get set up, the
 architecture you need to hold in your head, and the bar for a change to land.
@@ -8,8 +8,8 @@ architecture you need to hold in your head, and the bar for a change to land.
 Requirements: Node.js 20+. No database, no API keys for the deterministic engine.
 
 ```bash
-git clone https://github.com/dr-robert-li/slice-tournament-zoo
-cd slice-tournament-zoo
+git clone https://github.com/dr-robert-li/stz-foundry
+cd stz-foundry
 npm install
 npm test            # the deterministic test suite (vitest)
 npm run typecheck   # tsc --noEmit, must be clean
