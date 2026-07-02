@@ -36,11 +36,12 @@ describe("foundry identity (stage 0)", () => {
   it("live docs carry no upstream identity refs (stage 6 staleness sweep)", () => {
     // Historical records (CHANGELOG, docs/PAPER.md, experiments/) intentionally
     // keep the upstream name as provenance; every LIVE doc must not.
+    // docs/CLAUDE.md is deliberately gitignored (local-only notes) — it cannot
+    // be guarded here or CI fails on the missing file.
     for (const rel of [
       "README.md",
       "CONTRIBUTING.md",
       "src/README.md",
-      "docs/CLAUDE.md",
       "docs/development/local-and-testing.md",
     ]) {
       expect(read(rel), rel).not.toContain("slice-tournament-zoo");
