@@ -8,7 +8,9 @@ result — see `ROADMAP.md`).
 
 Run: `npm test` (316 tests) and `npm run typecheck`. CI runs both on Node 20 and
 22 with bubblewrap installed, so the eval sandbox's real OS-isolation path (and V8
-coverage under it) is exercised rather than the degraded fallback.
+coverage under it) is exercised rather than the degraded fallback. A separate
+`macos-latest` job runs the suite under `sandbox-exec` (Seatbelt) for the Darwin
+isolation path.
 
 ## Requirement → test map
 
@@ -100,10 +102,10 @@ live implementation drops in without touching the tested spine.
 
 > Note: the execution sandbox (`src/sandbox.ts`) is **no longer** in this list —
 > it is directly tested (`sandbox.test.ts`) and exercised by the whole eval suite.
-> macOS `sandbox-exec` is implemented but not asserted in CI (Linux runners); it
-> is guarded by platform detection and falls back cleanly. It **is**
-> machine-verified locally on macOS: the full suite (316 tests) passes under real
-> Seatbelt isolation, including the OS-isolated coverage assertions. That run
-> caught a real Darwin-only bug — Seatbelt matches kernel-resolved paths, so
-> write-allow subpaths must be `realpath`'d (`/var` → `/private/var`); fixed in
-> `seatbeltProfile`. A `macos-latest` CI job would make this assertion permanent.
+> macOS `sandbox-exec` is asserted in CI by a dedicated `macos-latest` job (full
+> suite under real Seatbelt isolation, including the OS-isolated coverage
+> assertions), alongside the Linux bwrap matrix; it is guarded by platform
+> detection and falls back cleanly. The first local macOS verification caught a
+> real Darwin-only bug — Seatbelt matches kernel-resolved paths, so write-allow
+> subpaths must be `realpath`'d (`/var` → `/private/var`); fixed in
+> `seatbeltProfile`.

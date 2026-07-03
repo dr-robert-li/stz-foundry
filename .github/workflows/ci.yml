@@ -42,3 +42,26 @@ jobs:
 
       - name: Test
         run: npm test
+
+  # Exercise the macOS sandbox-exec (Seatbelt) eval-sandbox path — asserts the
+  # OS-isolated coverage branch that Linux runners can't (see docs/TESTPLAN.md).
+  test-macos:
+    name: typecheck + tests (macOS, sandbox-exec)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
