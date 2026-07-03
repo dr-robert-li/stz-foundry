@@ -24,7 +24,7 @@
  */
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, rmSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { join, dirname, relative } from "node:path";
 import type {
   EvalResult,
   PairwiseVote,
@@ -41,6 +41,7 @@ import { scaffold, writeDoc, readDoc, stzPath } from "./taxonomy.js";
 import { freshState, saveState, loadState, stateExists, statePath, setPhaseStatus, appendEvent } from "./state.js";
 import { verifyDebugCase, loadDebugCases, type DebugCase } from "./debug.js";
 import { auditRoleTiers, tierOf } from "./tiers.js";
+import { exploreCodebase, checkAnchor, type CodebaseMap, type SliceAnchor } from "./brownfield.js";
 import {
   freshProjectState,
   saveProjectState,
@@ -1012,6 +1013,75 @@ async function sealAmend(args: Record<string, string>): Promise<void> {
   print({ ...res, reason });
 }
 
+// ── brownfield: codebase exploration + slice anchoring (item 3) ─────────────
+
+const codebaseMapPath = (root: string) => stzPath(root, join("10-research", "codebase-map.json"));
+
+/**
+ * explore: map an existing codebase (files, per-file exports, tests, the public
+ * surface) into 10-research/codebase-map.json + a markdown summary, so the
+ * slicer can anchor its DAG to real code locations instead of assuming
+ * greenfield. Deterministic (regex + fs), replayable. `--target` is the repo to
+ * scan (default the project root that holds the .stz tree).
+ */
+async function exploreCmd(args: Record<string, string>): Promise<void> {
+  const root = args.root!;
+  const target = args.target ?? root;
+  const include = args.include ? args.include.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+  const exclude = args.exclude ? args.exclude.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+  const map = exploreCodebase(target, { include, exclude });
+
+  const mapPath = codebaseMapPath(root);
+  mkdirSync(dirname(mapPath), { recursive: true });
+  writeFileSync(mapPath, JSON.stringify(map, null, 2) + "\n", "utf8");
+
+  const langLine = Object.entries(map.summary.languages).map(([l, n]) => `${l}: ${n}`).join(", ") || "none";
+  await writeDoc(root, join("10-research", "codebase-map.md"), {
+    frontmatter: {
+      summary: `Codebase map: ${map.summary.fileCount} source file(s), ${map.summary.testCount} test(s), ${map.summary.totalLoc} LOC.`,
+    },
+    body:
+      `# Codebase map (brownfield exploration)\n\n` +
+      `Deterministic scan of the existing codebase so the slicer can anchor slices\n` +
+      `to real code locations. Machine-readable form: \`10-research/codebase-map.json\`.\n\n` +
+      `- **files:** ${map.summary.fileCount} (${langLine})\n` +
+      `- **tests:** ${map.summary.testCount}\n` +
+      `- **total LOC:** ${map.summary.totalLoc}\n` +
+      `- **public surface:** ${map.publicSurface.join(", ") || "(none detected)"}\n\n` +
+      `## Files\n\n| file | lang | loc | exports | test |\n|---|---|---|---|---|\n` +
+      map.files
+        .map((f) => `| \`${f.path}\` | ${f.lang} | ${f.loc} | ${f.exports.join(", ") || "—"} | ${f.isTest ? "✓" : ""} |`)
+        .join("\n") +
+      "\n",
+  });
+  print({ ...map.summary, publicSurface: map.publicSurface, mapPath: relative(root, mapPath) });
+}
+
+/**
+ * anchor-check: validate a proposed slice anchor against the codebase map — an
+ * `edit`/`extend` slice must point at files (and preserved exports) that exist;
+ * an `add` slice must not collide with an existing file. A dangling anchor (a
+ * hallucinated path) is caught here, before any specimen runs. Exits 1 on an
+ * invalid anchor so the slicer/pipeline halts.
+ */
+async function anchorCheckCmd(args: Record<string, string>): Promise<void> {
+  const root = args.root!;
+  const mapFile = args.map ?? codebaseMapPath(root);
+  if (!existsSync(mapFile)) {
+    process.stderr.write(`no codebase map at ${mapFile} — run \`explore\` first.\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const map = readJSON<CodebaseMap>(mapFile);
+  const anchor = readJSON<SliceAnchor>(args.anchor!);
+  const verdict = checkAnchor(map, anchor);
+  if (!verdict.ok) {
+    process.stderr.write(`anchor invalid for ${anchor.sliceId}: ${verdict.errors.join("; ")}\n`);
+    process.exitCode = 1;
+  }
+  print({ sliceId: anchor.sliceId, mode: anchor.mode, ...verdict });
+}
+
 // ── model tiers (item 2) ────────────────────────────────────────────────────
 
 /**
@@ -1717,6 +1787,8 @@ export async function runBridge(argv: string[]): Promise<void> {
     case "debug-case": await debugCaseCmd(args); break;
     case "slice-reset": await sliceResetCmd(args); break;
     case "model-tiers": await modelTiersCmd(args); break;
+    case "explore": await exploreCmd(args); break;
+    case "anchor-check": await anchorCheckCmd(args); break;
     case "merge-validate": await mergeValidate(args); break;
     case "merge-compat-propose": await mergeCompatPropose(args); break;
     case "merge-compat-approve": await mergeCompatApprove(args); break;

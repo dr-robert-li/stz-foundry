@@ -120,6 +120,13 @@ For a single one-off slice with no project setup:
 /stz-f:run payment-validator
 ```
 
+`/stz-f:explore` maps an **existing codebase** (files, exports, tests, public
+surface) into `10-research/codebase-map.json` so brownfield projects slice
+against real code: each slice carries an anchor (`add`/`extend`/`edit`, target
+files, preserved exports) validated with `stz bridge anchor-check`, so a slice
+that references a file that isn't there is caught before any specimen runs. No
+map ⇒ greenfield synthesis as before.
+
 `/stz-f:debug <slice>` is the post-ship repair loop: when a shipped winner is
 wrong on behaviour the sealed suite missed, it reproduces the defect, mines it
 into a **sealed regression case** (twice-verified — the winner fails it, the

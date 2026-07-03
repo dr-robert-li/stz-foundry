@@ -9,6 +9,33 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.12.0] — brownfield codebase support (cycle item 3)
+
+STZ was greenfield-only: specimens synthesize files from a contract, and the
+slicer's DAG had no notion of code that already exists. This adds structured
+exploration of an existing codebase and anchors slices to real code locations,
+the prerequisite for specimens that edit rather than synthesize.
+
+- **`src/brownfield.ts`** — `exploreCodebase` walks a repo (skipping
+  `node_modules`/`.git`/`.stz`/build output) into a `CodebaseMap`: per-file
+  exported symbols (JS/TS named/class/const/`export {}`/default/CommonJS; Python
+  top-level `def`/`class`), existing test files, and the public surface (index
+  exports). Regex + fs only — exact and replayable, no LLM.
+- **Slice anchors** (`SliceAnchor`: `mode add|extend|edit`, `targetFiles`,
+  `preservedExports`) tie a slice to real code. `checkAnchor` rejects a dangling
+  target (a hallucinated path), a preserved export that isn't there, or an `add`
+  that would overwrite an existing file — caught before any specimen runs.
+- **`stz bridge explore`** writes `10-research/codebase-map.{json,md}`;
+  **`stz bridge anchor-check`** validates an anchor (exit 1 on invalid).
+  **`/stz-f:explore`** is the command; `/stz-f:slice` now anchors brownfield
+  slices when a map is present (greenfield unchanged when it is absent).
+- The anchors' `preservedExports` are the surrounding contract a brownfield
+  change must not break — the input to item 4's source-preservation gate.
+- 341 tests (+7): unit (export extraction, test-file detection, `exploreCodebase`
+  on a fixture repo skipping `node_modules`, `checkAnchor` dangling/collide/
+  preserved-export), integration + functional (bridge `explore` writes the map;
+  `anchor-check` passes a real anchor and fails a dangling one; no-map error).
+
 ## [1.11.0] — model capability/cost tiers (cycle item 2)
 
 A Fable-5-class model (the **Mythos** tier, above Opus in capability and price)

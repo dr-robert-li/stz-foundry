@@ -936,19 +936,19 @@ The foundry cost report gains a `## Model tiers` section with per-role tier +
 allocation advice; `stz bridge model-tiers` audits the in-session RunConfig.
 Advisory only — never blocks a run.
 
-### 3. Brownfield: build on an existing codebase
+### 3. Brownfield: build on an existing codebase — ✅ BUILT (1.12.0)
 
-**Gap:** STZ assumes greenfield synthesis — specimens write files from a contract
-surface. There is no good way to take on **an existing codebase**: no structured
-exploration of what is already there, and the slicer's DAG is not cognisant of a
-slice's place *within* existing code (what it must not break, what it extends).
-
-Wanted: a brownfield entry path — a codebase-exploration phase (map modules,
-public surfaces, invariants, and existing tests) whose output conditions the
-slicer to produce a DAG of slices **anchored to real code locations**, each
-carrying the surrounding contract it must preserve. This is the prerequisite for
-specimens that *edit* rather than *synthesize*, and therefore for real worktrees
-(item 5).
+**Shipped (the exploration + anchoring half).** `src/brownfield.ts`
+`exploreCodebase` maps an existing repo — per-file exported symbols, existing
+tests, the public surface — deterministically (regex + fs). Slices carry an
+**anchor** (`mode add|extend|edit`, `targetFiles`, `preservedExports`) tying them
+to real code locations; `checkAnchor` rejects a dangling path, a missing
+preserved export, or an `add` that would overwrite. `stz bridge explore` /
+`anchor-check` + the `/stz-f:explore` command; `/stz-f:slice` anchors brownfield
+slices when a map is present. The `preservedExports` are the surrounding contract
+feeding item 4's source-preservation gate. Still open (folds into item 5): the
+per-specimen git **worktrees** that let specimens *edit* the mapped repo in
+parallel rather than synthesize — anchoring is the prerequisite that is now done.
 
 ### 4. Sealed end-to-end integration + functional testing (greenfield and brownfield)
 

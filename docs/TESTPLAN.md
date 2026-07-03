@@ -6,7 +6,7 @@ deterministic spine is tested for real; the LLM layer is tested at the
 interface-contract + mock-e2e level (it is explicitly *not* a live-tournament
 result — see `ROADMAP.md`).
 
-Run: `npm test` (334 tests) and `npm run typecheck`. CI runs both on Node 20 and
+Run: `npm test` (341 tests) and `npm run typecheck`. CI runs both on Node 20 and
 22 with bubblewrap installed, so the eval sandbox's real OS-isolation path (and V8
 coverage under it) is exercised rather than the degraded fallback. A separate
 `macos-latest` job runs the suite under `sandbox-exec` (Seatbelt) for the Darwin
@@ -100,6 +100,16 @@ so these prove the plumbing + the real gate, not any model's intelligence.
 | Allocation audit (premium on volume role warns; cheap high-value role info) | `src/tiers.ts` `auditRoleTiers` | `tiers.test.ts` — backwards config warns, field-earned config clean, custom role sets |
 | In-session RunConfig tier advice | `src/bridge.ts` `model-tiers` | `tiers.test.ts` — flags premium execution + cheap testing |
 | Foundry cost report tier section | `src/foundry/runner.ts` | `foundry-runner.test.ts` — report contains `## Model tiers` + per-role tier |
+
+## Brownfield codebase support (1.12.0)
+
+| Capability | Where | Test(s) |
+|---|---|---|
+| Export extraction (JS/TS named/class/const/export{}/default/CommonJS; Python def/class) | `src/brownfield.ts` `extractExports` | `brownfield.test.ts` — JS surface incl. aliased export, Python skips `_private` |
+| Test-file detection | `src/brownfield.ts` `isTestFile` | `brownfield.test.ts` — `.test.`/`.spec.`/`tests/`/`test_*.py` |
+| Codebase scan (files, exports, tests, public surface; skips node_modules) | `src/brownfield.ts` `exploreCodebase` | `brownfield.test.ts` — fixture repo, `node_modules`/README excluded, index public surface |
+| Anchor validation (dangling file, missing preserved export, add-collision) | `src/brownfield.ts` `checkAnchor` | `brownfield.test.ts` — valid edit ok; dangling/collide/preserved-export rejected |
+| Bridge explore + anchor-check | `src/bridge.ts` `explore` / `anchor-check` | `brownfield.test.ts` — `explore` writes the map; `anchor-check` passes a real anchor, fails a dangling one (exit 1), errors when no map exists |
 
 ## Manual / CLI acceptance
 

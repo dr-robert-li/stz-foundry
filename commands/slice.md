@@ -28,6 +28,16 @@ auto-approved (see Dark-factory).
 This phase is collaborative: a subagent proposes the slice DAG, then you and the
 user shape it together before committing.
 
+**Brownfield.** If `10-research/codebase-map.json` exists (produced by
+`/stz-f:explore`), this is a brownfield project: the codebase already exists.
+Slice against it, not from scratch — read the map's public surface and modules,
+and give each slice an **anchor** (`{sliceId, mode: add|extend|edit, targetFiles,
+preservedExports}`) tying it to real code locations. Validate every anchor with
+`$STZ bridge anchor-check --root . --anchor <file>` before seeding — a dangling
+target file or a missing preserved export means the slice references code that
+isn't there, and must be fixed before the tournament runs. No map ⇒ greenfield,
+slice as before.
+
 ## Procedure
 
 1. **Spawn one `stz-slicer` subagent** (model: `runConfig.models.planning`).
