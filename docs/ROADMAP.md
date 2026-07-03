@@ -1015,7 +1015,27 @@ that would register STZ into any host other than Claude Code.
 Wanted: the npm package as the **one installation interface** for every surface.
 A new `stz install [--harness <name>|--all]` subcommand that detects installed
 agent harnesses and registers STZ's commands/agents into each from the single
-global install — idempotent, opt-in, uninstall-symmetric (`stz uninstall`):
+global install — idempotent, opt-in, uninstall-symmetric (`stz uninstall`).
+
+**User-selected install location (the gsd-core model).** STZ must not assume one
+hardcoded path. Following gsd-core's `runtime-homes` pattern, a single
+**runtime → config-home registry** is the source of truth, resolving each host's
+target from a small set of descriptor kinds — `dot-home` (`~/.claude`), `xdg`
+(`$XDG_CONFIG_HOME` → `~/.config/<name>`), and `generic-agents-root` (probe
+`~/.config/agents/skills` then `~/.agents/skills`, first existing wins). The user
+overrides the default at three levels, most-specific first:
+
+- **`--config-dir <path>`** (and a scope flag: `--global` vs `--project` to write
+  into `./.claude/` etc. instead of the home directory),
+- a **per-runtime env var** (e.g. `STZ_CONFIG_DIR`, or the host's own like
+  `KIMI_CONFIG_DIR`),
+- the **registry default** for that runtime.
+
+Paths are tilde-expanded, the chosen target is recorded so `stz uninstall` and
+`stz update` write to the same place, and `stz install --dry-run` prints exactly
+what it would write where before touching anything. This is what makes "install
+STZ into the harness *I* choose, at the location *I* choose" a first-class flag
+rather than a fork. Per-harness detail:
 
 - **Claude Code** — write/register the marketplace + plugin entry into
   `~/.claude/` (the sanctioned plugin path) so `/stz-f:*` is available without the
