@@ -9,6 +9,33 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.14.0] — unified user-selects installer
+
+`npm i -g stz-foundry` is now the ONE installation interface. `stz install`
+registers the `/stz-f:*` commands + agents into an agent harness, at a location
+the user chooses — the gsd-core `runtime-homes` model.
+
+- **`src/installer.ts`** — a runtime → config-home registry (Claude Code
+  supported today; Codex/OpenCode/Pi detected + reported, adapters pending) with
+  descriptor kinds `dot-home` (`~/.claude`) and `xdg` (`~/.config/<name>`).
+  `resolveConfigDir` applies user overrides most-specific first: `--config-dir`
+  → `--project` scope → `STZ_CONFIG_DIR` → the runtime's own env var → registry
+  default (all tilde-expanded).
+- **`stz install [--harness <name>|--all] [--config-dir <p>] [--global|
+  --project] [--dry-run] [--list]`** copies the command + agent surface into the
+  chosen dir (commands namespaced under `commands/stz-f/` → `/stz-f:*`), records
+  a manifest, and prints the undo command. **`stz uninstall`** removes exactly
+  the manifest's files and prunes the empty namespace — a sibling user command is
+  never touched. `--dry-run` writes nothing; `--list` shows every runtime, its
+  resolved target, and whether its config dir exists on this host.
+- `package.json` `files` now ships `commands/` + `hooks/` so the global install
+  carries the assets to copy.
+- 356 tests (+9): unit (`expandTilde`, `defaultConfigDir` dot-home/xdg,
+  `resolveConfigDir` full precedence, `detectRuntimes`, `selectRuntimes`),
+  functional (`planInstall` enumerates only `.md`, namespaced; `applyInstall`
+  copies + manifest; `--config-dir` target; dry-run writes nothing; `uninstall`
+  removes exactly + prunes + is idempotent + leaves sibling commands intact).
+
 ## [1.13.1] — split Fable and Mythos into distinct tier families
 
 The 1.11.0 tier ladder conflated Fable into a single `mythos` tier. Fable and

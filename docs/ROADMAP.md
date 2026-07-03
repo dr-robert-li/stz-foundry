@@ -1003,7 +1003,17 @@ service, matching N9/N5) over the markdown tree, scoped per phase-agent role,
 rebuilt incrementally on slice close. Unlocks id-free semantic spec-diff matching
 and cross-slice convention/decision recall as the tree grows.
 
-### 7. Unified installer — one `npm install`, every harness registered
+### 7. Unified installer — one `npm install`, every harness registered — ✅ BUILT (1.14.0)
+
+**Shipped.** `src/installer.ts` + `stz install`/`uninstall` register the
+`/stz-f:*` commands + agents into an agent harness at a user-chosen location: a
+runtime → config-home registry (Claude Code supported; Codex/OpenCode/Pi detected
++ reported, adapters pending), descriptor kinds `dot-home`/`xdg`, and overrides
+most-specific first (`--config-dir` → `--project` → `STZ_CONFIG_DIR` → runtime
+env → registry default, tilde-expanded). Manifest-recorded, idempotent,
+`--dry-run` + `--list`, uninstall-symmetric (never touches a sibling command).
+The design below stood; the per-harness *asset adapters* for Codex/OpenCode/Pi
+remain (folds into *Additional agentic-coding runtimes*).
 
 **Gap:** installation is two steps and two mental models. `npm i -g stz-foundry`
 gets the CLI + standalone foundry runner; the Claude Code plugin is a *separate*

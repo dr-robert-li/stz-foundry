@@ -6,7 +6,7 @@ deterministic spine is tested for real; the LLM layer is tested at the
 interface-contract + mock-e2e level (it is explicitly *not* a live-tournament
 result — see `ROADMAP.md`).
 
-Run: `npm test` (347 tests) and `npm run typecheck`. CI runs both on Node 20 and
+Run: `npm test` (356 tests) and `npm run typecheck`. CI runs both on Node 20 and
 22 with bubblewrap installed, so the eval sandbox's real OS-isolation path (and V8
 coverage under it) is exercised rather than the degraded fallback. A separate
 `macos-latest` job runs the suite under `sandbox-exec` (Seatbelt) for the Darwin
@@ -118,6 +118,15 @@ so these prove the plumbing + the real gate, not any model's intelligence.
 | Preserved-export presence (brownfield source preservation) | `src/integration.ts` `checkExportsPresent` | `integration-gate.test.ts` — present + missing on the assembled entry (sandboxed probe) |
 | Composition gate (suite passRate 1 ∧ no preserved export dropped) | `src/integration.ts` `runIntegrationGate` | `integration-gate.test.ts` — green composition passes; broken composition fails; green suite + dropped preserved export fails |
 | Bridge integration-gate (seal-verify → gate → audit doc) | `src/bridge.ts` `integration-gate` | `integration-gate.test.ts` — greenfield PASS writes `90-audit/integration.md`; broken composition exit 1; brownfield dropped-export exit 1 |
+
+## Unified installer (1.14.0)
+
+| Capability | Where | Test(s) |
+|---|---|---|
+| Location resolution (tilde, dot-home/xdg default, override precedence) | `src/installer.ts` `resolveConfigDir`/`defaultConfigDir`/`expandTilde` | `installer.test.ts` — `--config-dir` > `--project` > `STZ_CONFIG_DIR` > runtime env > default; XDG override |
+| Runtime detection + selection | `src/installer.ts` `detectRuntimes`/`selectRuntimes` | `installer.test.ts` — detects existing config home; default→claude-code, `--all`→supported only, `--harness` |
+| Plan/apply (namespaced commands + agents, manifest) | `src/installer.ts` `planInstall`/`applyInstall` | `installer.test.ts` — only `.md` under `commands/stz-f/` + agents; dry-run writes nothing; manifest recorded; `--config-dir` target |
+| Uninstall (exact removal, prune, idempotent, sibling-safe) | `src/installer.ts` `uninstall` | `installer.test.ts` — removes manifest files, prunes empty namespace, leaves a sibling command, second run is a no-op |
 
 ## Manual / CLI acceptance
 

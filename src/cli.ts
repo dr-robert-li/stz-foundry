@@ -8,9 +8,20 @@
  *   stz --version
  *   stz help
  */
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { writeFile, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
+import {
+  RUNTIMES,
+  detectRuntimes,
+  resolveConfigDir,
+  selectRuntimes,
+  planInstall,
+  applyInstall,
+  uninstall,
+} from "./installer.js";
 import { scaffold, writeDoc, STZ_DIR, TIERS } from "./taxonomy.js";
 import { runSlice } from "./mock/orchestrator.js";
 import { runBridge } from "./bridge.js";
@@ -187,6 +198,90 @@ async function cmdFoundry(argv: string[]): Promise<void> {
   process.exitCode = 1;
 }
 
+/** Parse `--flag value` / `--flag` into a map (bare flags → "true"). */
+function flags(argv: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]!;
+    if (a.startsWith("--")) {
+      const key = a.slice(2);
+      const next = argv[i + 1];
+      if (next && !next.startsWith("--")) { out[key] = next; i++; } else out[key] = "true";
+    }
+  }
+  return out;
+}
+
+/** The package root that ships commands/ + agents/ (…/src/cli.ts → package root). */
+function assetRoot(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "..");
+}
+
+/**
+ * `stz install [--harness <name>|--all] [--config-dir <p>] [--global|--project]
+ *  [--dry-run] [--list]` — the unified user-selects installer (ROADMAP §7).
+ */
+function cmdInstall(argv: string[]): void {
+  const f = flags(argv);
+  const home = homedir();
+  const env = process.env;
+
+  if (f.list === "true") {
+    const detected = new Set(detectRuntimes(home, env).map((r) => r.name));
+    console.log("Supported harnesses (● = config dir detected on this host):");
+    for (const rt of RUNTIMES) {
+      const dir = resolveConfigDir(rt, { home, env });
+      const mark = detected.has(rt.name) ? "●" : "○";
+      const status = rt.supported ? "" : "  (detection only — adapter pending)";
+      console.log(`  ${mark} ${rt.name.padEnd(12)} → ${dir}${status}`);
+    }
+    return;
+  }
+
+  const scope = f.project === "true" ? "project" : "global";
+  const targets = selectRuntimes({ harness: f.harness, all: f.all === "true" });
+  if (targets.length === 0) {
+    console.error(`unknown --harness "${f.harness}". Known: ${RUNTIMES.map((r) => r.name).join(", ")}. Try: stz install --list`);
+    process.exitCode = 1;
+    return;
+  }
+  const dryRun = f["dry-run"] === "true";
+  for (const rt of targets) {
+    const configDir = resolveConfigDir(rt, { home, env, configDir: f["config-dir"], scope, projectRoot: process.cwd() });
+    if (!rt.supported) {
+      console.log(`○ ${rt.displayName}: detected/known, but the asset adapter is not built yet — skipped. Target would be ${configDir}.`);
+      continue;
+    }
+    const plan = planInstall(rt, configDir, assetRoot());
+    const res = applyInstall(plan, { dryRun });
+    console.log(
+      `${dryRun ? "[dry-run] would install" : "✓ installed"} STZ into ${rt.displayName} at ${configDir}\n` +
+        `  ${res.written.length} file(s): ${plan.ops.filter((o) => o.to.includes("commands")).length} command(s), ` +
+        `${plan.ops.filter((o) => o.to.includes("agents")).length} agent(s)` +
+        (dryRun ? "" : `\n  manifest: ${res.manifestPath}  (undo with: stz uninstall${f.harness ? " --harness " + rt.name : ""}${f["config-dir"] ? " --config-dir " + f["config-dir"] : ""})`),
+    );
+  }
+  if (!dryRun) console.log("\nRestart the harness so the /stz-f:* commands and agents load.");
+}
+
+/** `stz uninstall [--harness <name>] [--config-dir <p>] [--project]` — reverse an install. */
+function cmdUninstall(argv: string[]): void {
+  const f = flags(argv);
+  const home = homedir();
+  const scope = f.project === "true" ? "project" : "global";
+  const targets = selectRuntimes({ harness: f.harness, all: f.all === "true" });
+  for (const rt of targets) {
+    if (!rt.supported && !f.harness) continue;
+    const configDir = resolveConfigDir(rt, { home, env: process.env, configDir: f["config-dir"], scope, projectRoot: process.cwd() });
+    const res = uninstall(configDir);
+    console.log(
+      res.removed.length
+        ? `✓ removed ${res.removed.length} STZ file(s) from ${rt.displayName} at ${configDir}`
+        : `nothing to remove for ${rt.displayName} at ${configDir} (no STZ install manifest).`,
+    );
+  }
+}
+
 const LOGO = `
  ░▒▓███████▓▒░▒▓████████▓▒░▒▓████████▓▒░▒▓████████▓▒░
 ░▒▓█▓▒░         ░▒▓█▓▒░          ░▒▓█▓▒░▒▓█▓▒░
@@ -206,6 +301,9 @@ Usage:
   stz run  [dir]       run the bundled demo slice through the mock pipeline
   stz update [--check] check npm for a newer release + plugin/CLI drift
   stz migrate [dir]    bring an existing .stz/ tree up to the current schema
+  stz install [--harness <name>|--all] [--config-dir <p>] [--global|--project] [--dry-run] [--list]
+                       register the /stz-f:* commands + agents into an agent harness (default: Claude Code)
+  stz uninstall [--harness <name>] [--config-dir <p>]   reverse an install (from its manifest)
   stz bridge <cmd>     deterministic orchestration bridge (used by the /stz-f:* commands)
   stz foundry init [dir]                 write a foundry.json template (local-first)
   stz foundry run <manifest.json> [dir]  run a slice tournament standalone (BYO LLM)
@@ -242,6 +340,12 @@ async function main(): Promise<void> {
       // Deterministic orchestration bridge called by the /stz-f:run command
       // between Task-subagent spawns. Everything after "bridge" is its argv.
       await runBridge(process.argv.slice(3));
+      break;
+    case "install":
+      cmdInstall(process.argv.slice(3));
+      break;
+    case "uninstall":
+      cmdUninstall(process.argv.slice(3));
       break;
     case "foundry":
       // Standalone BYO-LLM runner (stage 5): no agent host in the loop.

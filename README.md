@@ -70,12 +70,30 @@ npm i -g stz-foundry                 # the `stz` CLI (aliases: `stz-f`, `stz-fou
 npm i -g dr-robert-li/stz-foundry
 ```
 
-For the in-session commands, also install the Claude Code plugin:
+For the in-session commands you have two options. Either the Claude Code plugin:
 
 ```text
 /plugin marketplace add dr-robert-li/stz-foundry
 /plugin install stz-f
 ```
+
+…or, from the single npm install above, the **unified installer** — one command
+registers the `/stz-f:*` commands + agents into an agent harness at a location
+you choose:
+
+```bash
+stz install                          # → Claude Code (~/.claude), the default
+stz install --list                   # show every harness + its resolved target
+stz install --config-dir ~/work/.claude   # any location you pick
+stz install --project                # into ./.claude (this repo only)
+stz install --dry-run                # print the plan, write nothing
+stz uninstall                        # reverse it (from the recorded manifest)
+```
+
+Location precedence, most-specific first: `--config-dir` → `--project` →
+`STZ_CONFIG_DIR` → the runtime's own env var → the registry default. Codex,
+OpenCode, and Pi are detected today (`--list`); their asset adapters are on the
+roadmap.
 
 Restart the session so the `/stz-f:*` commands and subagents load. The plugin
 uses the npm `stz` CLI when present; otherwise it resolves its own bundled
