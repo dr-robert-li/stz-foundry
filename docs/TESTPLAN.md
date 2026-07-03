@@ -6,7 +6,7 @@ deterministic spine is tested for real; the LLM layer is tested at the
 interface-contract + mock-e2e level (it is explicitly *not* a live-tournament
 result — see `ROADMAP.md`).
 
-Run: `npm test` (316 tests) and `npm run typecheck`. CI runs both on Node 20 and
+Run: `npm test` (326 tests) and `npm run typecheck`. CI runs both on Node 20 and
 22 with bubblewrap installed, so the eval sandbox's real OS-isolation path (and V8
 coverage under it) is exercised rather than the degraded fallback. A separate
 `macos-latest` job runs the suite under `sandbox-exec` (Seatbelt) for the Darwin
@@ -79,6 +79,17 @@ so these prove the plumbing + the real gate, not any model's intelligence.
 | Test-author preflight (fail fast on a too-weak model) | `src/foundry/runner.ts` | `hardening-fixes.test.ts` — passes on a valid canary, throws `FoundryPreflightError` with guidance on a weak one |
 | retryPolicy telemetry (recovery vs burn) | `src/mock/orchestrator.ts` | `hardening-fixes.test.ts` — first-round / recovered / halted outcomes + round-1 vs after-round-1 token split |
 | Held-out ownership guard (PreToolUse hook) | `hooks/held-out-guard.mjs` | `hardening-fixes.test.ts` — blocks the reference-b deletion class, allows sanctioned amend / reads / Write / bad input |
+
+## Post-aggregation debug mode (1.10.0)
+
+| Capability | Where | Test(s) |
+|---|---|---|
+| Regression-case harness + sandboxed run (multi-arg, deep-equal) | `src/debug.ts` | `debug-mode.test.ts` — correct impl passes, wrong impl fails, object/array equality |
+| Twice-verified mine oracle (winner fails ∧ reference passes) | `src/debug.ts` `verifyDebugCase` | `debug-mode.test.ts` — accepted only on real uncaught defect; rejects winner-already-passes and mis-stated-expected |
+| Case validation (JSON args array, JSON expected) | `src/debug.ts` `validateDebugCase` | `debug-mode.test.ts` — non-array input, malformed JSON, empty fn |
+| DAG re-run set | `src/project.ts` `transitiveDependents` | `debug-mode.test.ts` — everything downstream, topo-ordered |
+| Mined case is a first-class gate check | `src/eval-runner.ts` `fullEval.debugPassRate` | `debug-mode.test.ts` — wrong winner passes the suite but FAILS once the case is sealed; correct impl passes both |
+| End-to-end mine → amend → reset | `src/bridge.ts` `debug-case` / `slice-reset` | `debug-mode.test.ts` — bridge `debug-case --apply` writes sealed `debug-cases.json`, amends the seal, resets slice + dependents; rejection path writes nothing; `slice-reset --with-dependents` |
 
 ## Manual / CLI acceptance
 

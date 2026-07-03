@@ -22,9 +22,9 @@
  * Every subcommand prints a single JSON object on stdout (the command parses
  * it) and writes its durable artifacts into the `.stz/` tree.
  */
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, rmSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import type {
   EvalResult,
   PairwiseVote,
@@ -38,7 +38,8 @@ import type {
 } from "./types.js";
 import { PROJECT_PHASES } from "./types.js";
 import { scaffold, writeDoc, readDoc, stzPath } from "./taxonomy.js";
-import { freshState, saveState, loadState, stateExists, setPhaseStatus, appendEvent } from "./state.js";
+import { freshState, saveState, loadState, stateExists, statePath, setPhaseStatus, appendEvent } from "./state.js";
+import { verifyDebugCase, loadDebugCases, type DebugCase } from "./debug.js";
 import {
   freshProjectState,
   saveProjectState,
@@ -48,6 +49,7 @@ import {
   projectManifestPath,
   PROJECT_PHASE_TIER,
   topoOrder,
+  transitiveDependents,
   deriveSliceStatus,
   nextRunnable,
   normalizeRunConfig,
@@ -1009,6 +1011,121 @@ async function sealAmend(args: Record<string, string>): Promise<void> {
   print({ ...res, reason });
 }
 
+// ── post-aggregation debug mode (item 1) ────────────────────────────────────
+
+/** Where a slice's mined regression cases live (sealed alongside its suite). */
+const debugCasesPath = (root: string, slice: string) =>
+  stzPath(root, join("30-tests", "held-out", slice, "debug-cases.json"));
+
+/**
+ * debug-case: turn a reported post-ship defect into a SEALED regression case.
+ * The twice-verified oracle runs first — the current winner must FAIL the case
+ * (real uncaught defect) and the reference must PASS it (satisfiable, correctly
+ * stated). Only then is the case appended to the slice's sealed debug-cases.json
+ * and the seal amended. Also computes the re-run set (the slice + its transitive
+ * DAG dependents) so the caller can `slice-reset` and re-run against the
+ * sharpened suite. `--apply` performs that reset inline.
+ */
+async function debugCaseCmd(args: Record<string, string>): Promise<void> {
+  const root = args.root!;
+  const slice = args.slice;
+  const impl = args.impl; // the shipped winner
+  const reference = args.reference; // the test-author's reference-a
+  const c: DebugCase = { fn: args.fn!, input: args.input!, expected: args.expected!, note: args.note };
+  if (!slice || !impl || !reference || !c.fn || c.input === undefined || c.expected === undefined) {
+    process.stderr.write(
+      "debug-case requires --slice, --impl <winner>, --reference <reference-a>, --fn, --input '<json-args-array>', --expected '<json>'.\n",
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const verdict = verifyDebugCase(impl, reference, c);
+  if (!verdict.accepted) {
+    process.stderr.write(`${verdict.reason}\n`);
+    process.exitCode = 1;
+    print({ ...verdict });
+    return;
+  }
+
+  // Append to the slice's sealed debug-cases.json and re-seal (amend).
+  const path = debugCasesPath(root, slice);
+  const cases = loadDebugCases(path);
+  cases.push(c);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(cases, null, 2) + "\n", "utf8");
+  const amend = await amendSeal(root, `debug-case mined for ${slice}: ${c.note ?? c.fn}`);
+
+  // The re-run set: the slice itself + everything downstream of it.
+  const manifest = existsSync(projectManifestPath(root))
+    ? readJSON<ProjectManifest>(projectManifestPath(root))
+    : { slices: [] as ProjectManifest["slices"] };
+  const slices = manifest.slices ?? [];
+  const dependents = transitiveDependents(slices, slice);
+  const rerunSet = [slice, ...dependents];
+
+  await writeDoc(root, join("40-slices", slice, "debug.md"), {
+    frontmatter: { summary: `Debug case mined for ${slice}: ${cases.length} sealed regression case(s).` },
+    body:
+      `# Debug — post-aggregation defect repair (${slice})\n\n` +
+      `A shipped winner was wrong on behaviour the sealed suite did not exercise.\n` +
+      `The reproduced case was mined into a sealed regression test (twice-verified:\n` +
+      `the winner fails it, the reference passes it) and the seal amended.\n\n` +
+      `- **case:** \`${c.fn}(${c.input})\` must equal \`${c.expected}\`\n` +
+      `- **note:** ${c.note ?? "(none)"}\n` +
+      `- **total sealed regression cases for ${slice}:** ${cases.length}\n` +
+      `- **re-run set (this slice + DAG dependents):** ${rerunSet.join(", ")}\n`,
+  });
+
+  if (args.apply === "true") for (const id of rerunSet) resetSlice(root, id);
+
+  print({
+    accepted: true,
+    slice,
+    case: c,
+    totalCases: cases.length,
+    sealAmended: amend.amended,
+    rerunSet,
+    applied: args.apply === "true",
+    note: args.apply === "true"
+      ? "seal amended and re-run set reset; re-run each slice in rerunSet against the sharpened suite"
+      : "seal amended; run `slice-reset --slice <id> --with-dependents` (or re-run this with --apply) to reset the re-run set",
+  });
+}
+
+/** Reset one slice's per-slice artifacts so its derived status returns to pending. */
+function resetSlice(root: string, id: string): void {
+  for (const p of [
+    statePath(root, id),
+    stzPath(root, join(sliceRel(id), "tournament")),
+    stzPath(root, join(sliceRel(id), "spec-diff.md")),
+  ]) {
+    rmSync(p, { recursive: true, force: true });
+  }
+}
+
+/**
+ * slice-reset: remove a slice's per-slice state + winner artifacts so it (and,
+ * with --with-dependents, everything downstream) re-runs. The sealed suite and
+ * mined debug cases are NOT touched — the re-run grades against the sharpened
+ * suite. This is the deterministic half of debug mode's "re-run affected slice".
+ */
+async function sliceResetCmd(args: Record<string, string>): Promise<void> {
+  const root = args.root!;
+  const slice = args.slice;
+  if (!slice) {
+    process.stderr.write("slice-reset requires --slice <id> [--with-dependents].\n");
+    process.exitCode = 1;
+    return;
+  }
+  let ids = [slice];
+  if (args["with-dependents"] === "true" && existsSync(projectManifestPath(root))) {
+    const manifest = readJSON<ProjectManifest>(projectManifestPath(root));
+    ids = [slice, ...transitiveDependents(manifest.slices ?? [], slice)];
+  }
+  for (const id of ids) resetSlice(root, id);
+  print({ reset: ids, note: "per-slice state + winner artifacts removed; these slices are now pending and will re-run" });
+}
+
 // ── cross-slice merge integrity (sealed-invariant supersession) ─────────────
 
 /** Render the human-readable merge-compat.md mirror of the manifest. */
@@ -1565,6 +1682,8 @@ export async function runBridge(argv: string[]): Promise<void> {
     case "seal-verify": sealVerify(args); break;
     case "seal-crosscheck": await sealCrosscheck(args); break;
     case "seal-amend": await sealAmend(args); break;
+    case "debug-case": await debugCaseCmd(args); break;
+    case "slice-reset": await sliceResetCmd(args); break;
     case "merge-validate": await mergeValidate(args); break;
     case "merge-compat-propose": await mergeCompatPropose(args); break;
     case "merge-compat-approve": await mergeCompatApprove(args); break;

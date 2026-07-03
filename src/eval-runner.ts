@@ -22,6 +22,7 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync, readdirSync, mkdirSyn
 import { tmpdir } from "node:os";
 import { resolve, join, dirname } from "node:path";
 import { sandboxedNode } from "./sandbox.js";
+import { loadDebugCases, runDebugCases } from "./debug.js";
 
 export interface SealedResult {
   passed: number;
@@ -322,6 +323,14 @@ export interface FullEval {
   total: number;
   mutants: number;
   survivors: number;
+  /**
+   * Sealed regression cases mined post-ship by debug mode (item 1). 1 when the
+   * impl satisfies every mined case (or there are none); <1 when it reproduces a
+   * known-and-sealed defect. A gate MUST require this to be 1, exactly like
+   * testPassRate — a mined case is a first-class sealed check.
+   */
+  debugPassRate: number;
+  debugCases: number;
 }
 
 /**
@@ -329,11 +338,20 @@ export interface FullEval {
  * promoted bug-class mutators under `60-harness/battery`) is unioned with the
  * built-ins so a sharpened battery participates; omit it for legacy behaviour.
  */
-export function fullEval(sealedPath: string, implPath: string, batteryDir?: string): FullEval {
+export function fullEval(
+  sealedPath: string,
+  implPath: string,
+  batteryDir?: string,
+  debugCasesPath?: string,
+): FullEval {
   const sealed = runSealed(sealedPath, implPath);
   const coverage = measureCoverage(sealedPath, implPath);
   const mutation = measureMutation(sealedPath, implPath, loadBattery(batteryDir));
   const codeHealth = measureCodeHealth(implPath);
+  // Mined post-ship regression cases (item 1). Sealed alongside the suite; a
+  // first-class gate check so a shipped blind-spot defect can never re-win.
+  const debugCases = debugCasesPath ? loadDebugCases(debugCasesPath) : [];
+  const debug = runDebugCases(implPath, debugCases);
   return {
     testPassRate: sealed.passRate,
     coverage,
@@ -343,6 +361,8 @@ export function fullEval(sealedPath: string, implPath: string, batteryDir?: stri
     total: sealed.total,
     mutants: mutation.mutants,
     survivors: mutation.survivors,
+    debugPassRate: debug.passRate,
+    debugCases: debugCases.length,
   };
 }
 

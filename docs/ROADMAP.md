@@ -910,21 +910,18 @@ ships greenfield-first on its own; brownfield (3) then adds a source-preservatio
 axis to it and motivates real worktrees (5). Debug mode (1) and model-tier
 support (2) are independent.
 
-### 1. Post-aggregation debug mode (defect resolution after slice build)
+### 1. Post-aggregation debug mode — ✅ BUILT (1.10.0)
 
-**Gap:** dark-factory can accept a known defect — a winner that passes the sealed
-suite but is wrong on behaviour the suite didn't cover — and there is currently
-**no way to resolve it after slice-build aggregation**. The crosscheck halt
-catches *reference divergence* pre-grade, but a suite blind-spot that ships clean
-has no post-hoc remedy short of re-running the whole slice.
-
-Wanted: a `debug` mode that, given a reproduced defect against a completed
-(possibly merged) slice, (a) mines the failing case into a new sealed test via the
-existing `inject`/`harness-mine` battery machinery, (b) re-seals with an audited
-`seal-amend`, and (c) re-runs *only* the affected slice (and its DAG dependents)
-against the sharpened suite — a targeted repair loop, not a full rebuild. The
-audit trail records the defect → test → re-selection chain so the fix is
-replayable and the blind-spot is closed for future slices.
+**Shipped.** A reproduced defect against a shipped winner is mined into a SEALED
+regression case (`30-tests/held-out/<slice>/debug-cases.json`, hashed by
+`SEAL.json`), guarded by a twice-verified oracle (the winner fails it, the
+reference passes it), folded into the eval gate (`fullEval.debugPassRate`, which
+the gate now requires to be 1), seal-amended, and the affected slice + its
+transitive DAG dependents reset to re-run against the sharpened suite. Delivered
+as `src/debug.ts` + `stz bridge debug-case` / `slice-reset`
+(`transitiveDependents` in `src/project.ts`) + the `/stz-f:debug` command. The
+blind-spot defect can never re-win once its case is sealed, and the whole chain
+is replayable from `40-slices/<slice>/debug.md`.
 
 ### 2. Higher-than-Opus model families (Claude Fable 5 and class)
 

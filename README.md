@@ -120,6 +120,13 @@ For a single one-off slice with no project setup:
 /stz-f:run payment-validator
 ```
 
+`/stz-f:debug <slice>` is the post-ship repair loop: when a shipped winner is
+wrong on behaviour the sealed suite missed, it reproduces the defect, mines it
+into a **sealed regression case** (twice-verified — the winner fails it, the
+reference passes it), amends the seal, and resets the affected slice + its DAG
+dependents to re-run against the sharpened suite. The blind-spot defect can
+never re-win once its case is sealed.
+
 Advanced (opt-in, default-off): `/stz-f:contract` (typed, human-gated
 correctness predicates), `/stz-f:inject` (adversarial suite hardening),
 `/stz-f:evolve` (the bounded harness-evolution meta-loop).

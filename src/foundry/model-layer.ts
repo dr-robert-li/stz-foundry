@@ -459,10 +459,23 @@ export class FoundryModelLayer implements ModelLayer {
       const dir = mkdtempSync(join(tmpdir(), "stz-foundry-eval-"));
       try {
         const sealedEntries = Object.entries(sealed);
-        const [sealedRel, sealedContents] = sealedEntries[0] ?? ["held-out/sealed.mjs", ""];
-        const sealedPath = join(dir, sealedRel.endsWith(".mjs") ? sealedRel : `${sealedRel}.mjs`);
-        mkdirSync(dirname(sealedPath), { recursive: true });
-        writeFileSync(sealedPath, sealedContents, "utf8");
+        // Materialize every sealed artifact; the .mjs is the harness, and a
+        // debug-cases.json (mined post-ship, item 1) is a first-class gate check.
+        let sealedPath = "";
+        let debugCasesPath: string | undefined;
+        for (const [rel, contents] of sealedEntries) {
+          const p = join(dir, rel);
+          mkdirSync(dirname(p), { recursive: true });
+          writeFileSync(p, contents, "utf8");
+          if (rel.endsWith(".mjs") && !sealedPath) sealedPath = p;
+          if (rel.endsWith("debug-cases.json")) debugCasesPath = p;
+        }
+        if (!sealedPath) {
+          const [sealedRel, sealedContents] = sealedEntries[0] ?? ["held-out/sealed.mjs", ""];
+          sealedPath = join(dir, sealedRel.endsWith(".mjs") ? sealedRel : `${sealedRel}.mjs`);
+          mkdirSync(dirname(sealedPath), { recursive: true });
+          writeFileSync(sealedPath, sealedContents, "utf8");
+        }
 
         const implRel =
           Object.keys(output.files).find((f) => f.endsWith(".mjs") || f.endsWith(".js")) ??
@@ -478,10 +491,10 @@ export class FoundryModelLayer implements ModelLayer {
         const hackFindings = detectHacks(output.specimen, output.files, {
           fixtureNames: this.opts.fixtureNames ?? [],
         });
-        const e = fullEval(sealedPath, implPath);
+        const e = fullEval(sealedPath, implPath, undefined, debugCasesPath);
         return {
           specimen: output.specimen,
-          passedGate: e.testPassRate === 1 && hackFindings.length === 0,
+          passedGate: e.testPassRate === 1 && e.debugPassRate === 1 && hackFindings.length === 0,
           testPassRate: e.testPassRate,
           coverage: e.coverage,
           mutationScore: e.mutationScore,

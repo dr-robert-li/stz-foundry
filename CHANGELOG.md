@@ -9,6 +9,34 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.10.0] — post-aggregation debug mode (cycle item 1)
+
+A shipped slice winner can pass its sealed suite yet be wrong on behaviour the
+suite never exercised — a blind-spot defect with no post-hoc repair. This adds
+the repair loop: **reproduce → mine the failing case into a SEALED regression
+test → seal-amend → re-run only the affected slice + its DAG dependents.**
+
+- **`src/debug.ts`** — the deterministic core. A reported defect is a `DebugCase`
+  (`fn`, JSON args, JSON expected). `verifyDebugCase` is a twice-verified oracle:
+  a case is accepted only if the current WINNER fails it (real uncaught defect)
+  AND the reference PASSES it (satisfiable, correctly stated) — the same
+  discipline as `inject`/`harness-mine`. Cases run through the shared execution
+  sandbox; nothing model-authored runs unguarded.
+- **Sealed regression cases** live at `30-tests/held-out/<slice>/debug-cases.json`,
+  hashed by `SEAL.json` like the rest of the held-out suite, and are folded into
+  the eval gate: `fullEval` gains `debugPassRate` and the foundry gate now
+  requires `testPassRate === 1 && debugPassRate === 1 && no hacks`. A shipped
+  blind-spot defect can never re-win once its case is sealed.
+- **`stz bridge debug-case`** verifies + appends + seal-amends and reports the
+  re-run set; **`stz bridge slice-reset --with-dependents`** resets a slice and
+  everything downstream (`transitiveDependents` in `src/project.ts`) so it
+  re-runs against the sharpened suite. **`/stz-f:debug`** is the command that
+  orchestrates it.
+- 326 tests (+10): unit (harness/oracle/validation/`transitiveDependents`),
+  integration (the mined case becomes a real `fullEval` gate check that culls a
+  wrong winner), functional (bridge `debug-case --apply` end to end over an
+  `.stz` tree — mine, amend, reset slice + dependents; and the rejection paths).
+
 ## [1.9.1] — sandbox portability fixes (busy-host fork cap, Node <23 permission flag)
 
 Two defects in the 1.9.0 eval sandbox, surfaced by the CI matrix (Node 20/22):

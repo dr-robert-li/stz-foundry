@@ -139,6 +139,32 @@ export function topoOrder(slices: ProjectSliceEntry[]): TopoResult {
   return { ok: true, order };
 }
 
+/**
+ * Every slice that transitively depends on `sliceId` (not including it), in
+ * topological order. The debug-mode re-run set: when a slice's sealed suite is
+ * sharpened by a mined regression case, that slice AND everything downstream of
+ * it must re-run, since a changed winner can ripple through the DAG.
+ */
+export function transitiveDependents(slices: ProjectSliceEntry[], sliceId: string): string[] {
+  const dependents = new Map<string, string[]>();
+  for (const s of slices) for (const dep of s.dependsOn) {
+    const arr = dependents.get(dep) ?? [];
+    arr.push(s.id);
+    dependents.set(dep, arr);
+  }
+  const seen = new Set<string>();
+  const queue = [...(dependents.get(sliceId) ?? [])];
+  while (queue.length) {
+    const id = queue.shift()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    for (const d of dependents.get(id) ?? []) if (!seen.has(d)) queue.push(d);
+  }
+  const topo = topoOrder(slices);
+  const order = topo.ok ? topo.order : slices.map((s) => s.id);
+  return order.filter((id) => seen.has(id));
+}
+
 // ── status derivation (the no-drift rule) ───────────────────────────────────
 
 /** Derive a slice's rollup status from its own per-slice state.json. */
