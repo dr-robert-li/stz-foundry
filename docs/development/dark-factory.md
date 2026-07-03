@@ -3,9 +3,10 @@
 A *dark factory* runs lights-out: no human on the floor, product and a report at
 the end. STZ's dark-factory mode (0.4.0) is the same idea for the slice pipeline —
 elicitation hands off and the orchestrator drives research → ground-truth →
-standards → testing-conventions → slice-disaggregation → every per-slice
-tournament → summary with **no human in the loop**, surfacing only the final
-completion report.
+standards → testing-conventions → (`/stz-f:explore` when brownfield) →
+slice-disaggregation → every per-slice tournament → the `/stz-f:integration`
+composition gate → summary → (`/stz-f:evolve` when opted in) with **no human in
+the loop**, surfacing only the final completion report.
 
 This is the literal intent in the project's executive summary ("software
 engineering dark factories with auditable outputs"): autonomous, but every
@@ -46,6 +47,45 @@ signal (already recorded in `30-tests/cross-reference.md` or
 `90-audit/merge-validation.md`) is surfaced in the final summary for after-the-fact
 review. The factory defers that decision; it does not guess.
 
+## Explore, integration, and debug inside the loop
+
+Three commands that began as standalone entries are part of the autonomous loop
+(they were previously run by hand around it):
+
+- **`/stz-f:explore` (brownfield entry).** Before slice-disaggregation, if the
+  repo contains existing source and no `10-research/codebase-map.json`, the
+  orchestrator runs the explore scan. It is deterministic (bridge-owned, no
+  model, no gate), so autonomy skips nothing by running it — and every slice
+  anchor gets validated against real code before a specimen writes a line.
+- **`/stz-f:integration` (the composition gate).** Once every slice is `done` or
+  `halted`, the sealed end-to-end gate runs *before* the summary. Its
+  seal-crosscheck is subject to the same human-only halt rule as a per-slice
+  crosscheck.
+- **`/stz-f:debug` (bounded red-gate repair).** A red integration gate is
+  reduced to a concrete `fn(input) === expected` case and taken through
+  `/stz-f:debug` on the offending slice. This is autonomy-safe because the
+  bridge's twice-verified oracle refuses a case the shipped winner already
+  passes or the reference fails — the factory cannot poison its own suite. The
+  loop is bounded: ONE debug → re-run → re-gate cycle per offending slice; an
+  irreducible failure, a reference-fails rejection (a spec disagreement), or a
+  second red gate halts that thread for human review, surfaced in the summary.
+
+## The evolve meta-loop (opt-in, default off)
+
+`/stz-f:evolve` — the harness-evolution meta-loop — can be attached to the end
+of an autonomous run. It is **off by default**: elicitation asks once (the
+`Evolve` question, after the dark-factory question), and it can be flipped any
+time with `stz bridge project-harness-evolve --root . --on|--off` — the same
+load-modify-save pattern as the dark-factory toggle, persisting
+`harness.enabled` without disturbing sibling fields. `project-status` hoists it
+as `harnessEvolve`.
+
+When enabled, the pipeline runs `/stz-f:evolve` once, **after** `/stz-f:summary`.
+It evolves the harness genome against held-out pilot fitness — never the
+project's code — and is bounded by its own meta-FSM (max generations,
+barren-generation convergence, variance collapse) with kill-switches that halt
+and surface rather than auto-rewrite.
+
 ## Where the flag lives, and why a dedicated toggle
 
 `darkFactory` is a boolean on the persisted run config (`00-intent/run-config.json`).
@@ -76,6 +116,22 @@ markdown (`/stz-f:pipeline`, `/stz-f:run`, `/stz-f:slice`) and is driven by the 
 so it is not unit-tested; the tests cover the flag plumbing those commands read,
 not the agent loop.
 
+
+## Run-config knobs that shape an autonomous run
+
+All set during `/stz-f:new` (area E), all with safe defaults:
+
+- **`retryPolicy`** `{retries, replans}` — what happens when a tournament finds
+  no passer: `0` halts immediately, `n` bounds the attempts (default 2 retries,
+  1 replan), `-1` retries without bound — dangerous, stopped only by the
+  token/USD hard caps.
+- **`sequencing`** — `fanout` (independent slices in parallel, the default) or
+  `linear` (one at a time, predictable cost).
+- **`maxParallelSlices`** — the fan-out throttle (default 3): bounds how many
+  frontier tournaments run at once, so a wide DAG can't launch
+  frontier-width × N specimens unbounded.
+- **`runWallClockMs`** — optional run-level wall-clock ceiling across all
+  slices (`0` = off).
 
 ## Halts the factory cannot absorb
 

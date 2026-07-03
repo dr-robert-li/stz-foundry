@@ -59,6 +59,7 @@ import {
   saveRunConfig,
   loadRunConfig,
   setDarkFactory,
+  setHarnessEvolve,
   runConfigExists,
   defaultRunConfig,
 } from "./project.js";
@@ -764,7 +765,8 @@ async function writeRunConfigDoc(root: string, config: RunConfig): Promise<void>
       `- **Slicing granularity:** ${config.granularity}\n` +
       `- **Specimen fan-out (N):** ${config.fanout}\n` +
       `- **Strictness:** coverage ≥ ${config.strictness.coverageTarget}, mutation ${config.strictness.mutationPolicy}, conventions ${config.strictness.conventions}\n` +
-      `- **Dark-factory mode:** ${config.darkFactory ? "**on** — autonomous end-to-end, human gates skipped (except the F2 predicate gate)" : "off — human-in-the-loop"}\n\n` +
+      `- **Dark-factory mode:** ${config.darkFactory ? "**on** — autonomous end-to-end, human gates skipped (except the F2 predicate gate)" : "off — human-in-the-loop"}\n` +
+      `- **Evolve meta-loop:** ${config.harness?.enabled ? "**on** — /stz-f:evolve runs after the pipeline completes" : "off"}\n\n` +
       `## Models per role\n\n| role | model |\n|---|---|\n` +
       `| planning | ${m.planning} |\n| research | ${m.research} |\n| execution | ${m.execution} |\n` +
       `| testing | ${m.testing} |\n| validation | ${m.validation} |\n| judging | ${m.judging} |\n`,
@@ -789,6 +791,25 @@ async function projectDarkFactory(args: Record<string, string>): Promise<void> {
     await saveProjectState(root, state);
   }
   print({ darkFactory: config.darkFactory, runConfig: config });
+}
+
+/**
+ * project-harness-evolve: flip the /stz-f:evolve meta-loop (harness.enabled) at
+ * ANY point. `--on` / `--off` (default `--on`). Load-modify-save like
+ * project-dark-factory — never routed through `project-set-config`, whose
+ * normalize-over-defaults merge would silently reset every other field.
+ */
+async function projectHarnessEvolve(args: Record<string, string>): Promise<void> {
+  const root = args.root!;
+  const enabled = args.off ? false : args.enabled !== undefined ? String(args.enabled).trim().toLowerCase() === "true" : true;
+  const config = await setHarnessEvolve(root, enabled);
+  await writeRunConfigDoc(root, config);
+  if (projectStateExists(root)) {
+    const state = await loadProjectState(root);
+    appendProjectEvent(state, "lifecycle", "harness-evolve", enabled ? "engaged — evolve meta-loop runs after the pipeline completes" : "disengaged");
+    await saveProjectState(root, state);
+  }
+  print({ harnessEvolve: config.harness?.enabled === true, runConfig: config });
 }
 
 /** project-config: READ-ONLY — print the run config (defaults if unset). */
@@ -874,6 +895,8 @@ async function projectStatus(args: Record<string, string>): Promise<void> {
     // Hoisted convenience: a command driving the autonomous loop reads this one
     // field rather than reaching into runConfig.darkFactory each phase.
     darkFactory: runConfig.darkFactory,
+    // Same hoist for the opt-in evolve meta-loop (off unless engaged).
+    harnessEvolve: runConfig.harness?.enabled === true,
     runConfigSet: runConfigExists(root) && !runConfigBroken,
     runConfigBroken: runConfigBroken || undefined,
     note: slicingDone ? undefined : "slice execution gated until /stz-f:slice completes slice-disaggregation",
@@ -1804,7 +1827,7 @@ function evalBaselineCmd(args: Record<string, string>): void {
 const BRIDGE_COMMANDS = [
   "version", "begin", "record-eval", "eval", "gate", "escalate", "slice-halt", "record-votes", "select", "finalize",
   "project-init", "project-phase", "project-write-intent", "project-record-area", "project-set-config",
-  "project-dark-factory", "project-config", "slice-add", "project-seed-slices", "project-status", "summary",
+  "project-dark-factory", "project-harness-evolve", "project-config", "slice-add", "project-seed-slices", "project-status", "summary",
   "seal", "seal-verify", "seal-crosscheck", "seal-amend", "merge-validate", "merge-compat-propose",
   "merge-compat-approve", "merge-compat-retire", "merge-compat-list",
   "inject", "harness-mine", "harness-promote-mutator", "harness-spawn", "harness-fitness", "harness-select",
@@ -1833,6 +1856,7 @@ export async function runBridge(argv: string[]): Promise<void> {
     case "project-record-area": await projectRecordArea(args); break;
     case "project-set-config": await projectSetConfig(args); break;
     case "project-dark-factory": await projectDarkFactory(args); break;
+    case "project-harness-evolve": await projectHarnessEvolve(args); break;
     case "project-config": await projectConfig(args); break;
     case "slice-add": await sliceAdd(args); break;
     case "project-seed-slices": await projectSeedSlices(args); break;

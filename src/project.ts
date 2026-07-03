@@ -466,3 +466,19 @@ export async function setDarkFactory(root: string, enabled: boolean): Promise<Ru
   await saveRunConfig(root, next);
   return next;
 }
+
+/**
+ * Flip the /stz-f:evolve meta-loop (`harness.enabled`) in place — same
+ * load-modify-save rationale as setDarkFactory: never routed through
+ * `normalizeRunConfig(partial)`, which merges over the *defaults* and would
+ * silently reset every sibling field mid-run.
+ */
+export async function setHarnessEvolve(root: string, enabled: boolean): Promise<RunConfig> {
+  const current = await loadRunConfig(root);
+  const next: RunConfig = {
+    ...current,
+    harness: normalizeHarnessConfig({ ...(current.harness ?? {}), enabled }),
+  };
+  await saveRunConfig(root, next);
+  return next;
+}

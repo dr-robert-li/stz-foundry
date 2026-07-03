@@ -419,3 +419,48 @@ describe("dark-factory mode — 0.4.0 autonomous run flag", () => {
     expect(out.runConfig).toMatchObject({ ...defaultRunConfig(), darkFactory: true });
   });
 });
+
+describe("evolve meta-loop toggle — project-harness-evolve", () => {
+  it("toggle is load-modify-save — engages harness.enabled without resetting other fields", async () => {
+    await initProject();
+    await setConfig({
+      granularity: "fine",
+      fanout: 7,
+      strictness: { coverageTarget: 0.95, mutationPolicy: "strict", conventions: "strict" },
+    });
+    captured = "";
+    await runBridge(["project-harness-evolve", "--root", root, "--on"]);
+    const out = lastJSON<{ harnessEvolve: boolean; runConfig: RunConfig }>();
+    expect(out.harnessEvolve).toBe(true);
+    expect(out.runConfig.harness?.enabled).toBe(true);
+    // Siblings survive the toggle (the set-config reset regression).
+    expect(out.runConfig.granularity).toBe("fine");
+    expect(out.runConfig.fanout).toBe(7);
+    expect(out.runConfig.strictness.coverageTarget).toBe(0.95);
+
+    const onDisk = await loadRunConfig(root);
+    expect(onDisk.harness?.enabled).toBe(true);
+    expect(onDisk.fanout).toBe(7);
+
+    // Status hoists it, the doc reflects it, and an event was journaled.
+    const s = await status<{ harnessEvolve: boolean }>();
+    expect(s.harnessEvolve).toBe(true);
+    const md = await readFile(join(root, STZ_DIR, "00-intent/run-config.md"), "utf8");
+    expect(md).toMatch(/Evolve meta-loop:\*\* \*\*on\*\*/);
+    const pstate = JSON.parse(await readFile(join(root, STZ_DIR, "90-audit/project-state.json"), "utf8"));
+    expect(pstate.events.some((e: { kind: string }) => e.kind === "harness-evolve")).toBe(true);
+  });
+
+  it("--off disengages and status hoists harnessEvolve:false by default", async () => {
+    await initProject();
+    const before = await status<{ harnessEvolve: boolean }>();
+    expect(before.harnessEvolve).toBe(false); // off by default
+    captured = "";
+    await runBridge(["project-harness-evolve", "--root", root, "--on"]);
+    captured = "";
+    await runBridge(["project-harness-evolve", "--root", root, "--off"]);
+    const out = lastJSON<{ harnessEvolve: boolean; runConfig: RunConfig }>();
+    expect(out.harnessEvolve).toBe(false);
+    expect(out.runConfig.harness?.enabled).toBe(false);
+  });
+});

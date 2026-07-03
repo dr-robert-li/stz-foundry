@@ -141,25 +141,39 @@ kind}], areas[]}` and run:
 
 Once — and only once — the done-predicates are locked (the F2 gate is the one
 human checkpoint that can never be skipped), offer the autonomous end-to-end run.
-Fire ONE AUQ: header `Dark mode`, question "Run the rest of the pipeline as a
-dark factory — fully autonomous, no human in the loop, just a completion summary
-at the end? (You can flip this any time.)", options:
-- **Stay hands-on** (default) — keep the human gates (`/stz-f:slice` approval and
-  the `/stz-f:run` winner approval). Recommended for the first run on a project.
-- **Engage dark factory** — skip every downstream human gate and drive
-  research → … → slicing → every per-slice tournament → summary autonomously.
-  The done-predicates you just confirmed are the contract it runs against.
-- **You decide** — keep it off.
+Fire ONE grouped AUQ with two questions:
 
-If the user engages it, run `$STZ bridge project-dark-factory --root . --on`
-(persists `darkFactory:true` into run-config.json without disturbing the run
-config you just set). With `--auto`, default to **off** unless the idea-doc or the
-user explicitly asked for an unattended run.
+1. Header `Dark mode`, question "Run the rest of the pipeline as a
+   dark factory — fully autonomous, no human in the loop, just a completion summary
+   at the end? (You can flip this any time.)", options:
+   - **Stay hands-on** (default) — keep the human gates (`/stz-f:slice` approval and
+     the `/stz-f:run` winner approval). Recommended for the first run on a project.
+   - **Engage dark factory** — skip every downstream human gate and drive
+     research → … → slicing → every per-slice tournament → the integration gate →
+     summary autonomously. The done-predicates you just confirmed are the contract
+     it runs against.
+   - **You decide** — keep it off.
+2. Header `Evolve`, question "After the pipeline completes, also run the
+   `/stz-f:evolve` harness-evolution meta-loop? It evolves the STZ harness itself
+   (test-author heuristics, judge rubric, …) against held-out pilot fitness —
+   extra token cost, no change to this project's code.", options:
+   - **Off** (default) — the meta-loop never runs; nothing changes.
+   - **Enable evolve** — sets `harness.enabled:true`; the pipeline (dark-factory
+     or `--auto`) runs `/stz-f:evolve` once, after `/stz-f:summary`.
+   - **You decide** — keep it off.
 
-Then show the user the captured intent and the predicates (and whether dark-factory
-is engaged), and hand off: **▶ Next up: `/stz-f:research`** (or, if dark-factory is
-on, immediately chain into `/stz-f:pipeline --auto` yourself and do not stop until
-the completion report — see that command's dark-factory behaviour).
+If the user engages dark-factory, run `$STZ bridge project-dark-factory --root .
+--on`; if they enable evolve, run `$STZ bridge project-harness-evolve --root .
+--on`. Both are load-modify-save toggles that persist their one flag into
+run-config.json without disturbing the run config you just set. With `--auto`,
+default both to **off** unless the idea-doc or the user explicitly asked for an
+unattended run / harness evolution.
+
+Then show the user the captured intent and the predicates (and whether
+dark-factory and evolve are engaged), and hand off: **▶ Next up:
+`/stz-f:research`** (or, if dark-factory is on, immediately chain into
+`/stz-f:pipeline --auto` yourself and do not stop until the completion report —
+see that command's dark-factory behaviour).
 
 ## The `--dark` flag (engage at any point)
 

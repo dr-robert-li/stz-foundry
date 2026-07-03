@@ -11,7 +11,10 @@ SIA) actually shows gains. The bridge owns all compute (N6); agents do the LLM
 work and feed numbers in.
 
 Requires `harness.enabled: true` in `00-intent/run-config.json`. Default OFF —
-nothing here changes a normal run.
+nothing here changes a normal run. Enable it during `/stz-f:new` (the `Evolve`
+question, after the dark-factory one) or any time with
+`stz bridge project-harness-evolve --root . --on` (`--off` to disable); when
+enabled, `/stz-f:pipeline` runs this command once after `/stz-f:summary`.
 
 ## One generation
 

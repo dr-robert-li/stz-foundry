@@ -61,7 +61,8 @@ computed by the bridge; do not eyeball counts or re-tally in your head.
    `slice execution blocked until /stz-f:slice completes slice-disaggregation`.
 6. **Run config line** — from `runConfig`: `granularity · <sequencing> · retries <retries>/<replans> · N=<fanout> · cov≥<…> ·
    mutation <…> · conventions <…> · models{planning/research/execution/testing/
-   validation/judging}`. Tag `(defaults)` when `runConfigSet` is false, or
+   validation/judging}`. Append ` · evolve on` when the hoisted `harnessEvolve`
+   is true. Tag `(defaults)` when `runConfigSet` is false, or
    `(run-config.json corrupt — using defaults)` when `runConfigBroken` is true.
 
 Status glyphs (reuse everywhere): `✓ done` · `▶ running`/next · `○ pending` ·
@@ -102,9 +103,18 @@ models{plan=sonnet research=haiku exec=sonnet test=sonnet val=sonnet judge=opus}
 AUQ: header `Dispatch`, question "What next?", options are the recommended next
 action first, then alternatives. Examples by state:
 - early phases incomplete → `[Run /stz-f:<next-phase>, Refresh, Stop]`
+- research done, repo has existing source, no `10-research/codebase-map.json` →
+  recommend `/stz-f:explore` before `/stz-f:slice` (brownfield anchoring)
 - slicing done, slices pending → `[Run next /stz-f:run, Run a frontier slice,
   /stz-f:summary, Refresh]`
-- all slices done → `[Run /stz-f:summary, Refresh, Stop]`
+- all slices done, no `90-audit/integration.md` → `[Run /stz-f:integration,
+  /stz-f:summary, Refresh, Stop]` (the composition-level sealed gate comes
+  before the summary)
+- integration green (or greenfield single-slice) → `[Run /stz-f:summary,
+  Refresh, Stop]`; if `harnessEvolve` is true, offer `/stz-f:evolve` after the
+  summary
+- integration red → recommend `/stz-f:debug <offending-slice>` (mine the failure
+  into a sealed regression case and re-run)
 
 Selecting a project-phase command runs it inline. Selecting tournament work
 dispatches `/stz-f:run <id>`. When the frontier holds more than one slice, run
@@ -119,8 +129,10 @@ slices are done, then recommend `/stz-f:summary`.
 ## --auto
 
 With `--auto`, follow the recommended next action without prompting, looping
-phase → phase → per-slice runs → summary, pausing only at the two human gates
-(`/stz-f:new` predicate confirmation and `/stz-f:slice` "Approve as-is").
+phase → phase → (`/stz-f:explore` if brownfield and unmapped) → per-slice runs →
+`/stz-f:integration` → summary → (`/stz-f:evolve` if `harnessEvolve`), pausing
+only at the two human gates (`/stz-f:new` predicate confirmation and
+`/stz-f:slice` "Approve as-is").
 
 ## Dark-factory mode (autonomous, no human in the loop)
 
@@ -139,10 +151,24 @@ prompts:
   elicitation never produced a machine-checkable predicate, stop and say so
   rather than inventing acceptance. (In practice elicitation is already done
   before dark-factory drives anything.)
+- **Brownfield entry:** before dispatching `/stz-f:slice`, if the repo contains
+  existing source and `10-research/codebase-map.json` is absent, run
+  `/stz-f:explore` first (the scan is deterministic — bridge-owned, no gate to
+  skip) so every slice anchor is validated against real code.
 - When the frontier holds independent slices, run the bridge's `dispatch` array
   as parallel background agents (already throttled to `maxParallelSlices` under
   `fanout`, or one slice under `linear`) — not the raw frontier. Loop until
   every slice is `done` or `halted`.
+- **The integration gate comes before the summary.** Once every slice is `done`
+  or `halted`, run `/stz-f:integration` (author blind → crosscheck → seal → gate).
+  Its seal-crosscheck divergence is the same human-only halt as a per-slice one.
+  If the gate is **red**, reduce the failure to a concrete
+  `fn(input) === expected` case and run `/stz-f:debug <offending-slice>` — the
+  bridge's twice-verified oracle makes this autonomy-safe (it refuses a case the
+  winner passes or the reference fails). At most ONE debug → re-run → re-gate
+  cycle per offending slice; a failure that cannot be reduced to a concrete case,
+  a reference-fails rejection (spec disagreement), or a second red gate on the
+  same slice halts that thread for human review and is surfaced in the summary.
 - **The one decision the factory defers, never guesses:** a `seal-crosscheck`
   divergence (`/stz-f:run` step 2) needs human adjudication and must not
   auto-rewrite. With no human present, `/stz-f:run` halts that slice rather than
@@ -150,10 +176,17 @@ prompts:
   path: the DAG keeps going and the divergence is surfaced in the summary below.
   Do not hand-resolve it mid-run; that is what the after-the-fact review is for.
 - **End with the summary, not a prompt.** Run `/stz-f:summary` and present the
-  completion report (per-slice winner, faithful?, culled count, any halted
-  slices with their failure reports) as the final artifact. A halted slice does
-  not stall the factory — report it and continue the rest of the DAG; surface all
-  halts in the final summary.
+  completion report (per-slice winner, faithful?, culled count, integration-gate
+  verdict, any halted slices with their failure reports) as the final artifact.
+  A halted slice does not stall the factory — report it and continue the rest of
+  the DAG; surface all halts in the final summary.
+- **Evolve (opt-in, default off).** If `project-status` hoists
+  `harnessEvolve:true` (set during `/stz-f:new` or via `$STZ bridge
+  project-harness-evolve --root . --on`), run `/stz-f:evolve` ONCE after the
+  summary. It evolves the harness genome, never this project's code; its own
+  meta-FSM bounds it (max generations, barren-convergence, variance collapse)
+  and any kill-switch trip halts and surfaces. When `harnessEvolve` is false or
+  absent, never run it.
 
 Disengage at any time with `$STZ bridge project-dark-factory --root . --off`
 (e.g. if a halt needs human eyes).

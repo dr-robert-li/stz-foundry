@@ -101,105 +101,73 @@ copy — no PATH setup needed.
 
 ## Quickstart 1 — the in-session pipeline (Claude Code)
 
-Take a project from idea to completion report, one command per phase:
+Two commands take a project from idea to completion report:
 
 ```text
-/stz-f:new        elicit intent + machine-checkable done-predicates
-/stz-f:research   external (docs, prior art) + internal (codebase) research
-/stz-f:validate   ground-truth every research claim against reality
-/stz-f:conventions  style, architecture, naming conventions
-/stz-f:tests      test strategy, locked BEFORE implementation
-/stz-f:slice      break the work into a DAG of vertical slices
-/stz-f:run <id>   the adversarial tournament, once per slice
-/stz-f:summary    aggregate everything into one completion report
+/stz-f:new                answer the questions — your done-conditions become the contract
+/stz-f:pipeline --auto    drives everything else, ends with a completion report
 ```
 
-`/stz-f:pipeline` is the dashboard: it shows phase and per-slice status and
-dispatches the next step. `/stz-f:pipeline --auto` walks the whole DAG
-automatically; dark-factory mode (lights-out, every downstream gate skipped)
-is described in
-[`docs/development/dark-factory.md`](docs/development/dark-factory.md).
-
-Run-config knobs (set during `/stz-f:new`) shape autonomous runs: **retry
-policy** — what happens when a tournament finds no passer (halt immediately /
-retry n times, default 2 / retry unbounded — dangerous, stopped only by the
-token/USD caps); **sequencing** — fan-out (independent slices in parallel, the
-default) vs linear (one at a time); **`maxParallelSlices`** — the fan-out
-throttle (default 3) that bounds how many frontier tournaments run at once, so
-a wide DAG can't launch frontier-width × N specimens unbounded; and
-**`runWallClockMs`** — an optional run-level wall-clock ceiling across all
-slices (0 = off). One halt class is always human-in-the-loop regardless: a
-seal-crosscheck ambiguity (test-design judgment) durably halts its slice for
-adjudication while the rest of the DAG continues.
-
-For a single one-off slice with no project setup:
+`/stz-f:pipeline` (no flag) is the dashboard: it shows status and recommends
+the next step, so you can also run each phase yourself:
 
 ```text
-/stz-f:run payment-validator
+/stz-f:research → /stz-f:validate → /stz-f:conventions → /stz-f:tests → /stz-f:slice
+→ /stz-f:run <id> (once per slice) → /stz-f:integration → /stz-f:summary
 ```
 
-`/stz-f:integration` is the composition-level sealed gate, run after every slice
-is done: a suite authored blind against the project intent proves the assembled
-slices work **together** (catching cross-slice integration bugs the per-slice
-unit suites can't see), and on a brownfield project it additionally checks that
-every preserved public export still resolves — a change that drops one fails even
-if its new behaviour is correct.
+Good to know:
 
-`/stz-f:explore` maps an **existing codebase** (files, exports, tests, public
-surface) into `10-research/codebase-map.json` so brownfield projects slice
-against real code: each slice carries an anchor (`add`/`extend`/`edit`, target
-files, preserved exports) validated with `stz bridge anchor-check`, so a slice
-that references a file that isn't there is caught before any specimen runs. No
-map ⇒ greenfield synthesis as before.
-
-`/stz-f:debug <slice>` is the post-ship repair loop: when a shipped winner is
-wrong on behaviour the sealed suite missed, it reproduces the defect, mines it
-into a **sealed regression case** (twice-verified — the winner fails it, the
-reference passes it), amends the seal, and resets the affected slice + its DAG
-dependents to re-run against the sharpened suite. The blind-spot defect can
-never re-win once its case is sealed.
-
-Advanced (opt-in, default-off): `/stz-f:contract` (typed, human-gated
-correctness predicates), `/stz-f:inject` (adversarial suite hardening),
-`/stz-f:evolve` (the bounded harness-evolution meta-loop).
+- **Dark-factory mode** — offered at the end of `/stz-f:new`: lights-out from
+  research to report, no human gates. Optionally add the `/stz-f:evolve`
+  meta-loop at the end (off by default). Contract and knobs:
+  [`docs/development/dark-factory.md`](docs/development/dark-factory.md).
+- **Existing codebase?** `/stz-f:explore` maps it so slices anchor to real
+  files; the pipeline runs it automatically when needed.
+- **Integration gate** — `/stz-f:integration` runs after the slices: a sealed
+  end-to-end suite proves they work *together* (and that a brownfield change
+  kept every preserved export).
+- **Shipped bug the tests missed?** `/stz-f:debug <slice>` mines it into a
+  sealed regression test and re-runs the slice — that defect can never win
+  again.
+- **One-off slice, no project setup:** `/stz-f:run payment-validator`.
+- Run behaviour (parallelism, retries, models per role, budgets) is chosen
+  during `/stz-f:new`; every question has a safe default — answer "You decide"
+  to accept it.
+- Advanced, opt-in: `/stz-f:contract` (typed correctness predicates),
+  `/stz-f:inject` (suite hardening), `/stz-f:evolve` (harness evolution).
 
 ## Quickstart 2 — the standalone foundry runner (BYO LLM)
 
-No Claude Code, no vendor CLI — the runner owns the spawn-and-collect loop
-and talks to models over HTTP. Local-first:
+No Claude Code, no vendor CLI — the runner talks to any model over HTTP. With
+a local model (Ollama, vLLM) it costs $0:
 
 ```bash
-stz foundry init .        # scaffolds .stz/ + writes .stz/00-intent/foundry.json
+stz foundry init .        # scaffolds .stz/ + a config pointing at localhost:11434
 ```
 
+Edit `.stz/00-intent/foundry.json` to pick providers and models:
+
 ```jsonc
-// .stz/00-intent/foundry.json — the default template (edit to taste)
 {
   "providers": {
-    "local":     { "kind": "openai",    "baseUrl": "http://localhost:11434/v1" }
-    // "anthropic": { "kind": "anthropic", "baseUrl": "https://api.anthropic.com",
-    //                "apiKeyEnv": "ANTHROPIC_API_KEY" }
+    "local": { "kind": "openai", "baseUrl": "http://localhost:11434/v1" }
+    // or "anthropic": { "kind": "anthropic", "apiKeyEnv": "ANTHROPIC_API_KEY", ... }
   },
   "roles": {
-    "default":    { "provider": "local", "model": "granite4.1:30b" }
-    // per-role overrides: testAuthor, strategist, specimen, judge,
-    // documenter, planner. Reserve the premium tier (Fable / Mythos — the two
-    // Mythos-class families — or Opus) for testAuthor + judge, the field-earned
-    // binding constraint. The runner
-    // classifies each role's model by tier and WARNS if you put a premium model
-    // on the high-volume specimen role (wasteful) or a cheap one on the author.
+    "default": { "provider": "local", "model": "granite4.1:30b" }
+    // per-role overrides: testAuthor, judge, specimen, … — give the STRONGEST
+    // model to testAuthor + judge; the runner warns on wasteful/risky picks.
   },
-  "pricing": {},                       // model → $/MTok; local models are $0
   "caps": { "maxTokens": 500000 },     // hard kill-switches (also maxUsd)
-  "n": 2, "votesPerPair": 1,
-  "specimenTimeoutMs": 600000
+  "n": 2, "votesPerPair": 1
 }
 ```
 
 API keys are referenced by **env-var name** (`apiKeyEnv`), never stored — a
 config that embeds a key is rejected.
 
-Write a slice manifest and run the tournament:
+Describe one slice and run the tournament:
 
 ```bash
 cat > slugify.json <<'EOF'
@@ -215,18 +183,12 @@ EOF
 stz foundry run slugify.json .
 ```
 
-Before the real slice it runs a **test-author preflight** — a trivial canary
-that proves the configured test-author model can author a valid sealed harness,
-failing fast (promote a stronger model) instead of burning the escalation
-budget, since test-author strength is the binding constraint for local models.
-Then it authors and validates the sealed suite (syntax, export-probe,
-self-check, and a reference smoke gate with bounded re-asks — hardened
-against small-local-model failure modes), spawns the specimens concurrently,
-**eval-gates every execution inside the sandbox**, judges, selects a winner,
-and writes the full audit tree plus a real-usage cost report
-(`.stz/90-audit/foundry-cost.md`, per-role token and dollar breakdown, the
-sandbox isolation level, and retry-vs-recovery telemetry; unknown models are
-reported, never guessed). Exit code 2 means the run halted with no winner.
+The runner preflights the test-author model (fail fast if it can't author a
+valid sealed suite — the binding constraint for local models), authors and
+seals the held-out suite, races the specimens concurrently inside the sandbox,
+judges, and writes the full audit tree plus a per-role cost report
+(`.stz/90-audit/foundry-cost.md`). Exit code 2 means the run halted with no
+winner.
 
 ## Updating
 

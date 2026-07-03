@@ -9,6 +9,36 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.15.0] — dark-factory loop absorbs explore/integration/debug; opt-in evolve
+
+The autonomous loop (`/stz-f:pipeline --auto` and dark-factory mode) now owns
+the three commands that previously had to be run by hand around it, and can
+optionally end with the harness-evolution meta-loop.
+
+- **`/stz-f:explore` in the loop** — before slice-disaggregation, a brownfield
+  repo with no `10-research/codebase-map.json` is mapped automatically (the
+  scan is deterministic, so autonomy skips no gate).
+- **`/stz-f:integration` in the loop** — the composition-level sealed gate runs
+  after the last slice and before `/stz-f:summary`, in `--auto`, dark-factory,
+  and the dashboard's recommendations alike.
+- **`/stz-f:debug` in the loop (bounded)** — a red integration gate is reduced
+  to a concrete `fn(input) === expected` case and repaired via the
+  twice-verified debug oracle: at most ONE debug → re-run → re-gate cycle per
+  offending slice, then halt-and-surface (irreducible failures and spec
+  disagreements always halt for a human).
+- **Opt-in `/stz-f:evolve` (default OFF)** — elicitation's dark-factory AUQ now
+  also offers the harness-evolution meta-loop; when enabled the pipeline runs
+  it once, after the summary. New bridge command
+  `stz bridge project-harness-evolve --on|--off` (`src/project.ts
+  setHarnessEvolve`) flips `harness.enabled` via the same load-modify-save
+  pattern as the dark-factory toggle, and `project-status` hoists it as
+  `harnessEvolve`. Covered by two new tests (sibling-preservation regression +
+  default-off/`--off`).
+- **README quickstarts rewritten for a lay operator** — Quickstart 1 is now
+  "two commands" plus a short *Good to know* list; Quickstart 2 trims the
+  config walkthrough. The run-config knob detail moved to
+  `docs/development/dark-factory.md`, which also documents the extended loop.
+
 ## [1.14.0] — unified user-selects installer
 
 `npm i -g stz-foundry` is now the ONE installation interface. `stz install`

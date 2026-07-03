@@ -21,7 +21,8 @@ stz bridge finalize     --root . --slice slice-01 --intent intent.json --asbuilt
 stz bridge project-set-config   --root . --config run-config.json  # persist run config (validated, clamped)
 stz bridge project-config       --root .                           # read it back (defaults if unset)
 stz bridge project-dark-factory --root . --on                      # engage autonomous mode (--off to disengage)
-stz bridge project-status       --root .                           # DAG + phase status + progress totals + dashboard-ready slice rows + runConfig + darkFactory
+stz bridge project-harness-evolve --root . --on                    # enable the /stz-f:evolve meta-loop (--off; default off)
+stz bridge project-status       --root .                           # DAG + phase status + progress totals + dashboard-ready slice rows + runConfig + darkFactory + harnessEvolve
 
 # sealed held-out suite integrity (L1/F10) — freeze before the tournament
 stz bridge seal            --root .                   # sha256 the held-out suite into SEAL.json
@@ -67,6 +68,10 @@ fan-out/models/strictness). It is the single source of truth for autonomous mode
 the `/stz-f:*` commands read the hoisted `darkFactory` flag from `project-status` at
 each phase, so engaging it mid-run takes effect at the next phase. See
 [`dark-factory.md`](./dark-factory.md) for the gate-skipping contract.
+`project-harness-evolve` is the same pattern for the opt-in `/stz-f:evolve`
+meta-loop: it flips `harness.enabled` in place (hoisted as `harnessEvolve`),
+which the pipeline reads to decide whether to run `/stz-f:evolve` after the
+summary. Off by default.
 
 The sealed-suite commands back the anti-hacking freeze: `seal-crosscheck` (0.5.0)
 runs the suite against a second, independently-authored reference before sealing,
