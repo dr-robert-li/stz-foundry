@@ -9,6 +9,16 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.13.1] — split Fable and Mythos into distinct tier families
+
+The 1.11.0 tier ladder conflated Fable into a single `mythos` tier. Fable and
+Mythos are **two distinct Mythos-class families** that share the same underlying
+model (Fable is the generally-available variant with dual-use safety measures;
+Mythos is the approved-org variant without them). `tierOf` now returns `fable`
+for `fable`/`claude-fable-5` and `mythos` for `mythos`/`claude-mythos-5` — both
+at the top rank above Opus, both premium, both priced (same cost basis). The
+audit, pricing fill, and cost-report notes name both families. 347 tests (+1).
+
 ## [1.13.0] — sealed end-to-end integration/functional gate (cycle item 4)
 
 The per-slice sealed suite is unit-level — it proves each slice meets its own
@@ -75,7 +85,7 @@ selection signal), so the premium tier belongs there and is wasteful on the
 high-volume specimen role.
 
 - **`src/tiers.ts`** — `tierOf` classifies a model string into
-  `mythos | opus | sonnet | haiku | local | unknown` (Claude aliases + full ids,
+  `fable | mythos | opus | sonnet | haiku | local | unknown` (Claude aliases + full ids,
   common OSS/local families, everything else unknown). `auditRoleTiers` returns
   advisory warnings: premium on a high-volume role (warn — wasteful) and a cheap
   test-author/judge (info — the binding constraint). Advisory only, never blocks.

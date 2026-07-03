@@ -21,10 +21,11 @@ import { scaffold } from "../src/taxonomy.js";
 import { normalizeRunConfig, saveRunConfig } from "../src/project.js";
 
 describe("tiers unit", () => {
-  it("classifies Claude families by alias and full id", () => {
-    expect(tierOf("fable")).toBe("mythos");
-    expect(tierOf("claude-fable-5")).toBe("mythos");
+  it("classifies Claude families by alias and full id — Fable and Mythos are distinct", () => {
+    expect(tierOf("fable")).toBe("fable");
+    expect(tierOf("claude-fable-5")).toBe("fable");
     expect(tierOf("mythos")).toBe("mythos");
+    expect(tierOf("claude-mythos-5")).toBe("mythos");
     expect(tierOf("opus")).toBe("opus");
     expect(tierOf("claude-opus-4-8")).toBe("opus");
     expect(tierOf("sonnet")).toBe("sonnet");
@@ -39,18 +40,20 @@ describe("tiers unit", () => {
     expect(tierOf("some-random-model")).toBe("unknown");
   });
 
-  it("marks mythos + opus premium", () => {
+  it("marks fable + mythos + opus premium", () => {
+    expect(isPremium("fable")).toBe(true);
     expect(isPremium("mythos")).toBe(true);
     expect(isPremium("opus")).toBe(true);
     expect(isPremium("sonnet")).toBe(false);
     expect(isPremium("local")).toBe(false);
   });
 
-  it("withTierPricing fills defaults for unpriced hosted models, keeps user + local $0", () => {
+  it("withTierPricing fills defaults for unpriced hosted models (both Mythos-class families), keeps user + local $0", () => {
     const user = { opus: { inputPerMTok: 99, outputPerMTok: 99 } }; // explicit wins
-    const out = withTierPricing(user, ["opus", "fable", "granite4.1:30b", "gpt-5"]);
+    const out = withTierPricing(user, ["opus", "fable", "mythos", "granite4.1:30b", "gpt-5"]);
     expect(out.opus).toEqual({ inputPerMTok: 99, outputPerMTok: 99 }); // untouched
-    expect(out.fable).toEqual(DEFAULT_TIER_PRICING.mythos); // default filled
+    expect(out.fable).toEqual(DEFAULT_TIER_PRICING.fable); // fable default filled
+    expect(out.mythos).toEqual(DEFAULT_TIER_PRICING.mythos); // mythos default filled
     expect(out["granite4.1:30b"]).toBeUndefined(); // local stays $0
     expect(out["gpt-5"]).toBeUndefined(); // unknown stays $0 + reported
   });
@@ -67,6 +70,11 @@ describe("tiers unit", () => {
   it("the field-earned config (premium test-author/judge, cheap specimen) is clean", () => {
     const good = auditRoleTiers({ testAuthor: "claude-fable-5", judge: "opus", specimen: "haiku", strategist: "granite:30b" });
     expect(good).toHaveLength(0);
+  });
+
+  it("both Mythos-class families count as premium on a high-volume role", () => {
+    expect(auditRoleTiers({ specimen: "claude-fable-5" }).some((w) => w.severity === "warn")).toBe(true);
+    expect(auditRoleTiers({ specimen: "claude-mythos-5" }).some((w) => w.severity === "warn")).toBe(true);
   });
 
   it("accepts custom role classifications (the in-session role names)", () => {

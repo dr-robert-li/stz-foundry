@@ -206,7 +206,7 @@ export async function runFoundry(opts: FoundryRunOptions): Promise<FoundryRunRes
   const { config, providers } = loadFoundryConfig(opts.configPath, opts.env ?? process.env);
 
   // #2 model tiers: resolve each role's model, fill tier-default pricing so a
-  // premium (Fable-5-class) model shows real spend instead of a silent $0, and
+  // premium (Mythos-class: Fable/Mythos) model shows real spend not a silent $0, and
   // surface any misallocation (premium on a high-volume role, or a cheap
   // test-author/judge — the binding constraint) before the run bills for it.
   const roleModels = resolveRoleModels(config);

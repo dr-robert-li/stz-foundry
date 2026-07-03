@@ -1166,7 +1166,7 @@ async function modelTiersCmd(args: Record<string, string>): Promise<void> {
     roles: Object.fromEntries(Object.entries(roles).map(([r, m]) => [r, { model: m, tier: tierOf(m) }])),
     warnings,
     note: warnings.length
-      ? "premium tier = mythos (Fable-5 class) or opus; reserve it for testing + judging (the binding constraint), keep the rest cheap"
+      ? "premium tier = fable or mythos (the two Mythos-class families) or opus; reserve it for testing + judging (the binding constraint), keep the rest cheap"
       : "allocation matches the field-earned recommendation (premium on testing/judging, cheap elsewhere)",
   });
 }

@@ -6,7 +6,7 @@ deterministic spine is tested for real; the LLM layer is tested at the
 interface-contract + mock-e2e level (it is explicitly *not* a live-tournament
 result — see `ROADMAP.md`).
 
-Run: `npm test` (346 tests) and `npm run typecheck`. CI runs both on Node 20 and
+Run: `npm test` (347 tests) and `npm run typecheck`. CI runs both on Node 20 and
 22 with bubblewrap installed, so the eval sandbox's real OS-isolation path (and V8
 coverage under it) is exercised rather than the degraded fallback. A separate
 `macos-latest` job runs the suite under `sandbox-exec` (Seatbelt) for the Darwin
@@ -95,7 +95,7 @@ so these prove the plumbing + the real gate, not any model's intelligence.
 
 | Capability | Where | Test(s) |
 |---|---|---|
-| Tier classification (Claude aliases + ids, local/OSS, unknown) | `src/tiers.ts` `tierOf` | `tiers.test.ts` — fable/opus/sonnet/haiku, granite/llama/qwen local, gpt/other unknown |
+| Tier classification (Claude aliases + ids, local/OSS, unknown) | `src/tiers.ts` `tierOf` | `tiers.test.ts` — fable + mythos as distinct top families, opus/sonnet/haiku, granite/llama/qwen local, gpt/other unknown; both Mythos-class families premium |
 | Tier-default pricing fills unpriced hosted models, keeps user + local $0 | `src/tiers.ts` `withTierPricing` | `tiers.test.ts` — explicit entry wins, mythos default filled, local/unknown untouched |
 | Allocation audit (premium on volume role warns; cheap high-value role info) | `src/tiers.ts` `auditRoleTiers` | `tiers.test.ts` — backwards config warns, field-earned config clean, custom role sets |
 | In-session RunConfig tier advice | `src/bridge.ts` `model-tiers` | `tiers.test.ts` — flags premium execution + cheap testing |

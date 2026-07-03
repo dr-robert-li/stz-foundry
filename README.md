@@ -165,8 +165,9 @@ stz foundry init .        # scaffolds .stz/ + writes .stz/00-intent/foundry.json
   "roles": {
     "default":    { "provider": "local", "model": "granite4.1:30b" }
     // per-role overrides: testAuthor, strategist, specimen, judge,
-    // documenter, planner. Reserve the premium tier (Fable-5 class / Opus)
-    // for testAuthor + judge — the field-earned binding constraint. The runner
+    // documenter, planner. Reserve the premium tier (Fable / Mythos — the two
+    // Mythos-class families — or Opus) for testAuthor + judge, the field-earned
+    // binding constraint. The runner
     // classifies each role's model by tier and WARNS if you put a premium model
     // on the high-volume specimen role (wasteful) or a cheap one on the author.
   },

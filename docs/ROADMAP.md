@@ -925,8 +925,10 @@ is replayable from `40-slices/<slice>/debug.md`.
 
 ### 2. Higher-than-Opus model families (Claude Fable 5 and class) — ✅ BUILT (1.11.0)
 
-**Shipped.** `src/tiers.ts` classifies models into a `mythos | opus | sonnet |
-haiku | local | unknown` tier ladder (Mythos = Fable-5 class, above Opus).
+**Shipped.** `src/tiers.ts` classifies models into a `fable | mythos | opus |
+sonnet | haiku | local | unknown` tier ladder — Fable and Mythos are two distinct
+Mythos-class families (same underlying model, different availability) at the top
+rank above Opus.
 `auditRoleTiers` reserves the premium tier for the roles the field run proved
 pay off — the frozen test-author and judge (the binding constraint) — and warns
 when a premium model is put on the high-volume specimen role (wasteful). Tier

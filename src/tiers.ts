@@ -1,8 +1,9 @@
 /**
  * Model capability/cost tiers (cycle item 2).
  *
- * A Fable-5-class model (the Mythos tier, above Opus in both capability and
- * price) runs today — role models are free-form strings and the cost meter
+ * A Mythos-class model — the Fable and Mythos families, two distinct families
+ * that share the same underlying model and both sit above Opus in capability and
+ * price — runs today: role models are free-form strings and the cost meter
  * prices anything in its table. What was missing is TIER AWARENESS: the harness
  * had no notion that some roles pay for the premium tier and most do not, and no
  * budgeter to say so.
@@ -21,10 +22,17 @@
  */
 import type { PricingTable, ModelPricing } from "./foundry/cost.js";
 
-export type Tier = "mythos" | "opus" | "sonnet" | "haiku" | "local" | "unknown";
+export type Tier = "fable" | "mythos" | "opus" | "sonnet" | "haiku" | "local" | "unknown";
 
-/** Higher rank = more capable + more expensive. */
+/**
+ * Higher rank = more capable + more expensive. `fable` and `mythos` are TWO
+ * distinct Mythos-class families that share the same underlying model (Fable is
+ * the generally-available variant with dual-use safety measures; Mythos is the
+ * approved-org variant without them), so they sit at the same top rank above
+ * Opus — different families, equal capability/cost.
+ */
 export const TIER_RANK: Record<Tier, number> = {
+  fable: 5,
   mythos: 5,
   opus: 4,
   sonnet: 3,
@@ -34,18 +42,20 @@ export const TIER_RANK: Record<Tier, number> = {
 };
 
 /** Tiers whose per-call cost makes them "premium" — reserve for roles that pay off. */
-export const PREMIUM_TIERS: readonly Tier[] = ["mythos", "opus"];
+export const PREMIUM_TIERS: readonly Tier[] = ["fable", "mythos", "opus"];
 export const isPremium = (t: Tier): boolean => PREMIUM_TIERS.includes(t);
 
 /**
  * Classify a model string into a tier. Matches Claude families (aliases and full
- * ids: `fable`/`claude-fable-5`, `opus`, `sonnet`, `haiku`), recognises common
+ * ids: `fable`/`claude-fable-5` and `mythos`/`claude-mythos-5` as the two
+ * top-tier families, then `opus`, `sonnet`, `haiku`), recognises common
  * local/OSS families as `local` ($0), and leaves anything else `unknown` (priced
  * $0 and reported, never guessed — same policy as the cost meter).
  */
 export function tierOf(model: string): Tier {
   const m = model.toLowerCase();
-  if (/\b(fable|mythos)\b|claude-(fable|mythos)/.test(m)) return "mythos";
+  if (/\bfable\b|claude-fable/.test(m)) return "fable";
+  if (/\bmythos\b|claude-mythos/.test(m)) return "mythos";
   if (/\bopus\b/.test(m)) return "opus";
   if (/\bsonnet\b/.test(m)) return "sonnet";
   if (/\bhaiku\b/.test(m)) return "haiku";
@@ -65,7 +75,9 @@ export function tierOf(model: string): Tier {
  * (unpriced + reported), unchanged from before.
  */
 export const DEFAULT_TIER_PRICING: Record<Tier, ModelPricing | undefined> = {
-  mythos: { inputPerMTok: 20, outputPerMTok: 100 }, // above Opus — estimate, override
+  // Fable + Mythos share the underlying model → same cost basis (above Opus).
+  fable: { inputPerMTok: 20, outputPerMTok: 100 }, // estimate, override
+  mythos: { inputPerMTok: 20, outputPerMTok: 100 }, // estimate, override
   opus: { inputPerMTok: 15, outputPerMTok: 75 },
   sonnet: { inputPerMTok: 3, outputPerMTok: 15 },
   haiku: { inputPerMTok: 0.8, outputPerMTok: 4 },
