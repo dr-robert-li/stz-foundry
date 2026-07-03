@@ -42,6 +42,7 @@ import { freshState, saveState, loadState, stateExists, statePath, setPhaseStatu
 import { verifyDebugCase, loadDebugCases, type DebugCase } from "./debug.js";
 import { auditRoleTiers, tierOf } from "./tiers.js";
 import { exploreCodebase, checkAnchor, type CodebaseMap, type SliceAnchor } from "./brownfield.js";
+import { runIntegrationGate } from "./integration.js";
 import {
   freshProjectState,
   saveProjectState,
@@ -1013,6 +1014,63 @@ async function sealAmend(args: Record<string, string>): Promise<void> {
   print({ ...res, reason });
 }
 
+// ── sealed end-to-end integration/functional gate (item 4) ──────────────────
+
+/**
+ * integration-gate: the composition-level gate run after slice aggregation. The
+ * sealed integration suite (authored once per project, blind to specimens) must
+ * pass IN FULL against the assembled entry point; brownfield adds the
+ * source-preservation check — every `--preserved` export must still resolve.
+ *
+ * The integration suite lives under the sealed held-out tree, so its integrity
+ * is gated first: on SEAL drift this refuses (like the tournament gate). Exits 1
+ * when the composed artifact fails the gate, so the pipeline halts before ship.
+ */
+async function integrationGateCmd(args: Record<string, string>): Promise<void> {
+  const root = args.root!;
+  const suite = args.suite;
+  const entry = args.entry;
+  if (!suite || !entry) {
+    process.stderr.write("integration-gate requires --suite <sealed integration harness> and --entry <assembled entry>.\n");
+    process.exitCode = 1;
+    return;
+  }
+  // Seal integrity first — a tampered integration suite is not a gate (only when
+  // the project actually sealed its held-out tree; a direct suite path skips it).
+  if (existsSync(join(stzPath(root, join("30-tests", "held-out")), "SEAL.json"))) {
+    const v = verifySeal(root);
+    if (!v.ok) {
+      process.stderr.write(
+        `SEAL DRIFT before the integration gate: ${v.drift.map((d) => `${d.file} (${d.status})`).join(", ")}. Investigate before gating.\n`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+  }
+  const preserved = args.preserved ? (readJSONArg<string[]>(args.preserved) ?? []) : [];
+  const res = runIntegrationGate(suite, entry, preserved);
+
+  await writeDoc(root, join("90-audit", "integration.md"), {
+    frontmatter: {
+      summary: `Integration gate: ${res.passed ? "PASS" : "FAIL"} (suite ${res.suite.passed}/${res.suite.total}, ${res.preservedMissing.length} preserved export(s) dropped).`,
+    },
+    body:
+      `# Sealed end-to-end integration gate\n\n` +
+      `The composition-level gate: the assembled artifact must satisfy the sealed\n` +
+      `integration suite in full${preserved.length ? ", and preserve every promised source export" : ""}.\n\n` +
+      `- **suite:** ${res.suite.passed}/${res.suite.total} (passRate ${res.suite.passRate})\n` +
+      (preserved.length
+        ? `- **preserved exports:** ${preserved.length} promised, ${res.preservedMissing.length} dropped` +
+          (res.preservedMissing.length ? ` (${res.preservedMissing.join(", ")})` : "") +
+          "\n"
+        : `- **preserved exports:** none (greenfield)\n`) +
+      `- **verdict:** ${res.passed ? "✅ PASS — the composed slices work together" : "⛔ FAIL — composition or source-preservation broke"}\n`,
+  });
+
+  if (!res.passed) process.exitCode = 1;
+  print({ passed: res.passed, suite: res.suite, preservedMissing: res.preservedMissing, preserved: preserved.length });
+}
+
 // ── brownfield: codebase exploration + slice anchoring (item 3) ─────────────
 
 const codebaseMapPath = (root: string) => stzPath(root, join("10-research", "codebase-map.json"));
@@ -1789,6 +1847,7 @@ export async function runBridge(argv: string[]): Promise<void> {
     case "model-tiers": await modelTiersCmd(args); break;
     case "explore": await exploreCmd(args); break;
     case "anchor-check": await anchorCheckCmd(args); break;
+    case "integration-gate": await integrationGateCmd(args); break;
     case "merge-validate": await mergeValidate(args); break;
     case "merge-compat-propose": await mergeCompatPropose(args); break;
     case "merge-compat-approve": await mergeCompatApprove(args); break;

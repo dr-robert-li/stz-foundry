@@ -9,6 +9,35 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.13.0] — sealed end-to-end integration/functional gate (cycle item 4)
+
+The per-slice sealed suite is unit-level — it proves each slice meets its own
+contract, never that the composed slices work together. This adds the
+composition-level gate, run after slice aggregation, with the same
+anti-reward-hacking discipline (authored blind, sealed by content hash,
+cross-referenced). It ships **greenfield-first** and layers brownfield on top:
+
+- **Greenfield:** the sealed integration suite is authored against the project
+  INTENT (the `00-intent/` done-predicates + composed slice contracts) and run
+  against the assembled entry point — it catches cross-slice integration bugs the
+  unit suites structurally cannot see.
+- **Brownfield:** it ADDITIONALLY checks **source preservation** — every
+  `preservedExport` the item-3 slice anchors promised must still resolve on the
+  assembled artifact. A change that drops a public export fails the gate even if
+  its new behaviour is correct.
+- **`src/integration.ts`** — `runIntegrationGate` (sealed suite passRate === 1 ∧
+  no preserved export dropped) and `checkExportsPresent` (sandboxed probe).
+  **`stz bridge integration-gate`** seal-verifies the held-out tree first (a
+  tampered integration suite is not a gate), runs the gate, writes
+  `90-audit/integration.md`, and exits 1 on failure. **`/stz-f:integration`** is
+  the command (author blind → cross-reference → seal → gate).
+- 346 tests (+5): unit (`checkExportsPresent`, `runIntegrationGate` across
+  green/broken-composition/dropped-preserved), functional (bridge gate PASS +
+  audit doc; broken composition FAIL; brownfield dropped-export FAIL).
+
+This completes the four-item cycle (debug mode, model tiers, brownfield,
+integration testing).
+
 ## [1.12.0] — brownfield codebase support (cycle item 3)
 
 STZ was greenfield-only: specimens synthesize files from a contract, and the

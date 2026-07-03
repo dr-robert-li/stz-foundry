@@ -120,6 +120,13 @@ For a single one-off slice with no project setup:
 /stz-f:run payment-validator
 ```
 
+`/stz-f:integration` is the composition-level sealed gate, run after every slice
+is done: a suite authored blind against the project intent proves the assembled
+slices work **together** (catching cross-slice integration bugs the per-slice
+unit suites can't see), and on a brownfield project it additionally checks that
+every preserved public export still resolves — a change that drops one fails even
+if its new behaviour is correct.
+
 `/stz-f:explore` maps an **existing codebase** (files, exports, tests, public
 surface) into `10-research/codebase-map.json` so brownfield projects slice
 against real code: each slice carries an anchor (`add`/`extend`/`edit`, target

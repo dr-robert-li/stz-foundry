@@ -950,31 +950,27 @@ feeding item 4's source-preservation gate. Still open (folds into item 5): the
 per-specimen git **worktrees** that let specimens *edit* the mapped repo in
 parallel rather than synthesize — anchoring is the prerequisite that is now done.
 
-### 4. Sealed end-to-end integration + functional testing (greenfield and brownfield)
+### 4. Sealed end-to-end integration + functional testing — ✅ BUILT (1.13.0)
 
-**Gap:** the sealed suite is per-slice and unit-level. There is no **integration
-or functional** gate frozen and sealed against the *whole* project — nothing that
-proves the composed slices actually work together and satisfy the project's
-overall acceptance, only that each slice passed its own contract's suite.
+**Was:** the sealed suite is per-slice and unit-level — nothing proved the
+composed slices work together and satisfy whole-project acceptance, only that
+each slice passed its own contract's suite.
 
-Wanted: a frozen, sealed integration/functional harness authored **once per
-project** (not per slice), run as a composition-level gate after slice
-aggregation, with the same anti-reward-hacking discipline as the per-slice suites
-(author blind to specimens, sealed by content hash, cross-referenced). It applies
-to **both** project kinds — the *reference oracle it seals against* is what
-differs:
+**Shipped.** `src/integration.ts` `runIntegrationGate` is a composition-level
+gate authored once per project and run after aggregation, with the same
+anti-hacking discipline as the per-slice suites (blind author, sealed by content
+hash, cross-referenced). It applies to both kinds — the reference oracle differs:
 
-- **Greenfield (the natural first target, no dependency on item 3):** the suite
-  is sealed against the **project intent/spec** — the detailed done-predicates
-  elicited in `/stz-f:new` plus the composed slice contracts. It gates that the
-  assembled artifact meets whole-project acceptance, catching cross-slice
-  integration bugs that per-slice unit suites structurally cannot see.
-- **Brownfield (adds item 3's source-awareness):** the suite *additionally* seals
-  against existing **source behaviour**, so an edit proves it preserves
-  end-to-end behaviour that was already there, not just that it meets new intent.
+- **Greenfield (shipped first, no dependency on item 3):** the sealed integration
+  suite is authored against the **project intent** (`00-intent/` done-predicates
+  + composed slice contracts) and run against the assembled entry point —
+  catching cross-slice integration bugs the unit suites cannot see.
+- **Brownfield (layers item 3's anchors):** `checkExportsPresent` additionally
+  gates **source preservation** — every `preservedExport` the slice anchors
+  promised must still resolve on the assembled artifact.
 
-So the greenfield gate can ship on its own; brownfield layers the
-source-preservation axis on top of it.
+`stz bridge integration-gate` (seal-verify → gate → `90-audit/integration.md`,
+exit 1 on failure) + the `/stz-f:integration` command. ✅ BUILT (1.13.0).
 
 ### 5. Per-specimen git worktrees + ephemeral observability
 

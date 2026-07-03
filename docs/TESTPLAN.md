@@ -6,7 +6,7 @@ deterministic spine is tested for real; the LLM layer is tested at the
 interface-contract + mock-e2e level (it is explicitly *not* a live-tournament
 result — see `ROADMAP.md`).
 
-Run: `npm test` (341 tests) and `npm run typecheck`. CI runs both on Node 20 and
+Run: `npm test` (346 tests) and `npm run typecheck`. CI runs both on Node 20 and
 22 with bubblewrap installed, so the eval sandbox's real OS-isolation path (and V8
 coverage under it) is exercised rather than the degraded fallback. A separate
 `macos-latest` job runs the suite under `sandbox-exec` (Seatbelt) for the Darwin
@@ -110,6 +110,14 @@ so these prove the plumbing + the real gate, not any model's intelligence.
 | Codebase scan (files, exports, tests, public surface; skips node_modules) | `src/brownfield.ts` `exploreCodebase` | `brownfield.test.ts` — fixture repo, `node_modules`/README excluded, index public surface |
 | Anchor validation (dangling file, missing preserved export, add-collision) | `src/brownfield.ts` `checkAnchor` | `brownfield.test.ts` — valid edit ok; dangling/collide/preserved-export rejected |
 | Bridge explore + anchor-check | `src/bridge.ts` `explore` / `anchor-check` | `brownfield.test.ts` — `explore` writes the map; `anchor-check` passes a real anchor, fails a dangling one (exit 1), errors when no map exists |
+
+## Sealed end-to-end integration/functional gate (1.13.0)
+
+| Capability | Where | Test(s) |
+|---|---|---|
+| Preserved-export presence (brownfield source preservation) | `src/integration.ts` `checkExportsPresent` | `integration-gate.test.ts` — present + missing on the assembled entry (sandboxed probe) |
+| Composition gate (suite passRate 1 ∧ no preserved export dropped) | `src/integration.ts` `runIntegrationGate` | `integration-gate.test.ts` — green composition passes; broken composition fails; green suite + dropped preserved export fails |
+| Bridge integration-gate (seal-verify → gate → audit doc) | `src/bridge.ts` `integration-gate` | `integration-gate.test.ts` — greenfield PASS writes `90-audit/integration.md`; broken composition exit 1; brownfield dropped-export exit 1 |
 
 ## Manual / CLI acceptance
 

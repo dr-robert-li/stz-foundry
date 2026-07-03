@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "STZ Foundry and related agentic harness plugins.",
-    "version": "1.12.0"
+    "version": "1.13.0"
   },
   "plugins": [
     {
       "name": "stz-f",
       "source": "./",
       "description": "A full interactive pipeline (elicit, research, validate, standards, tests, slice) feeding per-slice adversarial tournaments with sealed tests, layered anti-reward-hacking, GRPO selection, a replayable audit trail, and a standalone BYO-LLM foundry runner.",
-      "version": "1.12.0",
+      "version": "1.13.0",
       "category": "development",
       "strict": false
     }
