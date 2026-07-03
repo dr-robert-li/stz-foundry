@@ -173,6 +173,9 @@ describe("runFoundry e2e (stage 5)", () => {
     const report = readFileSync(join(root, ".stz", "90-audit", "foundry-cost.md"), "utf8");
     expect(report).toContain("# Foundry cost — slice-runner-e2e");
     expect(report).toContain("**priced spend:**");
+    // #2 model tiers: the report classifies each role's model by tier.
+    expect(report).toContain("## Model tiers");
+    expect(report).toMatch(/\*\*specimen:\*\* `fake-model` \(unknown\)/);
     expect(report).toMatch(/\*\*specimen:\*\* 2 call\(s\)/);
     expect(existsSync(join(root, ".stz", "40-slices", "slice-runner-e2e", "tournament.md"))).toBe(true);
   }, 60_000);

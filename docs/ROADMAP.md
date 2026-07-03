@@ -923,19 +923,18 @@ as `src/debug.ts` + `stz bridge debug-case` / `slice-reset`
 blind-spot defect can never re-win once its case is sealed, and the whole chain
 is replayable from `40-slices/<slice>/debug.md`.
 
-### 2. Higher-than-Opus model families (Claude Fable 5 and class)
+### 2. Higher-than-Opus model families (Claude Fable 5 and class) — ✅ BUILT (1.11.0)
 
-**Gap:** the cost meter prices any model by a `{inputPerMTok, outputPerMTok}`
-entry and roles take free-form model strings, so a Fable-5-class model *runs*
-today — but the harness has no notion of a capability/cost **tier** above Opus,
-and no guidance on where the extra spend is worth it.
-
-Wanted: first-class support for the Mythos-class tier (Claude Fable 5 and peers) —
-ship pricing-table entries, and a per-role recommendation that puts the strongest
-(most expensive) model where the field run proved it pays off: the **frozen
-test-author role** (the binding constraint) and the **judge**, with cheaper models
-on specimens. A tier-aware budgeter that reserves the premium tier for those roles
-and warns when it is used on high-volume specimen work.
+**Shipped.** `src/tiers.ts` classifies models into a `mythos | opus | sonnet |
+haiku | local | unknown` tier ladder (Mythos = Fable-5 class, above Opus).
+`auditRoleTiers` reserves the premium tier for the roles the field run proved
+pay off — the frozen test-author and judge (the binding constraint) — and warns
+when a premium model is put on the high-volume specimen role (wasteful). Tier
+defaults price a premium hosted model the operator left unpriced so its spend is
+visible instead of a silent $0 (`withTierPricing`, override in `foundry.json`).
+The foundry cost report gains a `## Model tiers` section with per-role tier +
+allocation advice; `stz bridge model-tiers` audits the in-session RunConfig.
+Advisory only — never blocks a run.
 
 ### 3. Brownfield: build on an existing codebase
 

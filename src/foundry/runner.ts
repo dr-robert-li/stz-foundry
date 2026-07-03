@@ -27,6 +27,7 @@ import { FoundryModelLayer, type FoundryRoles, type RoleModel } from "./model-la
 import { FoundryCostMeter, type CostCaps, type PricingTable } from "./cost.js";
 import { runSlice, type SliceResult } from "../mock/orchestrator.js";
 import { lastIsolation } from "../sandbox.js";
+import { auditRoleTiers, withTierPricing, tierOf } from "../tiers.js";
 
 export interface FoundryProviderSpec {
   kind: ProviderKind;
@@ -156,6 +157,14 @@ export function loadFoundryConfig(path: string, env: NodeJS.ProcessEnv = process
   return { config: raw, providers };
 }
 
+/** Resolve each foundry role to its concrete model string (default + overrides). */
+export function resolveRoleModels(config: FoundryConfig): Record<string, string> {
+  const d = config.roles.default.model;
+  const out: Record<string, string> = {};
+  for (const r of ROLE_NAMES) out[r] = config.roles[r]?.model ?? d;
+  return out;
+}
+
 /** Materialize the per-role model map from config (default + overrides). */
 export function buildRoles(
   config: FoundryConfig,
@@ -195,7 +204,17 @@ export interface FoundryRunOptions {
 /** The standalone spawn-and-collect loop: config → layer → tournament → cost report. */
 export async function runFoundry(opts: FoundryRunOptions): Promise<FoundryRunResult> {
   const { config, providers } = loadFoundryConfig(opts.configPath, opts.env ?? process.env);
-  const meter = new FoundryCostMeter(config.pricing ?? {}, config.caps ?? {});
+
+  // #2 model tiers: resolve each role's model, fill tier-default pricing so a
+  // premium (Fable-5-class) model shows real spend instead of a silent $0, and
+  // surface any misallocation (premium on a high-volume role, or a cheap
+  // test-author/judge — the binding constraint) before the run bills for it.
+  const roleModels = resolveRoleModels(config);
+  const tierWarnings = auditRoleTiers(roleModels);
+  for (const w of tierWarnings) opts.log?.(`[tiers] ${w.severity.toUpperCase()}: ${w.message}`);
+  const pricing = withTierPricing(config.pricing ?? {}, Object.values(roleModels));
+
+  const meter = new FoundryCostMeter(pricing, config.caps ?? {});
   const layer = new FoundryModelLayer({
     roles: buildRoles(config, providers),
     donePredicates: opts.manifest.donePredicates,
@@ -239,6 +258,12 @@ export async function runFoundry(opts: FoundryRunOptions): Promise<FoundryRunRes
     totals.unpricedModels.length
       ? `- **unpriced models ($0 assumed):** ${totals.unpricedModels.join(", ")}`
       : `- **unpriced models:** none`,
+    "",
+    "## Model tiers",
+    ...Object.entries(roleModels).map(([role, model]) => `- **${role}:** \`${model}\` (${tierOf(model)})`),
+    tierWarnings.length
+      ? "\n" + tierWarnings.map((w) => `- ⚠️ ${w.severity}: ${w.message}`).join("\n")
+      : "\n- allocation matches the field-earned recommendation (premium on testAuthor/judge, cheap elsewhere).",
     "",
     "## By role",
     ...Object.entries(byRole).map(

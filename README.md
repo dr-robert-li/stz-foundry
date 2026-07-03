@@ -151,7 +151,10 @@ stz foundry init .        # scaffolds .stz/ + writes .stz/00-intent/foundry.json
   "roles": {
     "default":    { "provider": "local", "model": "granite4.1:30b" }
     // per-role overrides: testAuthor, strategist, specimen, judge,
-    // documenter, planner — e.g. a stronger model for the test author
+    // documenter, planner. Reserve the premium tier (Fable-5 class / Opus)
+    // for testAuthor + judge — the field-earned binding constraint. The runner
+    // classifies each role's model by tier and WARNS if you put a premium model
+    // on the high-volume specimen role (wasteful) or a cheap one on the author.
   },
   "pricing": {},                       // model → $/MTok; local models are $0
   "caps": { "maxTokens": 500000 },     // hard kill-switches (also maxUsd)

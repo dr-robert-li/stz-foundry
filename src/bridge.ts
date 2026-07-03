@@ -40,6 +40,7 @@ import { PROJECT_PHASES } from "./types.js";
 import { scaffold, writeDoc, readDoc, stzPath } from "./taxonomy.js";
 import { freshState, saveState, loadState, stateExists, statePath, setPhaseStatus, appendEvent } from "./state.js";
 import { verifyDebugCase, loadDebugCases, type DebugCase } from "./debug.js";
+import { auditRoleTiers, tierOf } from "./tiers.js";
 import {
   freshProjectState,
   saveProjectState,
@@ -1011,6 +1012,37 @@ async function sealAmend(args: Record<string, string>): Promise<void> {
   print({ ...res, reason });
 }
 
+// ── model tiers (item 2) ────────────────────────────────────────────────────
+
+/**
+ * model-tiers: classify the RunConfig's per-role models by capability/cost tier
+ * and advise where the premium (Fable-5-class / Mythos) tier pays off. The
+ * field finding: test-author + judge strength is the binding constraint, so
+ * `testing` and `judging` are the high-value roles; the rest are high-volume
+ * where premium spend is usually wasteful. Advisory only — never blocks.
+ */
+async function modelTiersCmd(args: Record<string, string>): Promise<void> {
+  const root = args.root!;
+  let runConfig;
+  try {
+    runConfig = await loadRunConfig(root);
+  } catch {
+    runConfig = defaultRunConfig();
+  }
+  const roles = runConfig.models;
+  const warnings = auditRoleTiers(roles, {
+    highValue: ["testing", "judging"],
+    highVolume: ["planning", "research", "execution", "validation"],
+  });
+  print({
+    roles: Object.fromEntries(Object.entries(roles).map(([r, m]) => [r, { model: m, tier: tierOf(m) }])),
+    warnings,
+    note: warnings.length
+      ? "premium tier = mythos (Fable-5 class) or opus; reserve it for testing + judging (the binding constraint), keep the rest cheap"
+      : "allocation matches the field-earned recommendation (premium on testing/judging, cheap elsewhere)",
+  });
+}
+
 // ── post-aggregation debug mode (item 1) ────────────────────────────────────
 
 /** Where a slice's mined regression cases live (sealed alongside its suite). */
@@ -1684,6 +1716,7 @@ export async function runBridge(argv: string[]): Promise<void> {
     case "seal-amend": await sealAmend(args); break;
     case "debug-case": await debugCaseCmd(args); break;
     case "slice-reset": await sliceResetCmd(args); break;
+    case "model-tiers": await modelTiersCmd(args); break;
     case "merge-validate": await mergeValidate(args); break;
     case "merge-compat-propose": await mergeCompatPropose(args); break;
     case "merge-compat-approve": await mergeCompatApprove(args); break;

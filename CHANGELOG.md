@@ -9,6 +9,33 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.11.0] — model capability/cost tiers (cycle item 2)
+
+A Fable-5-class model (the **Mythos** tier, above Opus in capability and price)
+ran today, but the harness had no tier awareness and no budgeter to reserve the
+premium tier for the roles that pay off. This encodes the field finding:
+test-author + judge strength is the binding constraint (the sealed suite is the
+selection signal), so the premium tier belongs there and is wasteful on the
+high-volume specimen role.
+
+- **`src/tiers.ts`** — `tierOf` classifies a model string into
+  `mythos | opus | sonnet | haiku | local | unknown` (Claude aliases + full ids,
+  common OSS/local families, everything else unknown). `auditRoleTiers` returns
+  advisory warnings: premium on a high-volume role (warn — wasteful) and a cheap
+  test-author/judge (info — the binding constraint). Advisory only, never blocks.
+- **Tier-default pricing** (`DEFAULT_TIER_PRICING` + `withTierPricing`): a
+  premium hosted model the operator left unpriced is now priced at a ballpark
+  tier default (override in `foundry.json`) so its spend is VISIBLE instead of a
+  silent $0. Local/unknown stay $0 + reported, unchanged.
+- The **foundry runner** applies tier pricing, logs tier warnings, and adds a
+  `## Model tiers` section (per-role model + tier + allocation advice) to
+  `90-audit/foundry-cost.md`. **`stz bridge model-tiers`** audits the in-session
+  RunConfig models map (testing + judging are the high-value roles).
+- 334 tests (+8): unit (classification, `isPremium`, `withTierPricing`,
+  `auditRoleTiers` incl. custom role sets), integration (`bridge model-tiers`
+  flags a backwards allocation), functional (the foundry cost report carries the
+  tier section).
+
 ## [1.10.0] — post-aggregation debug mode (cycle item 1)
 
 A shipped slice winner can pass its sealed suite yet be wrong on behaviour the
