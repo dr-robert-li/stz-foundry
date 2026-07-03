@@ -905,9 +905,10 @@ alternatives, validated end-to-end, and released via CI (npm + provenance):
 
 ## Planned — next cycle (2026-07)
 
-Direction for the cycle after the 1.9.x hardening. Ordered by dependency: the
-brownfield work (3) unlocks the sealed integration testing (4) and motivates real
-worktrees (5); debug mode (1) and model-tier support (2) are independent.
+Direction for the cycle after the 1.9.x hardening. Sealed integration testing (4)
+ships greenfield-first on its own; brownfield (3) then adds a source-preservation
+axis to it and motivates real worktrees (5). Debug mode (1) and model-tier
+support (2) are independent.
 
 ### 1. Post-aggregation debug mode (defect resolution after slice build)
 
@@ -953,18 +954,31 @@ carrying the surrounding contract it must preserve. This is the prerequisite for
 specimens that *edit* rather than *synthesize*, and therefore for real worktrees
 (item 5).
 
-### 4. Sealed end-to-end integration + functional testing against source
+### 4. Sealed end-to-end integration + functional testing (greenfield and brownfield)
 
 **Gap:** the sealed suite is per-slice and unit-level. There is no **integration
-or functional** test frozen and sealed against the *whole* source — nothing that
-proves the composed slices work together, or that a brownfield change preserves
-end-to-end behaviour.
+or functional** gate frozen and sealed against the *whole* project — nothing that
+proves the composed slices actually work together and satisfy the project's
+overall acceptance, only that each slice passed its own contract's suite.
 
-Wanted (depends on 3): a frozen, sealed integration/functional harness authored
-against the source codebase (not a single slice's contract), run as a gate after
-slice aggregation — the composition-level analogue of the per-slice sealed suite,
-with the same anti-reward-hacking discipline (author blind to specimens, sealed
-by content hash, cross-referenced).
+Wanted: a frozen, sealed integration/functional harness authored **once per
+project** (not per slice), run as a composition-level gate after slice
+aggregation, with the same anti-reward-hacking discipline as the per-slice suites
+(author blind to specimens, sealed by content hash, cross-referenced). It applies
+to **both** project kinds — the *reference oracle it seals against* is what
+differs:
+
+- **Greenfield (the natural first target, no dependency on item 3):** the suite
+  is sealed against the **project intent/spec** — the detailed done-predicates
+  elicited in `/stz-f:new` plus the composed slice contracts. It gates that the
+  assembled artifact meets whole-project acceptance, catching cross-slice
+  integration bugs that per-slice unit suites structurally cannot see.
+- **Brownfield (adds item 3's source-awareness):** the suite *additionally* seals
+  against existing **source behaviour**, so an edit proves it preserves
+  end-to-end behaviour that was already there, not just that it meets new intent.
+
+So the greenfield gate can ship on its own; brownfield layers the
+source-preservation axis on top of it.
 
 ### 5. Per-specimen git worktrees + ephemeral observability
 
