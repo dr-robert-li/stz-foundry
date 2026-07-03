@@ -1,0 +1,67 @@
+{
+  "problem": "Build a playable Space Invaders game as a single self-contained HTML file, as a demo to exercise the STZ pipeline end-to-end. Scope: core arcade loop (player ship, marching alien grid, shooting, collisions, score, lives, win/lose) plus shields/bunkers, UFO bonus ship, and escalating waves.",
+  "users": "Single user (the developer). Runs by opening the HTML file locally in a modern browser. 'Better' = a fun, correct, self-contained arcade game with no build step or dependencies at runtime.",
+  "constraints": [
+    "Deliverable is ONE self-contained HTML file (vanilla JS + HTML5 Canvas), zero runtime dependencies.",
+    "Develop as testable JS modules, then inline/bundle into the single HTML file as the shipped artifact.",
+    "Sealed test suites = Playwright driving the bundled game in headless Chromium, asserting on game state exposed on window.",
+    "Test-only browser/Playwright dependency is acceptable; it must not leak into the shipped artifact.",
+    "Visuals: hand-drawn pixel-art sprites on canvas. Audio: synthesized SFX via built-in WebAudio API (still zero deps).",
+    "Classic arcade defaults: 5x11 alien grid, 3 starting lives, alien points 10/20/30 by row, UFO bonus 50-300.",
+    "Controls: Left/Right move, Space fire, P pause, Enter start/restart.",
+    "Target 60fps on modern Chrome/Firefox; correctness prioritized over raw performance; no deadline."
+  ],
+  "donePredicates": [
+    {
+      "id": "P1-move-shoot-kill",
+      "kind": "sealed-test",
+      "expr": "Firing spawns a player bullet; a bullet overlapping an alien removes that alien AND increments score by that alien's point value; player.x stays within [0, width - shipWidth]."
+    },
+    {
+      "id": "P2-alien-march",
+      "kind": "sealed-test",
+      "expr": "The alien grid translates as one block; when any alien touches a screen edge the whole grid steps down by rowStep and horizontal direction reverses; the march step interval shrinks as the number of remaining aliens drops."
+    },
+    {
+      "id": "P3-lives-gameover",
+      "kind": "sealed-test",
+      "expr": "An alien bullet hitting the player decrements lives by 1; when lives === 0 OR any alien reaches the player's row, game state === 'gameover'."
+    },
+    {
+      "id": "P4-waves-shields-ufo",
+      "kind": "sealed-test",
+      "expr": "Destroying the last alien increments wave and spawns a new, faster grid; any bullet hitting a shield cell reduces that cell's integrity and is consumed; a UFO traverses the top of the screen and destroying it adds a bonus (> 0) to the score."
+    },
+    {
+      "id": "P5-fps",
+      "kind": "metric-threshold",
+      "expr": "median_fps >= 50 measured over a 5-second headless Chromium capture of active gameplay."
+    }
+  ],
+  "areas": [
+    {
+      "area": "A",
+      "resolution": "Space Invaders browser game, single-user demo to exercise STZ end-to-end; core loop + shields + UFO + waves."
+    },
+    {
+      "area": "B",
+      "resolution": "Single-user; self-contained single HTML file (vanilla JS + Canvas), run by opening locally."
+    },
+    {
+      "area": "C",
+      "resolution": "One HTML file bundled from testable modules; Playwright/headless-Chromium sealed suites assert on window-exposed state; 60fps target, no deadline."
+    },
+    {
+      "area": "D",
+      "resolution": "5 predicates locked: P1 move-shoot-kill, P2 alien march, P3 lives/gameover, P4 waves+shields+UFO (all sealed), P5 median_fps>=50 (metric)."
+    },
+    {
+      "area": "E",
+      "resolution": "granularity=balanced, fanout=4, strictness=standard, models=Balanced (research=haiku, judging=opus, rest=sonnet)."
+    },
+    {
+      "area": "gaps",
+      "resolution": "Game params + controls = arcade-classic defaults; visuals = pixel sprites + WebAudio SFX."
+    }
+  ]
+}

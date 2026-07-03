@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "projectId": "example-stz-f",
+  "phaseStatus": {
+    "elicitation": "done",
+    "research": "done",
+    "ground-truth": "done",
+    "standards": "done",
+    "testing-conventions": "done",
+    "slice-disaggregation": "done"
+  },
+  "sliceStatus": {
+    "slice-01": "pending",
+    "slice-02": "pending",
+    "slice-03": "pending",
+    "slice-04": "pending",
+    "slice-05": "pending",
+    "slice-06": "pending"
+  },
+  "events": [
+    {
+      "seq": 0,
+      "phase": "lifecycle",
+      "kind": "project-init",
+      "detail": "project example-stz-f created"
+    },
+    {
+      "seq": 1,
+      "phase": "elicitation",
+      "kind": "area-resolved",
+      "detail": "A: Web app/service for personal (single-user) use"
+    },
+    {
+      "seq": 2,
+      "phase": "elicitation",
+      "kind": "area-resolved",
+      "detail": "A: Space Invaders browser game, single-user demo to exercise the STZ pipeline end-to-end"
+    },
+    {
+      "seq": 3,
+      "phase": "elicitation",
+      "kind": "area-resolved",
+      "detail": "B: Single-user, self-contained single HTML file (vanilla JS + Canvas, no build/deps). Scope: core arcade loop + shields, UFO bonus, escalating waves. Run by opening file locally."
+    },
+    {
+      "seq": 4,
+      "phase": "elicitation",
+      "kind": "area-resolved",
+      "detail": "C: Deliverable: one self-contained HTML file, bundled from testable JS modules. Sealed suites = Playwright driving the bundled game, asserting on game state exposed on window. Test-only browser dep OK. Target 60fps on modern Chrome/Firefox; no deadline; correctness over speed."
+    },
+    {
+      "seq": 5,
+      "phase": "elicitation",
+      "kind": "area-resolved",
+      "detail": "D: 5 predicates locked: P1 move-shoot-kill (sealed), P2 alien block march (sealed), P3 lives/gameover (sealed), P4 waves+shields+UFO (sealed), P5 median_fps>=50 headless Chromium 5s (metric)."
+    },
+    {
+      "seq": 6,
+      "phase": "elicitation",
+      "kind": "run-config-set",
+      "detail": "N=4, balanced, cov≥0.9, dark-factory=false"
+    },
+    {
+      "seq": 7,
+      "phase": "elicitation",
+      "kind": "phase-done",
+      "detail": "elicitation → done"
+    },
+    {
+      "seq": 8,
+      "phase": "lifecycle",
+      "kind": "dark-factory",
+      "detail": "engaged — autonomous run"
+    },
+    {
+      "seq": 9,
+      "phase": "research",
+      "kind": "phase-done",
+      "detail": "research → done"
+    },
+    {
+      "seq": 10,
+      "phase": "ground-truth",
+      "kind": "phase-done",
+      "detail": "ground-truth → done"
+    },
+    {
+      "seq": 11,
+      "phase": "standards",
+      "kind": "phase-done",
+      "detail": "standards → done"
+    },
+    {
+      "seq": 12,
+      "phase": "testing-conventions",
+      "kind": "phase-done",
+      "detail": "testing-conventions → done"
+    },
+    {
+      "seq": 13,
+      "phase": "slice-disaggregation",
+      "kind": "phase-done",
+      "detail": "slice-disaggregation → done"
+    }
+  ]
+}

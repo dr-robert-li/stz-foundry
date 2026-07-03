@@ -1,0 +1,15 @@
+{
+  "id": "slice-05",
+  "name": "waves-shields-ufo",
+  "contract": "SI.Shield with a per-cell integrity array where any bullet (player or alien) overlapping a cell reduces that cell's integrity and is consumed, integrity floored at 0 and never negative; SI.Ufo with RNG-timed spawn via SI.RNG.next(), traversal across the top of the screen, and a bonus value in [50, 300] drawn via SI.RNG.next(); wave transition inside SI.Game.update(dt) where killing the last alive alien increments wave and respawns a full new grid whose initial march interval is strictly less than the previous wave's initial interval (reusing slice-03's march-interval function); a player bullet overlapping the active UFO removes it, adds its bonus (> 0) to score, and sets ufo.active = false. TEST-FACING API: (shields) gameState.shields is an array of {x,y,cells:[integer integrity...]} per conventions; expose PURE SI.Shield.cellRect(shield, cellIndex) -> {x,y,width,height} giving a cell's geometry so tests can target a cell without knowing internals; any bullet (player OR alien) overlapping a cell rect (via SI.Collision.aabbOverlap) reduces THAT cell's integrity by 1 (floored at 0, never negative) and is consumed; a bare injected bullet over a cell rect still hits (array-membership liveness). (ufo) gameState.ufo = {active,x,y,width,height,bonus}; UFO spawns on an SI.RNG.next()-timed schedule and bonus is drawn in [50,300] via SI.RNG.next() (seed => deterministic); a player bullet overlapping an ACTIVE ufo sets ufo.active=false and adds ufo.bonus (>0) to score; for deterministic tests the suite may set gameState.ufo={active:true,x,y,width,height,bonus:B} then inject a player bullet over it. (waves) gameState.wave starts 1; killing the last alive alien increments wave and respawns a full 55-alien grid; SI.Alien.marchInterval(aliveCount, wave=1) stays pure and monotonic non-increasing in aliveCount AND is STRICTLY DECREASING in wave for a fixed aliveCount (so wave N+1 full-grid initial interval < wave N) — wave defaults to 1 so slice-03 callers are unaffected. Preserve P1/P2/P3. build.js emits dist/game.js (eval entry) + dist/index.html.",
+  "dependsOn": [
+    "slice-04"
+  ],
+  "complexity": 4,
+  "donePredicates": [
+    "P4-waves-shields-ufo"
+  ],
+  "traceTier": "sealed",
+  "judge": "opus",
+  "summary": "Layers wave escalation, destructible shields, and the bonus UFO onto the completed core loop; bundled as one slice since none of the three is complex enough alone for balanced granularity."
+}

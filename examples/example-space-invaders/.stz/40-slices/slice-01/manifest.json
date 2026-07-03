@@ -1,0 +1,11 @@
+{
+  "id": "slice-01",
+  "name": "foundation-scaffold",
+  "contract": "window.SI namespace bootstrap (window.SI = window.SI || {}); SI.RNG.seed(n) / SI.RNG.next() seedable PRNG with Math.random()-compatible interface; SI.Collision.aabbOverlap(a, b) pure AABB overlap with edge-touch excluded; SI.Config holding all named game constants (grid 5x11, starting lives 3, point values 10/20/30, UFO bonus 50-300, FIXED_TIMESTEP_MS); SI.Loop fixed-timestep accumulator skeleton (SI.Loop.start(), capped delta, calls SI.Game.update(FIXED_TIMESTEP_MS) in a while-loop then SI.Renderer.draw() once per rAF frame) with no game rules behind it yet; build.js (Node builtins fs/path only) concatenating src/*.js in the ADR-004 dependency order into dist/index.html (canvas shell + minimal CSS + stub window.gameState at state:'ready' matching the ADR-003 field shape). build.js ALSO writes dist/game.js — the concatenated JS bundle (src modules in dependency order, no HTML) — which is the single-file eval entry the STZ harness grades (--impl dist/game.js); index.html inlines that same bundle.",
+  "dependsOn": [],
+  "complexity": 3,
+  "donePredicates": [],
+  "traceTier": "unit",
+  "judge": "opus",
+  "summary": "Namespace, seedable RNG, AABB collision math, fixed-timestep loop skeleton, and the concatenation build pipeline — the shared substrate every predicate slice builds on; owns no done-predicate itself."
+}

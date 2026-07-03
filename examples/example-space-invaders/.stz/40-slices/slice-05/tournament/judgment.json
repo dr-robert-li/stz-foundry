@@ -1,0 +1,29 @@
+{
+  "ranking": [
+    "D"
+  ],
+  "winner": "D",
+  "advantages": [
+    {
+      "specimen": "A",
+      "reward": 0.9750005995922773,
+      "advantage": 0.6686123607837409
+    },
+    {
+      "specimen": "B",
+      "reward": 0.9608120999121377,
+      "advantage": 0.38168525918123036
+    },
+    {
+      "specimen": "C",
+      "reward": 0.9750583390528483,
+      "advantage": 0.6697799977040096
+    },
+    {
+      "specimen": "D",
+      "reward": 0.8568802588996765,
+      "advantage": -1.7200776176689787
+    }
+  ],
+  "votes": []
+}

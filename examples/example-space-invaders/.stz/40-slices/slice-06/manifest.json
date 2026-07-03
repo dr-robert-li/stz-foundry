@@ -1,0 +1,15 @@
+{
+  "id": "slice-06",
+  "name": "renderer-audio-fps",
+  "contract": "SI.Renderer.draw(state) canvas pixel-art drawing for player/aliens/bullets/shields/ufo, read-only and never mutating state; SI.Audio WebAudio SFX synthesis with a console.error-and-continue fallback if AudioContext construction fails; main.js bootstrap wiring canvas + audio-context setup, keyboard input for Left/Right/Space/P/Enter mapped to SI.Game.input intent flags, window.gameState = SI.Game.state live-reference assignment per ADR-003, and SI.Loop.start(); SI.Loop computes a rolling-median fps into gameState.fps from real requestAnimationFrame timing, informational only and never fed back into update(). TEST-FACING API: on load of dist/index.html the game auto-boots (main.js: SI.Game.init(), window.gameState = SI.Game.state wired live, input listeners, SI.Loop.start() begins the requestAnimationFrame loop). SI.Renderer.draw(state) renders gameState to the <canvas> each frame and must never throw. SI.Audio exposes synthesized-SFX methods using the WebAudio API, GUARDED so a headless browser with no/suspended AudioContext never throws. gameState.fps holds a rolling MEDIAN of recent instantaneous fps (a number). The eval harness for P5 is Node-driven but launches a real headless browser: the sealed suite loads dist/index.html in headless Chromium via playwright-core (executablePath resolved from ~/.cache/ms-playwright/chromium-*/chrome-linux/chrome), lets the rAF loop run ~5s, measures median fps (counting rAF frames over elapsed time in-page), and asserts median_fps >= 50. Browser-dependent tests MUST be skipped (excluded from total) when dist/index.html is absent at the specimen root (e.g. a bare mutated bundle in a temp dir) or when playwright-core is unavailable, so mutation runs judge the bundle by Node-level smoke checks (SI.Renderer and SI.Audio exist as objects on a loaded bundle). build.js emits dist/game.js (eval entry) + dist/index.html (canvas + inlined bundle + boot). Preserve P1-P4.",
+  "dependsOn": [
+    "slice-05"
+  ],
+  "complexity": 4,
+  "donePredicates": [
+    "P5-fps"
+  ],
+  "traceTier": "sealed",
+  "judge": "opus",
+  "summary": "Makes the game actually playable and audible end-to-end (rendering, SFX, input wiring, live gameState reference) and measures median fps under real rAF timing with active simulated input."
+}

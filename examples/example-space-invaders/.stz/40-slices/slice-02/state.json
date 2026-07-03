@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "sliceId": "slice-02",
+  "currentPhase": "judgment",
+  "phaseStatus": {
+    "elicitation": "done",
+    "research": "done",
+    "ground-truth-validation": "done",
+    "standards": "done",
+    "test-authoring": "done",
+    "planning": "done",
+    "tournament": "done",
+    "judgment": "done"
+  },
+  "escalation": "normal",
+  "retryCount": 0,
+  "replanCount": 0,
+  "activeSpecimens": [],
+  "budget": {
+    "tokenCap": 512000,
+    "wallClockMs": 3600000,
+    "tokensSpent": 0
+  },
+  "events": [
+    {
+      "seq": 0,
+      "phase": "elicitation",
+      "kind": "phase-done",
+      "detail": "elicitation → done"
+    },
+    {
+      "seq": 1,
+      "phase": "research",
+      "kind": "phase-done",
+      "detail": "research → done"
+    },
+    {
+      "seq": 2,
+      "phase": "ground-truth-validation",
+      "kind": "phase-done",
+      "detail": "ground-truth-validation → done"
+    },
+    {
+      "seq": 3,
+      "phase": "standards",
+      "kind": "phase-done",
+      "detail": "standards → done"
+    },
+    {
+      "seq": 4,
+      "phase": "planning",
+      "kind": "phase-done",
+      "detail": "planning → done"
+    },
+    {
+      "seq": 6,
+      "phase": "test-authoring",
+      "action": "halt-crosscheck-divergent",
+      "detail": "A pass, B fail 12/16; halted per dark-factory (no auto-rewrite/hand-resolve)."
+    },
+    {
+      "seq": 7,
+      "phase": "test-authoring",
+      "action": "halt-cleared",
+      "detail": "human adjudicated B as buggy; regenerating reference-b and re-running crosscheck."
+    },
+    {
+      "seq": 7,
+      "phase": "judgment",
+      "kind": "winner",
+      "detail": "winner=A, ranking=[A]"
+    },
+    {
+      "seq": 8,
+      "phase": "test-authoring",
+      "kind": "phase-done",
+      "detail": "test-authoring → done"
+    },
+    {
+      "seq": 9,
+      "phase": "tournament",
+      "kind": "phase-done",
+      "detail": "tournament → done"
+    },
+    {
+      "seq": 10,
+      "phase": "judgment",
+      "kind": "phase-done",
+      "detail": "judgment → done"
+    }
+  ],
+  "callCount": 0,
+  "failureReport": null
+}

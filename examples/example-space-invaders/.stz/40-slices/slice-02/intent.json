@@ -1,0 +1,10 @@
+{
+  "claims": [
+    {"id":"c1","text":"SI.Game.init(opts?) initializes window.gameState in place: state 'playing', score 0, player centered, aliens a 5x11 grid each with numeric points 10/20/30 by row, empty playerBullets/alienBullets; re-init fully resets even after prior mutation."},
+    {"id":"c2","text":"Player moves left/right per SI.Game.input and clamps player.x to [0, width - player.width], never off either edge on any step."},
+    {"id":"c3","text":"SI.Game.input.fire is edge-triggered: exactly one entry is added to playerBullets per press-edge; holding fire does not spawn every frame; release-then-press spawns another."},
+    {"id":"c4","text":"A player bullet overlapping an alien (via SI.Collision.aabbOverlap) removes exactly that alien and adds its exact row point value to score; a bare {x,y,width,height} entry in playerBullets is a live collidable bullet."},
+    {"id":"c5","text":"SI.Game.update(dt) advances exactly one fixed step; movement per call is constant, independent of the dt argument magnitude (ADR-002 fixed timestep)."},
+    {"id":"c6","text":"window.gameState === SI.Game.state, a live object mutated in place (arrays replaced wholesale, never reassigning gameState after bootstrap)."}
+  ]
+}

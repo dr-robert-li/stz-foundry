@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "granularity": "balanced",
+  "fanout": 4,
+  "models": {
+    "planning": "sonnet",
+    "research": "haiku",
+    "execution": "sonnet",
+    "testing": "sonnet",
+    "validation": "sonnet",
+    "judging": "opus"
+  },
+  "strictness": {
+    "coverageTarget": 0.9,
+    "mutationPolicy": "standard",
+    "conventions": "standard"
+  },
+  "darkFactory": true
+}

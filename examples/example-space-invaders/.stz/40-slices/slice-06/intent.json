@@ -1,0 +1,9 @@
+{
+  "claims": [
+    {"id":"c1","text":"SI.Renderer.draw(state) renders gameState to the <canvas> each frame, never throws, and does not mutate state (read-only)."},
+    {"id":"c2","text":"SI.Audio exposes synthesized-SFX methods via WebAudio, guarded so a headless/suspended/absent AudioContext never throws."},
+    {"id":"c3","text":"main.js boots on load of dist/index.html: SI.Game.init(), window.gameState = SI.Game.state (live, never reassigned), input listeners wired to SI.Game.input, SI.Loop.start() drives the rAF loop; loading the bundle in Node no-ops gracefully."},
+    {"id":"c4","text":"gameState.fps holds a rolling MEDIAN of recent instantaneous fps (a finite positive number), and median fps over ~5s in headless Chromium is >= 50."},
+    {"id":"c5","text":"P1 (move/shoot/kill), P2 (march), P3 (lives/gameover), P4 (waves/shields/UFO) all still hold after adding P5."}
+  ]
+}

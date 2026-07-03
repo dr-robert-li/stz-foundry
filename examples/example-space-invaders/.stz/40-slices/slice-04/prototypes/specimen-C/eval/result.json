@@ -1,0 +1,10 @@
+{
+  "specimen": "C",
+  "passedGate": true,
+  "testPassRate": 1,
+  "coverage": 1,
+  "mutationScore": 0.6666666666666666,
+  "hackFindings": [],
+  "codeHealth": 0.9219512195121952,
+  "suspicion": 0
+}

@@ -1,0 +1,15 @@
+{"claims":[
+  {"id":"c1","satisfied":true,"evidence":"game.js maybeFireAlienBullet(): interval-timer (ALIEN_FIRE_INTERVAL_STEPS), candidates via SI.Alien.frontlineByColumn(), column picked by Math.floor(SI.RNG.next()*candidates.length) — exactly one RNG.next() call per fire event; rng.js seed() reseeds deterministic mulberry32 state, so init(seed) twice reproduces the sequence"},
+  {"id":"c2","satisfied":true,"evidence":"game.js resolveAlienBulletPlayerCollisions(): SI.Collision.aabbOverlap(bullet,player) -> lives -= 1, bullet dropped from survivors array (floor-clamped at 0); loop is a plain index-scan over state.alienBullets so a bare {x,y,width,height} pushed directly into that array is live by membership alone, no alive/velocity field required"},
+  {"id":"c3","satisfied":true,"evidence":"game.js checkGameover(): if (state.lives === 0) { state.state = 'gameover'; return; } — checked first, before the alien-row check"},
+  {"id":"c4","satisfied":true,"evidence":"game.js checkGameover(): index-scans state.aliens, skips a.alive===false, sets state.state='gameover' when a.y + a.height >= state.player.y"},
+  {"id":"c5","satisfied":true,"evidence":"game.js update(dt) top guard: if (state.state === 'gameover') { return; } before any input/movement/collision/score logic runs, so lives/score/state/entity arrays are untouched on subsequent calls"},
+  {"id":"c6","satisfied":true,"evidence":"P1: player.js updatePlayer() moves+clamps, game.js edge-triggered fire pushes SI.Bullet.spawnPlayerBullet(), resolveBulletAlienCollisions() removes aliens+bullets on aabbOverlap and adds alien.points to state.score. P2: game.js marchGrid() moves every alive alien by the same dx per step via SI.Alien.marchInterval(aliveCount) cadence, edge-touch queues a drop, next step drops ALIEN_ROW_STEP and reverses marchDirection together; marchInterval() is pure ratio math, ceil'd and floor-clamped to 1, monotonically non-increasing as aliveCount falls"}
+],
+"extras":[
+  {"id":"x1","text":"gameover check runs lives-exhaustion before the alien-row check, so a frame where both conditions are true resolves deterministically to the lives branch"},
+  {"id":"x2","text":"marchGrid() still applies the horizontal move on the edge-touching step itself (queues the drop for the following step) rather than dropping immediately on edge contact"},
+  {"id":"x3","text":"frontlineByColumn() only nominates the alive alien with greatest y (closest to player) per column as a fire candidate, ignoring aliens missing a col field or duplicating one"},
+  {"id":"x4","text":"RNG is mulberry32 with a default seed(1) at module load, so next() is deterministic even if init() is never called with an explicit seed"},
+  {"id":"x5","text":"alien bullets and player bullets share the same updateBullets()/off-screen-filter pattern (wholesale array replacement), just with opposite dy sign and different off-screen edge (top vs bottom)"}
+]}

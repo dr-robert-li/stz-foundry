@@ -1,0 +1,8 @@
+{
+  "claims": [
+    {"id":"c1","text":"gameState.shields is an array of {x,y,cells:[integer integrity...]}; SI.Shield.cellRect(shield,i) is pure; any bullet (player or alien) overlapping a cell rect reduces that cell's integrity by 1 (floored at 0, never negative) and is consumed; a bare injected bullet over a cell still hits."},
+    {"id":"c2","text":"gameState.ufo={active,x,y,width,height,bonus}; UFO spawns on an SI.RNG.next()-timed schedule with bonus in [50,300] drawn via SI.RNG.next() (deterministic under seed); a player bullet overlapping an active UFO sets ufo.active=false and adds ufo.bonus (>0) to score."},
+    {"id":"c3","text":"gameState.wave starts 1; killing the last alive alien increments wave and respawns a full 55-alien grid; SI.Alien.marchInterval(aliveCount, wave=1) is pure, monotonic non-increasing in aliveCount, and strictly decreasing in wave for fixed aliveCount (wave defaults 1)."},
+    {"id":"c4","text":"P1 (move/shoot/kill/score), P2 (march), and P3 (lives/gameover/terminality) all still hold after adding P4."}
+  ]
+}

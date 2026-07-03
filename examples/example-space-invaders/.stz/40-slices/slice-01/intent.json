@@ -1,0 +1,10 @@
+{
+  "claims": [
+    {"id":"c1","text":"window.SI namespace is bootstrapped idempotently (window.SI = window.SI || {}), declared once, and all foundation modules attach to it without clobbering."},
+    {"id":"c2","text":"SI.RNG.seed(n)/SI.RNG.next() is a seedable PRNG returning floats in [0,1); same seed reproduces the same sequence, different seeds diverge."},
+    {"id":"c3","text":"SI.Collision.aabbOverlap(a,b) on {x,y,w,h} boxes returns true for real overlap/containment and false for separation AND edge-touch (shared boundary excluded)."},
+    {"id":"c4","text":"SI.Config holds all named constants with exact values: grid 5x11, startingLives 3, alien points 10/20/30, UFO bonus 50-300, positive FIXED_TIMESTEP_MS (~16.667)."},
+    {"id":"c5","text":"SI.Loop is a fixed-timestep accumulator: calls SI.Game.update(FIXED_TIMESTEP_MS) the correct integer number of times carrying the remainder across frames, caps a huge delta (spiral-of-death guard), and calls SI.Renderer.draw() once per rAF frame."},
+    {"id":"c6","text":"build.js (Node fs/path builtins only) concatenates src/*.js in rng->collision->config->loop order into dist/game.js (plain bundle) and dist/index.html (canvas + minimal CSS + ADR-003 window.gameState stub at state:'ready'), idempotently."}
+  ]
+}

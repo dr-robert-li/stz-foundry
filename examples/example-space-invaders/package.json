@@ -1,0 +1,8 @@
+{
+  "name": "example-stz-f",
+  "private": true,
+  "version": "0.0.0",
+  "dependencies": {
+    "playwright-core": "^1.49.1"
+  }
+}

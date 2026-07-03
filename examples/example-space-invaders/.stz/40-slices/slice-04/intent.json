@@ -1,0 +1,10 @@
+{
+  "claims": [
+    {"id":"c1","text":"Aliens fire an alien-bullet variant whose firing column is chosen via SI.RNG.next(), so firing is deterministic under a fixed seed (init twice with same seed reproduces the alienBullets sequence)."},
+    {"id":"c2","text":"An alien bullet overlapping SI.Player (via SI.Collision.aabbOverlap) decrements gameState.lives by exactly 1 and removes that bullet; alienBullets entries are live by array-membership (a bare {x,y,width,height} injected bullet still hits)."},
+    {"id":"c3","text":"gameState.state transitions to 'gameover' when lives reaches 0."},
+    {"id":"c4","text":"gameState.state transitions to 'gameover' when any alive alien reaches the player row (alien.y + alien.height >= player.y)."},
+    {"id":"c5","text":"Gameover is terminal: once state==='gameover', further SI.Game.update(dt) leaves lives, score, and state unchanged."},
+    {"id":"c6","text":"P1 (move/shoot/kill/score) and P2 (rigid march, drop/reverse, monotonic interval) still hold after adding P3."}
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "claims": [
+    {"id":"c1","text":"SI.Alien.marchInterval(aliveCount) is pure, returns a positive integer, and is monotonically non-increasing as aliveCount drops 55->1, strictly faster (smaller interval) at 1 than at 55."},
+    {"id":"c2","text":"Each march step translates the whole grid as one rigid block: every alive alien moves by the same x-delta that step, across multiple starting configs and after removals."},
+    {"id":"c3","text":"On any alien touching a screen edge, the whole grid steps down by rowStep and horizontal direction reverses on the very next march step."},
+    {"id":"c4","text":"March cadence is driven deterministically by SI.Game.update(dt) call count (internal accumulated-step counter), never wall-clock; repeated update() calls reproduce the march exactly, independent of dt magnitude."},
+    {"id":"c5","text":"Aliens remain plain {x,y,width,height,points} entities through marching (shape preserved; only positions/direction change)."}
+  ]
+}

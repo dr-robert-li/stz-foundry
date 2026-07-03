@@ -1,0 +1,47 @@
+{
+  "ranking": [
+    "A",
+    "B",
+    "C"
+  ],
+  "winner": "A",
+  "advantages": [
+    {
+      "specimen": "A",
+      "reward": 0.8446268656716419,
+      "advantage": -1.2597485089349798
+    },
+    {
+      "specimen": "B",
+      "reward": 0.8935922330097088,
+      "advantage": -0.145753120904369
+    },
+    {
+      "specimen": "C",
+      "reward": 0.8940594059405941,
+      "advantage": -0.13512461919568594
+    },
+    {
+      "specimen": "D",
+      "reward": 0.9677165841584158,
+      "advantage": 1.5406262490350424
+    }
+  ],
+  "votes": [
+    {
+      "a": "A",
+      "b": "B",
+      "winner": "A"
+    },
+    {
+      "a": "A",
+      "b": "C",
+      "winner": "A"
+    },
+    {
+      "a": "B",
+      "b": "C",
+      "winner": "B"
+    }
+  ]
+}

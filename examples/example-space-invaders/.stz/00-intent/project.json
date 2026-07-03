@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "projectId": "example-stz-f",
+  "name": "example-stz-f",
+  "summary": "TBD via elicitation",
+  "slices": [
+    {
+      "id": "slice-01",
+      "name": "foundation-scaffold",
+      "dependsOn": []
+    },
+    {
+      "id": "slice-02",
+      "name": "player-move-shoot-kill",
+      "dependsOn": [
+        "slice-01"
+      ]
+    },
+    {
+      "id": "slice-03",
+      "name": "alien-grid-march",
+      "dependsOn": [
+        "slice-02"
+      ]
+    },
+    {
+      "id": "slice-04",
+      "name": "lives-and-gameover",
+      "dependsOn": [
+        "slice-03"
+      ]
+    },
+    {
+      "id": "slice-05",
+      "name": "waves-shields-ufo",
+      "dependsOn": [
+        "slice-04"
+      ]
+    },
+    {
+      "id": "slice-06",
+      "name": "renderer-audio-fps",
+      "dependsOn": [
+        "slice-05"
+      ]
+    }
+  ]
+}
