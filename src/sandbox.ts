@@ -32,6 +32,7 @@
  * overrides; `none` is the pre-sandbox behaviour and must be chosen explicitly.
  */
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { platform } from "node:os";
 import { resolve, dirname } from "node:path";
 
@@ -169,7 +170,11 @@ function bwrapArgv(nodeArgs: string[], opts: SandboxOptions): string[] {
 
 /** Seatbelt profile: allow all except network + file-write outside writeDirs. */
 function seatbeltProfile(writes: string[]): string {
-  const writeAllows = writes.map((d) => `(subpath "${resolve(d)}")`).join(" ");
+  // Seatbelt matches kernel-resolved paths: on macOS tmpdir() lives under the
+  // /var → /private/var symlink, so subpaths must be realpath'd to ever match.
+  const writeAllows = writes
+    .map((d) => `(subpath "${realpathSync(resolve(d))}")`)
+    .join(" ");
   return (
     "(version 1)(allow default)" +
     "(deny network*)" +

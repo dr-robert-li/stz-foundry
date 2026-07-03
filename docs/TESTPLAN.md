@@ -101,4 +101,9 @@ live implementation drops in without touching the tested spine.
 > Note: the execution sandbox (`src/sandbox.ts`) is **no longer** in this list —
 > it is directly tested (`sandbox.test.ts`) and exercised by the whole eval suite.
 > macOS `sandbox-exec` is implemented but not asserted in CI (Linux runners); it
-> is guarded by platform detection and falls back cleanly.
+> is guarded by platform detection and falls back cleanly. It **is**
+> machine-verified locally on macOS: the full suite (316 tests) passes under real
+> Seatbelt isolation, including the OS-isolated coverage assertions. That run
+> caught a real Darwin-only bug — Seatbelt matches kernel-resolved paths, so
+> write-allow subpaths must be `realpath`'d (`/var` → `/private/var`); fixed in
+> `seatbeltProfile`. A `macos-latest` CI job would make this assertion permanent.
