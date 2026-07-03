@@ -15,8 +15,9 @@
  *   Linux   — bwrap (unprivileged user namespaces): read-only host, tmpfs /tmp,
  *             the impl/suite dirs bound read-only, the coverage dir bound
  *             read-write, `--unshare-all` (no network, private pid/ipc/uts).
- *             Wrapped in `prlimit` for nproc / address-space / file-size / cpu
- *             caps so a fork- or memory-bomb dies instead of taking the host.
+ *             Wrapped in `prlimit` (address-space / file-size / cpu) and a
+ *             private pid namespace so a memory- or fork-bomb dies at the caps
+ *             or the wall-clock timeout instead of taking the host.
  *   macOS   — sandbox-exec (Seatbelt): deny network + deny file-write outside
  *             the coverage dir. (Deprecated by Apple but functional; the same
  *             primitive Claude Code uses.)
@@ -46,8 +47,14 @@ export interface SandboxOptions {
   timeout?: number;
 }
 
-/** Resource ceilings — a fork/memory/output bomb hits these, not the host. */
-const RLIMIT_NPROC = 64;
+// Resource ceilings — per-PROCESS rlimits only. RLIMIT_NPROC is deliberately
+// NOT set: it is enforced per real-uid SYSTEM-WIDE (not per sandbox), so on a
+// busy/shared-uid host (e.g. a CI runner whose user already holds >N processes)
+// any thread/fork the sandboxed node needs hits the cap and crashes it. A fork
+// bomb is instead contained by the private pid namespace (--unshare-pid), the
+// address-space cap (a fork bomb OOMs fast), and the wall-clock timeout that
+// kills the whole --die-with-parent tree.
+// ponytail: no nproc rlimit; add a cgroup pids.max if fork-bomb latency matters.
 const RLIMIT_AS_BYTES = 2 * 1024 * 1024 * 1024; // 2 GiB address space
 const RLIMIT_FSIZE_BYTES = 128 * 1024 * 1024; // 128 MiB max file
 const CPU_SLACK_SEC = 5;
@@ -151,7 +158,6 @@ function bwrapArgv(nodeArgs: string[], opts: SandboxOptions): string[] {
   // prlimit runs inside the namespace and execs node with the caps applied.
   argv.push(
     "prlimit",
-    `--nproc=${RLIMIT_NPROC}`,
     `--as=${RLIMIT_AS_BYTES}`,
     `--fsize=${RLIMIT_FSIZE_BYTES}`,
     `--cpu=${cpuLimitSec(opts.timeout)}`,
@@ -172,11 +178,21 @@ function seatbeltProfile(writes: string[]): string {
   );
 }
 
-/** node --permission flags: read the read+write dirs, write only the write dirs. */
+/**
+ * The permission-model flag: stabilized as `--permission` in Node 23; on Node
+ * 20–22 it is `--experimental-permission`. Passing the wrong one is a fatal
+ * "bad option", so pick by the running major version.
+ */
+function permissionFlag(): string {
+  const major = Number(process.versions.node.split(".")[0]);
+  return major >= 23 ? "--permission" : "--experimental-permission";
+}
+
+/** node permission-model flags: read the read+write dirs, write only the write dirs. */
 function permissionArgs(opts: SandboxOptions): string[] {
   const reads = [...new Set([...opts.readDirs, ...(opts.writeDirs ?? [])].map((d) => resolve(d)))];
   const writes = [...new Set((opts.writeDirs ?? []).map((d) => resolve(d)))];
-  const flags = ["--permission"];
+  const flags = [permissionFlag()];
   for (const d of reads) flags.push(`--allow-fs-read=${d}`);
   for (const d of writes) flags.push(`--allow-fs-write=${d}`);
   return flags;

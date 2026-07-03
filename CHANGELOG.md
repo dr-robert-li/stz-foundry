@@ -9,6 +9,25 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.9.1] — sandbox portability fixes (busy-host fork cap, Node <23 permission flag)
+
+Two defects in the 1.9.0 eval sandbox, surfaced by the CI matrix (Node 20/22):
+
+- **`prlimit --nproc` removed**: `RLIMIT_NPROC` is enforced per real-uid
+  system-wide, not per sandbox, so on a busy or shared-uid host (a CI runner
+  whose user already holds >64 processes) the sandboxed `node` hit the cap and
+  crashed while creating a thread — a spurious eval failure that would score a
+  faithful specimen 0. Fork/memory bombs are still contained by the private pid
+  namespace, the 2 GiB address-space cap (a bomb OOMs in milliseconds), and the
+  wall-clock timeout.
+- **Node <23 permission flag**: the permission-model fallback used `--permission`,
+  which only exists on Node ≥ 23; on Node 20–22 it is `--experimental-permission`
+  and the wrong name is a fatal "bad option". The flag is now chosen by the
+  running major version, so the fallback works across the supported matrix.
+- Hostile-harness test hardened to assert the ground-truth security property
+  (host filesystem untampered) directly, parsing the harness self-report
+  defensively rather than from the last stderr line.
+
 ## [1.9.0] — production-readiness hardening (sandbox, fan-out caps, preflight, telemetry, ownership guard)
 
 Five ship-blockers from the 1.8.0 field run, each researched, prototyped against
