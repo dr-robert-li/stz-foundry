@@ -6,7 +6,9 @@ deterministic spine is tested for real; the LLM layer is tested at the
 interface-contract + mock-e2e level (it is explicitly *not* a live-tournament
 result — see `ROADMAP.md`).
 
-Run: `npm test` (163 tests) and `npm run typecheck`.
+Run: `npm test` (316 tests) and `npm run typecheck`. CI runs both on Node 20 and
+22 with bubblewrap installed, so the eval sandbox's real OS-isolation path (and V8
+coverage under it) is exercised rather than the degraded fallback.
 
 ## Requirement → test map
 
@@ -49,6 +51,33 @@ Run: `npm test` (163 tests) and `npm run typecheck`.
 | Tabulated pipeline dashboard (0.5.4) | `src/bridge.ts` `project-status` | `project.test.ts` — computed `progress` totals + enriched slice rows (winner/faithful) |
 | Update/upgrade pathway: `stz update` / `migrate` (0.6.0, F19) | `src/version.ts`, `src/update.ts`, `src/migrate.ts` | `version.test.ts` — version sourced from package.json + 3-manifest drift guard; `update.test.ts` — semver compare, verdict/commands, injectable registry check (offline); `migrate.test.ts` — additive backed-up `.stz/` schema upgrade, idempotent |
 
+## Standalone Foundry — BYO-LLM (1.8.0)
+
+The provider-seam harness that runs the same deterministic spine over direct HTTP
+models, no agent CLI. Providers are scripted (canned completions routed by role)
+so these prove the plumbing + the real gate, not any model's intelligence.
+
+| Capability | Where | Test(s) |
+|---|---|---|
+| Provider seam (Anthropic + OpenAI-compatible), bounded retries, prompt caching | `src/foundry/provider.ts` | `foundry-provider.test.ts` — request shape, usage parse, cache-read signal, retry/backoff |
+| FoundryModelLayer drives the REAL per-slice pipeline over HTTP | `src/foundry/model-layer.ts` | `foundry-model-layer.test.ts` — full tournament, planted-broken specimen culled by the executed gate, correct one wins |
+| Specimen concurrency: bounded pool + per-specimen stuck-kill | `src/foundry/spawn.ts` | `foundry-spawn.test.ts` — concurrent wall-clock, pool bound, timeout/error containment, scheduling-independent order |
+| Cost governance: per-model pricing by role, hard token/USD caps | `src/foundry/cost.ts` | `foundry-cost.test.ts` — pricing math, role aggregation, cap kill-switch, unpriced-model reporting |
+| Standalone runner: config → layer → tournament → cost report | `src/foundry/runner.ts` | `foundry-runner.test.ts` — e2e over a fake HTTP server, audit tree + cost report written; secret-free config validation |
+| Local-model instrument guards (stage-5 live-earn hardening) | `src/foundry/model-layer.ts` | `foundry-model-layer.test.ts` — ESM syntax check, reference export/smoke gates, harness self-check |
+
+## Production-readiness hardening (1.9.0 / 1.9.1)
+
+| Capability | Where | Test(s) |
+|---|---|---|
+| Execution sandbox for model-generated code (default-deny, layered) | `src/sandbox.ts` | `sandbox.test.ts` — hostile harness's network/fs-write/process-spawn neutralized (host untampered), impl still runs, V8 coverage under OS isolation, `STZ_SANDBOX=none` opt-out |
+| Sandbox routed through the real eval seam | `src/eval-runner.ts`, `src/foundry/model-layer.ts` | `eval-runner.test.ts` + `foundry-model-layer.test.ts` run every executed check under the sandbox; coverage asserted `>0` under OS isolation, `>=0` on the degraded fallback |
+| Fan-out throttle (`maxParallelSlices`) enforced as a bridge `dispatch` set | `src/project.ts`, `src/bridge.ts` | `hardening-fixes.test.ts` — default/clamp/validate; `project.test.ts` config round-trip |
+| Run-level wall-clock cap (`runWallClockMs`) | `src/mock/orchestrator.ts`, `src/foundry/spawn.ts` | `hardening-fixes.test.ts` — orchestrator halts a looping run; spawn pool skips work past the deadline |
+| Test-author preflight (fail fast on a too-weak model) | `src/foundry/runner.ts` | `hardening-fixes.test.ts` — passes on a valid canary, throws `FoundryPreflightError` with guidance on a weak one |
+| retryPolicy telemetry (recovery vs burn) | `src/mock/orchestrator.ts` | `hardening-fixes.test.ts` — first-round / recovered / halted outcomes + round-1 vs after-round-1 token split |
+| Held-out ownership guard (PreToolUse hook) | `hooks/held-out-guard.mjs` | `hardening-fixes.test.ts` — blocks the reference-b deletion class, allows sanctioned amend / reads / Write / bad input |
+
 ## Manual / CLI acceptance
 
 ```
@@ -62,7 +91,14 @@ refinement context, call ledger (jsonl), cost, journal, and per-slice state.json
 
 ## Not asserted here (out of scope — stubbed behind interfaces)
 
-Live LLM/subagent calls; real Python eval drivers / Hypothesis / mutation
-testing; git worktrees; per-worktree observability; cross-slice RAG. These have
-real interfaces (`src/mock/interfaces.ts`) and deterministic mocks, so a live
-implementation drops in without touching the tested spine.
+Live hosted-LLM tournament *outcomes* (the foundry tests script the provider, and
+the field runs live under `experiments/foundry-progression/` are not CI gates);
+real Python eval drivers / Hypothesis / mutmut / Stryker; per-specimen git
+worktrees; per-worktree observability; cross-slice RAG / embeddings. These have
+real interfaces (`src/mock/interfaces.ts`) and deterministic mocks/guards, so a
+live implementation drops in without touching the tested spine.
+
+> Note: the execution sandbox (`src/sandbox.ts`) is **no longer** in this list —
+> it is directly tested (`sandbox.test.ts`) and exercised by the whole eval suite.
+> macOS `sandbox-exec` is implemented but not asserted in CI (Linux runners); it
+> is guarded by platform detection and falls back cleanly.

@@ -40,12 +40,27 @@
 - For the standalone foundry runner: any OpenAI-compatible endpoint (Ollama,
   vLLM, LiteLLM) or an Anthropic API key. Local models run at $0.
 - No database, no vector service.
+- Optional but recommended on Linux: **bubblewrap** (`bwrap`) so the execution
+  sandbox uses full OS isolation. Without it (or `sandbox-exec` on macOS) the
+  sandbox degrades to the Node permission model — filesystem-safe but *not*
+  network-isolated, and it warns loudly. See the security note below.
 
 > **Token cost.** A tournament is deliberately redundant — N parallel
 > specimens, multiple judge votes per pair. That buys selection pressure and
 > an auditable trail, but it is token-intensive. Tune `n`, `votesPerPair`,
 > and `traceTier` down for cheaper runs, or point the foundry runner at a
 > local model where redundancy is free.
+
+> **Security — the execution sandbox.** STZ executes model-generated code (the
+> sealed harness, smoke checks, mutants, references). Every one of those runs
+> through a layered, default-deny sandbox: **bwrap** on Linux and
+> **sandbox-exec** on macOS (no network, read-only host, resource caps), with
+> the Node permission model as a portable fallback that blocks the filesystem
+> but not the network and says so. The chosen isolation level is recorded in
+> the audit trail — no silent downgrade. Override with
+> `STZ_SANDBOX=bwrap|sandbox-exec|node-permission|none` (`none` is the
+> pre-sandbox behaviour and must be chosen explicitly). Install `bwrap` for
+> full isolation before running untrusted or prompt-injectable input.
 
 ## Install
 
@@ -87,14 +102,17 @@ automatically; dark-factory mode (lights-out, every downstream gate skipped)
 is described in
 [`docs/development/dark-factory.md`](docs/development/dark-factory.md).
 
-Two run-config knobs (set during `/stz-f:new`) shape autonomous runs: **retry
+Run-config knobs (set during `/stz-f:new`) shape autonomous runs: **retry
 policy** — what happens when a tournament finds no passer (halt immediately /
 retry n times, default 2 / retry unbounded — dangerous, stopped only by the
-token/USD caps); and **sequencing** — fan-out (independent slices in
-parallel, the default) vs linear (one at a time). One halt class is always
-human-in-the-loop regardless: a seal-crosscheck ambiguity (test-design
-judgment) durably halts its slice for adjudication while the rest of the DAG
-continues.
+token/USD caps); **sequencing** — fan-out (independent slices in parallel, the
+default) vs linear (one at a time); **`maxParallelSlices`** — the fan-out
+throttle (default 3) that bounds how many frontier tournaments run at once, so
+a wide DAG can't launch frontier-width × N specimens unbounded; and
+**`runWallClockMs`** — an optional run-level wall-clock ceiling across all
+slices (0 = off). One halt class is always human-in-the-loop regardless: a
+seal-crosscheck ambiguity (test-design judgment) durably halts its slice for
+adjudication while the rest of the DAG continues.
 
 For a single one-off slice with no project setup:
 
@@ -154,13 +172,18 @@ EOF
 stz foundry run slugify.json .
 ```
 
-The runner authors and validates the sealed suite (syntax, export-probe,
+Before the real slice it runs a **test-author preflight** — a trivial canary
+that proves the configured test-author model can author a valid sealed harness,
+failing fast (promote a stronger model) instead of burning the escalation
+budget, since test-author strength is the binding constraint for local models.
+Then it authors and validates the sealed suite (syntax, export-probe,
 self-check, and a reference smoke gate with bounded re-asks — hardened
 against small-local-model failure modes), spawns the specimens concurrently,
-eval-gates, judges, selects a winner, and writes the full audit tree plus a
-real-usage cost report (`.stz/90-audit/foundry-cost.md`, per-role token and
-dollar breakdown; unknown models are reported, never guessed). Exit code 2
-means the run halted with no winner.
+**eval-gates every execution inside the sandbox**, judges, selects a winner,
+and writes the full audit tree plus a real-usage cost report
+(`.stz/90-audit/foundry-cost.md`, per-role token and dollar breakdown, the
+sandbox isolation level, and retry-vs-recovery telemetry; unknown models are
+reported, never guessed). Exit code 2 means the run halted with no winner.
 
 ## Updating
 

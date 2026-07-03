@@ -70,8 +70,9 @@ decision (JSON in, JSON out, over the `.stz/` tree). On top of the spine:
 drives the whole pipeline against a deterministic fake model. It is a testing
 aid, not the production path, and the production spine does not depend on it.
 
-**Quality gates.** 131 deterministic tests plus a typecheck, run in CI on Node 20
-and 22, with a `prepublishOnly` (typecheck + test) guard before any npm publish.
+**Quality gates.** 316 deterministic tests plus a typecheck, run in CI on Node 20
+and 22 (with bubblewrap installed so the eval sandbox's real isolation path is
+exercised), and a `prepublishOnly` (typecheck + test) guard before any npm publish.
 
 ## Resultant features
 
@@ -153,22 +154,41 @@ and 22, with a `prepublishOnly` (typecheck + test) guard before any npm publish.
 
 ## Not yet built (current gaps)
 
-- **Cross-family *specimens and judge*** (OpenAI / Codex / Gemini) are not wired;
-  the seam accepts any subagent, but only Claude Code subagents are connected.
-  (Distinct from the **cross-family *reference*** for the sealed suite, which *is*
-  built — see 0.5.0 above: the second reference can be authored by a different
-  family today.)
+> Refreshed 2026-07 against the shipped code. Several items previously listed
+> here are now built by the **1.8.0 Foundry rebuild** (standalone BYO-LLM runner
+> + provider seam) and the **1.9.x hardening** (execution sandbox, run-level
+> caps) — see the dated ✅ BUILT sections at the end of this file. What remains:
+
+- **Cross-family *specimens and judge* in the IN-SESSION path.** The standalone
+  **foundry runner** *does* run heterogeneous families today: `foundry.json`
+  assigns each role (test-author, specimen, judge, …) its own `{provider, model}`
+  over the `anthropic`/`openai`-compatible provider seam (`src/foundry/provider.ts`),
+  so a local Ollama specimen vs a hosted judge falls out of config. The remaining
+  gap is the **Claude Code in-session** tournament, which still spawns only
+  Claude Code subagents (one family). (The cross-family *reference* for the sealed
+  suite has been built since 0.5.0.)
 - **Python eval drivers** (Hypothesis, mutmut, Stryker) are not used. Coverage and
   mutation are executed in JavaScript via V8 and source mutators.
-- **Per-specimen git worktrees and observability stacks** are not built; distinct
-  `prototypes/specimen-X/` directories stand in for worktrees.
-- **Cross-slice RAG / embeddings** are not built — no semantic lookup across the
-  markdown tree. (The spec-diff's old literal over-flagging is fixed: claims now
-  carry stable ids and the documenter adjudicates each intent claim by id, so
-  reworded as-built claims match. `faithful` reflects real coverage, not wording.
-  Fully semantic, id-free matching would still need embeddings.)
-- **OS-level sealing** of the held-out suite (git read-only attributes plus a
-  pre-commit hook) is not applied; only the prompts withhold it from implementers.
+- **Per-specimen git worktrees and observability stacks** are **not built**
+  (answers a common question). The 1.8.0 foundry added a real bounded-concurrency
+  spawn pool with per-specimen wall-clock kill (`src/foundry/spawn.ts`) and
+  per-specimen private temp-dir execution under the sandbox, but specimens still
+  materialize into distinct `prototypes/specimen-X/` directories rather than git
+  worktrees, and no per-specimen Prometheus/OTel stack is spun up. Worktrees
+  matter once slices *edit* an existing repo (see the brownfield item below);
+  today's foundry specimens synthesize files from a contract, so directory
+  isolation is the honest minimum.
+- **Cross-slice RAG / embeddings** are **not built** — no vector store ships with
+  the harness and no semantic lookup runs across the markdown tree. (The spec-diff's
+  old literal over-flagging is fixed: claims carry stable ids and the documenter
+  adjudicates each intent claim by id, so reworded as-built claims match without
+  embeddings. Fully semantic, id-free cross-slice recall would still need them.)
+- **OS-level sealing** is **partially built.** The held-out suite is now sealed by
+  a deterministic content hash (`src/seal.ts`: `SEAL.json` + `seal-verify` drift
+  gate + audited `seal-amend`), and a **PreToolUse ownership-guard hook**
+  (`hooks/held-out-guard.mjs`, 1.9.x) blocks destructive shell ops on the sealed
+  tree in code. What is still not applied: git read-only attributes + a pre-commit
+  hook enforcing it at the VCS layer.
 - **The bundled bridge runs the TypeScript CLI through `tsx`**, fetched by `npx`
   on first use, so a fresh environment needs Node 20+ and network for that first
   call. Shipping a prebuilt `dist/` to drop the runtime `tsx` dependency is a
@@ -180,8 +200,9 @@ and 22, with a `prepublishOnly` (typecheck + test) guard before any npm publish.
   tournament, the full project pipeline with sealed tests and layered
   anti-reward-hacking, the replayable audit trail, and an installable plugin.
 - **Deferred and documented (not missing by accident):** cross-family specimens
-  and judge, Python eval libraries, worktrees and observability, cross-slice RAG,
-  OS-level sealing, and the `dist/` build.
+  and judge *in the in-session path* (the standalone foundry runner already does
+  heterogeneous families), Python eval libraries, git worktrees and per-specimen
+  observability, cross-slice RAG, VCS-layer OS sealing, and the `dist/` build.
 - **Built beyond the original plan:** the `stz bridge` JSON contract, a
   dependency-free real eval runner (V8 coverage plus source mutation), the
   two-level project DAG driver, the persisted run config (granularity, fan-out,
@@ -191,8 +212,13 @@ and 22, with a `prepublishOnly` (typecheck + test) guard before any npm publish.
   supersession-compat manifest), the tabulated pipeline dashboard, the
   deterministic mock harness, the two worked example runs, the CI pipeline, the
   npm CLI distribution, the sustainable update/migrate pathway (`stz update`,
-  `stz migrate`, versioned `.stz/manifest.json`), and real escalation wired into
-  the command path (`stz bridge escalate`).
+  `stz migrate`, versioned `.stz/manifest.json`), real escalation wired into
+  the command path (`stz bridge escalate`), the **1.8.0 standalone BYO-LLM
+  Foundry** (provider seam over Anthropic/OpenAI-compatible/Ollama/vLLM,
+  bounded-concurrency specimen pool, per-model cost governance with hard caps),
+  and the **1.9.x production-readiness hardening** (a layered execution sandbox
+  for model-generated code, a fan-out throttle + run-level wall-clock cap, a
+  test-author preflight, retryPolicy telemetry, and the held-out ownership guard).
 
 ## Planned (roadmap)
 
@@ -232,32 +258,44 @@ and collect pointers, and the per-role model map honored against that host's
 model catalog. The deterministic bridge is unchanged — it is host-agnostic by
 construction.
 
-### A distinct STZ-native harness (BYO LLM)
+> Note (2026-07): genuine **cross-family tournaments already run today** via the
+> 1.8.0 standalone foundry runner (per-role `{provider, model}` over the HTTP
+> provider seam). This section is now specifically about riding *inside* other
+> agent **CLIs** (Codex/Pi/OpenCode) as an alternative to the foundry's own loop.
 
-Beyond riding inside an existing agent host, STZ should be able to run as its
-**own harness** — a standalone runner that owns the spawn-and-collect loop and
-talks to models directly, so the tournament is not bound to any one vendor's CLI.
-Bring-your-own-LLM via:
+### A distinct STZ-native harness (BYO LLM) — ✅ BUILT (1.8.0)
+
+**Shipped as the Foundry rebuild.** STZ now runs as its **own standalone
+harness** — a runner that owns the spawn-and-collect loop and talks to models
+directly over HTTP, not bound to any vendor CLI. Delivered:
 
 - **A generic API provider** — any OpenAI-/Anthropic-compatible HTTP endpoint,
-  model + base-URL + key supplied by the operator.
-- **LiteLLM** — as the provider-routing layer, so one config reaches 100+
-  hosted models behind a single API shape.
+  model + base-URL + key-by-env supplied in `foundry.json` (`src/foundry/provider.ts`,
+  `src/foundry/runner.ts`; keys are env-var names only, never stored).
 - **Local inference servers** — **vLLM** and **Ollama** for fully local,
-  no-egress runs (matching N5/sustainability and the air-gapped use case).
+  no-egress runs (field-validated on Ollama; matches N5/sustainability).
+- A real **bounded-concurrency spawn pool** with per-specimen wall-clock kill
+  (`src/foundry/spawn.ts`) and per-provider **cost governance** with hard
+  token/USD caps aggregated by role (`src/foundry/cost.ts`).
+- **Heterogeneous specimens** by config (one local model vs one hosted), the
+  economical configuration the field run surfaced: a strong test-author role,
+  small models elsewhere.
 
-This is the largest item: it needs a real spawn/concurrency layer (the worktrees
-+ per-specimen observability stack currently stubbed), a provider abstraction
-over the model seam, and budget/cost tracking against per-provider token pricing.
-It also unlocks heterogeneous specimens (one vLLM-served model vs one hosted)
-without depending on a third-party agent CLI.
+Still open here: **LiteLLM** as a 100+-model routing layer is not wired (the two
+native provider kinds cover the field cases); the spawn pool uses directory
+isolation, not git worktrees + per-specimen observability (see below).
 
-### Supporting hardening (already noted as gaps)
+### Supporting hardening (partially shipped)
 
-Prerequisites or natural companions to the above: per-specimen **git worktrees +
-ephemeral observability**, a prebuilt **`dist/`** to drop the runtime `tsx`
-dependency, **OS-level sealing** of the held-out suite, Python eval drivers, and
-cross-slice RAG/embeddings.
+- ✅ **Execution sandbox** for model-generated code (1.9.0, `src/sandbox.ts`):
+  bwrap / sandbox-exec / Node-permission-model, default-deny, resource caps.
+- ✅ **Run-level cost/latency caps** (1.9.0): `maxParallelSlices` fan-out throttle
+  + `runWallClockMs` run-level wall-clock ceiling.
+- ✅ **Code-level held-out sealing** (`SEAL.json` + `seal-verify` + the 1.9.x
+  PreToolUse ownership-guard hook).
+- ⬜ Still gaps: per-specimen **git worktrees + ephemeral observability**, a
+  prebuilt **`dist/`** to drop runtime `tsx`, **VCS-layer** OS sealing (git
+  attributes + pre-commit), Python eval drivers, and cross-slice RAG/embeddings.
 
 ### Multi-round convergence: iterative selection-pressure → design-feedback loop (0.8.0) — ⛔ SHELVED, SUPERSEDED BY 0.9.0
 
@@ -802,3 +840,153 @@ compatibility, which 0.9.5 ships:
 The honest headline (carried from the survey): **no validated *continuous*-competency win
 exists in the window.** 0.9.5 ships only what is earned (degradation-safety + authoring) and
 pre-registers the one speculative direction (door A) as a gated experiment (below).
+
+## 1.8.0 — the Foundry rebuild: standalone BYO-LLM harness — ✅ BUILT
+
+STZ moved from a research harness bound to one vendor's agent host (Claude Code)
+to a standalone, bring-your-own-LLM **Foundry** that owns the spawn-and-collect
+loop and speaks directly to models over HTTP. Earned across six regression-tested,
+live-validated stages (audit tree under `experiments/foundry-progression/`):
+
+- **Provider seam** (`src/foundry/provider.ts`) — one abstraction over
+  Anthropic, OpenAI-compatible, Ollama, and vLLM; zero dependencies; bounded
+  retries; prompt caching mandatory on the Anthropic path.
+- **FoundryModelLayer** (`src/foundry/model-layer.ts`) — the real per-slice
+  pipeline (eval gate, GRPO selection, hack detection, escalation FSM from
+  Part I) running unchanged over direct HTTP at $0 marginal cost on local models.
+- **Specimen concurrency** (`src/foundry/spawn.ts`) — a bounded pool with
+  per-specimen wall-clock stuck-kill; killed specimens never abort the round.
+- **Cost governance** (`src/foundry/cost.ts`) — per-model pricing aggregated by
+  role, hard token/USD caps at the single seam every call passes through;
+  unknown models are reported, never guessed.
+- **Standalone CLI** (`stz foundry init|run`) — secret-free config (keys by
+  env-var only), per-role model overrides, per-role cost reporting.
+
+**The load-bearing field finding:** for a local-model foundry, **test-author
+strength is the binding constraint**, not specimen quality. Five distinct
+instrument defects surfaced only under live conditions (transport truncation,
+reference-export mismatch, small-model syntax failure modes, wire-format drift,
+invented test expectations) and became deterministic guards; one true model
+ceiling (persistent expectation-invention) was correctly *rejected*, not patched
+— the Part I asymmetry (defective instrument zeroes every specimen) held in the
+field. The first full field run (`example-stz-f`, Space Invaders, dark-factory)
+delivered six slices faithful to intent, culled 18 specimens, and the sealed gate
+caught a real ship-blocking bug (a contract-violating shield-erosion model).
+
+## 1.9.0 / 1.9.1 — production-readiness hardening — ✅ BUILT
+
+Five ship-blockers from the 1.8.0 field run, each researched, prototyped against
+alternatives, validated end-to-end, and released via CI (npm + provenance):
+
+- **Execution sandbox** (`src/sandbox.ts`) — the #1 ship-blocker. Model-generated
+  code (the eval seam: sealed harness, smoke/self checks, mutants, references) no
+  longer runs as plain `node` with the host's filesystem/network/process table.
+  All six spawn sites route through one `sandboxedNode` helper: **Linux** bwrap
+  (`--unshare-all`, read-only host, coverage dir bound rw) + `prlimit`
+  (address-space / file-size / cpu caps); **macOS** sandbox-exec; **fallback**
+  the Node permission model with a loud no-network-isolation warning. Default-deny
+  throughout (the denylist-escape lesson); the isolation level is probed once
+  (nested-namespace failure downgrades cleanly) and recorded in the audit report.
+  `STZ_SANDBOX` overrides. 1.9.1 fixed two portability defects: `RLIMIT_NPROC`
+  (per-uid system-wide, crashed the sandbox on busy CI hosts) was dropped, and the
+  permission flag is chosen by Node major version (`--experimental-permission` on
+  Node 20–22).
+- **Fan-out throttle + run wall-clock cap** — `maxParallelSlices` (bridge emits a
+  capped `dispatch` set in code, not prose) and `runWallClockMs` (a real run-level
+  ceiling the per-specimen timeout never provided).
+- **Test-author preflight** — proves the test-author model can author a valid
+  sealed harness for a canary *before* the real slice, failing fast instead of
+  burning the escalation budget (the 1.8.0 binding-constraint finding, enforced).
+- **retryPolicy telemetry** — records whether escalation rounds recover winners or
+  burn budget (recovery-vs-burn per run), so the defaults tune on evidence.
+- **Held-out ownership guard** — a PreToolUse hook (`hooks/held-out-guard.mjs`)
+  blocks destructive shell ops on the sealed tree *in code* (the reference-b
+  deletion class), complementing `seal-verify`'s after-the-fact detection.
+
+## Planned — next cycle (2026-07)
+
+Direction for the cycle after the 1.9.x hardening. Ordered by dependency: the
+brownfield work (3) unlocks the sealed integration testing (4) and motivates real
+worktrees (5); debug mode (1) and model-tier support (2) are independent.
+
+### 1. Post-aggregation debug mode (defect resolution after slice build)
+
+**Gap:** dark-factory can accept a known defect — a winner that passes the sealed
+suite but is wrong on behaviour the suite didn't cover — and there is currently
+**no way to resolve it after slice-build aggregation**. The crosscheck halt
+catches *reference divergence* pre-grade, but a suite blind-spot that ships clean
+has no post-hoc remedy short of re-running the whole slice.
+
+Wanted: a `debug` mode that, given a reproduced defect against a completed
+(possibly merged) slice, (a) mines the failing case into a new sealed test via the
+existing `inject`/`harness-mine` battery machinery, (b) re-seals with an audited
+`seal-amend`, and (c) re-runs *only* the affected slice (and its DAG dependents)
+against the sharpened suite — a targeted repair loop, not a full rebuild. The
+audit trail records the defect → test → re-selection chain so the fix is
+replayable and the blind-spot is closed for future slices.
+
+### 2. Higher-than-Opus model families (Claude Fable 5 and class)
+
+**Gap:** the cost meter prices any model by a `{inputPerMTok, outputPerMTok}`
+entry and roles take free-form model strings, so a Fable-5-class model *runs*
+today — but the harness has no notion of a capability/cost **tier** above Opus,
+and no guidance on where the extra spend is worth it.
+
+Wanted: first-class support for the Mythos-class tier (Claude Fable 5 and peers) —
+ship pricing-table entries, and a per-role recommendation that puts the strongest
+(most expensive) model where the field run proved it pays off: the **frozen
+test-author role** (the binding constraint) and the **judge**, with cheaper models
+on specimens. A tier-aware budgeter that reserves the premium tier for those roles
+and warns when it is used on high-volume specimen work.
+
+### 3. Brownfield: build on an existing codebase
+
+**Gap:** STZ assumes greenfield synthesis — specimens write files from a contract
+surface. There is no good way to take on **an existing codebase**: no structured
+exploration of what is already there, and the slicer's DAG is not cognisant of a
+slice's place *within* existing code (what it must not break, what it extends).
+
+Wanted: a brownfield entry path — a codebase-exploration phase (map modules,
+public surfaces, invariants, and existing tests) whose output conditions the
+slicer to produce a DAG of slices **anchored to real code locations**, each
+carrying the surrounding contract it must preserve. This is the prerequisite for
+specimens that *edit* rather than *synthesize*, and therefore for real worktrees
+(item 5).
+
+### 4. Sealed end-to-end integration + functional testing against source
+
+**Gap:** the sealed suite is per-slice and unit-level. There is no **integration
+or functional** test frozen and sealed against the *whole* source — nothing that
+proves the composed slices work together, or that a brownfield change preserves
+end-to-end behaviour.
+
+Wanted (depends on 3): a frozen, sealed integration/functional harness authored
+against the source codebase (not a single slice's contract), run as a gate after
+slice aggregation — the composition-level analogue of the per-slice sealed suite,
+with the same anti-reward-hacking discipline (author blind to specimens, sealed
+by content hash, cross-referenced).
+
+### 5. Per-specimen git worktrees + ephemeral observability
+
+**Gap (answers the standing question — NOT built):** specimens materialize into
+`prototypes/specimen-X/` directories and run in private temp dirs under the
+sandbox; there are **no git worktrees** and **no per-specimen observability
+stack**. Directory isolation is the honest minimum while specimens *synthesize*
+files.
+
+Wanted (paired with 3): real per-specimen git worktrees once slices **edit** a
+shared repo (so parallel edits don't collide), each with a scoped ephemeral
+observability stack (logs/metrics/traces) torn down at slice close — the Codex
+per-worktree pattern the original design called for, now motivated by brownfield.
+
+### 6. Cross-slice RAG / embeddings
+
+**Gap (confirmed — NOT built):** no vector store ships with the harness and no
+semantic lookup runs across the `.stz/` markdown tree. Progressive disclosure is
+by frontmatter summaries + stable claim ids only; cross-slice recall
+("did an earlier slice already set a convention for X?") is manual.
+
+Wanted: local embeddings (e.g. `nomic-embed-text` via Ollama — no managed vector
+service, matching N9/N5) over the markdown tree, scoped per phase-agent role,
+rebuilt incrementally on slice close. Unlocks id-free semantic spec-diff matching
+and cross-slice convention/decision recall as the tree grows.
