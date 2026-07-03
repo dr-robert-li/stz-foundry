@@ -37,6 +37,12 @@ export interface SpawnOptions {
   concurrency?: number;
   /** Per-specimen wall-clock kill (R10). Default: no timeout. */
   timeoutMs?: number;
+  /**
+   * Absolute run-level deadline (epoch ms, #4). A specimen not yet started once
+   * the deadline passes is skipped (reported killed:timeout); an in-flight one
+   * is bounded by whichever of `timeoutMs` / remaining-to-deadline is sooner.
+   */
+  deadlineMs?: number;
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
@@ -73,10 +79,18 @@ export async function spawnSpecimens(
     while (next < strategies.length) {
       const i = next++;
       const strategy = strategies[i]!;
+      // Run-level deadline: don't start a new specimen past the ceiling.
+      if (opts.deadlineMs !== undefined && Date.now() >= opts.deadlineMs) {
+        slots[i] = { strategy, reason: "timeout", detail: "run wall-clock deadline reached before spawn" };
+        continue;
+      }
+      // Effective per-specimen bound = min(explicit timeout, time left to deadline).
+      const remaining = opts.deadlineMs !== undefined ? opts.deadlineMs - Date.now() : Infinity;
+      const bound = Math.min(opts.timeoutMs ?? Infinity, remaining);
       try {
         const run = specimen.implement(manifest, strategy, refinement);
-        slots[i] = opts.timeoutMs
-          ? await withTimeout(run, opts.timeoutMs, strategy)
+        slots[i] = Number.isFinite(bound)
+          ? await withTimeout(run, bound, strategy)
           : await run;
       } catch (e) {
         slots[i] = {

@@ -236,8 +236,16 @@ export function defaultRunConfig(): RunConfig {
     retryPolicy: { retries: 2, replans: 1 },
     // Wide DAG by default — false dependencies serialize the build.
     sequencing: "fanout",
+    // Bound the frontier-width × N blast radius (0.4 unbounded-fanout fix).
+    maxParallelSlices: 3,
+    // Run-level wall-clock cap; 0 = unbounded (opt-in the ceiling).
+    runWallClockMs: 0,
   };
 }
+
+/** Fan-out throttle bounds — a frontier dispatch of at least one, at most 16. */
+export const MAX_PARALLEL_SLICES_MIN = 1;
+export const MAX_PARALLEL_SLICES_MAX = 16;
 
 const GRANULARITIES: readonly SlicingGranularity[] = ["coarse", "balanced", "fine"];
 const SEQUENCINGS: readonly Sequencing[] = ["fanout", "linear"];
@@ -306,6 +314,22 @@ export function normalizeRunConfig(partial: Partial<RunConfig> | undefined): Run
   }
   const sequencing = p.sequencing ?? base.sequencing;
 
+  // Fan-out throttle: integer ≥1, clamped to [1, 16]. Stringy numbers accepted.
+  let maxParallelSlices = base.maxParallelSlices;
+  if (p.maxParallelSlices !== undefined) {
+    const n = Math.round(Number(p.maxParallelSlices));
+    if (!Number.isFinite(n)) throw new Error(`invalid maxParallelSlices: ${p.maxParallelSlices}`);
+    maxParallelSlices = Math.max(MAX_PARALLEL_SLICES_MIN, Math.min(MAX_PARALLEL_SLICES_MAX, n));
+  }
+
+  // Run-level wall-clock cap (ms): non-negative integer, 0 = unbounded.
+  let runWallClockMs = base.runWallClockMs;
+  if (p.runWallClockMs !== undefined) {
+    const n = Math.round(Number(p.runWallClockMs));
+    if (!Number.isFinite(n) || n < 0) throw new Error(`invalid runWallClockMs: ${p.runWallClockMs}`);
+    runWallClockMs = n;
+  }
+
   // retryPolicy knobs: integers, -1 = unbounded, clamped to [-1, 99]. Stringy
   // numbers accepted (CLI args); anything non-numeric is a hard error.
   const retryPolicy = { ...base.retryPolicy };
@@ -336,6 +360,8 @@ export function normalizeRunConfig(partial: Partial<RunConfig> | undefined): Run
     darkFactory,
     retryPolicy,
     sequencing,
+    maxParallelSlices,
+    runWallClockMs,
     ...(harness ? { harness } : {}),
   };
 }

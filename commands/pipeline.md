@@ -107,11 +107,14 @@ action first, then alternatives. Examples by state:
 - all slices done → `[Run /stz-f:summary, Refresh, Stop]`
 
 Selecting a project-phase command runs it inline. Selecting tournament work
-dispatches `/stz-f:run <id>`. When the frontier holds more than one slice:
-`runConfig.sequencing` decides — `fanout` → you SHOULD run them as parallel
-background agents (the DAG says they are independent); `linear` → dispatch
-exactly ONE slice per tick even when the frontier is wider. Then refresh. Loop until the user stops or all slices are done, then recommend
-`/stz-f:summary`.
+dispatches `/stz-f:run <id>`. When the frontier holds more than one slice, run
+the `dispatch` array the bridge already computed — never the raw `frontier`.
+The bridge applies the throttle in code: `linear` → `dispatch` is one slice;
+`fanout` → `dispatch` is the frontier capped at `runConfig.maxParallelSlices`
+(so a wide frontier can't launch `frontier-width × N` specimens unbounded).
+Run every slice in `dispatch` as parallel background agents, then refresh (the
+next tick's `dispatch` picks up the rest). Loop until the user stops or all
+slices are done, then recommend `/stz-f:summary`.
 
 ## --auto
 
@@ -136,10 +139,10 @@ prompts:
   elicitation never produced a machine-checkable predicate, stop and say so
   rather than inventing acceptance. (In practice elicitation is already done
   before dark-factory drives anything.)
-- When the frontier holds independent slices and `runConfig.sequencing` is
-  `fanout`, run them as parallel background agents (the DAG says they are
-  independent); with `linear`, one slice per tick. Loop until every slice is
-  `done` or `halted`.
+- When the frontier holds independent slices, run the bridge's `dispatch` array
+  as parallel background agents (already throttled to `maxParallelSlices` under
+  `fanout`, or one slice under `linear`) — not the raw frontier. Loop until
+  every slice is `done` or `halted`.
 - **The one decision the factory defers, never guesses:** a `seal-crosscheck`
   divergence (`/stz-f:run` step 2) needs human adjudication and must not
   auto-rewrite. With no human present, `/stz-f:run` halts that slice rather than

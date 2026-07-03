@@ -21,9 +21,9 @@
  *    into priced cost tracking).
  */
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
-import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
+import { sandboxedNode } from "../sandbox.js";
 import type {
   DonePredicate,
   EvalResult,
@@ -93,7 +93,7 @@ export function checkEsmSyntax(code: string): string | null {
   try {
     const p = join(dir, "candidate.mjs");
     writeFileSync(p, code, "utf8");
-    const r = spawnSync("node", ["--check", p], { encoding: "utf8", timeout: 10_000 });
+    const r = sandboxedNode(["--check", p], { readDirs: [dir], timeout: 10_000 });
     return r.status === 0 ? null : (r.stderr || "syntax check failed").slice(0, 500);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -131,7 +131,7 @@ export function referenceSmokeCheck(harnessCode: string, referenceCode: string):
     const refPath = join(dir, "reference.mjs");
     writeFileSync(harnessPath, harnessCode, "utf8");
     writeFileSync(refPath, referenceCode, "utf8");
-    const r = spawnSync("node", [harnessPath, refPath], { encoding: "utf8", timeout: 20_000 });
+    const r = sandboxedNode([harnessPath, refPath], { readDirs: [dir], timeout: 20_000 });
     const lines = (r.stdout ?? "").trim().split("\n").filter(Boolean);
     const last = lines[lines.length - 1] ?? "";
     try {
@@ -172,7 +172,7 @@ export function referenceExportCheck(referenceCode: string, exportNames: string[
         `if (missing.length) { console.error("missing named export(s): " + missing.join(", ")); process.exit(1); }\n`,
       "utf8",
     );
-    const r = spawnSync("node", [probePath, refPath], { encoding: "utf8", timeout: 20_000 });
+    const r = sandboxedNode([probePath, refPath], { readDirs: [dir], timeout: 20_000 });
     if (r.status === 0) return null;
     return (
       "the reference implementation does not expose the contract's named exports: " +
@@ -198,7 +198,7 @@ export function harnessSelfCheck(harnessCode: string, exportNames: string[] = []
       exportNames.map((n) => `export function ${n}(...a) { return a[0]; }`).join("\n") +
       "\nexport default ((...a) => a[0]);\n";
     writeFileSync(dummyPath, dummy, "utf8");
-    const r = spawnSync("node", [harnessPath, dummyPath], { encoding: "utf8", timeout: 20_000 });
+    const r = sandboxedNode([harnessPath, dummyPath], { readDirs: [dir], timeout: 20_000 });
     const lines = (r.stdout ?? "").trim().split("\n").filter(Boolean);
     const last = lines[lines.length - 1] ?? "";
     try {

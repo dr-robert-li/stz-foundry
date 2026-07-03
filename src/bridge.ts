@@ -847,13 +847,22 @@ async function projectStatus(args: Record<string, string>): Promise<void> {
     runConfig = defaultRunConfig();
     runConfigBroken = true;
   }
+  // Fan-out throttle computed HERE (code), not left to the prose orchestrator:
+  // `linear` dispatches one slice; `fanout` dispatches at most maxParallelSlices.
+  // The pipeline command runs `dispatch`, never the raw (possibly wide) frontier.
+  const frontier = slicingDone ? runnable.frontier : [];
+  const dispatch =
+    runConfig.sequencing === "linear"
+      ? frontier.slice(0, 1)
+      : frontier.slice(0, Math.max(1, runConfig.maxParallelSlices));
   print({
     projectPhases: state.phaseStatus,
     progress,
     order: topo.order,
     sliceStatus,
     slices: sliceRows,
-    frontier: slicingDone ? runnable.frontier : [],
+    frontier,
+    dispatch,
     next: slicingDone ? runnable.next : null,
     blocked: !slicingDone,
     runConfig,

@@ -156,6 +156,9 @@ describe("runFoundry e2e (stage 5)", () => {
       n: 2,
       votesPerPair: 1,
       specimenTimeoutMs: 30_000,
+      // This e2e exercises the tournament; the preflight canary (a different
+      // contract) has its own dedicated test with a canary-aware mock.
+      preflight: false,
     });
 
     const { result, cost } = await runFoundry({ root, configPath, manifest: MANIFEST });

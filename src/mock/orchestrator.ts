@@ -65,6 +65,31 @@ export interface OrchestratorOptions {
   specimenTimeoutMs?: number;
   /** No-passers escalation bounds (run-config retryPolicy; default 1+1). */
   retryPolicy?: RetryPolicy;
+  /**
+   * Run-level wall-clock cap (ms) across all escalation rounds + specimen
+   * spawns. 0/undefined = unbounded. The ceiling the per-specimen timeout never
+   * gave: a stuck or looping run is halted, not left burning to the token cap.
+   */
+  runWallClockMs?: number;
+}
+
+/**
+ * retryPolicy telemetry (#6): the numbers that say whether escalation rounds
+ * EARN their budget or burn it. `retryPolicy` shipped with none. Aggregated
+ * across slices, `recoveredAfterEscalation / escalations` is the recovery rate
+ * and `tokensAfterRound1` is the price paid for it.
+ */
+export interface RetryTelemetry {
+  roundsRun: number;
+  /** The escalation actions taken this slice, in order (retry/replan). */
+  escalations: ("retry" | "replan")[];
+  /** True iff a selectable winner appeared only AFTER ≥1 escalation round. */
+  recoveredAfterEscalation: boolean;
+  /** Outcome: winner on round 1, winner after escalation, or halted no-passers. */
+  outcome: "first-round" | "recovered" | "halted";
+  tokensRound1: number;
+  /** Tokens spent in every round beyond the first (the cost of retrying). */
+  tokensAfterRound1: number;
 }
 
 export interface SliceResult {
@@ -77,6 +102,8 @@ export interface SliceResult {
   /** Relative paths of materialized audit artifacts under .stz/. */
   artifacts: string[];
   rounds: number;
+  /** retryPolicy telemetry (#6) — recovery vs burn for escalation rounds. */
+  retryTelemetry: RetryTelemetry;
 }
 
 /** Synthetic per-call token charge so the ledger/budget are exercised (N5). */
@@ -95,6 +122,9 @@ export async function runSlice(opts: OrchestratorOptions): Promise<SliceResult> 
   const n = opts.n ?? 4;
   const log = opts.log ?? (() => {});
   const tracker = new CostTracker();
+  // Run-level wall-clock ceiling (absolute epoch ms); Infinity when unbounded.
+  const runDeadline =
+    opts.runWallClockMs && opts.runWallClockMs > 0 ? Date.now() + opts.runWallClockMs : Infinity;
   const sliceDir = join("40-slices", manifest.id);
   const artifacts: string[] = [];
 
@@ -224,10 +254,52 @@ export async function runSlice(opts: OrchestratorOptions): Promise<SliceResult> 
   let winner: SpecimenId | null = null;
   let asBuilt: Spec | null = null;
   let rounds = 0;
+  // retryPolicy telemetry accumulators (#6).
+  let tokensRound1: number | null = null;
+  const escalations: ("retry" | "replan")[] = [];
+  const buildTelemetry = (
+    outcome: RetryTelemetry["outcome"],
+    roundsRun: number,
+  ): RetryTelemetry => {
+    const total = state.budget.tokensSpent;
+    const r1 = Math.min(tokensRound1 ?? total, total);
+    return {
+      roundsRun,
+      escalations: [...escalations],
+      recoveredAfterEscalation: outcome === "recovered",
+      outcome,
+      tokensRound1: r1,
+      tokensAfterRound1: Math.max(0, total - r1),
+    };
+  };
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
     rounds++;
+    // Once round 2 begins, round 1's full spend is known — snapshot it so the
+    // telemetry can separate first-round cost from the cost of retrying (#6).
+    if (rounds === 2) tokensRound1 = state.budget.tokensSpent;
+    // Run-level wall-clock ceiling (F14-adjacent, #4): a looping or wedged run
+    // is halted here rather than left to burn to the token cap. Checked before
+    // each round; the per-round spawn pool honours the same deadline.
+    if (Date.now() > runDeadline) {
+      state = appendEvent(
+        state,
+        "tournament",
+        "run-wall-clock-halt",
+        `run wall-clock cap (${opts.runWallClockMs}ms) exceeded after ${rounds - 1} round(s)`,
+      );
+      state.failureReport = `# Halt — run wall-clock cap exceeded\n\nThe run-level wall-clock ceiling of ${opts.runWallClockMs}ms was reached after ${rounds - 1} round(s) without a selectable winner.\n`;
+      await writeDoc(root, join(sliceDir, "failure-report.md"), {
+        frontmatter: { summary: `Halt: run wall-clock cap exceeded after ${rounds - 1} round(s).` },
+        body: state.failureReport,
+      });
+      artifacts.push(`${sliceDir}/failure-report.md`);
+      state = setPhaseStatus(state, "tournament", "failed");
+      await checkpoint();
+      await writeAudit(root, manifest.id, tracker, state);
+      return { sliceId: manifest.id, state, judgment: null, winner: null, halted: true, faithful: false, artifacts, rounds: rounds - 1, retryTelemetry: buildTelemetry("halted", rounds - 1) };
+    }
     state = setPhaseStatus(state, "tournament", "running");
     state.escalation = esc.stage;
     state.retryCount = esc.retryCount;
@@ -243,6 +315,7 @@ export async function runSlice(opts: OrchestratorOptions): Promise<SliceResult> 
     const spawned = await spawnSpecimens(model.specimen, manifest, strategies, refinement, {
       concurrency: opts.specimenConcurrency,
       timeoutMs: opts.specimenTimeoutMs,
+      deadlineMs: Number.isFinite(runDeadline) ? runDeadline : undefined,
     });
     for (const k of spawned.killed) {
       state = appendEvent(state, "tournament", "specimen-killed", `${k.strategy}: ${k.reason} — ${k.detail}`);
@@ -288,6 +361,7 @@ export async function runSlice(opts: OrchestratorOptions): Promise<SliceResult> 
       const { next, action } = onNoPassers(esc, opts.retryPolicy);
       esc = next;
       state.escalation = esc.stage;
+      if (action.type === "retry" || action.type === "replan") escalations.push(action.type);
       state = appendEvent(state, "judgment", `escalation-${action.type}`, action.note);
       await checkpoint();
       log(`[${manifest.id}] no passers → ${action.type}: ${action.note}`);
@@ -302,7 +376,7 @@ export async function runSlice(opts: OrchestratorOptions): Promise<SliceResult> 
         state = setPhaseStatus(state, "judgment", "failed");
         await checkpoint();
         await writeAudit(root, manifest.id, tracker, state);
-        return { sliceId: manifest.id, state, judgment: null, winner: null, halted: true, faithful: false, artifacts, rounds };
+        return { sliceId: manifest.id, state, judgment: null, winner: null, halted: true, faithful: false, artifacts, rounds, retryTelemetry: buildTelemetry("halted", rounds) };
       }
 
       // retry or replan: build refinement context (F9), advance the model round.
@@ -372,6 +446,7 @@ export async function runSlice(opts: OrchestratorOptions): Promise<SliceResult> 
       faithful: isFaithful(sdiff),
       artifacts,
       rounds,
+      retryTelemetry: buildTelemetry(rounds > 1 ? "recovered" : "first-round", rounds),
     };
   }
 }

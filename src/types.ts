@@ -361,6 +361,22 @@ export interface RunConfig {
   /** DAG shape + dispatch preference; see Sequencing. Default "fanout". */
   sequencing: Sequencing;
   /**
+   * Fan-out throttle: the max number of frontier slice tournaments dispatched
+   * concurrently under `fanout` sequencing. Without it, a wide frontier launches
+   * `frontier-width × N` specimens at once with no ceiling. The bridge computes
+   * the throttled `dispatch` set from this; `linear` always dispatches one.
+   * Clamped to [1, 16]. Default 3.
+   */
+  maxParallelSlices: number;
+  /**
+   * Run-level wall-clock cap (ms) across ALL slices/rounds — the ceiling the
+   * per-specimen and per-slice timeouts never provided. `0` = unbounded (only
+   * the token/USD hard caps stop the run). Enforced by the standalone foundry
+   * runner (the unattended path) and surfaced by the bridge for the in-session
+   * pipeline. Default 0.
+   */
+  runWallClockMs: number;
+  /**
    * Harness-level recursive self-improvement (0.9.0). Optional + default-off:
    * absent or `enabled:false` ⇒ STZ runs exactly as before (the per-slice
    * tournament is untouched and earned-correct). When enabled, `stz:evolve`

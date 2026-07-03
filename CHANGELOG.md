@@ -9,6 +9,54 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.9.0] — production-readiness hardening (sandbox, fan-out caps, preflight, telemetry, ownership guard)
+
+Five ship-blockers from the 1.8.0 field run, each researched, prototyped against
+alternatives, and validated end-to-end (316 tests green, +17 new).
+
+- **Execution sandbox (#3, the #1 ship-blocker)**: the eval seam ran
+  model-generated code as plain `node` with the runner's own filesystem,
+  network, and process table. New `src/sandbox.ts` routes all six spawn sites
+  (`runSealed`, `checkEsmSyntax`, the two reference gates, `harnessSelfCheck`,
+  and the coverage/mutation runs) through one `sandboxedNode` helper, layered
+  and default-deny (the denylist-escape lesson): **Linux** bwrap
+  (`--unshare-all` — no network, read-only host, tmpfs, coverage dir bound rw)
+  wrapped in `prlimit` (nproc/address-space/file-size/cpu caps kill fork &
+  memory bombs); **macOS** sandbox-exec (Seatbelt); **fallback** the Node
+  permission model with a LOUD audit warning (it does not isolate the network).
+  Level is probed once (bwrap/sandbox-exec must actually execute — nested
+  namespaces downgrade cleanly, never silently) and recorded in the foundry
+  cost report. `STZ_SANDBOX=bwrap|sandbox-exec|node-permission|none|auto`
+  overrides. Validated: a hostile harness's network exfil, home-dir write, and
+  process spawn are all neutralized while the real tournament still grades and
+  measures coverage.
+- **Fan-out throttle + run wall-clock cap (#4)**: `fanout` sequencing launched
+  `frontier-width × N` specimens with no ceiling, and only a per-specimen
+  timeout existed. New run-config `maxParallelSlices` (default 3, clamped
+  [1,16]) is enforced in code — the bridge `project-status` now emits a
+  throttled `dispatch` set the pipeline runs instead of the raw frontier. New
+  `runWallClockMs` (0 = unbounded) is a real run-level ceiling: the foundry
+  orchestrator halts a looping run at the deadline and the specimen pool skips
+  work that can't finish in time.
+- **Test-author preflight (#5)**: local-model runs are temperamental because
+  test-author strength is the binding constraint — discovered only after
+  burning a slice's escalation budget. `runFoundry` now proves the test-author
+  model can author a valid sealed harness for a trivial canary BEFORE the real
+  slice, failing fast with `FoundryPreflightError` ("promote a stronger model
+  to the testAuthor role"). `preflight:false` skips it.
+- **retryPolicy telemetry (#6)**: `retryPolicy` shipped with zero telemetry on
+  whether extra rounds recover winners or burn budget. Every run now records
+  `RetryTelemetry` (rounds, escalation actions, recovered-after-escalation,
+  first-round vs after-round-1 token spend), surfaced in the foundry cost
+  report so the defaults can be tuned on evidence.
+- **Held-out ownership guard (#2)**: the orchestration half is prose, so
+  "don't delete a sibling's files" was a prompt rule a model could violate (the
+  reference-b deletion). New `PreToolUse` hook (`hooks/held-out-guard.mjs`)
+  blocks — in code, before the tool runs — any Bash `rm`/`mv`/`find -delete`/
+  truncate targeting `.stz/30-tests/held-out/`, allowing only the sanctioned
+  `seal-amend`. Complements `seal-verify`'s after-the-fact drift detection with
+  up-front prevention.
+
 ## [1.8.0] — configurable retry/replan policy, durable crosscheck halts, sequencing knob
 
 Born from the first full dark-factory run (Space Invaders), where a linear

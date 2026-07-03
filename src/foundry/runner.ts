@@ -26,6 +26,7 @@ import { createProvider, type Provider, type ProviderKind } from "./provider.js"
 import { FoundryModelLayer, type FoundryRoles, type RoleModel } from "./model-layer.js";
 import { FoundryCostMeter, type CostCaps, type PricingTable } from "./cost.js";
 import { runSlice, type SliceResult } from "../mock/orchestrator.js";
+import { lastIsolation } from "../sandbox.js";
 
 export interface FoundryProviderSpec {
   kind: ProviderKind;
@@ -55,9 +56,68 @@ export interface FoundryConfig {
   specimenTimeoutMs?: number;
   /** No-passers escalation bounds (0 = halt, n = bounded, -1 = unbounded). */
   retryPolicy?: RetryPolicy;
+  /** Run-level wall-clock cap (ms) across all rounds. 0/undefined = unbounded. */
+  runWallClockMs?: number;
+  /**
+   * Test-author preflight (#5): before the real slice, prove the configured
+   * test-author model can author a valid sealed harness for a trivial canary.
+   * Test-author strength is the binding constraint for local-model runs; this
+   * fails fast with actionable guidance instead of burning the slice's whole
+   * escalation budget on a too-weak instrument. Default true; set false to skip.
+   */
+  preflight?: boolean;
 }
 
 const ROLE_NAMES = ["testAuthor", "strategist", "specimen", "judge", "documenter", "planner"] as const;
+
+/** Raised when the test-author preflight (#5) fails — actionable, not a crash. */
+export class FoundryPreflightError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FoundryPreflightError";
+  }
+}
+
+/** The trivial canary: any competent test-author authors a valid harness for it. */
+const PREFLIGHT_CANARY: SliceManifest = {
+  id: "preflight-canary",
+  name: "preflight-canary",
+  contract: "export function inc(n) — return n + 1 for any integer n.",
+  donePredicates: [{ id: "p1", expr: "inc(1) === 2", kind: "test" }],
+  traceTier: "minimal",
+  complexity: 1,
+  dependsOn: [],
+  judge: { votesPerPair: 1 },
+  summary: "preflight canary: prove the test-author role can author a sealed harness",
+};
+
+/**
+ * Test-author preflight (#5). Runs the FULL test-authoring gate (self-check +
+ * reference export + reference smoke) against a trivial canary. If the model
+ * cannot clear it, the real slice never had a chance — the sealed suite is the
+ * selection signal, and a defective author zeroes every specimen. Throws
+ * `FoundryPreflightError` with the fix (promote a stronger test-author model).
+ */
+export async function preflightTestAuthor(
+  layer: FoundryModelLayer,
+  log?: (msg: string) => void,
+): Promise<void> {
+  log?.("[preflight] validating test-author model on canary contract…");
+  try {
+    await layer.testAuthor.authorTests(PREFLIGHT_CANARY);
+    log?.("[preflight] test-author OK");
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    throw new FoundryPreflightError(
+      "test-author preflight failed: the configured test-author model could not produce a valid sealed " +
+        "harness for a TRIVIAL canary contract (inc(n) = n+1). Test-author strength is the binding constraint " +
+        "for local-model runs — promote a stronger model to the `testAuthor` role in foundry.json before the " +
+        `real slice, or set preflight:false to skip this check. Underlying failure: ${detail}`,
+    );
+  } finally {
+    layer.nextRound(); // reset the specimen ordinal the canary may have touched
+  }
+}
 
 /** Parse + validate a foundry config. Throws with a precise message on defects. */
 export function loadFoundryConfig(path: string, env: NodeJS.ProcessEnv = process.env): {
@@ -143,6 +203,9 @@ export async function runFoundry(opts: FoundryRunOptions): Promise<FoundryRunRes
     meter,
   });
 
+  // #5: prove the test-author model is strong enough BEFORE the real slice.
+  if (config.preflight !== false) await preflightTestAuthor(layer, opts.log);
+
   const manifest: SliceManifest = config.votesPerPair
     ? { ...opts.manifest, judge: { votesPerPair: config.votesPerPair } }
     : opts.manifest;
@@ -155,6 +218,7 @@ export async function runFoundry(opts: FoundryRunOptions): Promise<FoundryRunRes
     specimenConcurrency: config.specimenConcurrency,
     specimenTimeoutMs: config.specimenTimeoutMs,
     retryPolicy: config.retryPolicy,
+    runWallClockMs: config.runWallClockMs,
     log: opts.log,
   });
 
@@ -169,6 +233,9 @@ export async function runFoundry(opts: FoundryRunOptions): Promise<FoundryRunRes
     `- **output tokens:** ${totals.outputTokens}`,
     `- **cache-read tokens:** ${totals.cacheReadInputTokens}`,
     `- **priced spend:** $${totals.usd.toFixed(4)}`,
+    `- **eval sandbox isolation:** ${lastIsolation()}` +
+      (lastIsolation() === "node-permission" ? " (DEGRADED — no network isolation on this host)" : "") +
+      (lastIsolation() === "none" ? " (DISABLED — STZ_SANDBOX=none)" : ""),
     totals.unpricedModels.length
       ? `- **unpriced models ($0 assumed):** ${totals.unpricedModels.join(", ")}`
       : `- **unpriced models:** none`,
@@ -177,6 +244,14 @@ export async function runFoundry(opts: FoundryRunOptions): Promise<FoundryRunRes
     ...Object.entries(byRole).map(
       ([role, v]) => `- **${role}:** ${v.calls} call(s), ${v.tokens} tokens, $${v.usd.toFixed(4)}`,
     ),
+    "",
+    "## retryPolicy telemetry",
+    `- **rounds run:** ${result.retryTelemetry.roundsRun}`,
+    `- **escalations:** ${result.retryTelemetry.escalations.join(", ") || "none"}`,
+    `- **outcome:** ${result.retryTelemetry.outcome}` +
+      (result.retryTelemetry.recoveredAfterEscalation ? " (extra rounds recovered a winner)" : ""),
+    `- **tokens round 1:** ${result.retryTelemetry.tokensRound1}`,
+    `- **tokens after round 1 (retry cost):** ${result.retryTelemetry.tokensAfterRound1}`,
     "",
   ].join("\n");
   const reportPath = join(opts.root, ".stz", "90-audit", "foundry-cost.md");

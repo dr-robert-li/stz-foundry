@@ -18,10 +18,10 @@
  * runner resolves impl paths to absolute itself (the relative-path bug that bit
  * the first live run must never reach a user).
  */
-import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdtempSync, rmSync, readdirSync, mkdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { resolve, join } from "node:path";
+import { resolve, join, dirname } from "node:path";
+import { sandboxedNode } from "./sandbox.js";
 
 export interface SealedResult {
   passed: number;
@@ -34,11 +34,13 @@ const RUN_TIMEOUT_MS = 20_000;
 /** Run the sealed harness against one implementation file. */
 export function runSealed(sealedPath: string, implPath: string, covDir?: string): SealedResult {
   const abs = resolve(implPath);
+  const sealedAbs = resolve(sealedPath);
   const env = covDir ? { ...process.env, NODE_V8_COVERAGE: covDir } : process.env;
-  const r = spawnSync("node", [resolve(sealedPath), abs], {
-    encoding: "utf8",
-    timeout: RUN_TIMEOUT_MS,
+  const r = sandboxedNode([sealedAbs, abs], {
+    readDirs: [dirname(sealedAbs), dirname(abs)],
+    writeDirs: covDir ? [covDir] : [],
     env,
+    timeout: RUN_TIMEOUT_MS,
   });
   const out = (r.stdout ?? "").trim().split("\n").filter(Boolean);
   const last = out[out.length - 1] ?? "";
