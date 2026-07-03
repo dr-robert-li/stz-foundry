@@ -29,6 +29,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Exercise the real bwrap eval-sandbox path (and V8 coverage) rather than
+      # the degraded permission-model fallback. Best-effort userns relax for the
+      # AppArmor restriction on Ubuntu 24.04 runners.
+      - name: Install bubblewrap (eval sandbox)
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
       - name: Typecheck
         run: npm run typecheck
 

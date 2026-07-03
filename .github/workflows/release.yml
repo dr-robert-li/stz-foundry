@@ -51,6 +51,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The eval sandbox (src/sandbox.ts) uses bwrap on Linux; installing it here
+      # exercises the real OS-isolation path (and V8 coverage) in the gate rather
+      # than the degraded permission-model fallback. Best-effort userns relax for
+      # the AppArmor restriction on Ubuntu 24.04 runners.
+      - name: Install bubblewrap (eval sandbox)
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
       - name: Guard — this repo publishes stz-foundry, never the upstream package
         run: |
           NAME="$(node -p "require('./package.json').name")"
