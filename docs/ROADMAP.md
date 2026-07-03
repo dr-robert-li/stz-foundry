@@ -256,7 +256,11 @@ Each runtime needs: a bridge resolver entry (like the existing
 `CLAUDE_PLUGIN_ROOT` fallback), a host-native way to spawn N parallel specimens
 and collect pointers, and the per-role model map honored against that host's
 model catalog. The deterministic bridge is unchanged — it is host-agnostic by
-construction.
+construction. Registering each of these into its host is the job of the
+**unified installer** (see *Planned — next cycle §7*): `stz install --harness
+<codex|opencode|pi>` bootstraps STZ inside that runtime from the same npm global
+that provides the CLI, so a new harness is a new adapter + an installer case, not
+a separate distribution channel.
 
 > Note (2026-07): genuine **cross-family tournaments already run today** via the
 > 1.8.0 standalone foundry runner (per-role `{provider, model}` over the HTTP
@@ -998,3 +1002,36 @@ Wanted: local embeddings (e.g. `nomic-embed-text` via Ollama — no managed vect
 service, matching N9/N5) over the markdown tree, scoped per phase-agent role,
 rebuilt incrementally on slice close. Unlocks id-free semantic spec-diff matching
 and cross-slice convention/decision recall as the tree grows.
+
+### 7. Unified installer — one `npm install`, every harness registered
+
+**Gap:** installation is two steps and two mental models. `npm i -g stz-foundry`
+gets the CLI + standalone foundry runner; the Claude Code plugin is a *separate*
+`/plugin marketplace add` + `/plugin install`. The plugin already self-resolves
+its bundled `bin/stz.mjs` (no PATH needed), so the npm global is optional for
+in-session use — but there is no single command that sets up *both*, and nothing
+that would register STZ into any host other than Claude Code.
+
+Wanted: the npm package as the **one installation interface** for every surface.
+A new `stz install [--harness <name>|--all]` subcommand that detects installed
+agent harnesses and registers STZ's commands/agents into each from the single
+global install — idempotent, opt-in, uninstall-symmetric (`stz uninstall`):
+
+- **Claude Code** — write/register the marketplace + plugin entry into
+  `~/.claude/` (the sanctioned plugin path) so `/stz-f:*` is available without the
+  two manual slash commands. Detect via `~/.claude/`.
+- **Codex CLI / OpenCode / Pi** (folds in *Additional agentic-coding runtimes*
+  above) — install the host-native command/agent definitions and a bridge
+  resolver entry per host, so `stz install --harness codex` bootstraps STZ inside
+  that runtime the same way. Each host needs its adapter (spawn N specimens,
+  collect pointers, honour the per-role model map); the deterministic bridge is
+  unchanged, host-agnostic by construction.
+- **Standalone** — the CLI + foundry runner already work from the global install;
+  `stz install` is a no-op there beyond a PATH/health check.
+
+The result: `npm i -g stz-foundry && stz install --all` sets up the CLI, the
+standalone runner, and every detected in-session harness from one interface —
+and adding a new harness is a new adapter + an `install` case, not a new
+distribution channel. A prebuilt `dist/` (dropping the runtime `tsx`/`npx`
+fetch, noted in the gaps above) is a natural companion so a fresh install needs
+no network on first run.
