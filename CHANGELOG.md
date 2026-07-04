@@ -40,6 +40,17 @@ optionally end with the harness-evolution meta-loop.
   pattern as the dark-factory toggle, and `project-status` hoists it as
   `harnessEvolve`. Covered by two new tests (sibling-preservation regression +
   default-off/`--off`).
+- **`--auto` ≡ dark-factory, engaged mid-run** — `/stz-f:pipeline --auto` no
+  longer keeps the two human gates: it flips the dark-factory flag via the
+  bridge toggle and drives the rest of the run lights-out. Configured-at-
+  elicitation dark-factory and mid-run `--auto` are mirrors, differing only in
+  when the human steps away. `--dark` is now an alias. The invariant gates (F2
+  predicate confirmation, seal-crosscheck adjudication) hold in both.
+- **`/stz-f:pipeline --from <project-doc>`** — boot the pipeline from an
+  existing CLAUDE.md / AGENTS.md / PRD: the doc pre-answers elicitation, and
+  the user is asked only about missing requirements, contradictions (both
+  lines quoted, user picks), and unknowns. With an existing project the doc is
+  diffed against `00-intent/` as an amendment source. Composes with `--auto`.
 - **README quickstarts rewritten for a lay operator** — Quickstart 1 is now
   "two commands" plus a short *Good to know* list; Quickstart 2 trims the
   config walkthrough. The run-config knob detail moved to

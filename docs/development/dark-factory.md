@@ -97,10 +97,14 @@ and surface rather than auto-rewrite.
 ## Where the flag lives, and why a dedicated toggle
 
 `darkFactory` is a boolean on the persisted run config (`00-intent/run-config.json`).
-It is set two ways:
+It is set three ways:
 
 1. **At the end of elicitation** — `/stz-f:new` asks once, after the predicate gate.
-2. **At any point** — `stz bridge project-dark-factory --root . --on` (or `--off`).
+2. **Mid-run** — `/stz-f:pipeline --auto` (alias `--dark`): the same lights-out
+   behaviour, engaged at any point. `--auto` flips the flag via the bridge
+   toggle and drives the rest of the run; dark-factory-at-elicitation and
+   `--auto`-mid-run are mirrors, differing only in when the human steps away.
+3. **Directly** — `stz bridge project-dark-factory --root . --on` (or `--off`).
 
 The toggle is a deliberate **load-modify-save**: it reads the existing config,
 flips the one field, and writes it back. It is NOT routed through

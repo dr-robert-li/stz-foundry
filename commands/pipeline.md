@@ -1,6 +1,6 @@
 ---
 description: The STZ pipeline dashboard. Show project phase and per-slice status, recommend the next step, and dispatch it.
-argument-hint: "[--auto]"
+argument-hint: "[--auto] [--from <project-doc>]"
 ---
 
 ## Setup: locate the bridge
@@ -126,20 +126,55 @@ Run every slice in `dispatch` as parallel background agents, then refresh (the
 next tick's `dispatch` picks up the rest). Loop until the user stops or all
 slices are done, then recommend `/stz-f:summary`.
 
-## --auto
+## --auto — engage dark-factory mid-run
 
-With `--auto`, follow the recommended next action without prompting, looping
-phase → phase → (`/stz-f:explore` if brownfield and unmapped) → per-slice runs →
-`/stz-f:integration` → summary → (`/stz-f:evolve` if `harnessEvolve`), pausing
-only at the two human gates (`/stz-f:new` predicate confirmation and
-`/stz-f:slice` "Approve as-is").
+`--auto` and dark-factory mode are the SAME behaviour; the only difference is
+how they are engaged. Dark-factory is configured up front (the question at the
+end of `/stz-f:new`); `--auto` is the mid-run entry — invoke
+`/stz-f:pipeline --auto` at ANY point to remove the human from the loop from
+that point on. On `--auto`, first run
+`$STZ bridge project-dark-factory --root . --on` (so every downstream command
+sees the hoisted `darkFactory:true` and skips its own gate), then follow the
+dark-factory section below to completion: phase → phase → (`/stz-f:explore` if
+unmapped) → per-slice runs → `/stz-f:integration` (+ retryPolicy-bounded
+`/stz-f:debug` repair) → `/stz-f:summary` → (`/stz-f:evolve` if
+`harnessEvolve`). `--dark` is an alias for `--auto`.
+
+The invariant gates hold exactly as in dark-factory: the F2 predicate gate in
+`/stz-f:new` is never skipped (if elicitation hasn't produced a
+machine-checkable predicate yet, stop there and say so), and seal-crosscheck
+divergences still halt their slice for human adjudication.
+
+## --from <project-doc> — boot from an existing project file
+
+`/stz-f:pipeline --from CLAUDE.md` (or `AGENTS.md`, a PRD, any project doc)
+seeds the pipeline from a document instead of a blank elicitation. Read the
+doc, then:
+
+- **No project yet** → chain into `/stz-f:new --auto @<doc>`. The doc
+  pre-answers elicitation areas A–E wherever it can; ask the user ONLY about
+  what the doc leaves
+  - **missing** — a requirement the pipeline needs that the doc never states,
+  - **contradictory** — two claims that cannot both hold (quote both lines and
+    ask which wins; never silently pick one),
+  - **unknown** — scope or constraints too ambiguous to act on.
+  The F2 predicate gate applies unchanged: at least one machine-checkable
+  done-predicate must be confirmed by the user — derived from the doc where
+  possible, but never auto-invented.
+- **Project exists** → treat the doc as an amendment source: diff it against
+  the `00-intent/` tier (intent, constraints, predicates). Surface additions
+  and contradictions as targeted AUQs, record the resolutions
+  (`project-record-area`), then continue the normal loop from the current
+  phase.
+
+`--from` composes with `--auto`: `--from <doc> --auto` runs lights-out after
+the predicate confirmation.
 
 ## Dark-factory mode (autonomous, no human in the loop)
 
-When `project-status` reports `darkFactory:true` (or the run was invoked
-`/stz-f:pipeline --dark`, which first runs `$STZ bridge project-dark-factory
---root . --on` then proceeds), drive the whole pipeline to completion with NO
-prompts:
+When `project-status` reports `darkFactory:true` (set at elicitation, via the
+bridge toggle, or by `--auto`/`--dark` above), drive the whole pipeline to
+completion with NO prompts:
 
 - Skip the dispatch AUQ entirely. At each tick, run the recommended next action
   directly, then refresh — exactly the `--auto` loop, but the two human gates are

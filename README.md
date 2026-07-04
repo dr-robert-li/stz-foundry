@@ -125,9 +125,14 @@ the next step, so you can also run each phase yourself:
 Good to know:
 
 - **Dark-factory mode** — offered at the end of `/stz-f:new`: lights-out from
-  research to report, no human gates. Optionally add the `/stz-f:evolve`
-  meta-loop at the end (off by default). Contract and knobs:
+  research to report, no human gates. `/stz-f:pipeline --auto` is the same
+  thing engaged mid-run — invoke it any time to go hands-off from that point.
+  Optionally add the `/stz-f:evolve` meta-loop at the end (off by default).
+  Contract and knobs:
   [`docs/development/dark-factory.md`](docs/development/dark-factory.md).
+- **Already have a CLAUDE.md / AGENTS.md / PRD?** `/stz-f:pipeline --from
+  AGENTS.md` starts from it — you're only asked about gaps, contradictions,
+  and unknowns.
 
 ### Running commands independently
 
