@@ -52,23 +52,31 @@ review. The factory defers that decision; it does not guess.
 Three commands that began as standalone entries are part of the autonomous loop
 (they were previously run by hand around it):
 
-- **`/stz-f:explore` (brownfield entry).** Before slice-disaggregation, if the
-  repo contains existing source and no `10-research/codebase-map.json`, the
-  orchestrator runs the explore scan. It is deterministic (bridge-owned, no
-  model, no gate), so autonomy skips nothing by running it — and every slice
-  anchor gets validated against real code before a specimen writes a line.
+- **`/stz-f:explore` (brownfield entry).** Before slice-disaggregation, if no
+  `10-research/codebase-map.json` exists, the orchestrator runs the explore
+  scan. It is deterministic (bridge-owned, no model, no gate), so autonomy skips
+  nothing by running it — and every slice anchor gets validated against real
+  code before a specimen writes a line. The bridge owns the greenfield/brownfield
+  call: a scan that finds no source files writes NO map (the slicer keys
+  brownfield mode on the map's existence), so a sourceless repo stays greenfield
+  with no agent judgment involved.
 - **`/stz-f:integration` (the composition gate).** Once every slice is `done` or
   `halted`, the sealed end-to-end gate runs *before* the summary. Its
   seal-crosscheck is subject to the same human-only halt rule as a per-slice
   crosscheck.
-- **`/stz-f:debug` (bounded red-gate repair).** A red integration gate is
-  reduced to a concrete `fn(input) === expected` case and taken through
+- **`/stz-f:debug` (red-gate repair, retryPolicy-bounded).** A red integration
+  gate is reduced to a concrete `fn(input) === expected` case and taken through
   `/stz-f:debug` on the offending slice. This is autonomy-safe because the
   bridge's twice-verified oracle refuses a case the shipped winner already
   passes or the reference fails — the factory cannot poison its own suite. The
-  loop is bounded: ONE debug → re-run → re-gate cycle per offending slice; an
-  irreducible failure, a reference-fails rejection (a spec disagreement), or a
-  second red gate halts that thread for human review, surfaced in the summary.
+  loop is bounded by the SAME `retryPolicy` elicited during `/stz-f:new`, not a
+  separate knob: up to `retries` debug → re-run → re-gate cycles per offending
+  slice (default 2; `0` halts on the first red gate; `-1` unbounded — stopped
+  only by the token/USD caps), while the re-run tournament inside each cycle is
+  the normal `/stz-f:run` escalation loop, whose no-passer rounds obey the same
+  policy including `replans`. An irreducible failure or a reference-fails
+  rejection (a spec disagreement) halts immediately regardless of remaining
+  retries; every halt surfaces in the summary.
 
 ## The evolve meta-loop (opt-in, default off)
 

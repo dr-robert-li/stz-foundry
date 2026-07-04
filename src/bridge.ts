@@ -1112,6 +1112,14 @@ async function exploreCmd(args: Record<string, string>): Promise<void> {
   const exclude = args.exclude ? args.exclude.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
   const map = exploreCodebase(target, { include, exclude });
 
+  // The slicer keys brownfield mode on the MAP'S EXISTENCE, so an empty map
+  // must never be written: it would force every slice to carry anchors against
+  // a codebase that has nothing to anchor to. No source files ⇒ greenfield.
+  if (map.summary.fileCount === 0) {
+    print({ fileCount: 0, greenfield: true, note: "no source files found — greenfield project; no codebase map written" });
+    return;
+  }
+
   const mapPath = codebaseMapPath(root);
   mkdirSync(dirname(mapPath), { recursive: true });
   writeFileSync(mapPath, JSON.stringify(map, null, 2) + "\n", "utf8");

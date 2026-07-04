@@ -35,6 +35,10 @@ actually exists — no hallucinated paths reach a tournament.
    - `10-research/codebase-map.json` — machine-readable, what the slicer reads,
    - `10-research/codebase-map.md` — the human summary table.
 
+   If the scan finds NO source files it writes nothing and reports
+   `{greenfield:true}` — the slicer keys brownfield mode on the map's existence,
+   so a sourceless repo stays greenfield. Safe to run unconditionally.
+
 2. **Read the map + add judgement (the agent's part).** The scan gives structure,
    not meaning. Spawn `stz-researcher` (or read it yourself) to layer on what the
    map cannot compute: which modules are load-bearing, what invariants the

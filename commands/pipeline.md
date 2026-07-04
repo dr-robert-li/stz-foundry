@@ -151,10 +151,12 @@ prompts:
   elicitation never produced a machine-checkable predicate, stop and say so
   rather than inventing acceptance. (In practice elicitation is already done
   before dark-factory drives anything.)
-- **Brownfield entry:** before dispatching `/stz-f:slice`, if the repo contains
-  existing source and `10-research/codebase-map.json` is absent, run
-  `/stz-f:explore` first (the scan is deterministic — bridge-owned, no gate to
-  skip) so every slice anchor is validated against real code.
+- **Brownfield entry:** before dispatching `/stz-f:slice`, if
+  `10-research/codebase-map.json` is absent, run `/stz-f:explore` first (the
+  scan is deterministic — bridge-owned, no gate to skip) so every slice anchor
+  is validated against real code. The bridge decides greenfield vs brownfield:
+  a scan that finds no source files writes NO map, so the slicer stays in
+  greenfield synthesis — you never judge that yourself.
 - When the frontier holds independent slices, run the bridge's `dispatch` array
   as parallel background agents (already throttled to `maxParallelSlices` under
   `fanout`, or one slice under `linear`) — not the raw frontier. Loop until
@@ -165,10 +167,15 @@ prompts:
   If the gate is **red**, reduce the failure to a concrete
   `fn(input) === expected` case and run `/stz-f:debug <offending-slice>` — the
   bridge's twice-verified oracle makes this autonomy-safe (it refuses a case the
-  winner passes or the reference fails). At most ONE debug → re-run → re-gate
-  cycle per offending slice; a failure that cannot be reduced to a concrete case,
-  a reference-fails rejection (spec disagreement), or a second red gate on the
-  same slice halts that thread for human review and is surfaced in the summary.
+  winner passes or the reference fails). Repair cycles are governed by the SAME
+  run-config `retryPolicy` set during elicitation: up to `retries`
+  debug → re-run → re-gate cycles per offending slice (default 2; `0` halts on
+  the first red gate; `-1` unbounded — stopped only by the token/USD caps), and
+  the re-run inside each cycle is the normal `/stz-f:run` loop, whose no-passer
+  rounds obey the same policy (including `replans`) via the escalate FSM. Two
+  things halt immediately regardless of remaining retries: a failure that cannot
+  be reduced to a concrete case, and a reference-fails rejection (a spec
+  disagreement). All halts surface in the summary.
 - **The one decision the factory defers, never guesses:** a `seal-crosscheck`
   divergence (`/stz-f:run` step 2) needs human adjudication and must not
   auto-rewrite. With no human present, `/stz-f:run` halts that slice rather than

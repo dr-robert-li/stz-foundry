@@ -112,8 +112,14 @@ Two commands take a project from idea to completion report:
 the next step, so you can also run each phase yourself:
 
 ```text
-/stz-f:research → /stz-f:validate → /stz-f:conventions → /stz-f:tests → /stz-f:slice
-→ /stz-f:run <id> (once per slice) → /stz-f:integration → /stz-f:summary
+/stz-f:research       gather the facts — docs, prior art, your existing code
+/stz-f:validate       ground-truth every research claim against reality
+/stz-f:conventions    lock style, architecture, and naming standards
+/stz-f:tests          lock the test strategy BEFORE any code is written
+/stz-f:slice          break the work into small, independent slices
+/stz-f:run <id>       the tournament — N rival implementations, best one wins (once per slice)
+/stz-f:integration    sealed end-to-end check that the slices work together
+/stz-f:summary        the completion report — what was built, how, and why
 ```
 
 Good to know:

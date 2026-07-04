@@ -148,6 +148,17 @@ describe("brownfield bridge (explore + anchor-check)", () => {
     expect(out<{ ok: boolean; danglingFiles: string[] }>().danglingFiles).toEqual(["src/ghost.ts"]);
   });
 
+  it("explore on a repo with no source files writes NO map (stays greenfield)", async () => {
+    await scaffold(dir);
+    await runBridge(["explore", "--root", dir, "--target", dir]);
+    const summary = out<{ fileCount: number; greenfield: boolean }>();
+    expect(summary.fileCount).toBe(0);
+    expect(summary.greenfield).toBe(true);
+    // No map ⇒ the slicer never flips into brownfield/anchor mode.
+    expect(existsSync(join(dir, STZ_DIR, "10-research", "codebase-map.json"))).toBe(false);
+    expect(process.exitCode).toBe(0);
+  });
+
   it("anchor-check errors clearly when no map has been produced yet", async () => {
     await scaffold(dir);
     writeFileSync(join(dir, "a.json"), JSON.stringify({ sliceId: "x", mode: "edit", targetFiles: ["y.ts"] }));
