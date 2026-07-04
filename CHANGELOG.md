@@ -9,6 +9,32 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.16.0] — npm-path install mirrors the plugin install (hooks included)
+
+`stz install` and `/plugin install stz-f` now produce equivalent installs. The
+npm path previously registered commands + agents but NOT the hooks — losing the
+`held-out-guard` PreToolUse hook, the code-level guard that blocks destructive
+Bash commands against the sealed held-out suite.
+
+- **`stz install` registers the hooks** — copies `hooks/*.{sh,mjs}` to
+  `<config-dir>/hooks/stz-f/` and merges the two registrations (PreToolUse
+  held-out guard, SessionStart banner) into `<config-dir>/settings.json` with
+  RESOLVED absolute paths (the plugin's `hooks.json` uses
+  `${CLAUDE_PLUGIN_ROOT}`, which only exists under a plugin install).
+  User-owned settings and hooks are preserved; re-install is idempotent
+  (STZ-owned entries are recognised by the `hooks/stz-f` path marker and
+  replaced, never duplicated).
+- **`stz uninstall` deregisters them** — removes exactly the STZ-owned entries
+  from `settings.json` (pruning emptied events), the hook scripts, and the
+  namespace dir; the manifest records the settings path so uninstall touches
+  the right file even for a custom `--config-dir`.
+- CLI install/uninstall output now reports hook counts and the settings file;
+  counts are computed from resolved target subdirs (a config dir whose own
+  name contains "hooks" no longer skews them).
+- `foundry-identity` release-guard test now reads `tag-and-release.yml` —
+  `release.yml` was removed (npm Trusted Publishing is registered per workflow
+  filename, so it could never publish; it only trapped hand-pushed tags).
+
 ## [1.15.0] — dark-factory loop absorbs explore/integration/debug; opt-in evolve
 
 The autonomous loop (`/stz-f:pipeline --auto` and dark-factory mode) now owns

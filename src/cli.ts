@@ -254,10 +254,15 @@ function cmdInstall(argv: string[]): void {
     }
     const plan = planInstall(rt, configDir, assetRoot());
     const res = applyInstall(plan, { dryRun });
+    // Count by the resolved target subdirs, not substring matching — a config
+    // dir whose own name contains "hooks"/"commands" must not skew the counts.
+    const under = (subdir?: string) => (subdir ? plan.ops.filter((o) => o.to.startsWith(join(configDir, subdir))).length : 0);
     console.log(
       `${dryRun ? "[dry-run] would install" : "✓ installed"} STZ into ${rt.displayName} at ${configDir}\n` +
-        `  ${res.written.length} file(s): ${plan.ops.filter((o) => o.to.includes("commands")).length} command(s), ` +
-        `${plan.ops.filter((o) => o.to.includes("agents")).length} agent(s)` +
+        `  ${res.written.length} file(s): ${under(rt.commandsSubdir)} command(s), ` +
+        `${under(rt.agentsSubdir)} agent(s), ` +
+        `${under(rt.hooksSubdir)} hook(s)` +
+        (res.settingsPath ? `\n  hooks ${dryRun ? "would be " : ""}registered in ${res.settingsPath} (held-out guard + session banner)` : "") +
         (dryRun ? "" : `\n  manifest: ${res.manifestPath}  (undo with: stz uninstall${f.harness ? " --harness " + rt.name : ""}${f["config-dir"] ? " --config-dir " + f["config-dir"] : ""})`),
     );
   }
@@ -276,7 +281,8 @@ function cmdUninstall(argv: string[]): void {
     const res = uninstall(configDir);
     console.log(
       res.removed.length
-        ? `✓ removed ${res.removed.length} STZ file(s) from ${rt.displayName} at ${configDir}`
+        ? `✓ removed ${res.removed.length} STZ file(s) from ${rt.displayName} at ${configDir}` +
+            (res.settingsCleaned ? " (hook registrations removed from settings.json)" : "")
         : `nothing to remove for ${rt.displayName} at ${configDir} (no STZ install manifest).`,
     );
   }

@@ -78,8 +78,9 @@ For the in-session commands you have two options. Either the Claude Code plugin:
 ```
 
 …or, from the single npm install above, the **unified installer** — one command
-registers the `/stz-f:*` commands + agents into an agent harness at a location
-you choose:
+registers the `/stz-f:*` commands, agents, and hooks (the sealed-suite guard)
+into an agent harness at a location you choose — the two install paths are
+equivalent:
 
 ```bash
 stz install                          # → Claude Code (~/.claude), the default

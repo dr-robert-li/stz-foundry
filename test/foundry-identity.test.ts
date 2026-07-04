@@ -27,7 +27,9 @@ describe("foundry identity (stage 0)", () => {
   });
 
   it("the release workflow guards against publishing the upstream package", () => {
-    const wf = read(".github/workflows/release.yml");
+    // tag-and-release.yml is the ONLY release path (release.yml was removed:
+    // npm Trusted Publishing is registered per workflow filename).
+    const wf = read(".github/workflows/tag-and-release.yml");
     // the name guard must exist and pin the new package name
     expect(wf).toContain('if [ "$NAME" != "stz-foundry" ]');
     // and no step may reference the upstream package as a publish target

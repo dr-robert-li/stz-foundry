@@ -34,6 +34,13 @@ export interface RuntimeDescriptor {
   commandsSubdir: string;
   /** Where STZ agents land under the config dir. */
   agentsSubdir: string;
+  /**
+   * Where STZ hook scripts land, for runtimes that support hook registration.
+   * Absent ⇒ the runtime has no hook adapter and hooks are skipped.
+   */
+  hooksSubdir?: string;
+  /** The runtime's settings file (relative to the config dir) hooks register in. */
+  settingsFile?: string;
   /** true = assets are applied; false = detected + reported, adapter pending. */
   supported: boolean;
 }
@@ -48,6 +55,8 @@ export const RUNTIMES: RuntimeDescriptor[] = [
     envVar: "CLAUDE_CONFIG_DIR",
     commandsSubdir: join("commands", "stz-f"),
     agentsSubdir: "agents",
+    hooksSubdir: join("hooks", "stz-f"),
+    settingsFile: "settings.json",
     supported: true,
   },
   // Detected + reported today; asset adapters land with the runtime work (§
@@ -117,16 +126,24 @@ export interface InstallPlan {
   supported: boolean;
   ops: FileOp[];
   manifestPath: string;
+  /** Set when the runtime supports hooks: the settings file to register them in. */
+  settingsPath?: string;
+  /** The installed hook-scripts dir (also the settings-entry ownership marker). */
+  hooksDir?: string;
 }
 
 const MANIFEST_REL = join(".stz-install", "manifest.json");
 const listMd = (dir: string): string[] =>
   existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".md")).sort() : [];
+/** Hook SCRIPTS ship as .sh/.mjs; hooks.json is the plugin-path manifest (uses
+ * CLAUDE_PLUGIN_ROOT, meaningless outside a plugin install) and is skipped. */
+const listHookScripts = (dir: string): string[] =>
+  existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".sh") || f.endsWith(".mjs")).sort() : [];
 
 /**
- * Compute the file operations to install STZ's command + agent surface into
- * `configDir`. Pure — no writes — so `--dry-run` and the apply path share it.
- * `assetRoot` is the package root that ships `commands/` and `agents/`.
+ * Compute the file operations to install STZ's command + agent + hook surface
+ * into `configDir`. Pure — no writes — so `--dry-run` and the apply path share
+ * it. `assetRoot` is the package root that ships `commands/`, `agents/`, `hooks/`.
  */
 export function planInstall(rt: RuntimeDescriptor, configDir: string, assetRoot: string): InstallPlan {
   const ops: FileOp[] = [];
@@ -134,7 +151,84 @@ export function planInstall(rt: RuntimeDescriptor, configDir: string, assetRoot:
   for (const f of listMd(cmdSrc)) ops.push({ from: join(cmdSrc, f), to: join(configDir, rt.commandsSubdir, f) });
   const agentSrc = join(assetRoot, "agents");
   for (const f of listMd(agentSrc)) ops.push({ from: join(agentSrc, f), to: join(configDir, rt.agentsSubdir, f) });
-  return { runtime: rt.name, configDir, supported: rt.supported, ops, manifestPath: join(configDir, MANIFEST_REL) };
+  let settingsPath: string | undefined;
+  let hooksDir: string | undefined;
+  if (rt.hooksSubdir && rt.settingsFile) {
+    const hookSrc = join(assetRoot, "hooks");
+    const scripts = listHookScripts(hookSrc);
+    if (scripts.length > 0) {
+      hooksDir = join(configDir, rt.hooksSubdir);
+      settingsPath = join(configDir, rt.settingsFile);
+      for (const f of scripts) ops.push({ from: join(hookSrc, f), to: join(hooksDir, f) });
+    }
+  }
+  return { runtime: rt.name, configDir, supported: rt.supported, ops, manifestPath: join(configDir, MANIFEST_REL), settingsPath, hooksDir };
+}
+
+/**
+ * The hook registrations `stz install` owns — the same events/commands as the
+ * plugin's hooks/hooks.json, but with RESOLVED paths (no CLAUDE_PLUGIN_ROOT,
+ * which only exists under a plugin install).
+ */
+function stzHookEvents(hooksDir: string): Record<string, unknown[]> {
+  return {
+    SessionStart: [
+      { matcher: "startup|resume", hooks: [{ type: "command", command: `bash "${join(hooksDir, "session-start.sh")}"` }] },
+    ],
+    PreToolUse: [
+      { matcher: "Bash", hooks: [{ type: "command", command: `node "${join(hooksDir, "held-out-guard.mjs")}"` }] },
+    ],
+  };
+}
+
+/** Ownership test: a settings hook group is STZ's iff a command references our hooks dir. */
+function isStzGroup(group: unknown, marker: string): boolean {
+  const hooks = (group as { hooks?: { command?: string }[] })?.hooks ?? [];
+  return hooks.some((h) => typeof h?.command === "string" && h.command.includes(marker));
+}
+
+const STZ_MARKER = join("hooks", "stz-f");
+
+/**
+ * Merge STZ's hook registrations into the runtime's settings file, preserving
+ * everything the user already has. Idempotent: any previous STZ-owned groups
+ * (recognised by the hooks/stz-f path marker) are replaced, never duplicated.
+ */
+export function registerHooks(settingsPath: string, hooksDir: string): void {
+  const settings: Record<string, unknown> = existsSync(settingsPath)
+    ? (JSON.parse(readFileSync(settingsPath, "utf8")) as Record<string, unknown>)
+    : {};
+  const hooks = (settings.hooks ?? {}) as Record<string, unknown[]>;
+  for (const [event, groups] of Object.entries(stzHookEvents(hooksDir))) {
+    const existing = Array.isArray(hooks[event]) ? hooks[event] : [];
+    hooks[event] = [...existing.filter((g) => !isStzGroup(g, STZ_MARKER)), ...groups];
+  }
+  settings.hooks = hooks;
+  mkdirSync(join(settingsPath, ".."), { recursive: true });
+  writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8");
+}
+
+/**
+ * Remove exactly the STZ-owned hook groups from the settings file, leaving the
+ * user's own hooks (and every other setting) untouched. No-op if the file or
+ * the entries are gone already.
+ */
+export function deregisterHooks(settingsPath: string): boolean {
+  if (!existsSync(settingsPath)) return false;
+  const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as Record<string, unknown>;
+  const hooks = settings.hooks as Record<string, unknown[]> | undefined;
+  if (!hooks) return false;
+  let changed = false;
+  for (const event of Object.keys(hooks)) {
+    if (!Array.isArray(hooks[event])) continue;
+    const kept = hooks[event].filter((g) => !isStzGroup(g, STZ_MARKER));
+    if (kept.length !== hooks[event].length) changed = true;
+    if (kept.length === 0) delete hooks[event];
+    else hooks[event] = kept;
+  }
+  if (Object.keys(hooks).length === 0) delete settings.hooks;
+  if (changed) writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8");
+  return changed;
 }
 
 export interface ApplyResult {
@@ -143,6 +237,8 @@ export interface ApplyResult {
   written: string[];
   dryRun: boolean;
   manifestPath: string;
+  /** Settings file the hooks were (or would be) registered in, when applicable. */
+  settingsPath?: string;
 }
 
 /** Execute a plan. `dryRun` writes nothing. Records a manifest for uninstall/update. */
@@ -154,31 +250,46 @@ export function applyInstall(plan: InstallPlan, opts: { dryRun?: boolean } = {})
       copyFileSync(op.from, op.to);
       written.push(op.to);
     }
+    if (plan.settingsPath && plan.hooksDir) registerHooks(plan.settingsPath, plan.hooksDir);
     mkdirSync(join(plan.manifestPath, ".."), { recursive: true });
     writeFileSync(
       plan.manifestPath,
-      JSON.stringify({ version: STZ_VERSION, runtime: plan.runtime, files: written }, null, 2) + "\n",
+      JSON.stringify(
+        { version: STZ_VERSION, runtime: plan.runtime, files: written, ...(plan.settingsPath ? { settings: plan.settingsPath } : {}) },
+        null,
+        2,
+      ) + "\n",
       "utf8",
     );
   } else {
     for (const op of plan.ops) written.push(op.to);
   }
-  return { runtime: plan.runtime, configDir: plan.configDir, written, dryRun: !!opts.dryRun, manifestPath: plan.manifestPath };
+  return {
+    runtime: plan.runtime,
+    configDir: plan.configDir,
+    written,
+    dryRun: !!opts.dryRun,
+    manifestPath: plan.manifestPath,
+    settingsPath: plan.settingsPath,
+  };
 }
 
 export interface UninstallResult {
   removed: string[];
   manifestPath: string;
+  /** true when STZ hook registrations were removed from the settings file. */
+  settingsCleaned: boolean;
 }
 
 /**
  * Reverse an install: read the manifest and remove exactly the files it wrote
- * (plus the now-empty stz-f command namespace dir), then the manifest itself.
+ * (plus the now-empty stz-f namespace dirs), deregister the STZ hook entries
+ * from the settings file, then remove the manifest itself.
  */
 export function uninstall(configDir: string): UninstallResult {
   const manifestPath = join(configDir, MANIFEST_REL);
-  if (!existsSync(manifestPath)) return { removed: [], manifestPath };
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { files: string[] };
+  if (!existsSync(manifestPath)) return { removed: [], manifestPath, settingsCleaned: false };
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { files: string[]; settings?: string };
   const removed: string[] = [];
   for (const f of manifest.files ?? []) {
     if (existsSync(f)) {
@@ -186,13 +297,15 @@ export function uninstall(configDir: string): UninstallResult {
       removed.push(f);
     }
   }
-  // Prune the stz-f command namespace dir if we emptied it.
-  const nsDir = join(configDir, "commands", "stz-f");
-  if (existsSync(nsDir) && readdirSync(nsDir).length === 0) rmSync(nsDir, { recursive: true, force: true });
+  const settingsCleaned = manifest.settings ? deregisterHooks(manifest.settings) : false;
+  // Prune the stz-f namespace dirs if we emptied them.
+  for (const nsDir of [join(configDir, "commands", "stz-f"), join(configDir, "hooks", "stz-f")]) {
+    if (existsSync(nsDir) && readdirSync(nsDir).length === 0) rmSync(nsDir, { recursive: true, force: true });
+  }
   rmSync(manifestPath, { force: true });
   const installDir = join(configDir, ".stz-install");
   if (existsSync(installDir) && readdirSync(installDir).length === 0) rmSync(installDir, { recursive: true, force: true });
-  return { removed, manifestPath };
+  return { removed, manifestPath, settingsCleaned };
 }
 
 /** Which runtimes a `--harness`/`--all` selection resolves to. */
