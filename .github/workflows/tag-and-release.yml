@@ -10,10 +10,11 @@ name: Tag and Release
 #     → npm publish (Trusted Publishing OIDC + provenance)
 #     → GitHub release with the CHANGELOG section as notes
 #
-# Publishing happens INLINE here (not by chaining release.yml): tags pushed
-# with GITHUB_TOKEN deliberately do not trigger other workflows, so a
-# tag-only pipeline would silently never publish. release.yml still covers
-# hand-pushed tags (`git push --follow-tags`); both share the same guards.
+# Publishing happens INLINE here: tags pushed with GITHUB_TOKEN deliberately
+# do not trigger other workflows, so a tag-only pipeline would silently never
+# publish. This is the ONLY release path — npm Trusted Publishing is
+# registered for this workflow filename specifically, so a hand-pushed tag
+# publishes nothing; always release via Actions → "Tag and Release".
 #
 # Auth: npm Trusted Publishing (OIDC, no token) — configured on npmjs.com for
 # dr-robert-li/stz-foundry. `--provenance` stamps a verified link back to

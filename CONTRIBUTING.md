@@ -74,15 +74,16 @@ doubt, push logic down into `src/` so it can be tested and replayed.
 
 ## Releasing
 
-Releases are tag-driven. Pushing a `v*` tag runs `.github/workflows/release.yml`,
-which gates (typecheck + tests), publishes to npm with **`--provenance`** via
-**Trusted Publishing** (OIDC — no token; the package requires 2FA and disallows
-tokens), then opens the GitHub release from the matching `CHANGELOG` section.
+Releases go through ONE path: the **Tag and Release** workflow
+(`.github/workflows/tag-and-release.yml`), run from Actions → "Tag and
+Release" (or `gh workflow run tag-and-release.yml -f bump=none`). It gates
+(typecheck + tests), optionally bumps the version, creates + pushes the tag,
+publishes to npm with **`--provenance`** via **Trusted Publishing** (OIDC — no
+token; the package requires 2FA and disallows tokens), then opens the GitHub
+release from the matching `CHANGELOG` section.
 
-```bash
-# bump all four version sites + CHANGELOG, commit, then:
-git tag -a vX.Y.Z -m "vX.Y.Z" && git push --follow-tags origin main
-```
+Do NOT hand-push `v*` tags: Trusted Publishing is registered for that workflow
+filename specifically, so a hand-pushed tag publishes nothing.
 
 **Do CI/release-pipeline fixes on a short-lived branch and squash-merge into
 `main` — never iterate the workflow with debug commits directly on the default
