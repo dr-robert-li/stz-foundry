@@ -128,20 +128,34 @@ Good to know:
   research to report, no human gates. Optionally add the `/stz-f:evolve`
   meta-loop at the end (off by default). Contract and knobs:
   [`docs/development/dark-factory.md`](docs/development/dark-factory.md).
-- **Existing codebase?** `/stz-f:explore` maps it so slices anchor to real
-  files; the pipeline runs it automatically when needed.
-- **Integration gate** — `/stz-f:integration` runs after the slices: a sealed
-  end-to-end suite proves they work *together* (and that a brownfield change
-  kept every preserved export).
-- **Shipped bug the tests missed?** `/stz-f:debug <slice>` mines it into a
-  sealed regression test and re-runs the slice — that defect can never win
-  again.
-- **One-off slice, no project setup:** `/stz-f:run payment-validator`.
-- Run behaviour (parallelism, retries, models per role, budgets) is chosen
-  during `/stz-f:new`; every question has a safe default — answer "You decide"
-  to accept it.
-- Advanced, opt-in: `/stz-f:contract` (typed correctness predicates),
-  `/stz-f:inject` (suite hardening), `/stz-f:evolve` (harness evolution).
+
+### Running commands independently
+
+Truly standalone — no prior phases needed:
+
+- `/stz-f:run <id>` — a one-off slice tournament with no project setup:
+  `/stz-f:run payment-validator`.
+- `/stz-f:explore` — deterministic bridge scan of an existing codebase; safe to
+  run any time (writes no map if the repo has no source files).
+- `/stz-f:pipeline` — read-only dashboard; works at any state.
+
+Need prior state, but can be invoked directly once it exists:
+
+- `/stz-f:research`, `/stz-f:validate`, `/stz-f:conventions`, `/stz-f:tests` —
+  need a project initialized by `/stz-f:new`, and are sequential (validate
+  ground-truths research output, and so on).
+- `/stz-f:slice` — needs the earlier phases; slice execution stays blocked
+  until slice-disaggregation completes.
+- `/stz-f:integration` — needs all slices done (a composed artifact to gate).
+- `/stz-f:summary` — aggregates whatever exists; makes sense only after runs.
+- `/stz-f:debug <slice>` — needs a shipped winner + sealed reference to mine
+  against.
+
+Gated by config:
+
+- `/stz-f:evolve` — refuses unless `harness.enabled:true` in the run config
+  (the `Evolve` question in `/stz-f:new`, or
+  `stz bridge project-harness-evolve --on`).
 
 ## Quickstart 2 — the standalone foundry runner (BYO LLM)
 
