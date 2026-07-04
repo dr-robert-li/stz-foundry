@@ -105,7 +105,7 @@ Two commands take a project from idea to completion report:
 
 ```text
 /stz-f:new                answer the questions — your done-conditions become the contract
-/stz-f:pipeline --auto    drives everything else, ends with a completion report
+/stz-f:pipeline --auto    flips to dark-factory mode mid-run, drives to the end with a completion report
 ```
 
 `/stz-f:pipeline` (no flag) is the dashboard: it shows status and recommends
