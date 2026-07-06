@@ -9,6 +9,25 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.16.1] — path-traversal guard on slice-reset (security)
+
+A missing-validation fix in `src/bridge.ts`. A slice `id` flowed unmodified into
+`join(root, ".stz", "40-slices", id, …)` and then a forced recursive delete
+(`rmSync({ recursive: true, force: true })`). Because `path.join` normalizes
+`..`, an id such as `../../../x` resolved *outside* the `.stz` tree — and outside
+`root` — so `slice-reset --slice <id>` (and `seal-amend`'s re-run set) could
+delete arbitrary directories.
+
+- **`resetSlice` now guards its id** — a single shared `assertSafeSliceId`
+  asserts `^[A-Za-z0-9_-]+$` (real ids are `slice-01` form, so nothing
+  legitimate is rejected) and throws before any delete, covering both the
+  `slice-reset` CLI path and the `seal-amend` re-run set. Mirrors the existing
+  `spec.name` sanitizer used for the mutator-battery filename.
+- Surfaced by a supply-chain scanner flagging the `rmSync` primitive; the other
+  flagged primitives (`execFileSync` of specimen suites, dynamic `RegExp` in
+  `harness-mine`) are by-design for a local single-tenant tournament runner and
+  are unchanged.
+
 ## [1.16.0] — npm-path install mirrors the plugin install (hooks included)
 
 `stz install` and `/plugin install stz-f` now produce equivalent installs. The

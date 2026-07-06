@@ -225,4 +225,18 @@ describe("debug-mode functional (bridge debug-case + slice-reset)", () => {
     expect(existsSync(statePath(dir, "slice-a"))).toBe(false);
     expect(existsSync(statePath(dir, "slice-b"))).toBe(false);
   });
+
+  it("slice-reset rejects a path-traversal slice id and deletes nothing outside .stz", async () => {
+    // A canary that a `../../canary` id would resolve onto (statePath →
+    // dir/.stz/40-slices/../../canary → dir/canary) if the guard were absent.
+    const canary = join(dir, "canary");
+    mkdirSync(canary, { recursive: true });
+    writeFileSync(join(canary, "keep.txt"), "do-not-delete", "utf8");
+
+    await expect(
+      runBridge(["slice-reset", "--root", dir, "--slice", "../../canary"]),
+    ).rejects.toThrow(/unsafe slice id/);
+
+    expect(existsSync(join(canary, "keep.txt"))).toBe(true);
+  });
 });

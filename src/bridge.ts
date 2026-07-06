@@ -1283,8 +1283,23 @@ async function debugCaseCmd(args: Record<string, string>): Promise<void> {
   });
 }
 
+/**
+ * Reject any slice id that could escape the `.stz` tree. `id` flows unmodified
+ * into `join(root, ".stz", "40-slices", id, …)` and then a forced recursive
+ * delete; `path.join` normalizes `..`, so an id like `../../../x` would resolve
+ * outside `.stz` (and outside `root`). Real ids are `slice-01` form, so a strict
+ * allowlist rejects nothing legitimate. Mirrors the `spec.name` sanitizer used
+ * for the mutator battery filename.
+ */
+function assertSafeSliceId(id: string): void {
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+    throw new Error(`unsafe slice id ${JSON.stringify(id)} — expected [A-Za-z0-9_-]+ (path-traversal guard)`);
+  }
+}
+
 /** Reset one slice's per-slice artifacts so its derived status returns to pending. */
 function resetSlice(root: string, id: string): void {
+  assertSafeSliceId(id); // guard the forced recursive delete against path traversal
   for (const p of [
     statePath(root, id),
     stzPath(root, join(sliceRel(id), "tournament")),
