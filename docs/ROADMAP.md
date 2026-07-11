@@ -1065,3 +1065,54 @@ and adding a new harness is a new adapter + an `install` case, not a new
 distribution channel. A prebuilt `dist/` (dropping the runtime `tsx`/`npx`
 fetch, noted in the gaps above) is a natural companion so a fresh install needs
 no network on first run.
+
+### 8. Harness factory — specialized harnesses as the output artifact
+
+**Design locked (2026-07-10), not built.** Full design:
+`docs/development/harness-factory.md`. The abstraction ladder: STZ makes code →
+the same tournament machinery can make *agents* (specimens write `agents/*.md`
+instead of implementations) → the factory assembles tournament-won components
+(agents + commands + skills + hooks + docs + eval batteries) into a complete
+**specialized harness** — a full stack on top of an LLM, packaged as an
+installable plugin, tuned per vertical (data-ops, BI, customer support,
+performance marketing, …).
+
+Not a new machine: the 0.9.0 evolve loop already scores an agent-configuration
+by downstream tournament outcome on held-out truth suites; the DGM archive,
+GRPO selection, six-gate promotion, diversity floor, and kill-switches are
+substrate-agnostic and reused verbatim. Two net-new mechanisms only:
+
+- **Agentic eval seam** — `runAgentBattery` spawns a candidate agent per
+  battery task via the provider seam and scores its artifacts with the existing
+  contract predicate kinds, emitting the same `EvalResult` shape the bridge
+  already consumes.
+- **Oracle provenance typing** — the α→0 guard (the PAPER.md earned negative)
+  as a type: every battery/fitness signal carries an
+  `OracleReceipt {kind: execution|constructed|replay|anchored-judge, acceptedBy,
+  lineage}`; a **seventh promotion gate** refuses any promotion whose fitness
+  lineage lacks an exogenous ancestor. Exogeneity is harvested (execution /
+  answer-first construction / replay), never manufactured; anchored judges
+  amortize truth but never create it.
+
+Vertical admission is decided by oracle class: **data-ops pilots**
+(execution + construction: dbt, data-diff, fixture warehouse — zero oracle
+latency), BI second, support/perf-marketing later (replay, horizon-capped,
+`rubricCalibrated` mandatory), and **RevOps / GTM / exec-strategy refused**
+until a forecast-mode oracle (resolvable predictions, Brier ex post) exists.
+
+Phases, each independently valuable:
+
+1. Agentic eval seam (`src/foundry/agent-runner.ts`, `battery-types.ts`,
+   `OracleReceipt` schema) — standalone agent-benchmark harness.
+2. Component tournaments — seam swapped into slice machinery; GEPA-style
+   reflective prompt mutation (bounded budget); search-set/promotion-set
+   battery split (Goodhart bound); seventh promotion gate.
+3. `HarnessBlueprint` + deterministic best-per-slot assembly + data-ops pilot
+   battery (fixture-warehouse generator + dbt/data-diff oracle).
+4. Emit/packaging — `src/foundry/emit.ts` (inverse of `planInstall`),
+   plugin.json/marketplace.json generation, docs via documenter/summarizer,
+   fix the pre-existing installer `skills/` gap.
+5. Harness-level evolve — parameterize `src/harness.ts` substrates from code
+   pilots to domain batteries; gated on phases 1–4 showing gains; evolve
+   discipline verbatim (held-out, recall-free, 3-seed, variance floor,
+   MANIFEST replay).
