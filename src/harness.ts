@@ -19,13 +19,13 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import type { ArchiveEntry, HarnessGenome, PromotionInputs } from "./types.js";
+import type { ArchiveEntry, ComponentArchiveEntry, HarnessGenome, PromotionInputs, SpecimenId } from "./types.js";
 // Re-exported so every existing importer of `PromotionInputs` from
 // `../src/harness.js` keeps working — the single definition now lives in
 // `types.js` (see that file's doc comment for why).
 export type { PromotionInputs } from "./types.js";
 import type { JudgeReliabilityProfile, SliceTypeReliability } from "./judge-reliability.js";
-import { stzPath } from "./taxonomy.js";
+import { stzPath, assertSafePathSegment } from "./taxonomy.js";
 import { genomeHash } from "./harness-hash.js";
 
 // ── the seed/incumbent genome ───────────────────────────────────────────────
@@ -309,4 +309,98 @@ export function makeArchiveEntry(args: {
     childCount: 0,
     gates: args.gates,
   };
+}
+
+// ── component-altitude archive (Phase 2, 02-03 — D-02/CONTEXT D2) ──────────
+//
+// ponytail: two parallel archive implementations (this block + the genome
+// trio above) rather than one parameterized store keyed by an audit-kind
+// enum. Upgrade to a shared parameterized store when a THIRD altitude
+// arrives — duplicating two small call sites now is cheaper than a generic
+// abstraction built for one caller that never exercises its flexibility.
+
+/**
+ * `slot` is caller-supplied and flows into a directory create — reject any
+ * escaping segment BEFORE joining or `mkdirSync`, via the repo's one
+ * existing path-traversal guard (never a second, bespoke check).
+ */
+export function componentDir(root: string, slot: string): string {
+  assertSafePathSegment(slot, "component slot");
+  return join(harnessDir(root), "component", slot);
+}
+
+export function componentManifestPath(root: string, slot: string): string {
+  return join(componentDir(root, slot), "MANIFEST.json");
+}
+
+/** Missing file ⇒ empty list, mirrors `readArchive`. */
+export function readComponentArchive(root: string, slot: string): ComponentArchiveEntry[] {
+  const p = componentManifestPath(root, slot);
+  if (!existsSync(p)) return [];
+  return JSON.parse(readFileSync(p, "utf8")) as ComponentArchiveEntry[];
+}
+
+function writeComponentArchive(root: string, slot: string, entries: ComponentArchiveEntry[]): void {
+  mkdirSync(componentDir(root, slot), { recursive: true });
+  writeFileSync(componentManifestPath(root, slot), JSON.stringify(entries, null, 2) + "\n", "utf8");
+}
+
+/** Append one entry to a slot's component archive (append-order = audit
+ *  sequence — mirrors the genome archive, and never interleaves with it:
+ *  a different manifest path entirely). */
+export function appendComponentArchiveEntry(
+  root: string,
+  slot: string,
+  entry: ComponentArchiveEntry,
+): ComponentArchiveEntry[] {
+  const entries = readComponentArchive(root, slot);
+  entries.push(entry);
+  writeComponentArchive(root, slot, entries);
+  return entries;
+}
+
+/** Content-addressed id for an agent-definition specimen's text — same hash
+ *  width as `genomeHash`, so ids read alike across both altitudes. */
+export function componentVariantId(definitionText: string): string {
+  return createHash("sha256").update(definitionText).digest("hex").slice(0, 16);
+}
+
+/**
+ * Construct a `ComponentArchiveEntry`. `searchPromotionGap` is DERIVED here
+ * from the two fitness numbers — never accepted as an argument, so a
+ * hand-entered gap (the unearned-number shape REQ-21 exists to prevent)
+ * cannot reach the audit trail.
+ */
+export function makeComponentArchiveEntry(args: {
+  slot: string;
+  specimenId: SpecimenId;
+  definitionText: string;
+  parent: string | null;
+  searchFitness: number;
+  promotionFitness: number;
+  advantage: number;
+  gates: PromotionInputs;
+}): ComponentArchiveEntry {
+  const definitionHash = componentVariantId(args.definitionText);
+  return {
+    schemaVersion: 1,
+    variantId: definitionHash,
+    parent: args.parent,
+    artifact: { slot: args.slot, specimenId: args.specimenId, definitionHash },
+    fitness: args.promotionFitness,
+    searchFitness: args.searchFitness,
+    promotionFitness: args.promotionFitness,
+    searchPromotionGap: args.searchFitness - args.promotionFitness,
+    advantage: args.advantage,
+    childCount: 0,
+    gates: args.gates,
+  };
+}
+
+/** The current incumbent for one slot = highest-`fitness` archived entry
+ *  (ties → first appended). Mirrors `incumbent`. */
+export function componentIncumbent(root: string, slot: string): ComponentArchiveEntry | null {
+  const entries = readComponentArchive(root, slot);
+  if (entries.length === 0) return null;
+  return entries.reduce((best, e) => (e.fitness > best.fitness ? e : best), entries[0]!);
 }
