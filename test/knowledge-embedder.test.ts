@@ -269,6 +269,29 @@ describe("embedderForFingerprint round-trips both providers", () => {
     }
     expect(embedderForFingerprint("fallback:hashed-ngram:256:v1")).not.toBeNull();
   });
+
+  /**
+   * Every case above is rejected by a PARSE guard, so none of them reaches the
+   * final round-trip identity check — deleting that line left the whole suite
+   * green (survived mutant M14, phase verification). These fingerprints parse
+   * cleanly and would reconstruct into a DIFFERENT embedder, which is precisely
+   * the cross-embedder comparison the design forbids: the vectors would be
+   * incomparable but the identity would claim otherwise.
+   */
+  it("returns null for a fingerprint that parses but reconstructs into a different embedder", () => {
+    // Parses as a `fallback:` scheme, but the only fallback algorithm is
+    // hashed-ngram — rebuilding this yields `fallback:hashed-ngram:256:v1`.
+    expect(embedderForFingerprint("fallback:word2vec:256:v1")).toBeNull();
+    // A different dimension is NOT this case — `fallback:hashed-ngram:512:v1` is a
+    // legitimate identity that reconstructs exactly, so it must still round-trip.
+    expect(embedderForFingerprint("fallback:hashed-ngram:512:v1")?.fingerprint).toBe(
+      "fallback:hashed-ngram:512:v1",
+    );
+    // The control: the default one still round-trips too.
+    expect(embedderForFingerprint("fallback:hashed-ngram:256:v1")?.fingerprint).toBe(
+      "fallback:hashed-ngram:256:v1",
+    );
+  });
 });
 
 describe("fallback determinism is cross-PROCESS, not just cross-call (D2/N6)", () => {

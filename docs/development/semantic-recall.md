@@ -233,6 +233,18 @@ the embedding model, you must re-measure — the table above does not transfer:
 Warning signs either way: every query returning exactly the cap for every kind
 (floor too low), or zero semantic hits ever (floor too high).
 
+**What the floor does NOT do: rank.** It is a noise gate, not a relevance
+guarantee. Measured against the live daemon during phase verification, the query
+`"house style for identifiers"` returned its intended target at 0.5635 — but an
+unrelated storage ADR scored **0.5778 and outranked it**, and 3 of 5 documents
+cleared the floor. Off-domain noise is bounded as calibrated (7 unrelated queries
+averaged 0.5057, below both the 0.5242 ceiling and the 0.54 floor), but *in-domain
+prose from the same project is not separable by cosine alone at this range*. That
+is why the per-kind caps and the mandatory explanation matter: a caller is meant
+to read `explanation.semantic.cosine` and judge, not to treat rank 1 as the
+answer. Do not raise the floor to fix this — it would strand true positives long
+before it separated in-domain neighbours.
+
 **Bound: `0 < floor <= 1`.** A floor at or below 0 does not tune the layer, it
 deletes the no-bulk-injection guard. If a measurement genuinely suggests one, that
 is evidence the scoring model is wrong, not that the floor should be 0. Tests
