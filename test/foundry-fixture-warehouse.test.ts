@@ -9,6 +9,9 @@
  * controls (a null/echo candidate scoring below 1) are Plan 01-03's job.
  */
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve as resolvePath, relative } from "node:path";
 import {
   generateWarehouse,
   buildTasks,
@@ -30,6 +33,8 @@ import {
 import type { OracleReceipt } from "../src/foundry/battery-types.js";
 import { runAgentBattery, type CandidateAgent } from "../src/foundry/agent-runner.js";
 import type { ChatRequest, ChatResponse, Provider } from "../src/foundry/provider.js";
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** House rule (test/foundry-battery-types.test.ts:44-51): assert the thrown
  *  message's CONTENT, never bare `.toThrow()` — a mutation that relocates
@@ -460,5 +465,83 @@ describe("fixture-warehouse — answer-key containment at the task-PROMPT level 
         }
       }
     }
+  });
+});
+
+// ── answer-key independence as a WALKABLE import-graph invariant (REQ-24/D5,
+// RESEARCH Pitfall 5) — a structural check that would stay green even under
+// the violation it claims to catch is not a control, it is decoration. The
+// discrimination control below (test/fixtures/answer-key-violation.ts) is a
+// deliberately-broken sibling module the SAME walker must flag. ────────────
+
+/** The agent/provider layer, named EXPLICITLY rather than pattern-matched —
+ *  a later addition to this layer is therefore a deliberate decision to
+ *  extend this list, never a silent gap. Anything reachable under
+ *  `src/mock/` is ALSO forbidden, checked separately below by directory
+ *  prefix (that directory holds several files; an enumerable literal would
+ *  drift as it grows, whereas this small named list of single FILES is
+ *  exactly what "explicit, not pattern-matched" means for a bounded set). */
+export const ANSWER_KEY_FORBIDDEN_MODULES: readonly string[] = [
+  "src/foundry/provider.ts",
+  "src/foundry/agent-runner.ts",
+  "src/foundry/model-layer.ts",
+  "src/foundry/runner.ts",
+  "src/foundry/spawn.ts",
+  "src/foundry/component-tournament.ts",
+  "src/foundry/reflective-mutation.ts",
+];
+
+function isForbiddenModule(repoRelativePath: string): boolean {
+  return ANSWER_KEY_FORBIDDEN_MODULES.includes(repoRelativePath) || repoRelativePath.startsWith("src/mock/");
+}
+
+/**
+ * Resolves every RELATIVE `from "<specifier>"` in `entryFile` transitively —
+ * both value and type imports (a type-only import of `Provider` is still a
+ * signal worth refusing, so the regex does not distinguish `import type`
+ * from `import`). A `.js` suffix is rewritten to `.ts` (the project's own
+ * ESM-specifiers-resolve-to-.ts convention) and each specifier is resolved
+ * against the IMPORTING file's own directory, then recursed with a visited
+ * set. Bare specifiers (`node:crypto`, `vitest`, ...) are skipped — this
+ * walker only follows the repo's own module graph. Returns REPO-ROOT-RELATIVE
+ * paths, including the entry file itself (so "the set is non-empty" is a
+ * meaningful assertion even for a leaf module).
+ */
+function walkImportGraph(entryFile: string): Set<string> {
+  const visited = new Set<string>();
+  const stack = [resolvePath(entryFile)];
+  while (stack.length > 0) {
+    const abs = stack.pop()!;
+    const relPath = relative(REPO_ROOT, abs);
+    if (visited.has(relPath)) continue;
+    visited.add(relPath);
+    let content: string;
+    try {
+      content = readFileSync(abs, "utf8");
+    } catch {
+      continue; // unreadable — recorded as reachable, cannot be followed further
+    }
+    for (const match of content.matchAll(/\bfrom\s+["']([^"']+)["']/g)) {
+      const specifier = match[1]!;
+      if (!specifier.startsWith(".")) continue; // bare specifier — skipped
+      const rewritten = specifier.endsWith(".js") ? specifier.slice(0, -3) + ".ts" : specifier;
+      stack.push(resolvePath(dirname(abs), rewritten));
+    }
+  }
+  return visited;
+}
+
+describe("fixture-warehouse — answer-key independence as a walkable import-graph invariant (REQ-24/D5, RESEARCH Pitfall 5)", () => {
+  it("the reachable set from fixture-warehouse.ts has ZERO intersection with the agent/provider layer, and is non-empty", () => {
+    const reachable = walkImportGraph(join(REPO_ROOT, "src/foundry/fixture-warehouse.ts"));
+    expect(reachable.size).toBeGreaterThan(0);
+    expect(reachable.has("src/foundry/battery-types.ts")).toBe(true);
+    const forbiddenHits = [...reachable].filter((p) => isForbiddenModule(p));
+    expect(forbiddenHits).toEqual([]);
+  });
+
+  it("the SAME walker started at the discrimination-control fixture DOES report the provider layer — proving the guard is discriminating, not silent", () => {
+    const reachable = walkImportGraph(join(REPO_ROOT, "test/fixtures/answer-key-violation.ts"));
+    expect(reachable.has("src/foundry/provider.ts")).toBe(true);
   });
 });
