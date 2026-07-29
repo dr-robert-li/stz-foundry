@@ -31,6 +31,8 @@ import {
   type SemanticInput,
 } from "../src/knowledge/retrieval.js";
 import type { Embedder } from "../src/knowledge/embedder.js";
+import { resolveRoleScope, capsForRole } from "../src/knowledge/scope.js";
+import { STZ_ROLES } from "../src/types.js";
 
 beforeEach(() => {
   process.env.STZ_EMBED = "fallback";
@@ -285,5 +287,68 @@ describe("repo_note stays capped at 0 with the semantic layer engaged (CTIM-Rove
     const hits = retrieve([note], query, DEFAULT_CAPS, semanticAt({ "note.messy": 1.0 }));
     expect(DEFAULT_CAPS.repo_note).toBe(0);
     expect(hits).toEqual([]);
+  });
+});
+
+// ── role scoping is default-deny, not default-everything (REQ-08) ────────────
+
+describe("role scoping — an unknown role retrieves nothing", () => {
+  it("returns null for every string outside STZ_ROLES", () => {
+    // The case-variant matters most: a case-insensitive lookup is the most
+    // tempting "helpful" simplification and it turns a typo into a successful
+    // privilege grant. A role string is the only thing standing between an
+    // `execution` specimen and the judging rubric.
+    for (const bad of ["", " ", "not-a-role", "executon", "plannning", "EXECUTION", "Judging", "*"]) {
+      expect(resolveRoleScope(bad), bad).toBeNull();
+      expect(capsForRole(bad), bad).toBeNull();
+    }
+  });
+
+  it("resolves a scope for EVERY member of STZ_ROLES — asserted by ITERATING the constant", () => {
+    // Iterated, never a hardcoded list of six names: a seventh role added to
+    // `src/types.ts` fails here instead of quietly falling through the lookup.
+    expect(STZ_ROLES.length).toBeGreaterThan(0);
+    for (const role of STZ_ROLES) {
+      const scope = resolveRoleScope(role);
+      expect(scope, role).not.toBeNull();
+      expect(scope!.kinds.length, role).toBeGreaterThan(0);
+    }
+  });
+
+  it("merges every role's caps OVER DEFAULT_CAPS, so repo_note stays 0 for all of them", () => {
+    // `DEFAULT_CAPS` is typed `Record<RetrievableKind, number>`, so its keys ARE
+    // the union: a new kind must be added there (typecheck) and is then covered
+    // here automatically. A role that REPLACED the defaults instead of merging
+    // over them would drop `repo_note: 0` and silently re-enable the one kind
+    // the whole CTIM-Rover mitigation exists to disable.
+    const everyKind = Object.keys(DEFAULT_CAPS) as RetrievableKind[];
+    for (const role of STZ_ROLES) {
+      const caps = capsForRole(role)!;
+      expect(Object.keys(caps).sort(), role).toEqual(everyKind.slice().sort());
+      expect(caps.repo_note, role).toBe(0);
+    }
+  });
+
+  it("keeps the judging rubric out of the execution scope — structurally and end to end", () => {
+    const execution = resolveRoleScope("execution")!;
+    expect(execution.kinds).not.toContain("rubric");
+
+    // …and the structural fact is enforced where it matters: `requestedKinds`
+    // comes from the scope's kinds, so a perfect-cosine rubric is unreachable.
+    // `capsForRole()` CANNOT be the control — it merges over DEFAULT_CAPS and
+    // therefore still carries a non-zero cap for `rubric`.
+    expect(capsForRole("execution")!.rubric).toBeGreaterThan(0);
+
+    const pool = [kindArt("20-standards/rubric.md", "rubric"), kindArt("20-standards/conv.md", "convention")];
+    const semantic = semanticAt({ "20-standards/rubric.md": 1.0, "20-standards/conv.md": 1.0 });
+    const hits = retrieve(
+      pool,
+      { symbols: [], keywords: [NO_OVERLAP], requestedKinds: execution.kinds, stepId: "step-role" },
+      capsForRole("execution")!,
+      semantic,
+    );
+    const ids = hits.map((h) => h.artifact.id);
+    expect(ids).not.toContain("20-standards/rubric.md");
+    expect(ids).toContain("20-standards/conv.md"); // the deny cannot pass trivially
   });
 });
