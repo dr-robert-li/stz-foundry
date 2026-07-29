@@ -103,13 +103,29 @@ export const SEARCH_QUERY_PREFIX = "search_query: ";
 export const DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434";
 export const DEFAULT_EMBED_MODEL = "nomic-embed-text";
 /**
- * ponytail: 2s covers a warm daemon, which is the only case worth waiting for —
- * a cold model load can exceed it and simply lands on the fallback for that run.
- * `keep_alive: "5m"` keeps the next run warm. Upgrade path if that proves too
- * tight in practice: raise it via `ollamaEmbedder({timeoutMs})`, which is already
- * plumbed, rather than removing the bound (an unbounded embed hangs the run).
+ * The bound scales with batch size, because a whole rebuild is ONE call.
+ *
+ * Measured on this host against real `nomic-embed-text` (2026-07-29), which is
+ * what retired the original flat 2s guess: a cold model load answered a
+ * single-input request in **7.9s**, and a warm 21-document batch took **4.4s**.
+ * A flat 2s therefore failed both the first run of the day AND every realistic
+ * rebuild, silently landing the index on the fallback embedder — the failure is
+ * quiet by design (any throw degrades), so it presented as "semantic recall just
+ * isn't very good" rather than as an error.
+ *
+ * Base covers cold load; the per-input term covers the batch. Still strictly
+ * bounded — an unbounded embed hangs the run, which is the thing this exists to
+ * prevent. `keep_alive: "5m"` keeps the next run warm.
+ * ponytail: linear in batch size, which is the shape the measurement showed;
+ * if very large trees overshoot, chunk the batch rather than raising the base.
  */
-export const EMBED_TIMEOUT_MS = 2000;
+export const EMBED_TIMEOUT_BASE_MS = 15_000;
+export const EMBED_TIMEOUT_PER_INPUT_MS = 500;
+
+/** Bound for a batch of `n` inputs. */
+export function embedTimeoutMs(n: number): number {
+  return EMBED_TIMEOUT_BASE_MS + EMBED_TIMEOUT_PER_INPUT_MS * Math.max(1, n);
+}
 
 /** Env overrides so zero-config works and a non-default daemon needs no file. */
 function resolveOllama(opts: { baseUrl?: string; model?: string }): { baseUrl: string; model: string } {
@@ -140,7 +156,8 @@ export interface OllamaEmbedderOptions {
  */
 export function ollamaEmbedder(opts: OllamaEmbedderOptions = {}): Embedder {
   const { baseUrl, model } = resolveOllama(opts);
-  const timeoutMs = opts.timeoutMs ?? EMBED_TIMEOUT_MS;
+  // An explicit override is a flat bound; otherwise the bound scales per batch.
+  const timeoutOverride = opts.timeoutMs;
   // 0 = "not yet known"; the first response fixes it and it may never move again.
   let dim = opts.dim ?? 0;
   return {
@@ -159,7 +176,7 @@ export function ollamaEmbedder(opts: OllamaEmbedderOptions = {}): Embedder {
         { model, input: texts.map((t) => prefix + t), truncate: true, keep_alive: "5m" },
         1,
         () => Promise.resolve(),
-        timeoutMs,
+        timeoutOverride ?? embedTimeoutMs(texts.length),
       );
       const raw: unknown = json?.embeddings;
       if (!Array.isArray(raw) || raw.length !== texts.length)

@@ -24,7 +24,7 @@ import {
   fallbackEmbedder,
   SEARCH_DOCUMENT_PREFIX,
   SEARCH_QUERY_PREFIX,
-  EMBED_TIMEOUT_MS,
+  embedTimeoutMs,
 } from "../src/knowledge/embedder.js";
 
 /** `null` = never answer, which is the wedged-listener case. */
@@ -150,20 +150,41 @@ describe("ollama embedder — every failure degrades to the deterministic fallba
   it(
     "falls back in bounded time when the listener accepts and never answers",
     async () => {
-      // No timeoutMs override: this proves the SHIPPED default is bounded, which
-      // is the whole point of the optional timeout added to postJson.
+      // The shipped default is deliberately generous (a cold nomic-embed-text load
+      // measured 7.9s on real hardware), so waiting it out here would dominate a
+      // ~4s suite. The property under test is that the bound EXISTS and is
+      // honored end to end, which an explicit override exercises on the identical
+      // code path — `embedTimeoutMs` covers the default's value separately.
+      const bound = 400;
       const srv = await fakeServer(() => null);
       const started = Date.now();
-      const { embedder, reason } = await selectEmbedder({ baseUrl: srv.url });
+      const { embedder, reason } = await selectEmbedder({ baseUrl: srv.url, timeoutMs: bound });
       const elapsed = Date.now() - started;
 
       expect(embedder.fingerprint.startsWith("fallback:")).toBe(true);
       expect(reason).toContain("unavailable");
-      expect(elapsed).toBeGreaterThanOrEqual(EMBED_TIMEOUT_MS - 200);
-      expect(elapsed).toBeLessThan(EMBED_TIMEOUT_MS + 3000);
+      expect(elapsed).toBeGreaterThanOrEqual(bound - 200);
+      expect(elapsed).toBeLessThan(bound + 3000);
     },
-    EMBED_TIMEOUT_MS + 6000,
+    12_000,
   );
+
+  // The shipped default must survive what real hardware actually does. Measured
+  // 2026-07-29 against nomic-embed-text: cold single-input load 7.9s, warm
+  // 21-document batch 4.4s. The original flat 2s failed BOTH — and because any
+  // throw degrades to the fallback, it failed silently, presenting as poor recall
+  // rather than as an error. These bounds encode that measurement.
+  it("scales the default embed bound with batch size and stays finite", () => {
+    expect(Number.isFinite(embedTimeoutMs(1))).toBe(true);
+    // Headroom over the measured 7.9s cold load for a one-input probe.
+    expect(embedTimeoutMs(1)).toBeGreaterThan(10_000);
+    // Headroom over the measured 4.4s warm 21-doc batch.
+    expect(embedTimeoutMs(21)).toBeGreaterThan(20_000);
+    // Monotonic in batch size — a bigger rebuild never gets a tighter bound.
+    expect(embedTimeoutMs(100)).toBeGreaterThan(embedTimeoutMs(21));
+    // n=0 must not collapse the bound to the base alone being the only term.
+    expect(embedTimeoutMs(0)).toBe(embedTimeoutMs(1));
+  });
 
   it("falls back on a malformed response rather than indexing junk", async () => {
     for (const bad of [

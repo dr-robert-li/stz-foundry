@@ -87,8 +87,30 @@ export interface SemanticInput {
 
 /** cos 1.0 ≈ 1.5 symbol matches. LOW-confidence starting value (A2); tunable. */
 export const SEMANTIC_WEIGHT = 3;
-/** Below this, a cosine contributes exactly ZERO. LOW-confidence value (A1). */
-export const SEMANTIC_FLOOR = 0.6;
+/**
+ * Below this, a cosine contributes exactly ZERO.
+ *
+ * CALIBRATED 2026-07-29 against real `nomic-embed-text` (768-dim) over a 21-document
+ * `.stz/` tree. The measurement that matters is that this model has a HIGH cosine
+ * baseline and a narrow dynamic range — the gap between signal and noise, not the
+ * absolute number:
+ *
+ *   deliberately unrelated query ("kubernetes ingress certificate rotation")  max 0.5242
+ *   bare stopword query ("the")                                              max 0.5218
+ *   true positives (paraphrase / fixed-timestep / Playwright-state)     0.5504 0.6273 0.7003
+ *
+ * So the usable band is ~0.52–0.55, and the previous guess of 0.6 sat ABOVE the
+ * weakest true positive: the semantic layer never fired on a real corpus while every
+ * offline test stayed green (they run on a stubbed embedder whose cosines are
+ * constructed, not measured). 0.54 clears the observed noise ceiling by ~0.016 and
+ * admits the weakest true positive.
+ *
+ * The margin is thin and corpus-dependent by nature — a different model, or much
+ * longer documents, moves the noise ceiling. Re-measure rather than assume; the
+ * procedure is in `docs/development/semantic-recall.md`. Tests import this constant
+ * instead of hardcoding, so a re-calibration does not rewrite assertions.
+ */
+export const SEMANTIC_FLOOR = 0.54;
 
 /**
  * Integer points from a cosine. `!(cos >= floor)` is NaN-safe by construction and
