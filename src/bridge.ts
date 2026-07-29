@@ -65,7 +65,7 @@ import {
   defaultRunConfig,
 } from "./project.js";
 import { detectHacks, suspicionScore } from "./hack-detector.js";
-import { selectEmbedder, embedderForFingerprint } from "./knowledge/embedder.js";
+import { selectEmbedder, embedderForFingerprint, fallbackEmbedder } from "./knowledge/embedder.js";
 import { buildIndex, readIndex, poolFromIndex, vectorsFromIndex } from "./knowledge/index-store.js";
 import { resolveRoleScope, capsForRole } from "./knowledge/scope.js";
 import {
@@ -2023,9 +2023,18 @@ async function knowledgeQueryCmd(args: Record<string, string>): Promise<void> {
   if (!index) {
     semanticReport = { enabled: false, reason: "no index — run `stz bridge knowledge-index --root <dir>`" };
   } else if (!queryEmbedder) {
+    // Both identities are named because the operator's next move depends on
+    // which one is wrong — re-index under the current embedder, or bring back
+    // the one that built it. "Semantic disabled" with no fingerprints in it is
+    // not an explanation. `embedderForFingerprint()` already refuses anything
+    // that parses but does not round-trip, so this is the ONLY cross-embedder
+    // branch: no redundant equality check is added here.
     semanticReport = {
       enabled: false,
-      reason: `index fingerprint ${index.fingerprint} has no reconstructible embedder — semantic layer disabled rather than comparing noise`,
+      reason:
+        `index fingerprint ${index.fingerprint} is not reconstructible in this build; the only identity available ` +
+        `offline is ${fallbackEmbedder().fingerprint} — comparing vectors across embedders is noise that clears the ` +
+        `similarity floor, so the semantic layer is off rather than lying`,
     };
   } else {
     // The reconstructed embedder may reach a daemon (an `ollama:` fingerprint),

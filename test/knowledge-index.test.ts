@@ -208,3 +208,58 @@ describe("knowledge index — the prior index is untrusted input", () => {
     expect(Object.keys(readIndex(root)!.entries)).toEqual(Object.keys(DOCS).sort());
   });
 });
+describe("knowledge index — embedder identity invalidates the index", () => {
+  it("rebuilds in full when the fingerprint changed, discarding every prior vector", async () => {
+    await tree();
+    const first = countingEmbedder(32);
+    await buildIndex(root, first, "test");
+
+    const other = countingEmbedder(64); // a different fingerprint entirely
+    expect(other.fingerprint).not.toBe(first.fingerprint);
+    const r = await buildIndex(root, other, "test");
+    expect(r.rebuilt).toBe("full");
+    expect(r.embedded).toBe(3);
+    expect(r.total).toBe(3);
+    expect(other.texts.length).toBe(3);
+
+    const idx = readIndex(root)!;
+    expect(idx.fingerprint).toBe(other.fingerprint);
+    expect(idx.dim).toBe(64);
+    for (const e of Object.values(idx.entries)) expect(e.vector.length).toBe(64);
+  });
+
+  it("disables the semantic layer visibly when the index fingerprint cannot be reconstructed", async () => {
+    await tree();
+    await buildIndex(root, fallbackEmbedder({ dim: 32 }), "test");
+    const foreign = "sentence-transformers:all-MiniLM-L6-v2:32:v1";
+    await craft((i) => { i.fingerprint = foreign; });
+    const before = await readFile(indexPath(root), "utf8");
+
+    captured = "";
+    await runBridge(["knowledge-query", "--root", root, "--role", "planning", "--keywords", "conventions"]);
+    const q = lastJSON<{
+      hits: { artifact: { id: string } }[];
+      semantic: { enabled: boolean; reason: string };
+    }>();
+
+    expect(q.semantic.enabled).toBe(false);
+    // Both identities are named — "the vectors were close" is not an explanation,
+    // and neither is "semantic disabled" with no fingerprints in it.
+    expect(q.semantic.reason).toContain(foreign);
+    expect(q.semantic.reason).toContain(fallbackEmbedder().fingerprint);
+    // Degradation is to lexical, not to nothing.
+    expect(q.hits.map((h) => h.artifact.id)).toContain("20-standards/conventions.md");
+    expect(await readFile(indexPath(root), "utf8")).toBe(before);
+  });
+
+  it("never writes the index on the query path", async () => {
+    await tree();
+    await buildIndex(root, fallbackEmbedder({ dim: 32 }), "test");
+    const before = await readFile(indexPath(root), "utf8");
+
+    captured = "";
+    await runBridge(["knowledge-query", "--root", root, "--role", "planning", "--keywords", "conventions"]);
+    expect(lastJSON<{ semantic: { enabled: boolean } }>().semantic.enabled).toBe(true);
+    expect(await readFile(indexPath(root), "utf8")).toBe(before);
+  });
+});
