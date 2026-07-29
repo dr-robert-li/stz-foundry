@@ -7,11 +7,12 @@
  * running Ollama.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { scaffold, writeDoc, STZ_DIR } from "../src/taxonomy.js";
+import { scaffold, writeDoc, STZ_DIR, TIERS } from "../src/taxonomy.js";
 import { STZ_ROLES } from "../src/types.js";
+import { runBridge } from "../src/bridge.js";
 import {
   INDEXABLE_TIERS,
   isIndexable,
@@ -28,8 +29,11 @@ import {
   poolFromIndex,
   type KnowledgeIndex,
 } from "../src/knowledge/index-store.js";
+import { retrieve, type RetrievableArtifact, type RetrievalQuery } from "../src/knowledge/retrieval.js";
 
 let root: string;
+let captured: string;
+const origWrite = process.stdout.write.bind(process.stdout);
 
 /** The allowlisted documents the fixture plants — one per allowlisted tier. */
 const ALLOWLISTED_DOCS = [
@@ -59,11 +63,58 @@ async function fixtureTree(): Promise<void> {
   });
 }
 
+/**
+ * The leak inventory, planted. Everything a wholesale index would serve into an
+ * implementer's context: the sealed suite, the test author's reference
+ * implementation, the judging rubric, a competing specimen's source, a culled
+ * specimen's failure detail, the mutator specs, and a raw model transcript.
+ */
+async function plantForbiddenContent(): Promise<void> {
+  const abs = (rel: string) => join(root, STZ_DIR, rel);
+  await mkdir(abs("40-slices/slice-01/prototypes/specimen-a"), { recursive: true });
+  await writeFile(abs("30-tests/held-out/sealed.mjs"), "export const cases = [[1, 2], [3, 4]];\n", "utf8");
+  await writeFile(abs("40-slices/slice-01/prototypes/specimen-a/impl.ts"), "export const run = (x: number) => x * 2;\n", "utf8");
+  await writeDoc(root, "30-tests/held-out/reference.md", {
+    frontmatter: { summary: "reference implementation: the naming conventions markdown answer key" },
+    body: "# Reference",
+  });
+  await writeDoc(root, "30-tests/rubric.md", {
+    frontmatter: { summary: "judging rubric: how specimens are scored on conventions and markdown" },
+    body: "# Rubric",
+  });
+  await writeDoc(root, "50-pressure/slice-01/pressure.md", {
+    frontmatter: { summary: "culled specimen source and its sealed-suite failure detail" },
+    body: "# Pressure",
+  });
+  await writeDoc(root, "60-harness/variants/mutator-01.md", {
+    frontmatter: { summary: "mutator spec: operators the mutation battery injects" },
+    body: "# Mutator",
+  });
+  await writeDoc(root, "90-audit/calls/call-0001.md", {
+    frontmatter: { summary: "raw model IO transcript for the conventions markdown call" },
+    body: "# Call",
+  });
+}
+
+/** True when an allowlisted tier covers this `TIERS` entry (or its parent). */
+const coveredByAllowlist = (tier: string): boolean =>
+  INDEXABLE_TIERS.some((allowed) => tier === allowed || tier.startsWith(`${allowed}/`));
+
+function lastJSON<T>(): T {
+  return JSON.parse(captured) as T;
+}
+
 beforeEach(async () => {
   process.env.STZ_EMBED = "fallback";
   root = await mkdtemp(join(tmpdir(), "stz-knowledge-"));
+  captured = "";
+  (process.stdout.write as unknown as (s: string) => boolean) = (s: string) => {
+    captured += s;
+    return true;
+  };
 });
 afterEach(async () => {
+  process.stdout.write = origWrite;
   await rm(root, { recursive: true, force: true });
 });
 
@@ -206,5 +257,150 @@ describe("the allowlist constant itself", () => {
   it("has exactly the approved tiers — widening it fails here first", () => {
     expect(INDEXABLE_TIERS).toEqual(["00-intent", "10-research", "20-standards"]);
     expect(INDEXABLE_TIERS.length).toBe(3);
+  });
+});
+
+describe("the leak inventory — proven unreachable through the index", () => {
+  /** Index a tree where every one of the 16 tiers has content. */
+  async function indexFullTree(): Promise<string[]> {
+    await fixtureTree();
+    await plantForbiddenContent();
+    const { embedder, reason } = await selectEmbedder();
+    await buildIndex(root, embedder, reason);
+    return Object.keys(readIndex(root)!.entries);
+  }
+
+  it("indexes exactly the planted allowlisted documents and nothing else", async () => {
+    const keys = await indexFullTree();
+    expect(keys).toEqual(ALLOWLISTED_DOCS.slice().sort());
+    expect(keys.every(isIndexable)).toBe(true);
+  });
+
+  it("emits zero entries for every tier outside INDEXABLE_TIERS — asserted by ITERATING TIERS", async () => {
+    const keys = await indexFullTree();
+    // Generated from the constants, never a hand-written path list: a tier added
+    // to TIERS in a future release is covered by this assertion automatically.
+    const forbidden = TIERS.filter((tier) => !coveredByAllowlist(tier));
+    expect(forbidden.length).toBeGreaterThan(0); // the assertion must have teeth
+    for (const tier of forbidden) {
+      for (const key of keys) {
+        expect(key.startsWith(`${tier}/`), `${key} leaked from ${tier}`).toBe(false);
+      }
+    }
+  });
+
+  it("does not follow a directory symlink out of an allowlisted tier into the sealed tier", async () => {
+    const before = await indexFullTree();
+    await symlink(
+      join(root, STZ_DIR, "30-tests", "held-out"),
+      join(root, STZ_DIR, "20-standards", "smuggled"),
+      "dir",
+    );
+    const { embedder, reason } = await selectEmbedder();
+    await buildIndex(root, embedder, reason);
+    const after = Object.keys(readIndex(root)!.entries);
+    // isDirectory() is false for a symlink, so the walk skips it entirely.
+    expect(after).toEqual(before);
+  });
+});
+
+describe("trust filter — the semantic layer is not a bypass", () => {
+  it("drops a candidate-trust artifact even at cosine 1.0", () => {
+    const art = (id: string, trust: RetrievableArtifact["trust"]): RetrievableArtifact => ({
+      id,
+      kind: "convention",
+      trust,
+      symbols: [],
+      text: "house style for module layout",
+    });
+    const pool = [art("candidate.md", "candidate"), art("accepted.md", "accepted")];
+    const query: RetrievalQuery = {
+      symbols: [],
+      keywords: ["zzzz-no-lexical-overlap"],
+      requestedKinds: ["convention"],
+      stepId: "step-trust",
+    };
+    // Both vectors are identical to the query vector — cosine 1.0 for each.
+    const hits = retrieve(pool, query, undefined, {
+      vectors: { "candidate.md": [1, 0], "accepted.md": [1, 0] },
+      queryVector: [1, 0],
+      embedder: "stub:trust:2:v1",
+    });
+    const ids = hits.map((h) => h.artifact.id);
+    expect(ids).toContain("accepted.md"); // the semantic layer really did fire
+    expect(ids).not.toContain("candidate.md");
+    expect(hits[0]!.explanation.semantic!.points).toBeGreaterThan(0);
+    expect(hits[0]!.explanation.semantic!.embedder).toBe("stub:trust:2:v1");
+  });
+
+  it("keeps the no-bulk guard alive — a sub-floor cosine contributes zero", () => {
+    const pool: RetrievableArtifact[] = [
+      { id: "unrelated.md", kind: "convention", trust: "accepted", symbols: [], text: "house style" },
+    ];
+    const query: RetrievalQuery = {
+      symbols: [],
+      keywords: ["zzzz-no-lexical-overlap"],
+      requestedKinds: ["convention"],
+      stepId: "step-floor",
+    };
+    // Cosine 0.3 — non-zero, as every embedding pair is, but below the floor.
+    const hits = retrieve(pool, query, undefined, {
+      vectors: { "unrelated.md": [0.3, Math.sqrt(1 - 0.09)] },
+      queryVector: [1, 0],
+      embedder: "stub:floor:2:v1",
+    });
+    expect(hits).toEqual([]);
+  });
+});
+
+describe("role scoping through the bridge verb — the only surface an agent touches", () => {
+  async function indexedTree(): Promise<void> {
+    await fixtureTree();
+    await plantForbiddenContent();
+    captured = "";
+    await runBridge(["knowledge-index", "--root", root]);
+  }
+
+  type QueryOut = {
+    role: string;
+    denied: boolean;
+    requestedKinds: string[];
+    hits: { artifact: { id: string; kind: string } }[];
+  };
+
+  async function query(role: string): Promise<QueryOut> {
+    captured = "";
+    // "markdown" appears only in the architecture-decision summary; "conventions"
+    // only in the conventions document. One query, two kinds in play.
+    await runBridge(["knowledge-query", "--root", root, "--role", role, "--keywords", "markdown,conventions"]);
+    return lastJSON<QueryOut>();
+  }
+
+  const ADR = "20-standards/architecture-decisions/001-storage.md";
+
+  it("returns zero decision-kind hits for --role execution, and is NOT empty (so the assertion has teeth)", async () => {
+    await indexedTree();
+    const out = await query("execution");
+    expect(out.denied).toBe(false);
+    expect(out.requestedKinds).not.toContain("decision");
+    expect(out.hits.length).toBeGreaterThan(0); // the query really did retrieve
+    expect(out.hits.map((h) => h.artifact.kind)).not.toContain("decision");
+    expect(out.hits.map((h) => h.artifact.id)).not.toContain(ADR);
+  });
+
+  it("returns that same document for --role planning — same tree, same keywords", async () => {
+    await indexedTree();
+    const out = await query("planning");
+    expect(out.denied).toBe(false);
+    expect(out.requestedKinds).toContain("decision");
+    expect(out.hits.map((h) => h.artifact.id)).toContain(ADR);
+  });
+
+  it("never surfaces forbidden content to any role", async () => {
+    await indexedTree();
+    for (const role of STZ_ROLES) {
+      const out = await query(role);
+      for (const hit of out.hits) expect(isIndexable(hit.artifact.id), `${role} → ${hit.artifact.id}`).toBe(true);
+    }
   });
 });
