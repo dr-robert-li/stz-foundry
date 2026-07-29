@@ -9,13 +9,18 @@
 import { describe, it, expect } from "vitest";
 import {
   runExecutionOracle,
+  mergeOracleVerdicts,
   probeExecutionTool,
+  ExecutionOracleUnavailableError,
   EXECUTION_ORACLE_TIMEOUT_MS,
   type ExecutionOracleSpec,
   type ExecFn,
   type ProbeFn,
 } from "../src/foundry/execution-oracle.js";
+import { runAgentBattery, type CandidateAgent } from "../src/foundry/agent-runner.js";
+import { generateFixtureBattery, generateWarehouse } from "../src/foundry/fixture-warehouse.js";
 import type { OracleReceipt } from "../src/foundry/battery-types.js";
+import type { ChatRequest, ChatResponse, Provider } from "../src/foundry/provider.js";
 
 const RECEIPT: OracleReceipt = Object.freeze({
   kind: "execution",
@@ -162,5 +167,182 @@ describe("runExecutionOracle — the argument-injection control (T-01-01)", () =
     // exercised for real via probeExecutionTool's own use of it.
     expect(EXECUTION_ORACLE_TIMEOUT_MS).toBeGreaterThan(0);
     expect(typeof probeExecutionTool).toBe("function");
+  });
+});
+
+describe("mergeOracleVerdicts", () => {
+  it("per-task conjunction: pass only when both halves pass; checks concatenated agent-then-oracle; vacuous if either is", async () => {
+    const receipt: OracleReceipt = Object.freeze({
+      kind: "execution",
+      acceptedBy: "Dr. Robert Li",
+      lineage: Object.freeze(["execution:merge-fixture"]) as string[],
+    });
+    const battery = {
+      id: "b1",
+      tasks: [{ id: "t1", prompt: "p", checks: [{ checkId: "t1-out", kind: "output-assertion" as const, input: "out.txt", expect: "ok", description: "d" }] }],
+      receipt,
+    } as unknown as Parameters<typeof runAgentBattery>[1];
+
+    const agentProvider: Provider = {
+      kind: "openai",
+      baseUrl: "http://test.invalid",
+      async chat(_req: ChatRequest): Promise<ChatResponse> {
+        return { text: "```path=out.txt\nok\n```", model: "d", usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 } };
+      },
+    };
+    const candidate: CandidateAgent = { id: "cand", systemPrompt: "n/a" };
+    const run = await runAgentBattery(candidate, battery, { providerImpl: agentProvider });
+    expect(run.result.testPassRate).toBe(1);
+
+    const oracleOutcome = runExecutionOracle(
+      [{ taskId: "t1", checkId: "t1-dbt", tool: "dbt", argv: ["test"], expect: "PASS", description: "d" }],
+      receipt,
+      { probeFn: alwaysAbsent },
+    );
+    const merged = mergeOracleVerdicts(run, oracleOutcome);
+
+    expect(merged.tasks[0]?.pass).toBe(false);
+    expect(merged.tasks[0]?.checks.length).toBe(run.tasks[0]!.checks.length + oracleOutcome.results[0]!.checks.length);
+    expect(merged.tasks[0]?.vacuous).toBe(true);
+    expect(merged.tasks[0]?.failureReason).toContain("dbt");
+  });
+
+  it("an absent-tool outcome merged into a real generateFixtureBattery run (agent half at testPassRate 1) drops the rate below 1 and closes the gate, naming the missing tool", async () => {
+    const seed = 7;
+    const warehouse = generateWarehouse(seed);
+    const battery = generateFixtureBattery(seed, "data-ops-oracle-merge-absent");
+    const totals: Record<string, { orderCount: number; revenueCents: number }> = {};
+    for (const fact of warehouse.facts) {
+      totals[`${fact.customerId}__${fact.month}`] = { orderCount: fact.orderCount, revenueCents: fact.revenueCents };
+    }
+    const oracleProvider: Provider = {
+      kind: "openai",
+      baseUrl: "http://test.invalid",
+      async chat(_req: ChatRequest): Promise<ChatResponse> {
+        return {
+          text: "```path=answer.json\n" + JSON.stringify({ totals }) + "\n```",
+          model: "fact-derived-double",
+          usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 },
+        };
+      },
+    };
+    const candidate: CandidateAgent = { id: "cand-oracle", systemPrompt: "n/a" };
+    const run = await runAgentBattery(candidate, battery, { providerImpl: oracleProvider });
+    expect(run.result.testPassRate).toBe(1);
+    expect(run.result.passedGate).toBe(true);
+
+    const specs: ExecutionOracleSpec[] = battery.tasks.map((t) => ({
+      taskId: t.id,
+      checkId: `${t.id}-dbt`,
+      tool: "dbt",
+      argv: ["test", "--select", t.id],
+      expect: "PASS",
+      description: "dbt verdict for " + t.id,
+    }));
+    const outcome = runExecutionOracle(specs, battery.receipt, { probeFn: alwaysAbsent });
+    const merged = mergeOracleVerdicts(run, outcome);
+
+    expect(merged.result.testPassRate).toBeLessThan(1);
+    expect(merged.result.passedGate).toBe(false);
+    for (const task of merged.tasks) {
+      expect(task.failureReason).toContain("dbt");
+    }
+  });
+
+  it("discrimination control: the SAME run merged with a present-and-matching outcome stays at testPassRate 1 and passedGate true", async () => {
+    const seed = 7;
+    const warehouse = generateWarehouse(seed);
+    const battery = generateFixtureBattery(seed, "data-ops-oracle-merge-present");
+    const totals: Record<string, { orderCount: number; revenueCents: number }> = {};
+    for (const fact of warehouse.facts) {
+      totals[`${fact.customerId}__${fact.month}`] = { orderCount: fact.orderCount, revenueCents: fact.revenueCents };
+    }
+    const oracleProvider: Provider = {
+      kind: "openai",
+      baseUrl: "http://test.invalid",
+      async chat(_req: ChatRequest): Promise<ChatResponse> {
+        return {
+          text: "```path=answer.json\n" + JSON.stringify({ totals }) + "\n```",
+          model: "fact-derived-double",
+          usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 },
+        };
+      },
+    };
+    const candidate: CandidateAgent = { id: "cand-oracle", systemPrompt: "n/a" };
+    const run = await runAgentBattery(candidate, battery, { providerImpl: oracleProvider });
+
+    const specs: ExecutionOracleSpec[] = battery.tasks.map((t) => ({
+      taskId: t.id,
+      checkId: `${t.id}-dbt`,
+      tool: "dbt",
+      argv: ["test", "--select", t.id],
+      expect: "PASS",
+      description: "dbt verdict for " + t.id,
+    }));
+    const execFn: ExecFn = () => "PASS";
+    const outcome = runExecutionOracle(specs, battery.receipt, { probeFn: alwaysPresent, execFn });
+    const merged = mergeOracleVerdicts(run, outcome);
+
+    expect(merged.result.testPassRate).toBe(1);
+    expect(merged.result.passedGate).toBe(true);
+  });
+
+  it("an unmatched taskId in the outcome throws ExecutionOracleUnavailableError naming the id", async () => {
+    const seed = 7;
+    const battery = generateFixtureBattery(seed, "data-ops-oracle-unmatched");
+    const provider: Provider = {
+      kind: "openai",
+      baseUrl: "http://test.invalid",
+      async chat(): Promise<ChatResponse> {
+        return { text: "", model: "d", usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 } };
+      },
+    };
+    const candidate: CandidateAgent = { id: "cand", systemPrompt: "n/a" };
+    const run = await runAgentBattery(candidate, battery, { providerImpl: provider });
+
+    const outcome = runExecutionOracle(
+      [{ taskId: "no-such-task", checkId: "c", tool: "dbt", argv: [], expect: "PASS", description: "d" }],
+      battery.receipt,
+      { probeFn: alwaysAbsent },
+    );
+
+    let thrown: Error | undefined;
+    try {
+      mergeOracleVerdicts(run, outcome);
+    } catch (e) {
+      thrown = e as Error;
+    }
+    expect(thrown).toBeInstanceOf(ExecutionOracleUnavailableError);
+    expect(thrown?.message).toContain("no-such-task");
+  });
+
+  it("run.receipt and every merged task's receipt stay reference-identical to the input run's receipt", async () => {
+    const seed = 7;
+    const battery = generateFixtureBattery(seed, "data-ops-oracle-receipt-identity");
+    const provider: Provider = {
+      kind: "openai",
+      baseUrl: "http://test.invalid",
+      async chat(): Promise<ChatResponse> {
+        return { text: "", model: "d", usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 } };
+      },
+    };
+    const candidate: CandidateAgent = { id: "cand", systemPrompt: "n/a" };
+    const run = await runAgentBattery(candidate, battery, { providerImpl: provider });
+
+    const specs: ExecutionOracleSpec[] = battery.tasks.map((t) => ({
+      taskId: t.id,
+      checkId: `${t.id}-dbt`,
+      tool: "dbt",
+      argv: ["test"],
+      expect: "PASS",
+      description: "d",
+    }));
+    const outcome = runExecutionOracle(specs, battery.receipt, { probeFn: alwaysAbsent });
+    const merged = mergeOracleVerdicts(run, outcome);
+
+    expect(Object.is(merged.receipt, run.receipt)).toBe(true);
+    for (let i = 0; i < merged.tasks.length; i++) {
+      expect(Object.is(merged.tasks[i]!.receipt, run.tasks[i]!.receipt)).toBe(true);
+    }
   });
 });

@@ -27,9 +27,9 @@
  * than being a report nobody reads.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import type { BatteryTaskResult } from "./agent-runner.js";
+import type { BatteryRun, BatteryTaskResult } from "./agent-runner.js";
 import type { OracleReceipt } from "./battery-types.js";
-import { evaluateChecks } from "../contract/predicate-eval.js";
+import { evaluateChecks, type CheckResult } from "../contract/predicate-eval.js";
 
 /** One external-process verdict bound to one battery task. */
 export interface ExecutionOracleSpec {
@@ -225,4 +225,78 @@ export function runExecutionOracle(
   }
 
   return { results, reports };
+}
+
+/**
+ * Fold an `ExecutionOracleOutcome` into a real `BatteryRun` so an
+ * unreachable oracle actually lowers `testPassRate` and closes
+ * `passedGate` — without this, a verdict is computed and then never scores
+ * anything (the "absence reported but the task still passes" vacuity
+ * RESEARCH names).
+ */
+export function mergeOracleVerdicts(run: BatteryRun, outcome: ExecutionOracleOutcome): BatteryRun {
+  const oracleByTaskId = new Map(outcome.results.map((r) => [r.taskId, r]));
+  const runTaskIds = new Set(run.tasks.map((t) => t.taskId));
+
+  // Fail closed on a wiring bug: a verdict naming a task this run does not
+  // have is not silently dropped.
+  for (const taskId of oracleByTaskId.keys()) {
+    if (!runTaskIds.has(taskId)) {
+      throw new ExecutionOracleUnavailableError(
+        `oracle verdict names task ${JSON.stringify(taskId)}, which is not in this BatteryRun`,
+      );
+    }
+  }
+
+  const mergedTasks: BatteryTaskResult[] = run.tasks.map((agentResult) => {
+    const oracleResult = oracleByTaskId.get(agentResult.taskId);
+    if (!oracleResult) return agentResult;
+
+    // Per-task conjunction, each a named line — never one compound
+    // expression (D8: a mutation disables exactly one).
+    const pass = agentResult.pass && oracleResult.pass;
+    const checks: CheckResult[] = [...agentResult.checks, ...oracleResult.checks];
+    const vacuous = agentResult.vacuous || oracleResult.vacuous;
+    const status = agentResult.status !== "ok" ? agentResult.status : oracleResult.status;
+    const failureReason = agentResult.failureReason !== null ? agentResult.failureReason : oracleResult.failureReason;
+
+    return {
+      taskId: agentResult.taskId,
+      pass,
+      checks,
+      vacuous,
+      artifactPaths: agentResult.artifactPaths,
+      status,
+      failureReason,
+      // Reference-identical to `run.tasks`' own receipt — never re-derived
+      // (mirrors the seventh promotion gate's Object.is provenance idiom).
+      receipt: agentResult.receipt,
+    };
+  });
+
+  const passedTasks = mergedTasks.filter((t) => t.pass).length;
+  // Denominator: run.tasks.length — the battery's task count, never the
+  // surviving-record count. Same rule as agent-runner.ts:446-452, one
+  // altitude up.
+  const mergedPassRate = passedTasks / run.tasks.length;
+  // Deliberately a two-term conjunction over the value runAgentBattery
+  // ALREADY computed, so the artifact-vacuity guard (noArtifacts) and the
+  // hack-findings term already folded into run.result.passedGate are
+  // preserved rather than re-implemented here.
+  //
+  // ponytail: this is the second place in the repo that composes
+  // `passedGate` (agent-runner.ts's own `!noArtifacts && testPassRate >= 1
+  // && hackFindings.length === 0` is the first). Upgrade trigger: a third
+  // consumer, at which point the composition moves into one shared helper.
+  const passedGate = run.result.passedGate && mergedPassRate >= 1;
+
+  return {
+    result: { ...run.result, testPassRate: mergedPassRate, passedGate },
+    receipt: run.receipt,
+    provider: run.provider,
+    tasks: mergedTasks,
+    records: run.records,
+    bounds: run.bounds,
+    cost: run.cost,
+  };
 }
