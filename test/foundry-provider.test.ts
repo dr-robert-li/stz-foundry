@@ -6,38 +6,12 @@
  * See experiments/foundry-progression/stage-1.md.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { createServer, type Server, type IncomingMessage } from "node:http";
 import { createProvider, ProviderError } from "../src/foundry/provider.js";
+import { fakeServer, closeAllFakeServers } from "./helpers/fake-server.js";
 
-type Handler = (req: IncomingMessage, body: any) => { status: number; json: unknown };
-
-const servers: Server[] = [];
 afterEach(() => {
-  for (const s of servers.splice(0)) s.close();
+  closeAllFakeServers();
 });
-
-/** Boot an in-process HTTP server; returns its base URL and captured requests. */
-async function fakeServer(handler: Handler): Promise<{
-  url: string;
-  requests: Array<{ path: string; headers: Record<string, string | string[] | undefined>; body: any }>;
-}> {
-  const requests: Array<{ path: string; headers: any; body: any }> = [];
-  const server = createServer((req, res) => {
-    let raw = "";
-    req.on("data", (c) => (raw += c));
-    req.on("end", () => {
-      const body = raw ? JSON.parse(raw) : null;
-      requests.push({ path: req.url ?? "", headers: req.headers, body });
-      const out = handler(req, body);
-      res.writeHead(out.status, { "content-type": "application/json" });
-      res.end(JSON.stringify(out.json));
-    });
-  });
-  servers.push(server);
-  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  const addr = server.address() as { port: number };
-  return { url: `http://127.0.0.1:${addr.port}`, requests };
-}
 
 const noSleep = () => Promise.resolve();
 
