@@ -9,7 +9,64 @@ preserved verbatim.
 
 ## [Unreleased]
 
-## [1.17.0] — per-specimen git worktrees + ephemeral run record
+## [1.17.0] — per-specimen git worktrees + cross-slice semantic recall
+
+### Cross-slice semantic recall
+
+"Did an earlier slice already set a convention for this?" is now a lookup rather
+than the operator's memory. Local embeddings over the `.stz/` markdown tree, no
+vector service, no new runtime dependency. Mechanism, the calibration procedure
+and the stated gaps:
+[`docs/development/semantic-recall.md`](docs/development/semantic-recall.md).
+
+- **The indexable tiers are an allowlist, not a denylist (security).** Only
+  `00-intent`, `10-research` and `20-standards` are ever walked — the three tiers
+  written behind a pipeline approval gate, which is the warrant for the single
+  line that stamps `trust: "accepted"`. `30-tests/` is not filtered out, it is
+  never opened, so no path-normalization bug, symlink or future tier can serve the
+  sealed suite or the test author's reference implementation into a specimen's
+  context. The negative test asserts by iterating the tier constant, so a new tier
+  is covered without anyone remembering to add a case.
+- **The daemon is an optimization, never a requirement.** Ollama
+  `nomic-embed-text` over `POST /api/embed` when it answers; a deterministic,
+  dependency-free, corpus-independent fallback embedder otherwise — proven
+  byte-identical across two separate Node processes. Selection is always reported.
+  There is deliberately no `/api/version` liveness probe: it answers 200 while
+  `/api/embed` 404s on a model that was never pulled, so the real embed call is
+  the probe. Absent, wedged, unpulled, malformed and dimension-drifted responses
+  all land on the fallback with a reason instead of failing the run.
+- **A similarity floor is what keeps "no bulk injection" true.** Every artifact
+  has a non-zero cosine to every query, so without a floor `score > 0` is
+  universally true and the guard evaporates with every test still green.
+  `SEMANTIC_FLOOR` is now **measured, not guessed**: calibrated against real
+  768-dim nomic vectors over a 21-document tree, where unrelated and bare-stopword
+  queries topped out at 0.5242/0.5218 and true positives ran 0.5504–0.7003. The
+  previous 0.6 sat *above the weakest true positive* — the layer never fired on a
+  real corpus. Now 0.54, with the observed ranges and the re-measurement procedure
+  in the doc, because the margin is thin and corpus-dependent.
+- **The embed timeout scales with the batch.** A flat 2s bound was wrong in two
+  independent ways — a cold model load answered in 7.9s and a warm 21-document
+  batch took 4.4s, and a whole rebuild is one batched call — so the first run of
+  the day *and* every realistic rebuild silently used the fallback. Replaced with
+  `15s + 500ms × inputs`, still strictly bounded.
+- **Incremental rebuild at slice close.** `finalize` rebuilds the index after
+  `saveState`, wrapped whole: it may report failure, it can never cause one. The
+  rebuild is a sha256 diff — one edited summary costs one embed call, unchanged
+  vectors are carried forward byte-for-byte, a deleted document is evicted rather
+  than kept, and a changed embedder fingerprint discards every prior vector
+  instead of comparing across identities.
+- **Role scoping is default-deny.** An unknown `--role` (including a case variant
+  of a real one) retrieves nothing rather than the union of all kinds; per-role
+  caps merge *over* `DEFAULT_CAPS` so `repo_note` stays at 0 everywhere; an
+  `execution` specimen cannot reach the judging rubric even at cosine 1.0. The
+  cosine is quantized to an integer before it enters the score, so the documented
+  `score desc, id asc` tie rule survives instead of being decided by float noise.
+- **Two new bridge verbs.** `stz bridge knowledge-index` and `stz bridge
+  knowledge-query`. **Not yet wired into any command or agent** — the engine and
+  the CLI surface ship here; automatic mid-slice consultation by a phase agent is
+  one orchestration line per call site and is deliberately out of scope.
+
+### Per-specimen git worktrees + ephemeral run record
 
 Specimens no longer share a working tree. Each gets a real detached git worktree
 when the target is a repository, so parallel edits to the same tracked file stop

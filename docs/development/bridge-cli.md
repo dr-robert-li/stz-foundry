@@ -42,6 +42,11 @@ stz bridge merge-compat-list     --root .                          # read-only d
 stz bridge worktree-create  --root . --slice slice-01 --specimen a  # {mode, path, name, reason, slice, specimen} — the bridge owns the path AND the fallback
 stz bridge worktree-list    --root . --slice slice-01               # {slice, worktrees:[{path, head, detached, prunable}]}
 stz bridge worktree-destroy --root . --slice slice-01               # {slice, removed[], pruned} — idempotent, always exit 0
+
+# cross-slice semantic recall (1.17.0) — over the allowlisted .stz/ tiers only
+stz bridge knowledge-index --root .                                 # {rebuilt, embedded, evicted, total, fingerprint, provider} — walk/hash/embed/persist
+stz bridge knowledge-query --root . --role planning --keywords a,b [--symbols s] [--step-id id]
+                                                                    # {hits[], role, caps, semantic} — capped, explained, role-scoped; never writes
 ```
 
 `merge-validate` adjudicates *reported* sealed-suite results (`{slice, passed,
@@ -88,6 +93,21 @@ already wired into `finalize`, `escalate`(halt), `slice-halt` and `slice-reset`,
 so `worktree-destroy` is only needed on an abort that reaches none of them; it is
 idempotent and never sets a non-zero exit code. Mechanism, durable side effects
 on the target repo, and the stated ceilings: [`worktrees.md`](./worktrees.md).
+
+The `knowledge-*` verbs are cross-slice recall. `knowledge-index` walks only the
+approval-gated tiers (`00-intent`, `10-research`, `20-standards` — an allowlist,
+so `30-tests/` is never opened), embeds each document's frontmatter summary
+behind a provider seam (Ollama `nomic-embed-text` when it answers, a
+deterministic offline embedder otherwise, selection always reported), and
+persists `.stz/90-audit/knowledge-index.json`. It is incremental — only changed
+documents are re-embedded, deleted ones are evicted — and `finalize` already runs
+it at slice close, so the manual invocation is for a deleted, gitignored or
+fingerprint-stale index. `knowledge-query` never writes and never re-embeds the
+tree: one query embedding, then capped, explained, role-scoped hits through the
+same `retrieve()` contract, with the semantic layer reporting itself off (with a
+reason) rather than comparing vectors across embedders. Mechanism, the tier
+allowlist's rationale, the similarity-floor calibration procedure and what is
+*not* wired yet: [`semantic-recall.md`](./semantic-recall.md).
 
 The sealed-suite commands back the anti-hacking freeze: `seal-crosscheck` (0.5.0)
 runs the suite against a second, independently-authored reference before sealing,

@@ -175,11 +175,13 @@ exercised), and a `prepublishOnly` (typecheck + test) guard before any npm publi
   half landed as a per-specimen **run record** in the existing `.stz/` audit tree
   (status, kill reason, duration, isolation mode, changed files, per-specimen
   cost) rather than a second persistence system.
-- **Cross-slice RAG / embeddings** are **not built** — no vector store ships with
-  the harness and no semantic lookup runs across the markdown tree. (The spec-diff's
-  old literal over-flagging is fixed: claims carry stable ids and the documenter
-  adjudicates each intent claim by id, so reworded as-built claims match without
-  embeddings. Fully semantic, id-free cross-slice recall would still need them.)
+- **Cross-slice RAG / embeddings** shipped in 1.17.0 (see item 6 below): local
+  embeddings over the `.stz/` tree, an allowlisted index, and two bridge verbs.
+  What is **still not built** is the *automatic* half — no command or agent calls
+  `knowledge-query`, so a phase agent does not consult recall mid-slice — and
+  id-free semantic spec-diff matching, which still uses stable claim ids (the
+  documenter adjudicates each intent claim by id, so reworded as-built claims
+  already match without embeddings).
 - **OS-level sealing** is **partially built.** The held-out suite is now sealed by
   a deterministic content hash (`src/seal.ts`: `SEAL.json` + `seal-verify` drift
   gate + audited `seal-amend`), and a **PreToolUse ownership-guard hook**
@@ -199,8 +201,9 @@ exercised), and a `prepublishOnly` (typecheck + test) guard before any npm publi
 - **Deferred and documented (not missing by accident):** cross-family specimens
   and judge *in the in-session path* (the standalone foundry runner already does
   heterogeneous families), Python eval libraries, per-specimen observability
-  *stacks* (the worktrees themselves shipped in 1.17.0), cross-slice RAG,
-  VCS-layer OS sealing, and the `dist/` build.
+  *stacks* (the worktrees themselves shipped in 1.17.0), agent-side invocation of
+  cross-slice recall (the index and its CLI shipped in 1.17.0; no command or agent
+  calls it yet), VCS-layer OS sealing, and the `dist/` build.
 - **Built beyond the original plan:** the `stz bridge` JSON contract, a
   dependency-free real eval runner (V8 coverage plus source mutation), the
   two-level project DAG driver, the persisted run config (granularity, fan-out,
@@ -299,10 +302,14 @@ a scoped per-worktree observability *stack* is still not built.
 - ✅ **Per-specimen git worktrees + ephemeral run record** (1.17.0,
   `src/worktree.ts`): sparse-checkout firewalled against the sealed suite,
   reported directory fallback, idempotent teardown on every terminal path.
+- ✅ **Cross-slice RAG / embeddings** (1.17.0, `src/knowledge/`): allowlisted
+  index over the `.stz/` tree, Ollama-or-deterministic-fallback provider seam,
+  incremental rebuild at slice close, role-scoped capped explained recall.
 - ⬜ Still gaps: a scoped per-worktree **observability stack**
   (logs/metrics/traces), a prebuilt **`dist/`** to drop runtime `tsx`,
   **VCS-layer** OS sealing (git attributes + pre-commit), Python eval drivers,
-  and cross-slice RAG/embeddings.
+  and **agent-side** invocation of cross-slice recall (the verbs exist; nothing
+  in `commands/` or `agents/` calls them).
 
 ### Multi-round convergence: iterative selection-pressure → design-feedback loop (0.8.0) — ⛔ SHELVED, SUPERSEDED BY 0.9.0
 
@@ -1026,17 +1033,43 @@ second persistence system. Disk usage for N full checkouts is documented rather
 than capped, and submodule superprojects fall back by probe (documented by git,
 not reproduced here).
 
-### 6. Cross-slice RAG / embeddings
+### 6. Cross-slice RAG / embeddings — ✅ BUILT (1.17.0)
 
-**Gap (confirmed — NOT built):** no vector store ships with the harness and no
-semantic lookup runs across the `.stz/` markdown tree. Progressive disclosure is
-by frontmatter summaries + stable claim ids only; cross-slice recall
-("did an earlier slice already set a convention for X?") is manual.
+**Shipped.** Local embeddings over the `.stz/` markdown tree, scoped per
+phase-agent role, rebuilt incrementally on slice close — no vector service, no
+new runtime dependency (deps stay `{tsx}`), matching N9/N5. `src/knowledge/`
+(`scope.ts`, `embedder.ts`, `index-store.ts`) plus the semantic layer inside the
+existing `retrieve()` contract, and two bridge verbs. Mechanism, the calibration
+procedure and the stated gaps: `docs/development/semantic-recall.md`.
 
-Wanted: local embeddings (e.g. `nomic-embed-text` via Ollama — no managed vector
-service, matching N9/N5) over the markdown tree, scoped per phase-agent role,
-rebuilt incrementally on slice close. Unlocks id-free semantic spec-diff matching
-and cross-slice convention/decision recall as the tree grows.
+- **The tier list is an allowlist, and that is the security boundary.**
+  `00-intent`, `10-research`, `20-standards` — the three tiers written behind a
+  pipeline approval gate, which is the warrant for the one line that stamps
+  `trust: "accepted"`. Everything else is never walked, so `30-tests/`'s sealed
+  suite and the test author's reference implementation are unreachable by
+  construction rather than by a filter that could miss a case.
+- **Provider seam, offline-first.** Ollama `nomic-embed-text` when it answers, a
+  deterministic corpus-independent fallback otherwise (byte-identical across
+  processes), selection always reported. The real embed call is the probe — there
+  is no `/api/version` liveness check, because it answers 200 while `/api/embed`
+  404s on an unpulled model.
+- **Incremental at slice close.** `finalize` rebuilds after `saveState`, wrapped so
+  it may report failure but never cause one. sha256 diff: one edited summary is
+  one embed call, a deleted document is evicted, a changed embedder fingerprint
+  discards every prior vector rather than comparing across identities.
+- **Capped, explained, role-scoped, floor-gated.** Default-deny roles (an unknown
+  or case-variant role retrieves nothing), `repo_note` pinned at 0, an integer-
+  quantized cosine so the `score desc, id asc` tie rule survives, and a measured
+  similarity floor (`SEMANTIC_FLOOR = 0.54`) that is the only thing keeping the
+  no-bulk-injection guard alive.
+
+**Still open — the query side has no automatic caller.** No `commands/*.md` step
+and no `agents/stz-*.md` instruction invokes `knowledge-query`, so a phase agent
+does not consult recall mid-slice; a human at a shell can. That wiring is one
+orchestration line per call site and was deliberately outside the phase's scope
+fence. Also unshipped: id-free semantic spec-diff matching (the spec-diff still
+uses stable claim ids), and paraphrase recall requires the pulled model — the
+offline fallback catches morphology, never synonymy.
 
 ### 7. Unified installer — one `npm install`, every harness registered — ✅ BUILT (1.14.0)
 

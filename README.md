@@ -293,6 +293,8 @@ Contributor docs:
   [`docs/development/bridge-cli.md`](docs/development/bridge-cli.md).
 - **Sealed-suite integrity** — the guide-vs-sensor contract:
   [`docs/development/sealed-suite.md`](docs/development/sealed-suite.md).
+- **Cross-slice semantic recall** — the `.stz/` knowledge index and its tier
+  allowlist: [`docs/development/semantic-recall.md`](docs/development/semantic-recall.md).
 ## Contributing
 
 Contributions welcome — read [`CONTRIBUTING.md`](CONTRIBUTING.md) first. The
