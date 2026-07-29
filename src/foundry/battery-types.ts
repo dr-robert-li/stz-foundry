@@ -284,14 +284,17 @@ export interface SplitBattery {
 
 /**
  * Construct a `SplitBattery` from two drafts, each independently run through
- * `makeBattery`'s full gate. Refuses two halves sharing an id — a caller that
- * accidentally split into two identical batteries would otherwise silently
- * defeat the whole point of a held-out promotion set.
+ * `makeBattery`'s full gate FIRST — a pair-level check never runs before a
+ * per-half gate, so neither guard below can mask a per-half violation (a
+ * zero-task or non-exogenous half still throws exactly as `makeBattery`
+ * alone would). Then two separate pair-level checks (Phase 2, D-03/CONTEXT
+ * D3), each its own named `if`, never one compound boolean:
  *
- * ponytail: id-distinctness only. The disjoint-task-id-SET guard (proving the
- * two halves don't merely have different ids but share ZERO tasks) is
- * 02-02's own check, mutation-proven there against the search loop's own
- * scope.
+ *   1. distinct battery id — two halves sharing an id would otherwise
+ *      silently defeat the whole point of a held-out promotion set.
+ *   2. disjoint task-id sets — a task present in both halves means the
+ *      "held-out" promotion set is silently the SAME set as the search set,
+ *      one of the two named vacuity shapes this split exists to prevent.
  */
 export function makeSplitBattery(
   searchDraft: { id: string; tasks: BatteryTask[]; receipt: OracleReceipt },
@@ -303,6 +306,16 @@ export function makeSplitBattery(
     throw new BatteryShapeError(
       `split battery halves share id "${search.id}" — search and promotion must be independently identifiable`,
     );
+  }
+  const searchTaskIds = new Set(search.tasks.map((t) => t.id));
+  for (const task of held.tasks) {
+    if (searchTaskIds.has(task.id)) {
+      throw new BatteryShapeError(
+        `split battery task id "${task.id}" appears in both "${search.id}" (search) and "${held.id}" ` +
+          `(promotion) — a task present in both halves means the held-out promotion set is silently the ` +
+          `same set as the search set, defeating the Goodhart bound this split exists to enforce`,
+      );
+    }
   }
   return { search, promotion: held };
 }

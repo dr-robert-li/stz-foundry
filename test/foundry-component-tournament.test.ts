@@ -15,7 +15,14 @@ import {
   type PromoteComponentWinnerArgs,
 } from "../src/foundry/component-tournament.js";
 import { runAgentBattery, type CandidateAgent, type BatteryRun } from "../src/foundry/agent-runner.js";
-import { makeBattery, makeSplitBattery, type AgentBattery, type OracleReceipt } from "../src/foundry/battery-types.js";
+import {
+  makeBattery,
+  makeSplitBattery,
+  validateReceipt,
+  BatteryShapeError,
+  type AgentBattery,
+  type OracleReceipt,
+} from "../src/foundry/battery-types.js";
 import { evalReward } from "../src/selection.js";
 import type { JudgeReliabilityProfile } from "../src/judge-reliability.js";
 import type { ChatRequest, ChatResponse, Provider } from "../src/foundry/provider.js";
@@ -117,6 +124,54 @@ describe("agentFrontmatter", () => {
   });
   it("returns empty string when there is no frontmatter", () => {
     expect(agentFrontmatter("just body text, no frontmatter")).toBe("");
+  });
+});
+
+describe("makeSplitBattery — a split whose halves overlap cannot exist as a value", () => {
+  it("throws BatteryShapeError naming the colliding task id when both halves share one", () => {
+    expect(() =>
+      makeSplitBattery(
+        { id: "search-battery", tasks: [{ id: "shared-t1", prompt: "p1", checks: [CHECK] }], receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] } },
+        { id: "promotion-battery", tasks: [{ id: "shared-t1", prompt: "p2", checks: [CHECK] }], receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] } },
+      ),
+    ).toThrowError(BatteryShapeError);
+    try {
+      makeSplitBattery(
+        { id: "search-battery", tasks: [{ id: "shared-t1", prompt: "p1", checks: [CHECK] }], receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] } },
+        { id: "promotion-battery", tasks: [{ id: "shared-t1", prompt: "p2", checks: [CHECK] }], receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] } },
+      );
+      throw new Error("test setup: expected makeSplitBattery to throw");
+    } catch (e) {
+      expect((e as Error).message).toContain("shared-t1");
+      expect((e as Error).message).toContain("search-battery");
+      expect((e as Error).message).toContain("promotion-battery");
+    }
+  });
+
+  it("throws when both halves share a battery id (landed in 02-01 — still holds)", () => {
+    expect(() =>
+      makeSplitBattery(
+        { id: "same-id", tasks: [{ id: "t1", prompt: "p1", checks: [CHECK] }], receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] } },
+        { id: "same-id", tasks: [{ id: "t2", prompt: "p2", checks: [CHECK] }], receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] } },
+      ),
+    ).toThrowError(BatteryShapeError);
+  });
+
+  it("a disjoint split returns a value whose two halves are each frozen and independently carry a validated receipt", () => {
+    const split = makeSplit();
+    expect(Object.isFrozen(split.search)).toBe(true);
+    expect(Object.isFrozen(split.promotion)).toBe(true);
+    expect(() => validateReceipt(split.search.receipt, split.search.id)).not.toThrow();
+    expect(() => validateReceipt(split.promotion.receipt, split.promotion.id)).not.toThrow();
+  });
+
+  it("a half that would fail makeBattery on its own (zero tasks) still throws — the pair-level guard does not weaken the per-half gates", () => {
+    expect(() =>
+      makeSplitBattery(
+        { id: "search-battery", tasks: [], receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] } },
+        { id: "promotion-battery", tasks: [{ id: "t1", prompt: "p1", checks: [CHECK] }], receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] } },
+      ),
+    ).toThrowError(BatteryShapeError);
   });
 });
 
