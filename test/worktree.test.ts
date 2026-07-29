@@ -244,4 +244,88 @@ describe("specimen worktrees", () => {
     expect(lastWorktreeMode()).toBe("worktree");
     expect(lastWorktreeReason()).toBeNull();
   });
+
+  // These three need no git repo at all — that is the point of REQ-05, so they
+  // run and pass whether or not git is installed.
+  it("fallback: not a git repository", () => {
+    const d = tempDir("stz-wt-plain-");
+    const h = createWorktree({
+      target: d,
+      root: d,
+      slice: "slice-01",
+      name: "s0",
+      fallbackDir: join(d, "fb"),
+    });
+
+    expect(h.mode).toBe("directory");
+    expect(existsSync(h.path)).toBe(true); // usable — the caller never branches
+    expect(h.reason).toBeTruthy();
+    if (hasGit) expect(h.reason).toMatch(/not a git repository/i);
+  });
+
+  it("fallback: unborn HEAD", () => {
+    if (!hasGit) return expectDirectoryFallback();
+    const d = tempDir("stz-wt-unborn-");
+    g(d, "-c", "init.defaultBranch=main", "init", "-q", ".");
+
+    const h = createWorktree({
+      target: d,
+      root: d,
+      slice: "slice-01",
+      name: "s0",
+      fallbackDir: join(d, "fb"),
+    });
+
+    expect(h.mode).toBe("directory");
+    expect(h.reason).toMatch(/unborn HEAD/i);
+    expect(existsSync(h.path)).toBe(true);
+  });
+
+  it("fallback reported: the degrade is never silent", () => {
+    const plain = tempDir("stz-wt-report-");
+    createWorktree({
+      target: plain,
+      root: plain,
+      slice: "slice-01",
+      name: "s0",
+      fallbackDir: join(plain, "fb"),
+    });
+    expect(lastWorktreeMode()).toBe("directory");
+    expect(lastWorktreeReason()).toBeTruthy();
+
+    _resetWorktreeState();
+    expect(lastWorktreeMode()).toBe("directory");
+    expect(lastWorktreeReason()).toBeNull();
+
+    if (!hasGit) return;
+    create(makeRepo(REPO), "s0");
+    expect(lastWorktreeMode()).toBe("worktree");
+    expect(lastWorktreeReason()).toBeNull();
+  });
+
+  it("idempotent: destroyWorktrees is safe to call twice", () => {
+    if (!hasGit) return expectDirectoryFallback();
+    const target = makeRepo(REPO);
+    for (const n of ["s0", "s1"]) expect(create(target, n).mode).toBe("worktree");
+
+    expect(destroyWorktrees(target, target, "slice-01").removed).toHaveLength(2);
+    // The second call is exactly the exit-128 "is not a working tree" case.
+    expect(destroyWorktrees(target, target, "slice-01")).toEqual({ removed: [], pruned: true });
+  });
+
+  it("reconcile orphan: a crashed worktree is reclaimed by the next create", () => {
+    if (!hasGit) return expectDirectoryFallback();
+    const target = makeRepo(REPO);
+    const h = create(target, "s0");
+    expect(h.mode).toBe("worktree");
+
+    rmSync(h.path, { recursive: true, force: true }); // crash: dir gone, admin entry stays
+    expect(g(target, "worktree", "list", "--porcelain")).toMatch(/prunable/);
+
+    const again = create(target, "s0");
+
+    expect(again.mode).toBe("worktree");
+    expect(g(target, "worktree", "list", "--porcelain")).not.toMatch(/prunable/);
+    destroyWorktrees(target, target, "slice-01");
+  });
 });

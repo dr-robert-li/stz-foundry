@@ -129,6 +129,38 @@ export function worktreePathFor(root: string, slice: string, name: string): stri
   return join(worktreeRootPath(root, slice), name);
 }
 
+// ── probe ──────────────────────────────────────────────────────────────────
+
+/**
+ * Can this host + target actually support a specimen worktree? Each trigger
+ * gets its own reason string so the degrade is diagnosable rather than a
+ * generic catch-all, and so every fallback path is a tested product path.
+ */
+export function probeWorktreeSupport(target: string): { ok: boolean; reason: string | null } {
+  if (!git(["--version"], tmpdir()).ok) {
+    return { ok: false, reason: "git binary not available on this host" };
+  }
+  const gitDir = git(["rev-parse", "--git-dir"], target);
+  if (!gitDir.ok) {
+    return { ok: false, reason: firstLine(gitDir.stderr) || "not a git repository" };
+  }
+  if (!git(["rev-parse", "--verify", "HEAD"], target).ok) {
+    // `git init` with no commit. `worktree add --orphan` would cover it but
+    // needs git 2.42 and adds a second code path for a case the already-required
+    // fallback handles for free.
+    return { ok: false, reason: "unborn HEAD — repository has no commits yet" };
+  }
+  // ponytail: MEDIUM confidence — git's own BUGS section calls worktree support
+  // for submodules incomplete and advises against multiple checkouts of a
+  // superproject, but this was not reproduced on this host. Falling back is the
+  // conservative read; if a superproject is ever shown to work, drop this probe.
+  const sub = git(["submodule", "status"], target);
+  if (sub.ok && sub.stdout.trim() !== "") {
+    return { ok: false, reason: "repository has submodules — git worktree support for superprojects is incomplete" };
+  }
+  return { ok: true, reason: null };
+}
+
 // ── create ─────────────────────────────────────────────────────────────────
 
 let snapshotCounter = 0;
@@ -199,6 +231,9 @@ export function createWorktree(opts: {
   const { target, root, slice, name, fallbackDir } = opts;
   let wtPath = "";
   try {
+    const probe = probeWorktreeSupport(target);
+    if (!probe.ok) return fallback(fallbackDir, name, probe.reason ?? "worktree unavailable");
+
     const rootDir = worktreePathFor(root, slice, name); // guards BOTH segments
     mkdirSync(join(rootDir, ".."), { recursive: true });
     const realRoot = realOrResolve(join(rootDir, ".."));
