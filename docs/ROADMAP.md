@@ -1150,9 +1150,15 @@ and adding a new harness is a new adapter + an `install` case, not a new
 distribution channel. The prebuilt `dist/` that makes a fresh install need no
 network on first run shipped alongside it in 1.17.0.
 
-### 8. Harness factory — specialized harnesses as the output artifact
+### 8. Harness factory — specialized harnesses as the output artifact — ⚠️ PARTIALLY BUILT (phases 1–2, 1.18.0); phases 3–5 not built
 
-**Design locked (2026-07-10), not built.** Full design:
+**Design locked (2026-07-10).** Phases 1 (agentic eval seam) and 2 (component
+tournaments) shipped in 1.18.0 — see `docs/development/harness-factory.md`
+§§ "Phase 1, as shipped" / "Phase 2, as shipped" for the mechanism and design
+findings. Phases 3–5 (`HarnessBlueprint`, deterministic assembly, the
+data-ops pilot battery, `emit.ts`/packaging, harness-level evolve) remain
+**not built** — no vertical has been admitted and no real domain battery
+exists yet; what shipped is the machinery, not a tuned harness. Full design:
 `docs/development/harness-factory.md`. The abstraction ladder: STZ makes code →
 the same tournament machinery can make *agents* (specimens write `agents/*.md`
 instead of implementations) → the factory assembles tournament-won components
@@ -1186,17 +1192,21 @@ until a forecast-mode oracle (resolvable predictions, Brier ex post) exists.
 
 Phases, each independently valuable:
 
-1. Agentic eval seam (`src/foundry/agent-runner.ts`, `battery-types.ts`,
-   `OracleReceipt` schema) — standalone agent-benchmark harness.
-2. Component tournaments — seam swapped into slice machinery; GEPA-style
-   reflective prompt mutation (bounded budget); search-set/promotion-set
-   battery split (Goodhart bound); seventh promotion gate.
-3. `HarnessBlueprint` + deterministic best-per-slot assembly + data-ops pilot
-   battery (fixture-warehouse generator + dbt/data-diff oracle).
-4. Emit/packaging — `src/foundry/emit.ts` (inverse of `planInstall`),
-   plugin.json/marketplace.json generation, docs via documenter/summarizer,
-   fix the pre-existing installer `skills/` gap.
-5. Harness-level evolve — parameterize `src/harness.ts` substrates from code
-   pilots to domain batteries; gated on phases 1–4 showing gains; evolve
-   discipline verbatim (held-out, recall-free, 3-seed, variance floor,
+1. **Built (1.18.0).** Agentic eval seam (`src/foundry/agent-runner.ts`,
+   `battery-types.ts`, `OracleReceipt` schema) — standalone agent-benchmark
+   harness.
+2. **Built (1.18.0).** Component tournaments — seam swapped into slice
+   machinery; GEPA-style reflective prompt mutation (bounded budget);
+   search-set/promotion-set battery split (Goodhart bound); seventh
+   promotion gate.
+3. **Not built.** `HarnessBlueprint` + deterministic best-per-slot assembly +
+   data-ops pilot battery (fixture-warehouse generator + dbt/data-diff
+   oracle).
+4. **Not built.** Emit/packaging — `src/foundry/emit.ts` (inverse of
+   `planInstall`), plugin.json/marketplace.json generation, docs via
+   documenter/summarizer, fix the pre-existing installer `skills/` gap.
+5. **Not built.** Harness-level evolve — parameterize `src/harness.ts`
+   substrates from code pilots to domain batteries; gated on phases 1–4
+   showing gains; evolve discipline verbatim (held-out, recall-free, 3-seed,
+   variance floor,
    MANIFEST replay).
