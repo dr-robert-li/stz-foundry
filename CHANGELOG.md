@@ -9,6 +9,57 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.17.0] — per-specimen git worktrees + ephemeral run record
+
+Specimens no longer share a working tree. Each gets a real detached git worktree
+when the target is a repository, so parallel edits to the same tracked file stop
+colliding and every diff is attributable — the piece brownfield (1.12.0) was
+missing. Mechanism, durable side effects and stated ceilings:
+[`docs/development/worktrees.md`](docs/development/worktrees.md).
+
+- **Sealed-suite exposure closed (security).** A plain `git worktree add`
+  materializes `.stz/30-tests/held-out/` inside the specimen's checkout — the
+  answer key, on disk, readable. Reproduced, and kept as a negative-control test.
+  Worktrees are now created `add --no-checkout --detach` → per-worktree
+  `sparse-checkout set --no-cone '/*' '!/.stz/'` → `checkout`, so the suite is
+  never written at all; a worktree that cannot be firewalled is rolled back to the
+  directory fallback rather than handed over. The confidentiality control is
+  structural — `hooks/held-out-guard.mjs` is a destruction guard that exempts
+  every non-Bash tool and was never a read barrier.
+- **A second path-traversal hole closed (security).** Model-returned file paths
+  reached `join(protoDir, path)` and a write with no containment check at all;
+  `writeSpecimenFiles` is now the single guarded write path for both the prototype
+  tree and the worktree. The bridge's worktree verbs validate slice and specimen
+  ids at the argv boundary, before the never-throws create path can convert a
+  traversal id into a directory outside `.stz/`.
+- **Base is a working-tree snapshot, not `HEAD`.** STZ never commits, so a
+  multi-slice brownfield run would otherwise hand specimens a stale repo.
+  A throwaway `GIT_INDEX_FILE` → `write-tree` → `commit-tree` leaves the operator's
+  status, index, stash and refs byte-identical. `commit-tree` runs under
+  `-c commit.gpgsign=false` — it honours `commit.gpgsign`, and a signing repo would
+  otherwise block on a passphrase prompt mid-round.
+- **Ephemeral run record + cost attribution.** One record per specimen (status,
+  kill reason, duration, isolation mode, worktree path, changed files) plus real
+  per-specimen spend: `bySpecimen()`, a `## By specimen` section and a
+  `- **worktree isolation:**` line in `foundry-cost.md`, an isolation event per
+  round in `journal.md`, and `specimen` + `durationMs` on the JSONL call ledger.
+  It rides the existing audit tree — no second persistence system.
+- **Teardown on every terminal path, idempotent.** `remove --force --force` +
+  `prune`, detached HEAD so no branch leaks, crash orphans reconciled by the next
+  create. Wired into bridge `finalize` / `escalate`(halt) / `slice-halt` /
+  `slice-reset` and one `finally` around the foundry loop covering stuck-kill,
+  crash and the budget throw. Retry and replan deliberately do not tear down.
+- **Three new bridge verbs and the in-session wiring.** `stz bridge
+  worktree-create` / `worktree-list` / `worktree-destroy` (with `--target`);
+  `/stz-f:run` step 3b calls `worktree-create` once per specimen and hands each
+  `stz-specimen` the path it printed. The command computes no path and makes no
+  fallback decision — the bridge owns both.
+- **The fallback is reported, never silent.** No git, not a repo, unborn HEAD, a
+  submodule superproject or any failed step yields a usable directory handle with
+  a reason; the run report and the audit tree both surface `directory (DEGRADED —
+  <reason>)`. Greenfield synthesis is still the common case, so this is a normal
+  outcome, not an error.
+
 ## [1.16.1] — path-traversal guard on slice-reset (security)
 
 A missing-validation fix in `src/bridge.ts`. A slice `id` flowed unmodified into
