@@ -10,7 +10,15 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fakeServer, closeAllFakeServers } from "./helpers/fake-server.js";
-import { runAgentBattery, observeCheck } from "../src/foundry/agent-runner.js";
+import {
+  runAgentBattery,
+  observeCheck,
+  resolveProviderSelection,
+  DEFAULT_BATTERY_BASE_URL,
+  DEFAULT_BATTERY_MODEL,
+  AGENT_BATTERY_COVERAGE_SENTINEL,
+  AGENT_BATTERY_MUTATION_SENTINEL,
+} from "../src/foundry/agent-runner.js";
 import { makeBattery } from "../src/foundry/battery-types.js";
 import { evalGate, evalReward, select } from "../src/selection.js";
 import { FoundryCostMeter } from "../src/foundry/cost.js";
@@ -614,5 +622,173 @@ describe("runAgentBattery — wall-clock kill and cost cap (01-04)", () => {
     expect(run.result.testPassRate).toBe(1);
     expect(meter.totals().calls).toBe(2);
     expect(meter.bySpecimen()["cand-a"]?.calls).toBe(2);
+  });
+});
+
+describe("resolveProviderSelection — reported, never probed (01-04)", () => {
+  it("the default provider is local and is reported, not probed", () => {
+    // Synchronous: the assertion that no socket was opened is structural —
+    // this function has no way to make a request.
+    const selection = resolveProviderSelection();
+    expect(selection).toEqual({
+      kind: "openai",
+      baseUrl: DEFAULT_BATTERY_BASE_URL,
+      model: DEFAULT_BATTERY_MODEL,
+      source: "default-local",
+    });
+  });
+
+  it("an explicit provider is reported as explicit", async () => {
+    const srv = await fakeServer(() => ({
+      status: 200,
+      json: { model: "test-model", choices: [{ message: { content: "```path=out.txt\nok\n```" } }] },
+    }));
+
+    const battery = makeBattery({
+      id: "battery-explicit-provider",
+      tasks: [
+        {
+          id: "t1",
+          prompt: "write out.txt containing ok",
+          checks: [{ checkId: "c1", kind: "output-assertion", input: "out.txt", expect: "ok", description: "d" }],
+        },
+      ],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    });
+
+    const run = await runAgentBattery(
+      { id: "cand-a", systemPrompt: "you write files as fenced blocks marked path=<file>" },
+      battery,
+      { provider: { kind: "openai", baseUrl: srv.url, model: "test-model" } },
+    );
+
+    expect(run.provider.source).toBe("explicit");
+    expect(run.provider.baseUrl).toBe(srv.url);
+  });
+
+  it("an unreachable provider surfaces rather than substituting", async () => {
+    // A server that's booted then closed frees the port — guaranteed nothing
+    // is listening there, unlike a hardcoded low port that might be in use.
+    const dead = await fakeServer(() => null);
+    const deadUrl = dead.url;
+    dead.close();
+
+    const battery = makeBattery({
+      id: "battery-unreachable",
+      tasks: [
+        {
+          id: "t1",
+          prompt: "irrelevant — the provider is unreachable",
+          checks: [{ checkId: "c1", kind: "output-assertion", expect: "x", description: "d" }],
+        },
+      ],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    });
+
+    const run = await runAgentBattery(
+      { id: "cand-a", systemPrompt: "irrelevant" },
+      battery,
+      { provider: { kind: "openai", baseUrl: deadUrl, model: "test-model" } },
+    );
+
+    expect(run.tasks[0]?.status).toBe("error");
+    expect(run.tasks[0]?.pass).toBe(false);
+    expect(run.tasks[0]?.failureReason).toMatch(/provider/i);
+    expect(run.result.passedGate).toBe(false);
+    // Never silently substituted — the endpoint that was attempted is still
+    // the one reported, not some fallback that happened to be reachable.
+    expect(run.provider.baseUrl).toBe(deadUrl);
+    expect(run.provider.source).toBe("explicit");
+  }, 10_000);
+});
+
+describe("runAgentBattery output feeds evalGate/evalReward/select unchanged (REQ-14, criterion 2)", () => {
+  it("the EvalResult is consumed by the unmodified selection path", async () => {
+    const passSrv = await fakeServer(() => ({
+      status: 200,
+      json: { model: "test-model", choices: [{ message: { content: "```path=out.txt\nok\n```" } }] },
+    }));
+    const failSrv = await fakeServer(() => ({
+      status: 200,
+      json: { model: "test-model", choices: [{ message: { content: "```path=out.txt\nnope\n```" } }] },
+    }));
+
+    const battery = makeBattery({
+      id: "battery-compat-proof",
+      tasks: [
+        {
+          id: "t1",
+          prompt: "write out.txt containing ok",
+          checks: [{ checkId: "c1", kind: "output-assertion", input: "out.txt", expect: "ok", description: "d" }],
+        },
+      ],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    });
+
+    const runPass = await runAgentBattery(
+      { id: "cand-pass", systemPrompt: "you write files as fenced blocks marked path=<file>" },
+      battery,
+      { provider: { kind: "openai", baseUrl: passSrv.url, model: "test-model" } },
+    );
+    const runFail = await runAgentBattery(
+      { id: "cand-fail", systemPrompt: "you write files as fenced blocks marked path=<file>" },
+      battery,
+      { provider: { kind: "openai", baseUrl: failSrv.url, model: "test-model" } },
+    );
+
+    const results = [runPass.result, runFail.result];
+
+    const gate = evalGate(results);
+    expect(gate.passers).toEqual(["cand-pass"]);
+
+    for (const r of results) {
+      const reward = evalReward(r);
+      expect(Number.isFinite(reward)).toBe(true);
+      expect(reward).toBeGreaterThanOrEqual(0);
+      expect(reward).toBeLessThanOrEqual(1);
+    }
+
+    const { judgment } = select(results, []);
+    expect(judgment.winner).toBe("cand-pass");
+    expect(judgment.advantages).toHaveLength(2);
+
+    // A per-specimen varying sentinel would distort GRPO ranking:
+    // groupRelativeAdvantage normalizes by group mean and standard deviation,
+    // so a constant added identically to every specimen's reward shifts the
+    // mean and leaves every advantage unchanged — that invariance is exactly
+    // why these are exported constants, not computed values (RESEARCH
+    // assumption A1).
+    expect(runPass.result.coverage).toBe(AGENT_BATTERY_COVERAGE_SENTINEL);
+    expect(runFail.result.coverage).toBe(AGENT_BATTERY_COVERAGE_SENTINEL);
+    expect(runPass.result.mutationScore).toBe(AGENT_BATTERY_MUTATION_SENTINEL);
+    expect(runFail.result.mutationScore).toBe(AGENT_BATTERY_MUTATION_SENTINEL);
+  });
+
+  it("absent optional fields stay absent", async () => {
+    const srv = await fakeServer(() => ({
+      status: 200,
+      json: { model: "test-model", choices: [{ message: { content: "```path=out.txt\nok\n```" } }] },
+    }));
+
+    const battery = makeBattery({
+      id: "battery-absent-fields",
+      tasks: [
+        {
+          id: "t1",
+          prompt: "write out.txt containing ok",
+          checks: [{ checkId: "c1", kind: "output-assertion", input: "out.txt", expect: "ok", description: "d" }],
+        },
+      ],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    });
+
+    const run = await runAgentBattery(
+      { id: "cand-a", systemPrompt: "you write files as fenced blocks marked path=<file>" },
+      battery,
+      { provider: { kind: "openai", baseUrl: srv.url, model: "test-model" } },
+    );
+
+    expect("codeHealth" in run.result).toBe(false);
+    expect("suspicion" in run.result).toBe(false);
   });
 });

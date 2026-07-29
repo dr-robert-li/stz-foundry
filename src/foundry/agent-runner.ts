@@ -35,8 +35,8 @@ export interface ProviderSelection {
   kind: ProviderKind;
   baseUrl: string;
   model: string;
-  /** Reported, never silently inferred (D-03, REQ-15) — full reporting
-   *  surface (probe results, hosted-cost governance) lands in 01-04. */
+  /** Reported, never silently inferred (D-03, REQ-15) — see
+   *  `resolveProviderSelection`'s doc comment for the full posture. */
   source: "default-local" | "explicit";
 }
 
@@ -113,6 +113,39 @@ export interface RunBatteryOptions {
 /** The values `FOUNDRY_CONFIG_TEMPLATE` already defaults to (runner.ts:307-319) — D-03. */
 export const DEFAULT_BATTERY_BASE_URL = "http://localhost:11434/v1";
 export const DEFAULT_BATTERY_MODEL = "granite4.1:30b";
+
+/**
+ * Resolve which provider a battery run reports — config-explicit, never
+ * probe-and-fallback (criterion 5, D-03, REQ-15). This is the deliberate
+ * OPPOSITE of `selectEmbedder` (`src/knowledge/embedder.ts:215-235`), which
+ * probes the daemon and falls back because an embedding is an optimization:
+ * a wrong/unavailable embedder degrades quality, silently, and that's an
+ * acceptable trade for zero setup. A battery has no such slack — the
+ * candidate agent IS the measurement, so substituting a reachable provider
+ * for an unreachable one would silently change what's being measured. So
+ * this resolver is synchronous: it cannot probe anything, by construction,
+ * because it never makes a request. An override wins and reports
+ * `source: "explicit"`; nothing supplied reports the two DEFAULT_ constants
+ * with `source: "default-local"`. An unreachable endpoint is never
+ * substituted here — it surfaces later, as a `ProviderError` at call time,
+ * converted by `spawnSpecimens`'s existing catch into an attributable task
+ * failure (see the "unreachable provider surfaces" test). A future reader
+ * tempted to "fix" this inconsistency with `selectEmbedder` should not: the
+ * two functions are correct for two different things.
+ */
+export function resolveProviderSelection(
+  override?: { kind: ProviderKind; baseUrl: string; model: string },
+): ProviderSelection {
+  if (override) {
+    return { kind: override.kind, baseUrl: override.baseUrl, model: override.model, source: "explicit" };
+  }
+  return {
+    kind: "openai",
+    baseUrl: DEFAULT_BATTERY_BASE_URL,
+    model: DEFAULT_BATTERY_MODEL,
+    source: "default-local",
+  };
+}
 
 /**
  * NOT measured — an agent battery has no single source file for V8 to
@@ -272,29 +305,15 @@ export async function runAgentBattery(
       model: opts.provider?.model ?? DEFAULT_BATTERY_MODEL,
       source: "explicit",
     };
-  } else if (opts.provider) {
-    provider = createProvider({
-      kind: opts.provider.kind,
-      baseUrl: opts.provider.baseUrl,
-      apiKey: opts.provider.apiKey,
-    });
-    providerSelection = {
-      kind: opts.provider.kind,
-      baseUrl: opts.provider.baseUrl,
-      model: opts.provider.model,
-      source: "explicit",
-    };
   } else {
+    // Reported, never probed (criterion 5) — see resolveProviderSelection's
+    // doc comment for the full contrast with selectEmbedder.
+    providerSelection = resolveProviderSelection(opts.provider);
     provider = createProvider({
-      kind: "openai",
-      baseUrl: DEFAULT_BATTERY_BASE_URL,
+      kind: providerSelection.kind,
+      baseUrl: providerSelection.baseUrl,
+      apiKey: opts.provider?.apiKey,
     });
-    providerSelection = {
-      kind: "openai",
-      baseUrl: DEFAULT_BATTERY_BASE_URL,
-      model: DEFAULT_BATTERY_MODEL,
-      source: "default-local",
-    };
   }
 
   const tasksById = new Map(battery.tasks.map((t) => [t.id, t]));
