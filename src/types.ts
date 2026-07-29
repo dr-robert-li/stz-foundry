@@ -162,6 +162,12 @@ export interface CallRecord {
   id: string;
   phase: Phase;
   role: "specimen" | "judge" | "test-author" | "documenter" | "elicitor" | "researcher" | "planner";
+  /**
+   * Which specimen incurred this call (REQ-04). Optional: absent on non-specimen
+   * roles, and absent on ledgers written before per-specimen attribution existed,
+   * so persisted 90-audit/calls/*.jsonl keeps round-tripping.
+   */
+  specimen?: SpecimenId;
   model: string;
   temperature: number;
   seed: number | null;
