@@ -256,3 +256,100 @@ describe("component tournament — the tracer's central proof", () => {
     expect(result.verdict.failed).toContain("interface-parity-broken");
   });
 });
+
+// ── the held-out proof (Phase 2, D-03/D-06/CONTEXT D3): instrument the
+// PROVIDER seam, never the source. The assertion below is only true if the
+// leak genuinely does not happen — a spy on a named internal, or a source
+// grep, can pass while a leak arrives by another route (this plan's own
+// <action>). Prompts carry a recognisable per-half marker so a leaked
+// promotion prompt cannot hide inside a shared stem. ─────────────────────
+function makeMarkedSplit() {
+  return makeSplitBattery(
+    {
+      id: "held-out-proof-search-battery",
+      tasks: [
+        { id: "s1", prompt: "MARKER-SEARCH-alpha write out.txt containing ok", checks: [CHECK] },
+        { id: "s2", prompt: "MARKER-SEARCH-beta write out.txt containing ok", checks: [CHECK] },
+      ],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    },
+    {
+      id: "held-out-proof-promotion-battery",
+      tasks: [{ id: "p1", prompt: "MARKER-PROMOTION-gamma write out.txt containing ok", checks: [CHECK] }],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    },
+  );
+}
+
+/** A recording `Provider` double: every `chat` call is captured verbatim
+ *  before a canned response is returned, so a test can scan what was
+ *  actually SENT rather than trust a mock's call count on some internal. */
+function makeRecordingProvider(): { provider: Provider; requests: ChatRequest[] } {
+  const requests: ChatRequest[] = [];
+  const provider: Provider = {
+    kind: "openai",
+    baseUrl: "http://test-provider.invalid",
+    async chat(req: ChatRequest): Promise<ChatResponse> {
+      requests.push(req);
+      const winning = (req.system ?? "").includes("WINNING");
+      return {
+        text: winning ? "```path=out.txt\nok\n```" : "```path=out.txt\nnope\n```",
+        model: req.model,
+        usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 },
+      };
+    },
+  };
+  return { provider, requests };
+}
+
+describe("the promotion set is never consulted during search (SC2/D-03/D-06)", () => {
+  it("search-only: provider requests carry every search-half prompt and no promotion-half prompt (N>=2 candidates)", async () => {
+    const split = makeMarkedSplit();
+    const { provider: recording, requests } = makeRecordingProvider();
+
+    await runSearchGeneration(candidates, split.search, { providerImpl: recording });
+
+    const userMessages = requests.flatMap((r) => r.messages.map((m) => m.content));
+    for (const task of split.search.tasks) {
+      expect(userMessages.some((m) => m.includes(task.prompt))).toBe(true);
+    }
+    for (const task of split.promotion.tasks) {
+      expect(userMessages.some((m) => m.includes(task.prompt))).toBe(false);
+    }
+    // N>=2 candidates × N>=2 search tasks — the leak cannot hide behind a
+    // single-candidate or single-task path.
+    expect(requests.length).toBe(candidates.length * split.search.tasks.length);
+  });
+
+  it("discrimination control: the full tournament DOES surface promotion prompts, exactly once per promotion task — proving the search-only assertion above is discriminating, not vacuously true", async () => {
+    const split = makeMarkedSplit();
+    const { provider: recording, requests } = makeRecordingProvider();
+
+    await runComponentTournament({
+      candidates,
+      split,
+      incumbentFrontmatter: null,
+      incumbentFitness: null,
+      diversityFloor: 0.01,
+      judgeProfile,
+      sliceType: "component",
+      runOpts: { providerImpl: recording },
+    });
+
+    const userMessages = requests.flatMap((r) => r.messages.map((m) => m.content));
+    for (const task of split.promotion.tasks) {
+      const occurrences = userMessages.filter((m) => m.includes(task.prompt)).length;
+      expect(occurrences).toBe(1);
+    }
+  });
+
+  it("signature control: runSearchGeneration's battery parameter is a plain AgentBattery, never SplitBattery (secondary evidence only)", async () => {
+    const src = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/foundry/component-tournament.ts", import.meta.url), "utf8"),
+    );
+    const sig = src.match(/export async function runSearchGeneration\(([\s\S]*?)\): Promise<SearchGenerationResult>/);
+    expect(sig).not.toBeNull();
+    expect(sig![1]).toContain("battery: AgentBattery");
+    expect(sig![1]).not.toContain("SplitBattery");
+  });
+});
