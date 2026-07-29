@@ -16,7 +16,13 @@ import { exogenousLineageGate, type AgentBattery, type SplitBattery } from "./ba
 import { select, evalReward } from "../selection.js";
 import { checkDiversity } from "../diversity.js";
 import { calibrationGate, type JudgeReliabilityProfile } from "../judge-reliability.js";
-import { promotionGate, type PromotionVerdict } from "../harness.js";
+import {
+  promotionGate,
+  componentIncumbent,
+  makeComponentArchiveEntry,
+  appendComponentArchiveEntry,
+  type PromotionVerdict,
+} from "../harness.js";
 import type { EvalResult, Judgment, PairwiseVote, PromotionInputs, SpecimenId } from "../types.js";
 
 /**
@@ -160,19 +166,41 @@ export function promoteComponentWinner(args: PromoteComponentWinnerArgs): Promot
         "(provenance check failed — a substituted, copied, or re-derived receipt)",
   };
 
-  return { inputs, verdict, searchFitness, promotionFitness, searchPromotionGap: searchFitness - promotionFitness, reasons };
+  // searchPromotionGap sign convention (REQ-21/SC5 — the measured Goodhart
+  // bound, arXiv:2606.11045): search minus promotion, so a POSITIVE number
+  // means the searched agent scored worse held out than while being
+  // searched against (it generalizes worse — the direction that matters).
+  // Derived here from the two real `evalReward` numbers above; never a
+  // parameter a caller could hand-enter.
+  const searchPromotionGap = searchFitness - promotionFitness;
+
+  return { inputs, verdict, searchFitness, promotionFitness, searchPromotionGap, reasons };
+}
+
+/** When present on `RunComponentTournamentArgs`, the tournament persists one
+ *  `ComponentArchiveEntry` per promotion decision to `.stz/60-harness/component/
+ *  <slot>/MANIFEST.json`, and reads `incumbentFitness` from the real recorded
+ *  incumbent for `slot` rather than trusting the caller's number. */
+export interface ComponentArchiveTarget {
+  root: string;
+  slot: string;
 }
 
 export interface RunComponentTournamentArgs {
   candidates: CandidateAgent[];
   split: SplitBattery;
   incumbentFrontmatter: string | null;
+  /** Baseline fitness (`-Infinity`-equivalent `null` ⇒ no incumbent yet).
+   *  IGNORED when `archive` is supplied — `componentIncumbent(archive.root,
+   *  archive.slot)` is the real baseline in that case (D-02: computed, not
+   *  asserted — the same posture the seventh gate has). */
   incumbentFitness: number | null;
   diversityFloor: number;
   judgeProfile: JudgeReliabilityProfile;
   sliceType: string;
   votes?: PairwiseVote[];
   runOpts?: RunBatteryOptions;
+  archive?: ComponentArchiveTarget;
 }
 
 export interface RunComponentTournamentResult {
@@ -189,6 +217,11 @@ export interface RunComponentTournamentResult {
  * ponytail: single generation. The bounded meta-loop (`onGeneration`, reused
  * verbatim) that spawns further generations on a barren-but-not-collapsed
  * result is 02-04's; this plan proves the tracer, not the loop.
+ *
+ * ponytail: no `bumpChildCount` analog at this altitude yet — the archive
+ * entry's `childCount` starts and stays 0. Upgrade trigger: parent-sampling
+ * over the component archive (`sampleParents`, reused verbatim), which is a
+ * later phase's concern, not this plan's.
  */
 export async function runComponentTournament(args: RunComponentTournamentArgs): Promise<RunComponentTournamentResult> {
   const search = await runSearchGeneration(args.candidates, args.split.search, {
@@ -205,6 +238,12 @@ export async function runComponentTournament(args: RunComponentTournamentArgs): 
   const promotionRun = await runAgentBattery(winnerCandidate, args.split.promotion, args.runOpts);
   const generationRewards = [...search.runs.values()].map((r) => evalReward(r.result));
 
+  // When an archive target is supplied, the real recorded incumbent for this
+  // slot IS the baseline — never the caller's own number (D-02: computed,
+  // not asserted).
+  const priorIncumbent = args.archive ? componentIncumbent(args.archive.root, args.archive.slot) : null;
+  const incumbentFitness = args.archive ? (priorIncumbent?.fitness ?? null) : args.incumbentFitness;
+
   const promotion = promoteComponentWinner({
     searchRun,
     promotionRun,
@@ -212,12 +251,30 @@ export async function runComponentTournament(args: RunComponentTournamentArgs): 
     promotionBattery: args.split.promotion,
     winnerFrontmatter: winnerCandidate.systemPrompt,
     incumbentFrontmatter: args.incumbentFrontmatter,
-    incumbentFitness: args.incumbentFitness,
+    incumbentFitness,
     generationRewards,
     diversityFloor: args.diversityFloor,
     judgeProfile: args.judgeProfile,
     sliceType: args.sliceType,
   });
+
+  if (args.archive) {
+    // Append on BOTH verdicts — a refusal is as much an audit record as a
+    // promotion (REQ-21: Goodharting must stay observable even when the
+    // gate refuses).
+    const advantage = search.judgment.advantages.find((a) => a.specimen === winnerId)?.advantage ?? 0;
+    const entry = makeComponentArchiveEntry({
+      slot: args.archive.slot,
+      specimenId: winnerId,
+      definitionText: winnerCandidate.systemPrompt,
+      parent: priorIncumbent?.variantId ?? null,
+      searchFitness: promotion.searchFitness,
+      promotionFitness: promotion.promotionFitness,
+      advantage,
+      gates: promotion.inputs,
+    });
+    appendComponentArchiveEntry(args.archive.root, args.archive.slot, entry);
+  }
 
   return { search, winner: winnerId, promotion };
 }

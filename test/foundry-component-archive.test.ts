@@ -25,6 +25,15 @@ import {
   type PromotionInputs,
 } from "../src/harness.js";
 import { STZ_DIR } from "../src/taxonomy.js";
+import {
+  runComponentTournament,
+  type PromoteComponentWinnerResult,
+} from "../src/foundry/component-tournament.js";
+import type { CandidateAgent } from "../src/foundry/agent-runner.js";
+import { makeSplitBattery, type SplitBattery } from "../src/foundry/battery-types.js";
+import type { JudgeReliabilityProfile } from "../src/judge-reliability.js";
+import type { ChatRequest, ChatResponse, Provider } from "../src/foundry/provider.js";
+import type { PredicateCheck } from "../src/contract/contract-types.js";
 
 function tmpRoot(): string {
   return mkdtempSync(join(tmpdir(), "stz-component-archive-test-"));
@@ -145,5 +154,174 @@ describe("component archive sibling — types + I/O (REQ-21, D-02/CONTEXT D2)", 
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+// ── Task 2 fixtures: an offline provider stub + a real SplitBattery, driven
+// end to end through runComponentTournament so the persisted gap comes from
+// a real battery run, not a hand-built entry. ────────────────────────────
+const provider: Provider = {
+  kind: "openai",
+  baseUrl: "http://test-provider.invalid",
+  async chat(req: ChatRequest): Promise<ChatResponse> {
+    const winning = (req.system ?? "").includes("WINNING");
+    return {
+      text: winning ? "```path=out.txt\nok\n```" : "```path=out.txt\nnope\n```",
+      model: req.model,
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 },
+    };
+  },
+};
+
+const CHECK: PredicateCheck = {
+  checkId: "c1",
+  kind: "output-assertion",
+  input: "out.txt",
+  expect: "ok",
+  description: "out.txt says ok",
+};
+
+const WINNING_DEF = "---\nname: stz-winner\ntools: Read, Write\n---\nWINNING agent body.";
+const LOSING_DEF = "---\nname: stz-loser\ntools: Read\n---\nLOSING agent body.";
+
+const candidates: CandidateAgent[] = [
+  { id: "cand-win", systemPrompt: WINNING_DEF },
+  { id: "cand-lose", systemPrompt: LOSING_DEF },
+];
+
+const judgeProfile: JudgeReliabilityProfile = {
+  schemaVersion: 1,
+  perSliceType: [{ sliceType: "component", consistency: 1, blindAccuracyBucket: "high", n: 4 }],
+};
+
+function makeSplit(idPrefix: string): SplitBattery {
+  return makeSplitBattery(
+    {
+      id: `${idPrefix}-search-battery`,
+      tasks: [{ id: `${idPrefix}-search-t1`, prompt: "write out.txt containing ok", checks: [CHECK] }],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    },
+    {
+      id: `${idPrefix}-promotion-battery`,
+      tasks: [{ id: `${idPrefix}-promo-t1`, prompt: "write out.txt containing ok", checks: [CHECK] }],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    },
+  );
+}
+
+describe("the gap is computed at the promotion decision and persisted (Task 2, REQ-21)", () => {
+  it("gap: a real end-to-end run's persisted searchPromotionGap round-trips through disk and matches the returned promotion result", async () => {
+    const root = tmpRoot();
+    try {
+      const split = makeSplit("gap-e2e");
+      const result = await runComponentTournament({
+        candidates,
+        split,
+        incumbentFrontmatter: WINNING_DEF,
+        incumbentFitness: 0,
+        diversityFloor: 0.01,
+        judgeProfile,
+        sliceType: "component",
+        runOpts: { providerImpl: provider },
+        archive: { root, slot: "reviewer" },
+      });
+      expect(result.promotion).not.toBeNull();
+      const promotion = result.promotion as PromoteComponentWinnerResult;
+      expect(promotion.verdict.promote).toBe(true);
+
+      const onDisk = JSON.parse(
+        await import("node:fs/promises").then((fs) => fs.readFile(componentManifestPath(root, "reviewer"), "utf8")),
+      );
+      expect(onDisk).toHaveLength(1);
+      expect(onDisk[0].searchPromotionGap).toBeCloseTo(promotion.searchPromotionGap, 10);
+      expect(onDisk[0].searchFitness).toBeCloseTo(promotion.searchFitness, 10);
+      expect(onDisk[0].promotionFitness).toBeCloseTo(promotion.promotionFitness, 10);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("gap: a REFUSED promotion still appends an entry — a refusal is as much an audit record as a promotion", async () => {
+    const root = tmpRoot();
+    try {
+      const split = makeSplit("gap-refuse");
+      const result = await runComponentTournament({
+        candidates,
+        split,
+        incumbentFrontmatter: LOSING_DEF, // diverges from the winner's frontmatter → interfaceParity fails
+        incumbentFitness: 0,
+        diversityFloor: 0.01,
+        judgeProfile,
+        sliceType: "component",
+        runOpts: { providerImpl: provider },
+        archive: { root, slot: "reviewer" },
+      });
+      expect(result.promotion!.verdict.promote).toBe(false);
+      expect(result.promotion!.verdict.failed).toContain("interface-parity-broken");
+
+      const onDisk = readComponentArchive(root, "reviewer");
+      expect(onDisk).toHaveLength(1);
+      expect(onDisk[0]!.gates.interfaceParity).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("gap: two tournaments against the same slot chain — the second entry's parent is the first entry's variantId, and beatsIncumbent reads the real recorded incumbent", async () => {
+    const root = tmpRoot();
+    try {
+      const split1 = makeSplit("gap-chain-1");
+      await runComponentTournament({
+        candidates, split: split1, incumbentFrontmatter: WINNING_DEF, incumbentFitness: 0,
+        diversityFloor: 0.01, judgeProfile, sliceType: "component",
+        runOpts: { providerImpl: provider }, archive: { root, slot: "reviewer" },
+      });
+      const first = readComponentArchive(root, "reviewer")[0]!;
+
+      const split2 = makeSplit("gap-chain-2");
+      await runComponentTournament({
+        candidates, split: split2, incumbentFrontmatter: WINNING_DEF, incumbentFitness: 0,
+        diversityFloor: 0.01, judgeProfile, sliceType: "component",
+        runOpts: { providerImpl: provider }, archive: { root, slot: "reviewer" },
+      });
+      const entries = readComponentArchive(root, "reviewer");
+      expect(entries).toHaveLength(2);
+      expect(entries[1]!.parent).toBe(first.variantId);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("gap: no archive target writes nothing to disk under the temp root, and the returned result still carries the gap", async () => {
+    const root = tmpRoot();
+    try {
+      const split = makeSplit("gap-none");
+      const result = await runComponentTournament({
+        candidates,
+        split,
+        incumbentFrontmatter: WINNING_DEF,
+        incumbentFitness: 0,
+        diversityFloor: 0.01,
+        judgeProfile,
+        sliceType: "component",
+        runOpts: { providerImpl: provider },
+        // no `archive` field
+      });
+      expect(result.promotion).not.toBeNull();
+      expect(typeof result.promotion!.searchPromotionGap).toBe("number");
+      expect(existsSync(join(root, STZ_DIR))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("source assertion: searchPromotionGap is produced by a subtraction of the two evalReward-derived numbers, and runComponentTournament takes no gap parameter", async () => {
+    const src = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/foundry/component-tournament.ts", import.meta.url), "utf8"),
+    );
+    expect(src).toMatch(/searchPromotionGap\s*=\s*searchFitness\s*-\s*promotionFitness/);
+    const sig = src.match(/export async function runComponentTournament\(([\s\S]*?)\): Promise<RunComponentTournamentResult>/);
+    expect(sig).not.toBeNull();
+    expect(sig![0]).not.toMatch(/gap/i);
   });
 });
