@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
+  readdirSync,
   rmSync,
   writeFileSync,
   readFileSync,
@@ -10,14 +11,19 @@ import {
   realpathSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import {
   createWorktree,
   destroyWorktrees,
+  worktreeRootPath,
   lastWorktreeMode,
   lastWorktreeReason,
   _resetWorktreeState,
 } from "../src/worktree.js";
+import { runSlice } from "../src/mock/orchestrator.js";
+import { MockModelLayer, defaultMockConfig } from "../src/mock/mock.js";
+import type { Specimen } from "../src/mock/interfaces.js";
+import type { SliceManifest } from "../src/types.js";
 
 /**
  * The sealed held-out suite is tracked in an STZ target repo, so a naive
@@ -328,4 +334,220 @@ describe("specimen worktrees", () => {
     expect(g(target, "worktree", "list", "--porcelain")).not.toMatch(/prunable/);
     destroyWorktrees(target, target, "slice-01");
   });
+});
+
+// ── the round itself: create → use → destroy, on every exit (phase 01 plan 04) ─
+
+/**
+ * These drive the REAL `runSlice` rather than `createWorktree` directly. The
+ * unit tests above prove the git seam; these prove the orchestrator reaches it,
+ * fills the run record, and tears down on the unhappy exits too — which is where
+ * cleanup is normally forgotten.
+ */
+
+const SLICE = "slice-wt-round";
+const NAME = "wtslice";
+/** The file the mock specimen edits (tracked) and the hack file it adds (new). */
+const EDITED = `src/${NAME}.ts`;
+const HACK = `src/${NAME}.hack.ts`;
+
+const ROUND_MANIFEST: SliceManifest = {
+  id: SLICE,
+  name: NAME,
+  contract: "export function run(x: number): number",
+  donePredicates: [{ id: "p", expr: "run(1) === 1", kind: "test" }],
+  traceTier: "minimal",
+  complexity: 1,
+  dependsOn: [],
+  judge: { votesPerPair: 1 },
+  summary: "worktree-isolated round",
+};
+
+/**
+ * The wrapped-mock harness from test/foundry-spawn.test.ts, with one seam: the
+ * specimen. Two consumers of a small fixture is still not enough to justify a
+ * shared test-helper module.
+ */
+function wrapMock(wrap?: (base: Specimen["implement"]) => Specimen["implement"]) {
+  const mock = new MockModelLayer(defaultMockConfig());
+  const base: Specimen["implement"] = (m, s, r) => mock.specimen.implement(m, s, r);
+  return {
+    elicitor: mock.elicitor,
+    testAuthor: mock.testAuthor,
+    strategist: mock.strategist,
+    evalRunner: mock.evalRunner,
+    judge: mock.judge,
+    documenter: mock.documenter,
+    planner: mock.planner,
+    nextRound: () => mock.nextRound(),
+    specimen: { implement: wrap ? wrap(base) : base },
+  };
+}
+
+/** A repo whose tracked source is exactly what the mock specimen rewrites. */
+function makeRoundRepo(): string {
+  return makeRepo({ ...REPO, [EDITED]: "export const x = 0;\n" });
+}
+
+/** Live `worktree ` lines as git sees them — 1 means only the main worktree. */
+function liveWorktrees(target: string): string[] {
+  return g(target, "worktree", "list", "--porcelain")
+    .split("\n")
+    .filter((l) => l.startsWith("worktree "));
+}
+
+describe("worktree-isolated round (REQ-01/REQ-03/REQ-04)", () => {
+  beforeEach(() => _resetWorktreeState());
+
+  it("teardown after kill: the round still completes and no worktree survives", async () => {
+    if (!hasGit) return expectDirectoryFallback();
+    const root = makeRoundRepo();
+
+    const result = await runSlice({
+      root,
+      manifest: ROUND_MANIFEST,
+      model: wrapMock((base) => async (m, strategy, r) => {
+        if (strategy === "batch-based") await new Promise<never>(() => {});
+        return base(m, strategy, r);
+      }),
+      n: 4,
+      specimenTimeoutMs: 200,
+    });
+
+    // The CONJUNCTION is the point: asserting only "no worktrees left" would
+    // pass against an implementation that aborts the round to guarantee it,
+    // which is exactly the N4 posture CONTEXT D-04 says teardown must hold under.
+    expect(result.halted).toBe(false);
+    expect(result.winner).not.toBeNull();
+    expect(result.state.events.some((e) => e.kind === "specimen-killed")).toBe(true);
+    expect(result.records.find((x) => x.strategy === "batch-based")!.status).toBe("timeout");
+    expect(liveWorktrees(root)).toHaveLength(1);
+    expect(readdirSync(worktreeRootPath(root, SLICE))).toEqual([]);
+  }, 30_000);
+
+  it("teardown after crash: a throwing specimen leaves no worktree behind", async () => {
+    if (!hasGit) return expectDirectoryFallback();
+    const root = makeRoundRepo();
+
+    const result = await runSlice({
+      root,
+      manifest: ROUND_MANIFEST,
+      model: wrapMock((base) => async (m, strategy, r) => {
+        if (strategy === "batch-based") throw new Error("segfault-ish");
+        return base(m, strategy, r);
+      }),
+      n: 4,
+    });
+
+    expect(result.halted).toBe(false);
+    const crashed = result.records.find((x) => x.strategy === "batch-based")!;
+    expect(crashed.status).toBe("error");
+    expect(crashed.killReason).toBe("segfault-ish");
+    expect(liveWorktrees(root)).toHaveLength(1);
+    expect(readdirSync(worktreeRootPath(root, SLICE))).toEqual([]);
+  }, 30_000);
+
+  it("ephemeral scope: the worktrees go, the audit record and its diffs stay", async () => {
+    if (!hasGit) return expectDirectoryFallback();
+    const root = makeRoundRepo();
+
+    const result = await runSlice({ root, manifest: ROUND_MANIFEST, model: wrapMock(), n: 4 });
+
+    expect(result.halted).toBe(false);
+    // Ephemeral (CONTEXT D5): the scope is gone…
+    expect(readdirSync(worktreeRootPath(root, SLICE))).toEqual([]);
+
+    // …the durable record is not. Parse every line: an empty or truncated
+    // ledger would sail past a bare existsSync.
+    const jsonl = readFileSync(join(root, ".stz", "90-audit", "calls", `${SLICE}.jsonl`), "utf8");
+    const calls = jsonl
+      .split("\n")
+      .filter((l) => l.trim() !== "")
+      .map((l) => JSON.parse(l) as { role: string; specimen?: string; durationMs?: number });
+    expect(calls.length).toBeGreaterThan(0);
+    // REQ-04's other half: the ledger carries per-specimen attribution + duration.
+    const attributed = calls.filter((c) => c.specimen !== undefined);
+    expect(attributed.length).toBeGreaterThan(0);
+    expect(attributed.every((c) => typeof c.durationMs === "number" || c.role !== "specimen")).toBe(true);
+
+    // REQ-04: attribution has to be retrievable PER SPECIMEN after the run —
+    // a git-level diff (plan 01) is a weaker claim than the record carrying it.
+    expect(result.records).toHaveLength(4);
+    for (const rec of result.records) {
+      expect(rec.isolation).toBe("worktree");
+      expect(rec.worktreePath).toContain(join("worktrees"));
+      // Profile `d` (recursive) also emits a hack file; git lists paths sorted.
+      expect(rec.diffFiles).toEqual(rec.specimen === "d" ? [HACK, EDITED] : [EDITED]);
+    }
+  }, 30_000);
+
+  it("fallback run completes: a non-repo root still reaches a winner", async () => {
+    const root = tempDir("stz-wt-fallback-");
+
+    const result = await runSlice({ root, manifest: ROUND_MANIFEST, model: wrapMock(), n: 4 });
+
+    // REQ-05 must never cost a run: this is the regression anchor for that.
+    expect(result.halted).toBe(false);
+    expect(result.winner).toBe("a");
+    expect(result.records).toHaveLength(4);
+    for (const rec of result.records) {
+      expect(rec.isolation).toBe("directory");
+      expect(rec.worktreePath).toBeNull();
+      expect(rec.diffFiles).toBeNull();
+    }
+    // …and the degrade is reported, not silent.
+    const iso = result.state.events.find((e) => e.kind === "isolation")!;
+    expect(iso.detail).toContain("directory isolation");
+    expect(iso.detail).toContain("DEGRADED — ");
+  }, 30_000);
+
+  // ── T-01-13: a model-returned file path must not escape its destination ────
+
+  const PROBE = "/tmp/stz-traversal-probe";
+  const PAYLOADS = ["../../etc/x", PROBE, "a/../../x"];
+
+  /**
+   * Drive REAL payloads through `runSlice` — the point is that the shared write
+   * helper resolves and rejects, so a mocked rejection would prove nothing.
+   * And assert on the ABSENCE of the resolved escape target, not merely that
+   * something threw: an implementation that writes first and throws afterwards
+   * passes a throw-only assertion while still owning your filesystem.
+   */
+  async function expectTraversalRejected(root: string, payload: string): Promise<void> {
+    const sliceDir = join(root, ".stz", "40-slices", SLICE);
+    // Both destinations, so the assertion covers the shared helper rather than
+    // whichever call site happens to run first.
+    const bases = [join(sliceDir, "prototypes", "specimen-a"), join(sliceDir, "worktrees", "s0")];
+    const escapeTargets = bases.map((b) => resolve(b, payload));
+
+    await expect(
+      runSlice({
+        root,
+        manifest: ROUND_MANIFEST,
+        model: wrapMock((base) => async (m, strategy, r) => {
+          const out = await base(m, strategy, r);
+          return { ...out, files: { ...out.files, [payload]: "pwned\n" } };
+        }),
+        n: 2,
+      }),
+    ).rejects.toThrow(payload);
+
+    for (const t of escapeTargets) expect(existsSync(t)).toBe(false);
+    expect(existsSync(PROBE)).toBe(false);
+  }
+
+  it("specimen output path traversal is rejected before any write", async () => {
+    try {
+      for (const payload of PAYLOADS) {
+        // Non-repo root: the prototype destination only. Needs no git, and it is
+        // the call site that predates worktrees — the one a new-call-site-only
+        // guard would leave open.
+        await expectTraversalRejected(tempDir("stz-wt-trav-plain-"), payload);
+        if (hasGit) await expectTraversalRejected(makeRoundRepo(), payload);
+      }
+    } finally {
+      // A regression must not be able to leave a file behind in /tmp.
+      rmSync(PROBE, { force: true });
+    }
+  }, 60_000);
 });
