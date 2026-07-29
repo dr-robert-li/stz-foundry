@@ -188,10 +188,14 @@ exercised), and a `prepublishOnly` (typecheck + test) guard before any npm publi
   (`hooks/held-out-guard.mjs`, 1.9.x) blocks destructive shell ops on the sealed
   tree in code. What is still not applied: git read-only attributes + a pre-commit
   hook enforcing it at the VCS layer.
-- **The bundled bridge runs the TypeScript CLI through `tsx`**, fetched by `npx`
-  on first use, so a fresh environment needs Node 20+ and network for that first
-  call. Shipping a prebuilt `dist/` to drop the runtime `tsx` dependency is a
-  hardening follow-up.
+- ~~**The bundled bridge runs the TypeScript CLI through `tsx`**~~ — **closed
+  (1.17.0).** `npm run build` emits `dist/` (NodeNext, with declarations) and
+  `bin/stz.mjs` imports `dist/cli.js` **in-process** when present, falling back to
+  the `tsx` source path only in a checkout with no build. The published package now
+  declares **zero runtime dependencies** (`tsx` moved to devDependencies), so a
+  fresh environment needs nothing but Node 20+ — no `npx` fetch, no network on
+  first call. `prepublishOnly` builds, and CI builds + smokes `node dist/cli.js`
+  on every push so the emit can never first break at publish time.
 
 ## Intent vs as-built (the diff)
 
@@ -203,7 +207,7 @@ exercised), and a `prepublishOnly` (typecheck + test) guard before any npm publi
   heterogeneous families), Python eval libraries, per-specimen observability
   *stacks* (the worktrees themselves shipped in 1.17.0), agent-side invocation of
   cross-slice recall (the index and its CLI shipped in 1.17.0; no command or agent
-  calls it yet), VCS-layer OS sealing, and the `dist/` build.
+  calls it yet) and VCS-layer OS sealing. The `dist/` build shipped in 1.17.0.
 - **Built beyond the original plan:** the `stz bridge` JSON contract, a
   dependency-free real eval runner (V8 coverage plus source mutation), the
   two-level project DAG driver, the persisted run config (granularity, fan-out,
@@ -305,9 +309,11 @@ a scoped per-worktree observability *stack* is still not built.
 - ✅ **Cross-slice RAG / embeddings** (1.17.0, `src/knowledge/`): allowlisted
   index over the `.stz/` tree, Ollama-or-deterministic-fallback provider seam,
   incremental rebuild at slice close, role-scoped capped explained recall.
+- ✅ **Prebuilt `dist/`** (1.17.0): zero runtime dependencies, `bin/stz.mjs`
+  prefers the build in-process, `tsx` is a contributor tool only.
 - ⬜ Still gaps: a scoped per-worktree **observability stack**
-  (logs/metrics/traces), a prebuilt **`dist/`** to drop runtime `tsx`,
-  **VCS-layer** OS sealing (git attributes + pre-commit), Python eval drivers,
+  (logs/metrics/traces), **VCS-layer** OS sealing (git attributes + pre-commit),
+  Python eval drivers,
   and **agent-side** invocation of cross-slice recall (the verbs exist; nothing
   in `commands/` or `agents/` calls them).
 
@@ -1141,9 +1147,8 @@ rather than a fork. Per-harness detail:
 The result: `npm i -g stz-foundry && stz install --all` sets up the CLI, the
 standalone runner, and every detected in-session harness from one interface —
 and adding a new harness is a new adapter + an `install` case, not a new
-distribution channel. A prebuilt `dist/` (dropping the runtime `tsx`/`npx`
-fetch, noted in the gaps above) is a natural companion so a fresh install needs
-no network on first run.
+distribution channel. The prebuilt `dist/` that makes a fresh install need no
+network on first run shipped alongside it in 1.17.0.
 
 ### 8. Harness factory — specialized harnesses as the output artifact
 

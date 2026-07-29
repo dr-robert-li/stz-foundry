@@ -1,0 +1,28 @@
+{
+  // Emit config, separate from the root tsconfig (which is `noEmit` and includes
+  // `test/`). Two deliberate differences from the base:
+  //
+  //  - `module`/`moduleResolution` are NodeNext, not Bundler. The emitted JS is
+  //    run by Node directly, so it must resolve the way Node does. The source
+  //    already writes explicit `.js` specifiers (`./worktree.js`), which is
+  //    exactly what NodeNext wants — nothing in `src/` had to change.
+  //  - `test/` is excluded: the published package ships the CLI, not the suite.
+  //
+  // `rootDir: src` + `outDir: dist` keeps the tree flat and one level deep, which
+  // the two runtime path lookups depend on: `src/version.ts` reads
+  // `../package.json` and `src/cli.ts`'s `assetRoot()` is `../` (commands/,
+  // agents/, hooks/). `dist/version.js` and `dist/cli.js` resolve identically.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "removeComments": false
+  },
+  "include": ["src"]
+}

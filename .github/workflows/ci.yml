@@ -43,6 +43,17 @@ jobs:
       - name: Test
         run: npm test
 
+      # The published package ships dist/, so the emit must be exercised on every
+      # push — not first discovered at `npm publish`. Also proves the built CLI
+      # runs with no tsx and no network: `npx` is removed from PATH for the smoke.
+      - name: Build (prebuilt dist, no runtime tsx)
+        run: npm run build
+
+      - name: Smoke the built CLI without tsx on PATH
+        run: |
+          test -f dist/cli.js
+          node dist/cli.js bridge version
+
   # Exercise the macOS sandbox-exec (Seatbelt) eval-sandbox path — asserts the
   # OS-isolated coverage branch that Linux runners can't (see docs/TESTPLAN.md).
   test-macos:

@@ -11,6 +11,24 @@ preserved verbatim.
 
 ## [1.17.0] — per-specimen git worktrees + cross-slice semantic recall
 
+### Distribution — prebuilt `dist/`, zero runtime dependencies
+
+- **`npm run build` emits `dist/`** (`tsconfig.build.json`, NodeNext + declarations)
+  and `bin/stz.mjs` imports `dist/cli.js` **in-process** when it exists — no
+  subprocess, no `npx`, no network. A checkout with no build still falls back to
+  the `tsx` source path, so `git clone && npx stz …` keeps working with no build
+  step; that fallback is why `tsx` moved to devDependencies rather than
+  disappearing.
+- **The package now declares zero runtime dependencies.** Previously `tsx` was a
+  runtime dep fetched by `npx` on first use, so a fresh environment needed Node
+  20+ *and network* for the first `stz` call.
+- `prepublishOnly` runs typecheck + tests + build, so the `exports` map can never
+  point at files that were not emitted. CI builds and smokes `node dist/cli.js`
+  on every push, so a broken emit surfaces there rather than at publish.
+- The distribution contract is tested: `bin/stz.mjs` is exercised against a real
+  package layout with **PATH emptied**, which is what actually proves nothing is
+  spawned — an output-only assertion would pass even if it had shelled out.
+
 ### Cross-slice semantic recall
 
 "Did an earlier slice already set a convention for this?" is now a lookup rather
