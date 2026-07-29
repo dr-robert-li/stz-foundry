@@ -267,6 +267,44 @@ describe("bridge teardown — every way a slice can end removes its worktrees", 
     captured = "";
     await runBridge(["finalize", "--root", repo, "--slice", "slice-01", "--intent", intent, "--asbuilt", asbuilt]);
     expectTornDown(repo);
+
+    // W-03: "record each specimen before teardown" is a prose contract in
+    // commands/run.md, and prose is not a control — a run that never called
+    // specimen-record left no trace at all. finalize now reports the count, so an
+    // omission is observable at the one step that always runs at slice close.
+    // It reports; it must never gate (a successful tournament cannot fail on
+    // thin telemetry).
+    expect(lastJSON<{ specimensRecorded: number }>().specimensRecorded).toBe(0);
+  });
+
+  it("finalize counts the specimen records that were written before teardown", async () => {
+    if (!hasGit) return;
+    const repo = await slice();
+    captured = "";
+    await runBridge([
+      "specimen-record", "--root", repo, "--target", repo,
+      "--slice", "slice-01", "--specimen", "a", "--status", "ok", "--duration-ms", "3",
+    ]);
+    captured = "";
+    await runBridge([
+      "specimen-record", "--root", repo, "--target", repo,
+      "--slice", "slice-01", "--specimen", "b",
+      "--status", "error", "--kill-reason", "threw", "--duration-ms", "4",
+    ]);
+
+    const intent = join(repo, "intent.json");
+    const asbuilt = join(repo, "asbuilt.json");
+    await writeFile(intent, JSON.stringify({ claims: ["exposes run()"] }), "utf8");
+    await writeFile(asbuilt, JSON.stringify({ claims: ["exposes run()"] }), "utf8");
+
+    captured = "";
+    await runBridge(["finalize", "--root", repo, "--slice", "slice-01", "--intent", intent, "--asbuilt", asbuilt]);
+    expect(lastJSON<{ specimensRecorded: number }>().specimensRecorded).toBe(2);
+    // The records outlive the worktrees they describe — that is the point.
+    expectTornDown(repo);
+    captured = "";
+    await runBridge(["specimen-records", "--root", repo, "--target", repo, "--slice", "slice-01"]);
+    expect(lastJSON<{ records: unknown[] }>().records.length).toBe(2);
   });
 
   it("bridge teardown after halt", async () => {
@@ -437,5 +475,55 @@ describe("bridge specimen-record — REQ-04 on the in-session path", () => {
         "--slice", "slice-01", "--specimen", "../../evil", "--status", "ok",
       ]),
     ).rejects.toThrow(/path-traversal guard/);
+  });
+});
+
+/**
+ * W-02, found by phase re-verification against a live repo. The first cut of
+ * `specimen-record` derived isolation with
+ * `w.path.endsWith("-" + specimen) || w.path.endsWith("/" + specimen)`.
+ * `worktree-create` names a worktree exactly `<specimen>`, so the `-` branch can
+ * ONLY ever match a different specimen's tree — `xy-a` matched specimen `a`. The
+ * record then claimed `isolation: "worktree"` with another specimen's diff for a
+ * specimen that had actually degraded to directory isolation: exactly the
+ * misreport the derivation exists to prevent, and which `commands/run.md`,
+ * `docs/ROADMAP.md` and the verb's own comment all claim is impossible.
+ */
+describe("specimen-record attributes a worktree to the RIGHT specimen (W-02)", () => {
+  it("does not claim a foreign specimen's worktree via a suffix match", async () => {
+    if (!hasGit) return;
+    const repo = makeRepo();
+
+    // A worktree exists for `xy-a` — and deliberately NOT for `a`.
+    const other = await create(root, repo, "xy-a");
+    expect(other.mode).toBe("worktree");
+    writeFileSync(join(other.path, "src/a.ts"), "export const a = 99;\n", "utf8");
+
+    captured = "";
+    await runBridge([
+      "specimen-record", "--root", root, "--target", repo,
+      "--slice", "slice-01", "--specimen", "a",
+      "--status", "ok", "--duration-ms", "7",
+    ]);
+    const rec = lastJSON<RecordJSON>();
+
+    // `a` never got a worktree, so it must report the honest degrade.
+    expect(rec.specimen).toBe("a");
+    expect(rec.isolation).toBe("directory");
+    expect(rec.worktreePath).toBeNull();
+    // And must NOT inherit xy-a's changed files.
+    expect(rec.diffFiles).toBeNull();
+
+    // The control: xy-a itself still resolves to its own worktree and diff.
+    captured = "";
+    await runBridge([
+      "specimen-record", "--root", root, "--target", repo,
+      "--slice", "slice-01", "--specimen", "xy-a",
+      "--status", "ok", "--duration-ms", "7",
+    ]);
+    const own = lastJSON<RecordJSON>();
+    expect(own.isolation).toBe("worktree");
+    expect(own.worktreePath).toBe(other.path);
+    expect(own.diffFiles).toContain("src/a.ts");
   });
 });

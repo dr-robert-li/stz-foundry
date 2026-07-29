@@ -22,7 +22,7 @@
  * Every subcommand prints a single JSON object on stdout (the command parses
  * it) and writes its durable artifacts into the `.stz/` tree.
  */
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, rmSync, realpathSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join, dirname, relative } from "node:path";
 import type {
@@ -38,7 +38,7 @@ import type {
 } from "./types.js";
 import { PROJECT_PHASES } from "./types.js";
 import { scaffold, writeDoc, readDoc, stzPath, assertSafePathSegment } from "./taxonomy.js";
-import { createWorktree, listWorktrees, destroyWorktrees, worktreeChangedFiles } from "./worktree.js";
+import { createWorktree, listWorktrees, destroyWorktrees, worktreeChangedFiles, worktreePathFor } from "./worktree.js";
 import type { WorktreeMode } from "./worktree.js";
 import type { SpecimenRunRecord } from "./foundry/spawn.js";
 import { freshState, saveState, loadState, stateExists, statePath, setPhaseStatus, appendEvent } from "./state.js";
@@ -597,6 +597,30 @@ async function finalize(args: Record<string, string>): Promise<void> {
       state.events.map((e) => `${e.seq}. [${e.phase}] ${e.kind}: ${e.detail}`).join("\n") +
       "\n",
   });
+  // Count the per-specimen records BEFORE teardown, and report the count.
+  //
+  // The "record each specimen before worktree-destroy" contract lives in
+  // `commands/run.md` prose, and prose is not a control: a run that simply never
+  // called `specimen-record` produced no error and left no trace, so the omission
+  // was invisible (W-03, phase re-verification). Reporting the count here does
+  // not gate anything — a slice whose tournament succeeded must not fail because
+  // its telemetry is thin — but it makes an empty record set observable at the
+  // one place that always runs at slice close.
+  const specimensRecorded = (() => {
+    try {
+      const p = specimenRecordPath(root, slice);
+      if (!existsSync(p)) return 0;
+      return readFileSync(p, "utf8").split("\n").filter((l) => l.trim() !== "").length;
+    } catch {
+      return 0;
+    }
+  })();
+  if (specimensRecorded === 0) {
+    process.stderr.write(
+      `warning: no per-specimen run records for ${slice} — \`specimen-record\` was never called, so this slice's timing, exit status and kill reasons are unrecoverable (the worktrees are about to be torn down). See commands/run.md step 4.\n`,
+    );
+  }
+
   // The winner is accepted and the audit is written: the slice is closed, so the
   // per-specimen worktrees go with it (D-04). A leaked one is a full unsealed
   // checkout of the repo left on disk.
@@ -629,6 +653,7 @@ async function finalize(args: Record<string, string>): Promise<void> {
     culled: culled.length,
     unmatchedIntentIds: unmatched.length ? unmatched : undefined,
     mismatchedAsBuiltIds: mismatched.length ? mismatched : undefined,
+    specimensRecorded,
     knowledgeIndex,
   });
 }
@@ -1512,9 +1537,27 @@ function specimenRecordCmd(args: Record<string, string>): void {
   const rawDuration = Number(args["duration-ms"] ?? "0");
   const durationMs = Number.isFinite(rawDuration) && rawDuration >= 0 ? Math.round(rawDuration) : 0;
 
-  // Derive isolation from the registry rather than believing the caller.
+  // Derive isolation from the registry rather than believing the caller — but
+  // match on the EXACT path `worktree-create` would have produced, never on a
+  // suffix. A suffix match is actively dangerous here: `worktree-create` names a
+  // worktree exactly `<specimen>`, so an `endsWith("-" + specimen)` test can only
+  // ever hit some OTHER specimen's tree (`xy-a` for specimen `a`). That
+  // mis-attributes a foreign worktree's diff to a specimen that actually degraded
+  // to directory isolation — the precise misreport this derivation exists to make
+  // impossible. Both sides are realpath-resolved because git reports worktrees
+  // through resolved symlinks (macOS /var → /private/var) while our own path is
+  // built lexically.
+  const expected = worktreePathFor(a.root, a.slice, specimen);
+  const resolved = (p: string): string => {
+    try {
+      return realpathSync(p);
+    } catch {
+      return p;
+    }
+  };
+  const wantPath = resolved(expected);
   const live = listWorktrees(a.target, a.root, a.slice);
-  const mine = live.find((w) => w.path.endsWith(`-${specimen}`) || w.path.endsWith(`/${specimen}`));
+  const mine = live.find((w) => resolved(w.path) === wantPath);
   const isolation: WorktreeMode = mine ? "worktree" : "directory";
   const worktreePath = mine ? mine.path : null;
   const diffFiles = mine ? worktreeChangedFiles(mine.path) : null;

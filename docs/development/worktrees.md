@@ -187,3 +187,26 @@ specimen already writes into, so `/stz-f:run` behaves identically either way.
     `diffFiles` — the files that specimen changed inside its own worktree.
     `diffFiles` is **attribution only**; turning it into an `--impl` for
     `bridge eval` is out of scope.
+  - **On the in-session path**, that record is written by
+    `stz bridge specimen-record --root . --slice <slice> --specimen <id>
+    --status <ok|timeout|error> --duration-ms <n> [--kill-reason "<why>"]`,
+    appended to `90-audit/specimens/<slice>.jsonl` and read back with
+    `stz bridge specimen-records`. The foundry runner builds its own record
+    because it owns the spawn loop; `/stz-f:run` does not, so it reports what it
+    alone observed and the bridge derives the rest.
+
+    Three properties worth knowing, because each is a control rather than a
+    convenience:
+
+    - **The bridge derives `isolation`, `worktreePath` and `diffFiles` itself**,
+      matching the exact path `worktree-create` would have produced. It does not
+      accept them from the caller, so a command that believed it got a worktree
+      but silently degraded cannot report itself as a worktree run.
+    - **`--kill-reason` is required whenever `--status` is not `ok`.** An outcome
+      with no reason is unattributable, which is the thing the record exists to
+      prevent.
+    - **Record before teardown.** `worktree-destroy` removes the tree, and with it
+      the only source of `diffFiles`. `finalize` reports `specimensRecorded` in
+      its JSON and warns on stderr when it is zero — it never gates (a successful
+      tournament must not fail over thin telemetry), but the omission is visible
+      rather than silent.
