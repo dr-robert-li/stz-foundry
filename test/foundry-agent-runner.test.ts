@@ -6,13 +6,24 @@
  * `evalReward`/`select`) consumes. No network, no daemon.
  */
 import { describe, it, expect, afterEach } from "vitest";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fakeServer, closeAllFakeServers } from "./helpers/fake-server.js";
 import { runAgentBattery } from "../src/foundry/agent-runner.js";
 import { makeBattery } from "../src/foundry/battery-types.js";
 import { evalGate, evalReward, select } from "../src/selection.js";
 
-afterEach(() => {
+const tmpDirs: string[] = [];
+async function tmp(): Promise<string> {
+  const d = await mkdtemp(join(tmpdir(), "stz-agent-runner-"));
+  tmpDirs.push(d);
+  return d;
+}
+
+afterEach(async () => {
   closeAllFakeServers();
+  await Promise.all(tmpDirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
 });
 
 describe("runAgentBattery (tracer)", () => {
@@ -96,5 +107,80 @@ describe("runAgentBattery (tracer)", () => {
     const message = (thrown as Error).message;
     expect(message).toContain("anchored-judge");
     expect(message).toContain("exogenous");
+  });
+
+  it("an escaping artifact key becomes an attributable task failure, never a thrown run", async () => {
+    const srv = await fakeServer(() => ({
+      status: 200,
+      json: {
+        model: "test-model",
+        choices: [{ message: { content: "```path=../../escape.txt\nhax\n```" } }],
+      },
+    }));
+
+    const battery = makeBattery({
+      id: "battery-escape",
+      tasks: [
+        {
+          id: "t1",
+          prompt: "irrelevant — the response artifact key escapes the containment base",
+          checks: [
+            { checkId: "c1", kind: "output-assertion", expect: "x", description: "d" },
+          ],
+        },
+      ],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    });
+
+    const run = await runAgentBattery(
+      { id: "cand-a", systemPrompt: "you write files as fenced blocks marked path=<file>" },
+      battery,
+      { provider: { kind: "openai", baseUrl: srv.url, model: "test-model" } },
+    );
+
+    expect(run.tasks).toHaveLength(1);
+    expect(run.tasks[0]?.pass).toBe(false);
+    expect(run.tasks[0]?.status).toBe("error");
+    expect(run.tasks[0]?.failureReason).toMatch(/path-traversal guard/);
+  });
+
+  it("with artifactDir supplied, a passing task's artifacts land under <artifactDir>/<taskId>/", async () => {
+    const srv = await fakeServer(() => ({
+      status: 200,
+      json: {
+        model: "test-model",
+        choices: [{ message: { content: "```path=out.txt\nok\n```" } }],
+      },
+    }));
+    const artifactDir = await tmp();
+
+    const battery = makeBattery({
+      id: "battery-materialize",
+      tasks: [
+        {
+          id: "t1",
+          prompt: "write out.txt containing the text ok",
+          checks: [
+            {
+              checkId: "t1-out",
+              kind: "output-assertion",
+              input: "out.txt",
+              expect: "ok",
+              description: "out.txt contains ok",
+            },
+          ],
+        },
+      ],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    });
+
+    const run = await runAgentBattery(
+      { id: "cand-a", systemPrompt: "you write files as fenced blocks marked path=<file>" },
+      battery,
+      { provider: { kind: "openai", baseUrl: srv.url, model: "test-model" }, artifactDir },
+    );
+
+    expect(run.tasks[0]?.pass).toBe(true);
+    expect(await readFile(join(artifactDir, "t1", "out.txt"), "utf8")).toBe("ok");
   });
 });

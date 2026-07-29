@@ -15,6 +15,7 @@
  * is returned here. The other three predicate kinds land in 01-03; bounds and
  * reporting land in 01-04; the full six-trap exogeneity guard lands in 01-02.
  */
+import { join, resolve } from "node:path";
 import type { EvalResult, HackFinding, SliceManifest, SpecimenId } from "../types.js";
 import type { Specimen, SpecimenOutput } from "../mock/interfaces.js";
 import { spawnSpecimens, type SpecimenRunRecord } from "./spawn.js";
@@ -22,6 +23,7 @@ import { createProvider, type Provider, type ProviderKind } from "./provider.js"
 import { evaluateChecks, type CheckResult, type Observations } from "../contract/predicate-eval.js";
 import type { PredicateCheck } from "../contract/contract-types.js";
 import type { AgentBattery, OracleReceipt } from "./battery-types.js";
+import { resolveContained, writeSpecimenFiles } from "../write-guard.js";
 
 export interface CandidateAgent {
   id: SpecimenId;
@@ -59,6 +61,14 @@ export interface BatteryRun {
 export interface RunBatteryOptions {
   provider?: { kind: ProviderKind; baseUrl: string; model: string; apiKey?: string };
   providerImpl?: Provider;
+  /**
+   * When present, each task's validated artifact map is materialized under
+   * `<artifactDir>/<taskId>/` via the shared guarded write path. When absent
+   * (the default, and what every test but one uses), nothing is written —
+   * artifact keys are still validated either way (see `buildObservations`'s
+   * caller in `runAgentBattery`).
+   */
+  artifactDir?: string;
 }
 
 /** The values `FOUNDRY_CONFIG_TEMPLATE` already defaults to (runner.ts:307-319) — D-03. */
@@ -200,6 +210,14 @@ export async function runAgentBattery(
   // here `strategy` IS the battery task id, and `specimen` is the candidate
   // agent's own id — NOT a tournament specimen. `spawnSpecimens` is reused
   // completely unmodified (REQ-16 forbids a second scheduler).
+  // Containment base for artifact-key validation: T-01-01. Every parsed key
+  // is checked here, at COLLECTION time, independent of whether this run
+  // materializes to disk — an in-memory-only battery must still refuse an
+  // escaping key, otherwise a later phase that adds materialization would
+  // inherit unvalidated keys. The question this answers is "would this key
+  // escape the directory it would be written into."
+  const artifactContainmentBase = resolve(opts.artifactDir ?? ".");
+
   const adapter: Specimen = {
     async implement(_manifest, strategy, _refinement): Promise<SpecimenOutput> {
       const task = tasksById.get(strategy);
@@ -213,6 +231,16 @@ export async function runAgentBattery(
       });
       rawResponses.set(strategy, res.text);
       const files = parseArtifacts(res.text);
+      // An escaping key throws here — uncaught, converted by spawnSpecimens's
+      // existing catch into an attributable `status: "error"` record with the
+      // guard's message as `killReason`, never a silent drop and never a
+      // thrown run (RESEARCH T-01-01).
+      for (const key of Object.keys(files)) resolveContained(artifactContainmentBase, key);
+      // No second write path (T-01-10): materialization goes only through the
+      // shared guarded helper, and only when the caller opted in.
+      if (opts.artifactDir) {
+        await writeSpecimenFiles(join(opts.artifactDir, task.id), files);
+      }
       return { specimen: candidateAgent.id, files, strategy };
     },
   };
