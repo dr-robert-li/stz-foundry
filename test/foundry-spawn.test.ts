@@ -12,6 +12,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSpecimens } from "../src/foundry/spawn.js";
+import type { WorktreeHandle } from "../src/worktree.js";
 import type { Specimen, SpecimenOutput } from "../src/mock/interfaces.js";
 import type { SliceManifest } from "../src/types.js";
 import { MockModelLayer, defaultMockConfig } from "../src/mock/mock.js";
@@ -94,6 +95,92 @@ describe("spawnSpecimens (stage 3)", () => {
     const delays = { slow: 120, mid: 60, fast: 5 };
     const r = await spawnSpecimens(delayedSpecimen(delays), MANIFEST, ["slow", "mid", "fast"], null);
     expect(r.outputs.map((o) => o.strategy)).toEqual(["slow", "mid", "fast"]);
+  });
+});
+
+// ── REQ-04: the per-specimen run record (phase 01 plan 02) ─────────────────
+
+/** ok → returns, stuck → hangs forever, boom → throws. */
+function mixedSpecimen(): Specimen {
+  return {
+    implement: async (_m, strategy): Promise<SpecimenOutput> => {
+      if (strategy === "stuck") await new Promise<never>(() => {});
+      if (strategy === "boom") throw new Error("segfault-ish");
+      await sleep(5);
+      return { specimen: "a", files: {}, strategy };
+    },
+  };
+}
+
+describe("spawnSpecimens run record (REQ-04)", () => {
+  it("emits one run record per strategy carrying status, kill reason and duration", async () => {
+    const r = await spawnSpecimens(mixedSpecimen(), MANIFEST, ["ok", "stuck", "boom"], null, {
+      timeoutMs: 120,
+    });
+    expect(r.records).toHaveLength(3);
+    expect(r.records.map((x) => x.strategy)).toEqual(["ok", "stuck", "boom"]);
+    expect(r.records.map((x) => x.status)).toEqual(["ok", "timeout", "error"]);
+
+    expect(r.records[0]!.specimen).toBe("a");
+    expect(r.records[0]!.killReason).toBeNull();
+    expect(r.records[1]!.specimen).toBeNull();
+    expect(r.records[1]!.killReason).toContain("stuck-killed");
+    expect(r.records[2]!.specimen).toBeNull();
+    expect(r.records[2]!.killReason).toBe("segfault-ish");
+
+    for (const rec of r.records) {
+      expect(Number.isFinite(rec.durationMs)).toBe(true);
+      expect(rec.durationMs).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("records.length === strategies.length even when every specimen is killed", async () => {
+    const r = await spawnSpecimens(mixedSpecimen(), MANIFEST, ["boom", "boom", "boom"], null);
+    expect(r.outputs).toHaveLength(0);
+    expect(r.records).toHaveLength(3);
+    expect(r.records.every((x) => x.status === "error")).toBe(true);
+  });
+
+  it("a specimen skipped by the run-level deadline still yields a record", async () => {
+    const r = await spawnSpecimens(delayedSpecimen({ a: 5, b: 5 }), MANIFEST, ["a", "b"], null, {
+      concurrency: 1,
+      deadlineMs: Date.now() - 1, // already past: nothing may start
+    });
+    expect(r.records).toHaveLength(2);
+    expect(r.records.map((x) => x.status)).toEqual(["timeout", "timeout"]);
+    expect(r.records[0]!.killReason).toContain("deadline");
+    expect(r.records[0]!.durationMs).toBe(0);
+    expect(r.records[0]!.specimen).toBeNull();
+  });
+
+  it("record order is input-strategy order even when completion order inverts (N6)", async () => {
+    // First strategy is the slowest — its record must still come out first.
+    const delays = { slow: 120, mid: 60, fast: 5 };
+    const r = await spawnSpecimens(delayedSpecimen(delays), MANIFEST, ["slow", "mid", "fast"], null);
+    expect(r.outputs.map((o) => o.strategy)).toEqual(["slow", "mid", "fast"]);
+    expect(r.records.map((x) => x.strategy)).toEqual(["slow", "mid", "fast"]);
+    expect(r.records.map((x) => x.status)).toEqual(["ok", "ok", "ok"]);
+  });
+
+  it("isolation and worktreePath come from the handle at the same index", async () => {
+    const handles: (WorktreeHandle | null)[] = [
+      { mode: "worktree", path: "/wt/a", name: "a", reason: null },
+      null,
+      { mode: "directory", path: "/proto/c", name: "c", reason: "not a git repository" },
+    ];
+    const r = await spawnSpecimens(delayedSpecimen({}), MANIFEST, ["x", "y", "z"], null, {
+      worktrees: handles,
+    });
+    expect(r.records.map((x) => x.isolation)).toEqual(["worktree", "directory", "directory"]);
+    expect(r.records.map((x) => x.worktreePath)).toEqual(["/wt/a", null, "/proto/c"]);
+    // diffFiles is the orchestrator's to fill (plan 04); spawn leaves it null.
+    expect(r.records.every((x) => x.diffFiles === null)).toBe(true);
+  });
+
+  it("without opts.worktrees every record reports directory isolation and a null path", async () => {
+    const r = await spawnSpecimens(delayedSpecimen({}), MANIFEST, ["x", "y"], null);
+    expect(r.records.every((x) => x.isolation === "directory")).toBe(true);
+    expect(r.records.every((x) => x.worktreePath === null)).toBe(true);
   });
 });
 
