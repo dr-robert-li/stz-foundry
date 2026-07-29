@@ -11,8 +11,24 @@
  * `calibrationGate`, `promotionGate`, `runAgentBattery`); this file is
  * orchestration and evidence-assembly, not a new selection engine.
  */
-import { runAgentBattery, type CandidateAgent, type BatteryRun, type RunBatteryOptions } from "./agent-runner.js";
+import {
+  runAgentBattery,
+  resolveProviderSelection,
+  DEFAULT_BATTERY_MODEL,
+  type CandidateAgent,
+  type BatteryRun,
+  type RunBatteryOptions,
+} from "./agent-runner.js";
 import { exogenousLineageGate, type AgentBattery, type SplitBattery } from "./battery-types.js";
+import { createProvider, type Provider } from "./provider.js";
+import {
+  buildReflectionTrace,
+  reflectMutate,
+  onReflection,
+  initialReflection,
+  DEFAULT_REFLECTION_BUDGET,
+  agentFrontmatter,
+} from "./reflective-mutation.js";
 import { select, evalReward } from "../selection.js";
 import { checkDiversity } from "../diversity.js";
 import { calibrationGate, type JudgeReliabilityProfile } from "../judge-reliability.js";
@@ -21,25 +37,21 @@ import {
   componentIncumbent,
   makeComponentArchiveEntry,
   appendComponentArchiveEntry,
+  onGeneration,
+  initialMeta,
+  MAX_GENERATIONS_DEFAULT,
   type PromotionVerdict,
 } from "../harness.js";
 import type { EvalResult, Judgment, PairwiseVote, PromotionInputs, SpecimenId } from "../types.js";
 
 /**
- * The YAML frontmatter block between the leading `---` delimiter line and the
- * next `---` line, or `""` when absent. A five-line scan, not a YAML parser.
- * ponytail: whole-block string equality is the comparison this exists to
- * feed (`interfaceParity` in `promoteComponentWinner`) — upgrade to per-key
- * comparison once a battery legitimately needs to mutate a purely
- * descriptive frontmatter field (e.g. `description`) without tripping parity.
+ * Re-exported from `reflective-mutation.ts` (moved there in 02-04 task 1 —
+ * that module needs the frontmatter helper and cannot import it back from
+ * here without a cycle, since THIS file now imports
+ * `buildReflectionTrace`/`reflectMutate`/the reflection-budget FSM from it).
+ * Existing importers of `agentFrontmatter` from this module are unaffected.
  */
-export function agentFrontmatter(text: string): string {
-  const lines = text.split("\n");
-  if ((lines[0] ?? "").trim() !== "---") return "";
-  const end = lines.slice(1).findIndex((l) => l.trim() === "---");
-  if (end === -1) return "";
-  return lines.slice(1, end + 1).join("\n");
-}
+export { agentFrontmatter } from "./reflective-mutation.js";
 
 export interface SearchGenerationResult {
   runs: Map<SpecimenId, BatteryRun>;
@@ -201,6 +213,24 @@ export interface RunComponentTournamentArgs {
   votes?: PairwiseVote[];
   runOpts?: RunBatteryOptions;
   archive?: ComponentArchiveTarget;
+  /** The hard search-horizon cap — `onGeneration`'s own `maxGenerations`
+   *  (harness.ts, imported and called VERBATIM, never forked). Default
+   *  `MAX_GENERATIONS_DEFAULT`. */
+  maxGenerations?: number;
+  /** The reflection-budget cap — `onReflection`'s own `cap`
+   *  (reflective-mutation.ts). Default `DEFAULT_REFLECTION_BUDGET`. */
+  reflectionBudget?: number;
+}
+
+/** Which of the two independently-exceedable caps (D-04/CONTEXT D4) produced
+ *  a halt — so a caller/test can assert WHICH cap fired without parsing
+ *  prose (RESEARCH Pitfall 4). `note` is carried verbatim from whichever
+ *  FSM (`onGeneration` or `onReflection`) produced the halt action. */
+export type TournamentHaltSource = "search-horizon" | "reflection-budget";
+
+export interface TournamentHalt {
+  source: TournamentHaltSource;
+  note: string;
 }
 
 export interface RunComponentTournamentResult {
@@ -208,15 +238,53 @@ export interface RunComponentTournamentResult {
   winner: SpecimenId | null;
   /** `null` when no specimen passed the eval-gate — no promotion attempt made. */
   promotion: PromoteComponentWinnerResult | null;
+  /** `null` only when the very first generation produced no gate-passer (no
+   *  cap ever had a chance to fire). Otherwise always populated — the search
+   *  loop only ever ends by a cap halting it (D-04: nothing here loops
+   *  forever by accident; see the belt-and-suspenders `LOOP_GUARD` below). */
+  halt: TournamentHalt | null;
+}
+
+/** Belt-and-suspenders only (mirrors `escalation.ts`'s `escalationTrace`
+ *  guard) — `onGeneration`/`onReflection` are the real, load-bearing bound.
+ *  This exists solely so a DELIBERATELY mutated (disabled) cap during a
+ *  D-06 mutation check cannot hang the test suite; it is never the cap that
+ *  fires in normal operation (`MAX_GENERATIONS_DEFAULT` is 5). */
+const LOOP_GUARD_MAX_ITERATIONS = 20;
+
+/**
+ * Resolve the `Provider` a mutation call goes to. Mirrors
+ * `runAgentBattery`'s own provider resolution (`agent-runner.ts:306-325`)
+ * exactly — duplicated rather than extracted, because `agent-runner.ts` is
+ * outside this plan's `files_modified` fence; both call sites must resolve
+ * the SAME provider for a test's recording double to see every request.
+ */
+function resolveMutationProvider(opts: RunBatteryOptions = {}): { provider: Provider; model: string } {
+  if (opts.providerImpl) {
+    return { provider: opts.providerImpl, model: opts.provider?.model ?? DEFAULT_BATTERY_MODEL };
+  }
+  const sel = resolveProviderSelection(opts.provider);
+  return {
+    provider: createProvider({ kind: sel.kind, baseUrl: sel.baseUrl, apiKey: opts.provider?.apiKey }),
+    model: sel.model,
+  };
 }
 
 /**
- * Owns the `SplitBattery`, the single promotion step, and is the ONLY place
- * in this file where the promotion half is ever in lexical scope alongside
- * the search half (REQ-17 — the search-generation loop above never sees it).
- * ponytail: single generation. The bounded meta-loop (`onGeneration`, reused
- * verbatim) that spawns further generations on a barren-but-not-collapsed
- * result is 02-04's; this plan proves the tracer, not the loop.
+ * Owns the `SplitBattery`, the bounded search loop, the single promotion
+ * step, and is the ONLY place in this file where the promotion half is ever
+ * in lexical scope alongside the search half (REQ-17 — the search-generation
+ * loop above never sees it).
+ *
+ * The loop drives `onGeneration` (harness.ts, reused VERBATIM — the hard
+ * search-horizon cap) each generation, and between generations mutates every
+ * candidate from ITS OWN run's execution trace via `reflectMutate`, gated by
+ * `onReflection` (the reflection-budget cap, a small sibling FSM). The two
+ * caps are independently exceedable (D-04/CONTEXT D4); whichever fires first
+ * halts the loop and the halt's `source` names which one. Halting ends the
+ * SEARCH — the promotion step and archive append below always still run on
+ * the best search-fitness candidate from the generation that halted, so a
+ * halt never skips the audit record.
  *
  * ponytail: no `bumpChildCount` analog at this altitude yet — the archive
  * entry's `childCount` starts and stays 0. Upgrade trigger: parent-sampling
@@ -224,19 +292,83 @@ export interface RunComponentTournamentResult {
  * later phase's concern, not this plan's.
  */
 export async function runComponentTournament(args: RunComponentTournamentArgs): Promise<RunComponentTournamentResult> {
-  const search = await runSearchGeneration(args.candidates, args.split.search, {
-    ...args.runOpts,
-    votes: args.votes,
-  });
-  const winnerId = search.judgment.winner;
-  if (winnerId === null) {
-    return { search, winner: null, promotion: null };
+  const maxGenerations = args.maxGenerations ?? MAX_GENERATIONS_DEFAULT;
+  const reflectionBudget = args.reflectionBudget ?? DEFAULT_REFLECTION_BUDGET;
+  const { provider: mutationProvider, model: mutationModel } = resolveMutationProvider(args.runOpts);
+
+  let meta = initialMeta(maxGenerations);
+  let reflection = initialReflection(reflectionBudget);
+  let candidates = args.candidates;
+  // Running best across generations WITHIN this tournament's own search
+  // loop — never the archived incumbent. `promoted` fed to `onGeneration` is
+  // a SEARCH-ONLY signal (design decision): comparing against the real
+  // incumbent here would leak the held-out promotion set's verdict into the
+  // search FSM, the exact leak D-03/CONTEXT D3 forbids.
+  let bestSearchFitness = -Infinity;
+  let halt: TournamentHalt | null = null;
+  let search: SearchGenerationResult;
+
+  for (let iteration = 0; iteration < LOOP_GUARD_MAX_ITERATIONS; iteration++) {
+    search = await runSearchGeneration(candidates, args.split.search, {
+      ...args.runOpts,
+      votes: args.votes,
+    });
+    const winnerId = search.judgment.winner;
+    if (winnerId === null) {
+      return { search, winner: null, promotion: null, halt: null };
+    }
+
+    const generationRewards = [...search.runs.values()].map((r) => evalReward(r.result));
+    const diversity = checkDiversity(generationRewards, args.diversityFloor);
+    const bestThisGen = Math.max(...generationRewards);
+    const promoted = bestThisGen > bestSearchFitness;
+    bestSearchFitness = Math.max(bestSearchFitness, bestThisGen);
+
+    const gen = onGeneration(meta, { promoted, collapsed: !diversity.ok });
+    meta = gen.next;
+    if (gen.action.type === "halt") {
+      halt = { source: "search-horizon", note: gen.action.note };
+      break;
+    }
+
+    // Before spawning the next generation: each candidate mutates from ITS
+    // OWN run's trace, one reflection consulted per intended mutation. A
+    // candidate whose run produced no failures has nothing to reflect on —
+    // carried forward unmutated, never spending a reflection and never
+    // silently looking like a halt.
+    const nextCandidates: CandidateAgent[] = [];
+    let reflectionHalt: TournamentHalt | null = null;
+    for (const candidate of candidates) {
+      const run = search.runs.get(candidate.id)!;
+      const trace = buildReflectionTrace(run);
+      if (trace === "") {
+        nextCandidates.push(candidate);
+        continue;
+      }
+      const refl = onReflection(reflection);
+      reflection = refl.next;
+      if (refl.action.type === "halt") {
+        reflectionHalt = { source: "reflection-budget", note: refl.action.note };
+        break;
+      }
+      nextCandidates.push(
+        await reflectMutate(candidate, trace, mutationProvider, { model: mutationModel, costMeter: args.runOpts?.costMeter }),
+      );
+    }
+    if (reflectionHalt) {
+      halt = reflectionHalt;
+      break;
+    }
+    candidates = nextCandidates;
   }
 
-  const winnerCandidate = args.candidates.find((c) => c.id === winnerId)!;
-  const searchRun = search.runs.get(winnerId)!;
+  // `search` is guaranteed assigned: the loop's first iteration always runs
+  // before any halt/break, and `winnerId === null` returns early above.
+  const winnerId = search!.judgment.winner!;
+  const winnerCandidate = candidates.find((c) => c.id === winnerId)!;
+  const searchRun = search!.runs.get(winnerId)!;
   const promotionRun = await runAgentBattery(winnerCandidate, args.split.promotion, args.runOpts);
-  const generationRewards = [...search.runs.values()].map((r) => evalReward(r.result));
+  const generationRewards = [...search!.runs.values()].map((r) => evalReward(r.result));
 
   // When an archive target is supplied, the real recorded incumbent for this
   // slot IS the baseline — never the caller's own number (D-02: computed,
@@ -261,8 +393,10 @@ export async function runComponentTournament(args: RunComponentTournamentArgs): 
   if (args.archive) {
     // Append on BOTH verdicts — a refusal is as much an audit record as a
     // promotion (REQ-21: Goodharting must stay observable even when the
-    // gate refuses).
-    const advantage = search.judgment.advantages.find((a) => a.specimen === winnerId)?.advantage ?? 0;
+    // gate refuses). This is the halt-time gate snapshot: `promotion.inputs`
+    // was computed from the SAME generation that halted the search, so
+    // halting the search never skips the audit record.
+    const advantage = search!.judgment.advantages.find((a) => a.specimen === winnerId)?.advantage ?? 0;
     const entry = makeComponentArchiveEntry({
       slot: args.archive.slot,
       specimenId: winnerId,
@@ -276,5 +410,5 @@ export async function runComponentTournament(args: RunComponentTournamentArgs): 
     appendComponentArchiveEntry(args.archive.root, args.archive.slot, entry);
   }
 
-  return { search, winner: winnerId, promotion };
+  return { search: search!, winner: winnerId, promotion, halt };
 }

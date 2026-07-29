@@ -7,6 +7,9 @@
  * never a hand-built all-passing `BatteryRun`.
  */
 import { describe, it, expect } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   buildReflectionTrace,
   onReflection,
@@ -20,8 +23,11 @@ import {
   type ReflectionState,
 } from "../src/foundry/reflective-mutation.js";
 import { runAgentBattery, type CandidateAgent, type BatteryRun, type BatteryTaskResult } from "../src/foundry/agent-runner.js";
-import { makeBattery } from "../src/foundry/battery-types.js";
+import { runComponentTournament } from "../src/foundry/component-tournament.js";
+import { makeBattery, makeSplitBattery } from "../src/foundry/battery-types.js";
 import { FoundryCostMeter } from "../src/foundry/cost.js";
+import { readComponentArchive } from "../src/harness.js";
+import type { JudgeReliabilityProfile } from "../src/judge-reliability.js";
 import type { ChatRequest, ChatResponse, Provider } from "../src/foundry/provider.js";
 import type { PredicateCheck } from "../src/contract/contract-types.js";
 
@@ -235,5 +241,235 @@ describe("reflectMutate — one bounded, metered mutation call", () => {
       fs.readFile(new URL("../src/foundry/reflective-mutation.ts", import.meta.url), "utf8"),
     );
     expect(src).not.toMatch(/eval\(|new Function|execSync|spawnSync/);
+  });
+});
+
+// ── the bounded search loop (Task 2, REQ-19): two independently-exceedable
+// caps, each halting and surfacing with its OWN named reason. Offline,
+// deterministic (D-05/CONTEXT D5). Per RESEARCH Pitfall 4, each cap's own
+// test sets the OTHER cap out of reach so it cannot be the incidental cause
+// of the halt. ────────────────────────────────────────────────────────────
+const LOOP_CHECK: PredicateCheck = {
+  checkId: "loop-c1",
+  kind: "output-assertion",
+  input: "out.txt",
+  expect: "ok",
+  description: "out.txt says ok",
+};
+const LOOP_WINNING_DEF = "---\nname: stz-winner\ntools: Read, Write\n---\nWINNING agent body.";
+const LOOP_LOSING_DEF = "---\nname: stz-loser\ntools: Read\n---\nLOSING agent body.";
+const loopCandidates: CandidateAgent[] = [
+  { id: "cand-win", systemPrompt: LOOP_WINNING_DEF },
+  { id: "cand-lose", systemPrompt: LOOP_LOSING_DEF },
+];
+const loopJudgeProfile: JudgeReliabilityProfile = {
+  schemaVersion: 1,
+  perSliceType: [{ sliceType: "component", consistency: 1, blindAccuracyBucket: "high", n: 4 }],
+};
+
+function makeLoopSplit(idPrefix: string) {
+  return makeSplitBattery(
+    {
+      id: `${idPrefix}-search-battery`,
+      tasks: [{ id: `${idPrefix}-search-t1`, prompt: "write out.txt containing ok", checks: [LOOP_CHECK] }],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    },
+    {
+      id: `${idPrefix}-promotion-battery`,
+      tasks: [{ id: `${idPrefix}-promo-t1`, prompt: "write out.txt containing ok", checks: [LOOP_CHECK] }],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    },
+  );
+}
+
+/** cand-lose's response always fails LOOP_CHECK (produces "nope", not "ok")
+ *  — a genuine failure every generation, so the mutation path is genuinely
+ *  exercised across generations (RESEARCH Pitfall 5's own posture, reused
+ *  for the loop). cand-win always passes and is never mutated. */
+function loopProvider(): Provider {
+  return {
+    kind: "openai",
+    baseUrl: "http://test-provider.invalid",
+    async chat(req: ChatRequest): Promise<ChatResponse> {
+      const winning = (req.system ?? "").includes("WINNING");
+      return {
+        text: winning ? "```path=out.txt\nok\n```" : "```path=out.txt\nnope\n```",
+        model: req.model,
+        usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 },
+      };
+    },
+  };
+}
+
+function loopRecordingProvider(): { provider: Provider; requests: ChatRequest[] } {
+  const requests: ChatRequest[] = [];
+  const base = loopProvider();
+  return {
+    requests,
+    provider: {
+      kind: base.kind,
+      baseUrl: base.baseUrl,
+      async chat(req: ChatRequest): Promise<ChatResponse> {
+        requests.push(req);
+        return base.chat(req);
+      },
+    },
+  };
+}
+
+describe("runComponentTournament — the bounded search loop, two distinguishable halts (REQ-19)", () => {
+  it("halts at the search horizon when the reflection budget is unbounded (only the horizon can fire)", async () => {
+    const split = makeLoopSplit("horizon");
+    const result = await runComponentTournament({
+      candidates: loopCandidates,
+      split,
+      incumbentFrontmatter: null,
+      incumbentFitness: null,
+      diversityFloor: 0.01,
+      judgeProfile: loopJudgeProfile,
+      sliceType: "component",
+      runOpts: { providerImpl: loopProvider() },
+      maxGenerations: 2,
+      reflectionBudget: -1, // unbounded (escalation.ts convention) — only the horizon can fire
+    });
+
+    expect(result.halt?.source).toBe("search-horizon");
+    expect(result.halt?.note).toContain("Max generations reached");
+  });
+
+  it("halts at the reflection budget when the horizon is set far above the reachable generation count", async () => {
+    const split = makeLoopSplit("budget");
+    const result = await runComponentTournament({
+      candidates: loopCandidates,
+      split,
+      incumbentFrontmatter: null,
+      incumbentFitness: null,
+      diversityFloor: 0.01,
+      judgeProfile: loopJudgeProfile,
+      sliceType: "component",
+      runOpts: { providerImpl: loopProvider() },
+      maxGenerations: 100, // far above what a single reflection could ever reach
+      reflectionBudget: 1,
+    });
+
+    expect(result.halt?.source).toBe("reflection-budget");
+    expect(result.halt?.note).toContain("Reflection budget exhausted");
+    expect(result.halt?.note).toContain("cap=1");
+  });
+
+  it("the two halt sources are distinguishable without string-matching a generic 'halt' word", async () => {
+    const horizon = await runComponentTournament({
+      candidates: loopCandidates,
+      split: makeLoopSplit("dist-horizon"),
+      incumbentFrontmatter: null,
+      incumbentFitness: null,
+      diversityFloor: 0.01,
+      judgeProfile: loopJudgeProfile,
+      sliceType: "component",
+      runOpts: { providerImpl: loopProvider() },
+      maxGenerations: 2,
+      reflectionBudget: -1,
+    });
+    const budget = await runComponentTournament({
+      candidates: loopCandidates,
+      split: makeLoopSplit("dist-budget"),
+      incumbentFrontmatter: null,
+      incumbentFitness: null,
+      diversityFloor: 0.01,
+      judgeProfile: loopJudgeProfile,
+      sliceType: "component",
+      runOpts: { providerImpl: loopProvider() },
+      maxGenerations: 100,
+      reflectionBudget: 1,
+    });
+
+    expect(horizon.halt?.source).not.toBe(budget.halt?.source);
+    const sources: (string | undefined)[] = [horizon.halt?.source, budget.halt?.source];
+    for (const s of sources) expect(["search-horizon", "reflection-budget"]).toContain(s);
+  });
+
+  it("between generations, the next generation's candidates are reflectively mutated descendants — the provider sees a different system prompt for the same lineage", async () => {
+    const split = makeLoopSplit("mutate");
+    const { provider, requests } = loopRecordingProvider();
+
+    await runComponentTournament({
+      candidates: loopCandidates,
+      split,
+      incumbentFrontmatter: null,
+      incumbentFitness: null,
+      diversityFloor: 0.01,
+      judgeProfile: loopJudgeProfile,
+      sliceType: "component",
+      runOpts: { providerImpl: provider },
+      // default caps — plenty of headroom for at least two search generations
+    });
+
+    // Mutation calls carry the reflection prompt's own marker text; filter
+    // them out to isolate SEARCH (and promotion) calls, whose `system` is
+    // the candidate's own systemPrompt verbatim.
+    const searchRequests = requests.filter((r) => !r.messages.some((m) => m.content.includes("Execution trace")));
+    // candidates array order is stable across generations ([cand-win, cand-lose]
+    // each generation) — index 1 is generation 1's cand-lose, index 3 is
+    // generation 2's cand-lose.
+    const gen1LoseSystem = searchRequests[1]?.system;
+    const gen2LoseSystem = searchRequests[3]?.system;
+    expect(gen1LoseSystem).toBeDefined();
+    expect(gen2LoseSystem).toBeDefined();
+    expect(gen2LoseSystem).not.toBe(gen1LoseSystem);
+  });
+
+  it("a generation below the diversity floor halts via the search-horizon FSM with the variance-collapse note, and diversityOk reads false", async () => {
+    const split = makeLoopSplit("collapse");
+    const result = await runComponentTournament({
+      candidates: loopCandidates,
+      split,
+      incumbentFrontmatter: null,
+      incumbentFitness: null,
+      diversityFloor: 10, // impossibly high — guarantees collapse on generation 1
+      judgeProfile: loopJudgeProfile,
+      sliceType: "component",
+      runOpts: { providerImpl: loopProvider() },
+    });
+
+    expect(result.halt?.source).toBe("search-horizon");
+    expect(result.halt?.note).toContain("variance collapse");
+    expect(result.promotion).not.toBeNull();
+    expect(result.promotion!.inputs.diversityOk).toBe(false);
+  });
+
+  it("after a halt, the promotion decision still runs and an archive entry records the halt-time gate snapshot", async () => {
+    const root = mkdtempSync(join(tmpdir(), "stz-loop-halt-archive-"));
+    try {
+      const split = makeLoopSplit("archive-halt");
+      const result = await runComponentTournament({
+        candidates: loopCandidates,
+        split,
+        incumbentFrontmatter: null,
+        incumbentFitness: null,
+        diversityFloor: 0.01,
+        judgeProfile: loopJudgeProfile,
+        sliceType: "component",
+        runOpts: { providerImpl: loopProvider() },
+        maxGenerations: 2,
+        reflectionBudget: -1,
+        archive: { root, slot: "loop-slot" },
+      });
+
+      expect(result.halt).not.toBeNull();
+      expect(result.promotion).not.toBeNull();
+      const entries = readComponentArchive(root, "loop-slot");
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.gates).toEqual(result.promotion!.inputs);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("source assertion: onGeneration is imported from ../harness.js and called — the horizon FSM is reused verbatim, not forked", async () => {
+    const src = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/foundry/component-tournament.ts", import.meta.url), "utf8"),
+    );
+    expect(src).toMatch(/import\s*\{[^}]*\bonGeneration\b[^}]*\}\s*from\s*"\.\.\/harness\.js"/s);
+    expect(src).toMatch(/\bonGeneration\(/);
   });
 });
