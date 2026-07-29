@@ -124,20 +124,54 @@ on prose-only acceptance (F2).
    by id rather than by re-describing the code — that is why wording differences
    no longer read as drift.
 
+3b. **Get each specimen an isolated working directory (bridge-owned).** For every
+    specimen id you are about to spawn in step 4, call
+    `$STZ bridge worktree-create --root . --slice $1 --specimen <id>` and read the
+    JSON it prints: `path`, `mode` (`worktree` or `directory`), and `reason`. Note
+    all three per specimen. The `path` is handed to that specimen verbatim in
+    step 4.
+
+    **The bridge owns the path AND the fallback decision.** Do not construct a
+    working directory, do not derive one from the specimen id or the slice id, and
+    do not decide for yourself when isolation is unavailable. That is the project's
+    architecture rule — exact decisions live in deterministic TypeScript, never in
+    agent prose — and it is why this step is a bridge call rather than a naming
+    convention you could follow by hand. If the JSON did not give you a path, you
+    do not have one.
+
+    `mode: "directory"` is a NORMAL outcome, not a failure: greenfield synthesis
+    (nothing to edit yet) is still the common case, and a run may happen where git
+    worktrees are unavailable. The run proceeds unchanged — the bridge hands back
+    the prototype directory the specimen would have used anyway — and `reason`
+    says why it degraded. Carry `mode` and `reason` to step 10 and report them, so
+    an operator is never left assuming specimens were isolated when they were not.
+
 4. **Spawn N specimens IN PARALLEL.** In a SINGLE message, emit N `stz-specimen`
    Agent calls — N is `runConfig.fanout` from step 0 (default 4), each with
    `model: runConfig.models.execution`. Give each a DISTINCT strategy label
    (iterator-based, stream-based, batch-based, recursive) so the group is
-   diverse. Each specimen writes only into its own
-   `prototypes/specimen-<id>/` directory and returns a path + summary, NOT file
-   contents. They run concurrently and the turn blocks until all finish — that
-   barrier is exactly the tournament boundary.
+   diverse. Tell each specimen to write only into the working directory step 3b
+   obtained for it — the `path` from that specimen's `worktree-create` JSON — and
+   to return a path + summary, NOT file contents. They run concurrently and the
+   turn blocks until all finish — that barrier is exactly the tournament boundary.
+
+   - **Mirror into the prototype tree when the two paths differ (worktree mode).**
+     `prototypes/specimen-<id>/` is the *record* surface: the hack detector in step
+     5, the pressure log, and the documenter all read a specimen's files from
+     there. A worktree deliberately does not contain `.stz/` at all — that is the
+     sealed-suite firewall — so a specimen cannot write there itself. After the
+     barrier, copy each specimen's authored files from its working directory into
+     its prototype directory. Under `mode: "directory"` the bridge already returned
+     that same prototype directory, so there is nothing to copy.
 
 4b. **Verify the seal (gate the tournament).** Before any eval, run
     `$STZ bridge seal-verify --root .`. It re-hashes the held-out suite against
     SEAL.json and **exits non-zero on any drift** — a frozen-suite change between
     sealing and judging breaks the anti-hacking guarantee. If it reports drift,
-    STOP and investigate; do not eval against a tampered suite. If you genuinely
+    STOP and investigate; do not eval against a tampered suite. **Before you stop,
+    run `$STZ bridge worktree-destroy --root . --slice $1`** — this is an abort
+    that reaches no terminal bridge verb, so the specimen worktrees would otherwise
+    be left standing. If you genuinely
     must change the sealed suite (e.g. a real bug only now surfaced), do it
     through `$STZ bridge seal-amend --root . --reason "<why>"` — never an ad-hoc
     edit — which records the per-file change + reason into SEAL.json's audit log
@@ -161,6 +195,9 @@ on prose-only acceptance (F2).
    the blind spot). Fix it through `$STZ bridge seal-amend --root . --reason
    "<why>"` (never an ad-hoc edit), re-run `seal-verify`, and treat it as a signal
    to strengthen the `stz-test-author` guidance — not as a bug in the gate.
+   If you stop the run here instead of continuing, run `$STZ bridge
+   worktree-destroy --root . --slice $1` first — like the 4b drift stop, this
+   branch reaches no terminal bridge verb and would leave the worktrees behind.
 
 6. **Gate.** `$STZ bridge gate --root . --slice $1`. Read `passers`,
    `eliminated`, and the `pairings` schedule.
@@ -234,17 +271,25 @@ on prose-only acceptance (F2).
    intent claims by id, so `faithful` reflects real coverage, not wording. If
    finalize prints `mismatchedAsBuiltIds` (or warns on stderr), the documenter
    mis-keyed a verdict — re-spawn it with the exact intent id list and re-run
-   finalize rather than trusting the diff.
+   finalize rather than trusting the diff. `finalize` also tears down this slice's
+   specimen worktrees, so do not add a `worktree-destroy` call here — the same is
+   true of the `halt` branch of step 6b and the dark-factory `slice-halt`.
 
 10. **Report.** Show the user: winner, ranking, whether the build is faithful
-    (no planned-but-missing claims), and any disqualified specimens with their
-    hack findings. Point at `.stz/40-slices/$1/` for the full trail.
+    (no planned-but-missing claims), any disqualified specimens with their
+    hack findings, and the **isolation mode from step 3b** — `worktree`, or
+    `directory` plus the bridge's `reason` when it fell back, so a run that was
+    not really isolated never reads like one that was. Point at
+    `.stz/40-slices/$1/` for the full trail.
 
 ## Rules
 
 - Flat orchestration only. Specimens and judges must NOT spawn their own
   subagents (keep depth 1).
 - Specimens return pointers, never file dumps (N2 context budget).
+- Specimens edit only inside the working directory they were given, and the
+  orchestrator never computes one: every working directory comes from
+  `$STZ bridge worktree-create` (step 3b), and so does the decision to fall back.
 - No spawned agent may delete or modify files it did not create. When
   re-invoking the test-author (smoke-gate loop, seal-amend, stronger-guidance
   paths), tell it explicitly: "modify ONLY your own suite files and
