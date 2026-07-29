@@ -2028,9 +2028,22 @@ async function knowledgeQueryCmd(args: Record<string, string>): Promise<void> {
       reason: `index fingerprint ${index.fingerprint} has no reconstructible embedder — semantic layer disabled rather than comparing noise`,
     };
   } else {
-    const [queryVector] = await queryEmbedder.embed([keywords.join(" ")], "query");
-    semantic = { vectors: vectorsFromIndex(index), queryVector: queryVector ?? [], embedder: index.fingerprint };
-    semanticReport = { enabled: true, embedder: index.fingerprint, floor: SEMANTIC_FLOOR, weight: SEMANTIC_WEIGHT };
+    // The reconstructed embedder may reach a daemon (an `ollama:` fingerprint),
+    // and that daemon can be gone by query time even though it built the index.
+    // D1 says the daemon is never a requirement, so a dead daemon degrades this
+    // query to the lexical layer with a reason — it does not fail the command.
+    // Falling back to a *different* embedder is not an option: cross-embedder
+    // cosines are noise that clears the floor often enough to look like signal.
+    try {
+      const [queryVector] = await queryEmbedder.embed([keywords.join(" ")], "query");
+      semantic = { vectors: vectorsFromIndex(index), queryVector: queryVector ?? [], embedder: index.fingerprint };
+      semanticReport = { enabled: true, embedder: index.fingerprint, floor: SEMANTIC_FLOOR, weight: SEMANTIC_WEIGHT };
+    } catch (e) {
+      semanticReport = {
+        enabled: false,
+        reason: `embedder ${index.fingerprint} failed to embed the query (${String(e).slice(0, 160)}) — lexical retrieval only`,
+      };
+    }
   }
 
   print({

@@ -1,6 +1,7 @@
 /**
- * The embedding seam: one interface, a deterministic dependency-free fallback,
- * and an explicit provider-selection report.
+ * The embedding seam: one interface, two providers (Ollama when it answers, a
+ * deterministic dependency-free fallback otherwise), and an explicit
+ * provider-selection report.
  *
  * D1 makes a local daemon an optimization and never a requirement, so the seam
  * exists so the *decision* ("which provider, and why") lives in TypeScript rather
@@ -24,6 +25,7 @@
  * index so the float summation order is fixed.
  */
 import { createHash } from "node:crypto";
+import { postJson } from "../foundry/provider.js";
 
 export interface Embedder {
   /** Stable identity. Vectors from different fingerprints are NOT comparable. */
@@ -90,21 +92,129 @@ export function fallbackEmbedder(opts: { dim?: number } = {}): Embedder {
 }
 
 /**
+ * The nomic task prefixes are part of the model's IDENTITY, not decoration: the
+ * family measurably degrades when a document is embedded with no prefix or with
+ * the query prefix, and changing either one invalidates every stored vector.
+ * That is why they are pinned here and why the `v1` suffix rides in the
+ * fingerprint — a prefix change is a fingerprint change is a full rebuild.
+ */
+export const SEARCH_DOCUMENT_PREFIX = "search_document: ";
+export const SEARCH_QUERY_PREFIX = "search_query: ";
+export const DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434";
+export const DEFAULT_EMBED_MODEL = "nomic-embed-text";
+/**
+ * ponytail: 2s covers a warm daemon, which is the only case worth waiting for —
+ * a cold model load can exceed it and simply lands on the fallback for that run.
+ * `keep_alive: "5m"` keeps the next run warm. Upgrade path if that proves too
+ * tight in practice: raise it via `ollamaEmbedder({timeoutMs})`, which is already
+ * plumbed, rather than removing the bound (an unbounded embed hangs the run).
+ */
+export const EMBED_TIMEOUT_MS = 2000;
+
+/** Env overrides so zero-config works and a non-default daemon needs no file. */
+function resolveOllama(opts: { baseUrl?: string; model?: string }): { baseUrl: string; model: string } {
+  return {
+    baseUrl: (opts.baseUrl ?? process.env.STZ_OLLAMA_URL ?? DEFAULT_OLLAMA_URL).replace(/\/+$/, ""),
+    model: opts.model ?? process.env.STZ_EMBED_MODEL ?? DEFAULT_EMBED_MODEL,
+  };
+}
+
+export interface OllamaEmbedderOptions {
+  baseUrl?: string;
+  model?: string;
+  timeoutMs?: number;
+  /** Pin the dimension up front (fingerprint reconstruction). Otherwise the first response fixes it. */
+  dim?: number;
+}
+
+/**
+ * Ollama `POST /api/embed`. No API key — Ollama is keyless.
+ *
+ * `maxAttempts: 1` is deliberate. The dominant failure here is a model that was
+ * never pulled, which is not a transient condition: retrying it three times only
+ * delays the fallback by two round trips. Anything this throws means "unavailable".
+ *
+ * The response is untrusted input (T-02-11): shape and width are validated before
+ * use, and every vector is re-normalized locally regardless of what the server
+ * claims, because a non-unit vector silently makes the dot product not a cosine.
+ */
+export function ollamaEmbedder(opts: OllamaEmbedderOptions = {}): Embedder {
+  const { baseUrl, model } = resolveOllama(opts);
+  const timeoutMs = opts.timeoutMs ?? EMBED_TIMEOUT_MS;
+  // 0 = "not yet known"; the first response fixes it and it may never move again.
+  let dim = opts.dim ?? 0;
+  return {
+    get fingerprint(): string {
+      return `ollama:${model}:${dim}:v1`;
+    },
+    get dim(): number {
+      return dim;
+    },
+    async embed(texts: string[], kind: "document" | "query"): Promise<number[][]> {
+      const prefix = kind === "query" ? SEARCH_QUERY_PREFIX : SEARCH_DOCUMENT_PREFIX;
+      const json = await postJson(
+        `${baseUrl}/api/embed`,
+        {},
+        // `input` accepts an array, so a whole rebuild batches into one call.
+        { model, input: texts.map((t) => prefix + t), truncate: true, keep_alive: "5m" },
+        1,
+        () => Promise.resolve(),
+        timeoutMs,
+      );
+      const raw: unknown = json?.embeddings;
+      if (!Array.isArray(raw) || raw.length !== texts.length)
+        throw new Error(`ollama /api/embed returned ${Array.isArray(raw) ? raw.length : "no"} embeddings for ${texts.length} inputs`);
+      const width = Array.isArray(raw[0]) ? (raw[0] as unknown[]).length : 0;
+      if (width === 0) throw new Error("ollama /api/embed returned an empty vector");
+      for (const v of raw as unknown[]) {
+        if (!Array.isArray(v) || v.length !== width || !v.every((n) => typeof n === "number" && Number.isFinite(n)))
+          throw new Error("ollama /api/embed returned a malformed vector (ragged, non-numeric or non-finite)");
+      }
+      // The fingerprint is decided once and never moves mid-rebuild — otherwise
+      // half an index is daemon vectors and half is something else under one
+      // identity, which is unrecoverable because nothing records the seam (T-02-12).
+      if (dim === 0) dim = width;
+      else if (width !== dim)
+        throw new Error(`ollama /api/embed changed dimension mid-run (${dim} -> ${width})`);
+      return (raw as number[][]).map(l2Normalize);
+    },
+  };
+}
+
+/** Keep a reason line readable when it carries an arbitrary error string. */
+const truncate = (s: string, n = 160): string => (s.length > n ? `${s.slice(0, n)}…` : s);
+
+/**
  * Pick a provider and say why. REQ-06: selection is explicit and reported.
  *
- * ponytail: one branch today — the fallback. 02-02 adds the Ollama branch behind
- * the same `forced` switch; the shape of this function is what stays.
+ * THE REAL EMBED CALL IS THE PROBE. There is deliberately no `/api/version`
+ * liveness check: it answers 200 while `/api/embed` returns 404 for a model that
+ * was never pulled — the exact state of a fresh install — so a liveness probe is
+ * a second code path whose answer is a lie. One call, one failure semantic: any
+ * throw at all (connection refused, 404 model-not-found, timeout, malformed
+ * body) means "unavailable, use the fallback". D1: the daemon is an optimization,
+ * never a requirement, so this function does not have a failing exit.
  */
 export async function selectEmbedder(
-  opts: { offline?: boolean; dim?: number } = {},
+  opts: { offline?: boolean; dim?: number; baseUrl?: string; model?: string; timeoutMs?: number } = {},
 ): Promise<{ embedder: Embedder; reason: string }> {
   const forced = opts.offline === true || process.env.STZ_EMBED === "fallback";
-  return {
-    embedder: fallbackEmbedder(opts),
-    reason: forced
-      ? "offline requested (STZ_EMBED=fallback or offline:true) — deterministic fallback embedder"
-      : "no local embedding provider wired yet — deterministic fallback embedder",
-  };
+  if (forced)
+    return {
+      embedder: fallbackEmbedder(opts),
+      reason: "offline requested (STZ_EMBED=fallback or offline:true) — deterministic fallback embedder",
+    };
+  const { baseUrl, model } = resolveOllama(opts);
+  try {
+    const embedder = ollamaEmbedder(opts);
+    await embedder.embed(["stz embedding provider probe"], "query");
+    return { embedder, reason: `ollama ${model} at ${baseUrl} — ${embedder.dim}-dim vectors from the daemon` };
+  } catch (e) {
+    return {
+      embedder: fallbackEmbedder(opts),
+      reason: `ollama ${model} at ${baseUrl} unavailable (${truncate(String(e))}) — deterministic fallback embedder`,
+    };
+  }
 }
 
 /**
@@ -116,10 +226,28 @@ export async function selectEmbedder(
  * which is worse than no semantic layer because the noise clears the floor
  * sometimes.
  */
-export function embedderForFingerprint(fingerprint: string): Embedder | null {
-  if (!fingerprint.startsWith("fallback:")) return null;
-  const dim = Number(fingerprint.split(":")[2]);
-  if (!Number.isInteger(dim) || dim <= 0) return null;
-  const embedder = fallbackEmbedder({ dim });
+export function embedderForFingerprint(
+  fingerprint: string,
+  opts: { baseUrl?: string; timeoutMs?: number } = {},
+): Embedder | null {
+  let embedder: Embedder;
+  if (fingerprint.startsWith("fallback:")) {
+    const dim = Number(fingerprint.split(":")[2]);
+    if (!Number.isInteger(dim) || dim <= 0) return null;
+    embedder = fallbackEmbedder({ dim });
+  } else if (fingerprint.startsWith("ollama:")) {
+    // Parsed from the ENDS, not by index: an Ollama model name legitimately
+    // carries its own colon (`nomic-embed-text:v1.5`), so the model is whatever
+    // sits between the scheme and the trailing `<dim>:v1`.
+    const parts = fingerprint.split(":");
+    if (parts.length < 4 || parts[parts.length - 1] !== "v1") return null;
+    const dim = Number(parts[parts.length - 2]);
+    const model = parts.slice(1, -2).join(":");
+    if (!model || !Number.isInteger(dim) || dim <= 0) return null;
+    embedder = ollamaEmbedder({ ...opts, model, dim });
+  } else return null;
+  // Reconstruct, then verify identity: a fingerprint that parses but does not
+  // round-trip disables the semantic layer instead of silently comparing across
+  // embedders.
   return embedder.fingerprint === fingerprint ? embedder : null;
 }
