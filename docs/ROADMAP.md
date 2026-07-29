@@ -1060,7 +1060,8 @@ procedure and the stated gaps: `docs/development/semantic-recall.md`.
 - **Capped, explained, role-scoped, floor-gated.** Default-deny roles (an unknown
   or case-variant role retrieves nothing), `repo_note` pinned at 0, an integer-
   quantized cosine so the `score desc, id asc` tie rule survives, and a measured
-  similarity floor (`SEMANTIC_FLOOR = 0.54`) that is the only thing keeping the
+  **per-embedder** similarity floor (nomic 0.54, hashed-n-gram fallback 0.24 —
+  their cosine ranges do not overlap) that is the only thing keeping the
   no-bulk-injection guard alive.
 
 **Still open — the query side has no automatic caller.** No `commands/*.md` step

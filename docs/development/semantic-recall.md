@@ -165,12 +165,24 @@ Role scopes are default-deny (`ROLE_SCOPES`). `execution` is the tightest: no
 
 ### Calibrating the floor
 
-`SEMANTIC_FLOOR` ships at **0.54**, measured — not guessed.
+**The floor is per-embedder, and that is not a detail.** A cosine only means
+something relative to the model that produced it. The two embedders that ship here
+were measured on 2026-07-29 over the same 21-document `.stz/` tree, and their
+ranges do not overlap:
 
-It was calibrated on 2026-07-29 against real `nomic-embed-text` (768-dim) over a
-21-document `.stz/` tree. What matters is not the absolute number but the gap
-between signal and noise, and this model has a **high cosine baseline with a
-narrow dynamic range**:
+| Embedder | Noise ceiling | True positives | Floor |
+| -------- | ------------- | -------------- | ----- |
+| `ollama:nomic-embed-text:768:v1` | 0.5242 | 0.5504 · 0.6273 · 0.7003 | **0.54** |
+| `fallback:hashed-ngram:256:v1` | 0.2036 | 0.3953 · 0.2621 · 0.2261 | **0.24** |
+
+nomic has a **high baseline and a narrow band** — the entire usable range is
+~0.52–0.55. The sparse hashed-n-gram fallback sits near zero and spreads wider.
+A single shared constant is therefore wrong for at least one of them by
+construction: at nomic's 0.54 the fallback's semantic layer *can never fire at
+all*, and at the fallback's 0.24 nomic returns most of the corpus for the word
+"the".
+
+The per-nomic detail, since it is the surprising one:
 
 | Query | Max cosine |
 | ----- | ---------- |
@@ -180,18 +192,26 @@ narrow dynamic range**:
 | true positive — fixed-timestep | 0.6273 |
 | true positive — Playwright window state | 0.7003 |
 
-Noise ceiling ≈ 0.52, usable band ≈ 0.52–0.55. The previous value of 0.6 was a
-guess, and it sat **above the weakest true positive** — the semantic layer never
-fired on a real corpus while every offline test stayed green, because those tests
-run on a stubbed embedder whose cosines are constructed rather than measured.
-0.54 clears the observed noise ceiling by ~0.016 and admits the weakest true
-positive. Verified after the change: the paraphrase query returns exactly the
-right document at 0.5504, the unrelated query returns nothing, and bare "the"
-produces zero semantic hits.
+An earlier guess of 0.6 sat **above the weakest true positive**, so the semantic
+layer never fired on a real corpus while every offline test stayed green — those
+tests run on stubbed embedders whose cosines are constructed rather than measured.
+That is the characteristic failure here: **a too-high floor is silent.** It
+presents as "semantic recall isn't very good", not as an error.
 
-**The margin is thin and corpus-dependent by nature.** A different model, or much
-longer documents, moves the noise ceiling. Re-measure rather than trust the
-number:
+Resolution order, in `resolveSemanticFloor()`:
+
+1. `STZ_SEMANTIC_FLOOR` — an operator who has measured their own corpus. An
+   out-of-range value is **ignored, not honored**.
+2. the `CALIBRATED_FLOORS` table above.
+3. `UNCALIBRATED_SEMANTIC_FLOOR` (0.8) for any embedder nobody has measured —
+   deliberately high, so an unknown model contributes almost nothing rather than
+   an unknown amount of noise. `knowledge-query` reports `floorSource:
+   "uncalibrated"` with a note when this happens, so it is visible rather than
+   silently wrong.
+
+**Both margins are thin (~0.016 and ~0.036) and corpus-dependent by nature.** A
+different model, or much longer documents, moves the noise ceiling. If you swap
+the embedding model, you must re-measure — the table above does not transfer:
 
 1. `ollama pull nomic-embed-text`, daemon running.
 2. Build against a real tree with the daemon path — do **not** set `STZ_EMBED`:
@@ -206,6 +226,9 @@ number:
 4. Set the floor above the highest *unrelated* cosine and at or below the lowest
    *true positive* one. If those two orders overlap, the corpus or the model is
    the problem, not the constant.
+5. Record it: add the fingerprint to `CALIBRATED_FLOORS` (permanent, shared) or
+   export `STZ_SEMANTIC_FLOOR` (local to your corpus). Repeat the measurement per
+   embedder — a number derived from one model says nothing about another.
 
 Warning signs either way: every query returning exactly the cap for every kind
 (floor too low), or zero semantic hits ever (floor too high).
@@ -213,9 +236,10 @@ Warning signs either way: every query returning exactly the cap for every kind
 **Bound: `0 < floor <= 1`.** A floor at or below 0 does not tune the layer, it
 deletes the no-bulk-injection guard. If a measurement genuinely suggests one, that
 is evidence the scoring model is wrong, not that the floor should be 0. Tests
-import `SEMANTIC_FLOOR` rather than hardcoding it, so a recalibration does not
-rewrite assertions — and two guards in `test/knowledge-semantic.test.ts` name the
-constant, so a move out of the usable range fails legibly.
+import the constants rather than hardcoding them, so a recalibration does not
+rewrite assertions — and `test/knowledge-semantic.test.ts` pins each floor between
+its own measured noise ceiling and its own weakest true positive, so a value that
+strands one embedder fails legibly instead of silently.
 
 Also unmeasured and still a guess: `SEMANTIC_WEIGHT = 3` (cos 1.0 ≈ 1.5 symbol
 matches). It only affects ranking among hits, never whether something is a hit.

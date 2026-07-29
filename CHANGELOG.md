@@ -38,12 +38,20 @@ and the stated gaps:
 - **A similarity floor is what keeps "no bulk injection" true.** Every artifact
   has a non-zero cosine to every query, so without a floor `score > 0` is
   universally true and the guard evaporates with every test still green.
-  `SEMANTIC_FLOOR` is now **measured, not guessed**: calibrated against real
-  768-dim nomic vectors over a 21-document tree, where unrelated and bare-stopword
-  queries topped out at 0.5242/0.5218 and true positives ran 0.5504–0.7003. The
-  previous 0.6 sat *above the weakest true positive* — the layer never fired on a
-  real corpus. Now 0.54, with the observed ranges and the re-measurement procedure
-  in the doc, because the margin is thin and corpus-dependent.
+  The floor is now **measured, not guessed — and resolved per embedder**, because
+  a cosine only means anything relative to the model that produced it. Measured
+  over one 21-document tree, the two shipped embedders do not overlap: nomic
+  (768-dim) has a noise ceiling of 0.5242 with true positives 0.5504–0.7003, while
+  the hashed-n-gram fallback (256-dim) has a noise ceiling of 0.2036 with its best
+  true positive at 0.3953 — so they calibrate to **0.54** and **0.24**
+  respectively. One shared constant is wrong for at least one of them by
+  construction: an earlier single value of 0.6 sat above nomic's weakest true
+  positive AND above every fallback cosine ever observed, so the layer never fired
+  on a real corpus in either mode. `resolveSemanticFloor()` takes an operator's
+  `STZ_SEMANTIC_FLOOR` override (out-of-range values ignored, not honored), then
+  the calibration table, then a deliberately high uncalibrated default that is
+  reported as such — because a too-high floor fails *silently* ("recall isn't very
+  good") while a too-low one deletes the guard.
 - **The embed timeout scales with the batch.** A flat 2s bound was wrong in two
   independent ways — a cold model load answered in 7.9s and a warm 21-document
   batch took 4.4s, and a whole rebuild is one batched call — so the first run of
