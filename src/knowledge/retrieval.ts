@@ -88,29 +88,72 @@ export interface SemanticInput {
 /** cos 1.0 ≈ 1.5 symbol matches. LOW-confidence starting value (A2); tunable. */
 export const SEMANTIC_WEIGHT = 3;
 /**
- * Below this, a cosine contributes exactly ZERO.
+ * Below the floor, a cosine contributes exactly ZERO.
  *
- * CALIBRATED 2026-07-29 against real `nomic-embed-text` (768-dim) over a 21-document
- * `.stz/` tree. The measurement that matters is that this model has a HIGH cosine
- * baseline and a narrow dynamic range — the gap between signal and noise, not the
- * absolute number:
+ * **The floor is per-embedder, because a cosine is only meaningful relative to the
+ * model that produced it.** Measured 2026-07-29 over the same 21-document `.stz/`
+ * tree, the two embedders that ship here do not even overlap:
  *
- *   deliberately unrelated query ("kubernetes ingress certificate rotation")  max 0.5242
- *   bare stopword query ("the")                                              max 0.5218
- *   true positives (paraphrase / fixed-timestep / Playwright-state)     0.5504 0.6273 0.7003
+ * | embedder                          | noise ceiling | true positives         |
+ * |-----------------------------------|---------------|------------------------|
+ * | `ollama:nomic-embed-text:768:v1`  | 0.5242        | 0.5504 0.6273 0.7003   |
+ * | `fallback:hashed-ngram:256:v1`    | 0.2036        | 0.3953 0.2621 0.2261   |
  *
- * So the usable band is ~0.52–0.55, and the previous guess of 0.6 sat ABOVE the
- * weakest true positive: the semantic layer never fired on a real corpus while every
- * offline test stayed green (they run on a stubbed embedder whose cosines are
- * constructed, not measured). 0.54 clears the observed noise ceiling by ~0.016 and
- * admits the weakest true positive.
+ * nomic has a high baseline and a narrow band (~0.52–0.55 is the whole usable
+ * range); the sparse hashed-n-gram fallback sits near zero and spreads wider. One
+ * shared constant is therefore wrong for at least one of them by construction — at
+ * nomic's 0.54 the fallback's semantic layer can never fire at all, and at the
+ * fallback's 0.24 nomic would return its entire corpus for the word "the".
  *
- * The margin is thin and corpus-dependent by nature — a different model, or much
- * longer documents, moves the noise ceiling. Re-measure rather than assume; the
- * procedure is in `docs/development/semantic-recall.md`. Tests import this constant
- * instead of hardcoding, so a re-calibration does not rewrite assertions.
+ * Both numbers are the observed noise ceiling plus a small margin. Both margins are
+ * thin (~0.016 and ~0.036) and corpus-dependent — longer documents or a different
+ * tree move the ceiling. Re-measure rather than trust; the procedure is in
+ * `docs/development/semantic-recall.md`.
  */
-export const SEMANTIC_FLOOR = 0.54;
+export const CALIBRATED_FLOORS: Readonly<Record<string, number>> = {
+  "ollama:nomic-embed-text:768:v1": 0.54,
+  "fallback:hashed-ngram:256:v1": 0.24,
+};
+
+/**
+ * Floor for an embedder nobody has calibrated. Deliberately high: an uncalibrated
+ * model should contribute almost nothing rather than an unknown amount of noise,
+ * because the failure mode of a too-low floor is silent (every artifact clears it,
+ * `score > 0` becomes universally true, and the no-bulk-injection guard is gone)
+ * while the failure mode of a too-high floor is merely "semantic recall found
+ * nothing", which is visible and reported.
+ */
+export const UNCALIBRATED_SEMANTIC_FLOOR = 0.8;
+
+/** Default for direct callers that pass no explicit floor. */
+export const SEMANTIC_FLOOR = UNCALIBRATED_SEMANTIC_FLOOR;
+
+export interface ResolvedFloor {
+  floor: number;
+  /** `calibrated` = measured for this exact embedder; `env` = operator override. */
+  source: "calibrated" | "env" | "uncalibrated";
+  fingerprint: string;
+}
+
+/**
+ * Resolve the floor for a specific embedder identity. Precedence: an explicit
+ * `STZ_SEMANTIC_FLOOR` override (an operator who has measured their own corpus),
+ * then the calibration table, then the conservative uncalibrated default.
+ *
+ * An out-of-range override is IGNORED rather than honored: `floor <= 0` does not
+ * tune the layer, it deletes the no-bulk-injection guard entirely.
+ */
+export function resolveSemanticFloor(fingerprint: string, env = process.env): ResolvedFloor {
+  const raw = env.STZ_SEMANTIC_FLOOR;
+  if (raw !== undefined && raw !== "") {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0 && parsed <= 1)
+      return { floor: parsed, source: "env", fingerprint };
+  }
+  const calibrated = CALIBRATED_FLOORS[fingerprint];
+  if (calibrated !== undefined) return { floor: calibrated, source: "calibrated", fingerprint };
+  return { floor: UNCALIBRATED_SEMANTIC_FLOOR, source: "uncalibrated", fingerprint };
+}
 
 /**
  * Integer points from a cosine. `!(cos >= floor)` is NaN-safe by construction and

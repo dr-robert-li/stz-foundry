@@ -70,7 +70,7 @@ import { buildIndex, readIndex, poolFromIndex, vectorsFromIndex } from "./knowle
 import { resolveRoleScope, capsForRole } from "./knowledge/scope.js";
 import {
   retrieve,
-  SEMANTIC_FLOOR,
+  resolveSemanticFloor,
   SEMANTIC_WEIGHT,
   type RetrievalQuery,
   type SemanticInput,
@@ -2067,8 +2067,27 @@ async function knowledgeQueryCmd(args: Record<string, string>): Promise<void> {
     // cosines are noise that clears the floor often enough to look like signal.
     try {
       const [queryVector] = await queryEmbedder.embed([keywords.join(" ")], "query");
-      semantic = { vectors: vectorsFromIndex(index), queryVector: queryVector ?? [], embedder: index.fingerprint };
-      semanticReport = { enabled: true, embedder: index.fingerprint, floor: SEMANTIC_FLOOR, weight: SEMANTIC_WEIGHT };
+      // Per-embedder floor: a cosine is only meaningful relative to the model that
+      // produced it, and the two shipped embedders' ranges do not overlap.
+      const resolved = resolveSemanticFloor(index.fingerprint);
+      semantic = {
+        vectors: vectorsFromIndex(index),
+        queryVector: queryVector ?? [],
+        embedder: index.fingerprint,
+        floor: resolved.floor,
+      };
+      semanticReport = {
+        enabled: true,
+        embedder: index.fingerprint,
+        floor: resolved.floor,
+        floorSource: resolved.source,
+        weight: SEMANTIC_WEIGHT,
+        ...(resolved.source === "uncalibrated"
+          ? {
+              note: `no calibrated floor for ${index.fingerprint} — using the conservative default, so semantic hits will be rare. Measure your corpus and set STZ_SEMANTIC_FLOOR (see docs/development/semantic-recall.md).`,
+            }
+          : {}),
+      };
     } catch (e) {
       semanticReport = {
         enabled: false,

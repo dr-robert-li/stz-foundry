@@ -25,6 +25,9 @@ import {
   DEFAULT_CAPS,
   SEMANTIC_FLOOR,
   SEMANTIC_WEIGHT,
+  CALIBRATED_FLOORS,
+  UNCALIBRATED_SEMANTIC_FLOOR,
+  resolveSemanticFloor,
   type RetrievableArtifact,
   type RetrievableKind,
   type RetrievalQuery,
@@ -350,5 +353,78 @@ describe("role scoping — an unknown role retrieves nothing", () => {
     const ids = hits.map((h) => h.artifact.id);
     expect(ids).not.toContain("20-standards/rubric.md");
     expect(ids).toContain("20-standards/conv.md"); // the deny cannot pass trivially
+  });
+});
+
+/**
+ * A cosine is only meaningful relative to the model that produced it, so the floor
+ * is per-embedder. Measured 2026-07-29 on one 21-document `.stz/` tree: nomic's
+ * noise ceiling is 0.5242 with true positives 0.5504–0.7003; the sparse hashed
+ * n-gram fallback's noise ceiling is 0.2036 with its best true positive at 0.3953.
+ * Those ranges do not overlap, so a single shared constant is wrong for one of them
+ * by construction — and wrong SILENTLY, since a too-high floor just looks like
+ * "semantic recall found nothing".
+ */
+describe("the floor is per-embedder, not one hardcoded number", () => {
+  const NOMIC = "ollama:nomic-embed-text:768:v1";
+  const FALLBACK = "fallback:hashed-ngram:256:v1";
+
+  it("gives the two shipped embedders different, non-overlapping floors", () => {
+    const nomic = resolveSemanticFloor(NOMIC, {});
+    const fallback = resolveSemanticFloor(FALLBACK, {});
+
+    expect(nomic.source).toBe("calibrated");
+    expect(fallback.source).toBe("calibrated");
+    // The whole point: they are NOT the same number.
+    expect(nomic.floor).not.toBe(fallback.floor);
+    // nomic sits high (high baseline, narrow band); the sparse fallback sits low.
+    expect(nomic.floor).toBeGreaterThan(fallback.floor);
+  });
+
+  it("keeps each floor above its own measured noise ceiling and below its weakest true positive", () => {
+    // If either assertion fails, the layer is either returning junk or is dead.
+    const nomic = resolveSemanticFloor(NOMIC, {}).floor;
+    expect(nomic).toBeGreaterThan(0.5242); // observed unrelated-query max
+    expect(nomic).toBeLessThanOrEqual(0.5504); // observed weakest true positive
+
+    const fallback = resolveSemanticFloor(FALLBACK, {}).floor;
+    expect(fallback).toBeGreaterThan(0.2036); // observed bare-"the" max
+    expect(fallback).toBeLessThanOrEqual(0.3953); // observed best true positive
+  });
+
+  it("would strand one embedder if the other's floor were applied to it", () => {
+    // Documents WHY this exists: nomic's 0.54 is above every fallback cosine ever
+    // observed, so sharing it makes the offline semantic layer permanently dead.
+    const nomic = CALIBRATED_FLOORS[NOMIC]!;
+    const fallbackBestObserved = 0.3953;
+    expect(nomic).toBeGreaterThan(fallbackBestObserved);
+  });
+
+  it("falls back to a conservative floor for an embedder nobody has calibrated", () => {
+    const r = resolveSemanticFloor("ollama:some-other-model:1024:v1", {});
+    expect(r.source).toBe("uncalibrated");
+    expect(r.floor).toBe(UNCALIBRATED_SEMANTIC_FLOOR);
+    // Conservative means HIGHER than any calibrated floor: an unknown model should
+    // contribute almost nothing rather than an unknown amount of noise, because a
+    // too-low floor fails silently while a too-high floor is merely visible.
+    for (const known of Object.values(CALIBRATED_FLOORS)) expect(r.floor).toBeGreaterThan(known);
+  });
+
+  it("honors an operator's measured override but refuses one that deletes the guard", () => {
+    expect(resolveSemanticFloor(NOMIC, { STZ_SEMANTIC_FLOOR: "0.42" })).toMatchObject({
+      floor: 0.42,
+      source: "env",
+    });
+    // Out of range => IGNORED, not honored. A floor <= 0 does not tune the layer,
+    // it removes the no-bulk-injection guard entirely (every artifact clears it).
+    for (const bad of ["0", "-1", "1.5", "abc", ""]) {
+      expect(resolveSemanticFloor(NOMIC, { STZ_SEMANTIC_FLOOR: bad }).source).toBe("calibrated");
+    }
+  });
+
+  it("keeps the direct-caller default conservative", () => {
+    // `retrieve()` with no explicit floor must not silently adopt one model's
+    // calibration; it uses the uncalibrated default.
+    expect(SEMANTIC_FLOOR).toBe(UNCALIBRATED_SEMANTIC_FLOOR);
   });
 });
