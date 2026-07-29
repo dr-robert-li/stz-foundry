@@ -65,6 +65,16 @@ import {
   defaultRunConfig,
 } from "./project.js";
 import { detectHacks, suspicionScore } from "./hack-detector.js";
+import { selectEmbedder, embedderForFingerprint } from "./knowledge/embedder.js";
+import { buildIndex, readIndex, poolFromIndex, vectorsFromIndex } from "./knowledge/index-store.js";
+import { resolveRoleScope, capsForRole } from "./knowledge/scope.js";
+import {
+  retrieve,
+  SEMANTIC_FLOOR,
+  SEMANTIC_WEIGHT,
+  type RetrievalQuery,
+  type SemanticInput,
+} from "./knowledge/retrieval.js";
 import { STZ_VERSION, SCHEMA_VERSION, PACKAGE_NAME } from "./version.js";
 import { onNoPassers, DEFAULT_RETRY_POLICY, type EscalationState } from "./escalation.js";
 import { evalGate, select, pairings } from "./selection.js";
@@ -1942,6 +1952,96 @@ function evalBaselineCmd(args: Record<string, string>): void {
   print(report);
 }
 
+// ── 1.17.0 cross-slice semantic recall ───────────────────────────────────────
+
+/**
+ * knowledge-index: walk the allowlisted `.stz/` tiers, embed each document's
+ * summary, and persist `.stz/90-audit/knowledge-index.json`. Two runs over an
+ * unchanged tree produce byte-identical output (D2/N6).
+ *
+ *   stz bridge knowledge-index --root D
+ */
+async function knowledgeIndexCmd(args: Record<string, string>): Promise<void> {
+  const root = args.root;
+  if (!root) {
+    process.stderr.write("knowledge-index requires --root\n");
+    process.exitCode = 1;
+    return;
+  }
+  const { embedder, reason } = await selectEmbedder();
+  print(await buildIndex(root, embedder, reason));
+}
+
+const csv = (raw: string | undefined): string[] =>
+  raw && raw !== "true" ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+
+/**
+ * knowledge-query: capped, explained, role-scoped recall over the index. Never
+ * writes the index and never re-embeds the tree — one query embedding, that is all.
+ *
+ *   stz bridge knowledge-query --root D --role planning --keywords a,b [--symbols s] [--step-id id]
+ */
+async function knowledgeQueryCmd(args: Record<string, string>): Promise<void> {
+  const root = args.root;
+  if (!root) {
+    process.stderr.write("knowledge-query requires --root\n");
+    process.exitCode = 1;
+    return;
+  }
+  const role = args.role ?? "";
+  const scope = resolveRoleScope(role);
+  if (!scope) {
+    // Default-deny. An unknown or absent role retrieves nothing — never the union
+    // of all kinds, never a defaulted role, and never a thrown error the caller
+    // might paper over.
+    print({ hits: [], role, denied: true, reason: "unknown role" });
+    return;
+  }
+  const keywords = csv(args.keywords);
+  const query: RetrievalQuery = {
+    symbols: csv(args.symbols),
+    keywords,
+    // THE ROLE-SCOPING CONTROL. `requestedKinds` is what `retrieve()` iterates, so
+    // it is what decides which kinds this role can see, and it comes from
+    // `resolveRoleScope(role).kinds` and from nothing else. `capsForRole()` cannot
+    // substitute: it merges OVER `DEFAULT_CAPS` and therefore still carries a
+    // non-zero cap for kinds this role's scope excludes — an `execution` specimen
+    // would receive exactly the `decision` documents its scope was written to deny.
+    // If a `--kinds` argument is ever accepted it must be INTERSECTED with these,
+    // never unioned: the role's kinds are the ceiling.
+    requestedKinds: scope.kinds,
+    stepId: args["step-id"] ?? "adhoc",
+  };
+  const caps = capsForRole(role)!;
+
+  const index = readIndex(root);
+  const pool = index ? poolFromIndex(index) : [];
+  const queryEmbedder = index ? embedderForFingerprint(index.fingerprint) : null;
+
+  let semantic: SemanticInput | undefined;
+  let semanticReport: Record<string, unknown>;
+  if (!index) {
+    semanticReport = { enabled: false, reason: "no index — run `stz bridge knowledge-index --root <dir>`" };
+  } else if (!queryEmbedder) {
+    semanticReport = {
+      enabled: false,
+      reason: `index fingerprint ${index.fingerprint} has no reconstructible embedder — semantic layer disabled rather than comparing noise`,
+    };
+  } else {
+    const [queryVector] = await queryEmbedder.embed([keywords.join(" ")], "query");
+    semantic = { vectors: vectorsFromIndex(index), queryVector: queryVector ?? [], embedder: index.fingerprint };
+    semanticReport = { enabled: true, embedder: index.fingerprint, floor: SEMANTIC_FLOOR, weight: SEMANTIC_WEIGHT };
+  }
+
+  print({
+    role,
+    denied: false,
+    requestedKinds: query.requestedKinds,
+    hits: retrieve(pool, query, caps, semantic),
+    semantic: semanticReport,
+  });
+}
+
 const BRIDGE_COMMANDS = [
   "version", "begin", "record-eval", "eval", "gate", "escalate", "slice-halt", "record-votes", "select", "finalize",
   "project-init", "project-phase", "project-write-intent", "project-record-area", "project-set-config",
@@ -1952,6 +2052,8 @@ const BRIDGE_COMMANDS = [
   "harness-promote", "harness-status", "judge-stress", "judge-calibration",
   // 0.9.6 Contract Plane + Phase-0 eval
   "separation-gate", "contract-accept", "eval-baseline",
+  // 1.17.0 cross-slice semantic recall
+  "knowledge-index", "knowledge-query",
   // per-specimen worktree isolation (in-session path)
   "worktree-create",
   "worktree-list",
@@ -2014,6 +2116,9 @@ export async function runBridge(argv: string[]): Promise<void> {
     case "separation-gate": separationGateCmd(args); break;
     case "contract-accept": contractAcceptCmd(args); break;
     case "eval-baseline": evalBaselineCmd(args); break;
+    // ── 1.17.0 cross-slice semantic recall ─────────────────────────────────
+    case "knowledge-index": await knowledgeIndexCmd(args); break;
+    case "knowledge-query": await knowledgeQueryCmd(args); break;
     // ── per-specimen worktree isolation (in-session path) ──────────────────
     case "worktree-create": worktreeCreateCmd(args); break;
     case "worktree-list": worktreeListCmd(args); break;

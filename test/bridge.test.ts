@@ -3,7 +3,7 @@ import { mkdtemp, rm, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runBridge } from "../src/bridge.js";
-import { STZ_DIR } from "../src/taxonomy.js";
+import { STZ_DIR, scaffold, writeDoc } from "../src/taxonomy.js";
 import { freshState, loadState, saveState, setPhaseStatus, isComplete } from "../src/state.js";
 import { deriveSliceStatus } from "../src/project.js";
 import { PHASES, type SliceManifest } from "../src/types.js";
@@ -467,5 +467,94 @@ describe("bridge — L3 fail-closed on an empty specimen source (1.17.0)", () =>
     const real = lastJSON<{ passedGate: boolean; gateBlockedReason?: string }>();
     expect(real.passedGate).toBe(true);
     expect(real.gateBlockedReason).toBeUndefined();
+  });
+});
+
+describe("bridge — cross-slice semantic recall (1.17.0)", () => {
+  // The tracer: one document walked under a default-deny tier allowlist, embedded,
+  // persisted, and recalled through the capped/explained/trust-filtered contract —
+  // over a tree that ALSO contains sealed held-out content.
+  const indexFile = () => join(root, STZ_DIR, "90-audit", "knowledge-index.json");
+
+  async function treeWithSealedContent(): Promise<void> {
+    process.env.STZ_EMBED = "fallback"; // never reach for a daemon, even if one runs
+    await scaffold(root);
+    await writeDoc(root, "20-standards/conventions.md", {
+      frontmatter: { summary: "naming conventions - camelCase functions and kebab-case filenames" },
+      body: "# Conventions",
+    });
+    await mkdir(join(root, STZ_DIR, "30-tests", "held-out"), { recursive: true });
+    await writeFile(
+      join(root, STZ_DIR, "30-tests", "held-out", "sealed.mjs"),
+      "export const cases = [[1, 2], [3, 4]];\n",
+      "utf8",
+    );
+    await writeDoc(root, "30-tests/held-out/reference.md", {
+      frontmatter: { summary: "reference implementation using camelCase naming conventions" },
+      body: "# Reference",
+    });
+  }
+
+  it("indexes the allowlisted document, never the sealed tier, and recalls it explained", async () => {
+    await treeWithSealedContent();
+
+    captured = "";
+    await runBridge(["knowledge-index", "--root", root]);
+    const built = lastJSON<{ embedded: number; total: number; rebuilt: string; fingerprint: string; provider: string }>();
+    expect(built.embedded).toBe(1);
+    expect(built.total).toBe(1);
+    expect(built.fingerprint).toMatch(/^fallback:/);
+    expect(built.provider.length).toBeGreaterThan(0);
+
+    const first = await readFile(indexFile(), "utf8");
+    const onDisk = JSON.parse(first) as { entries: Record<string, unknown>; dim: number };
+    // The sealed suite and the reference implementation are absent BY CONSTRUCTION.
+    expect(Object.keys(onDisk.entries)).toEqual(["20-standards/conventions.md"]);
+
+    captured = "";
+    await runBridge(["knowledge-query", "--root", root, "--role", "planning", "--keywords", "camelCase"]);
+    const q = lastJSON<{
+      denied: boolean;
+      hits: { artifact: { id: string; kind: string; trust: string }; explanation: { whySelected: string; score: number } }[];
+      semantic: { enabled: boolean };
+    }>();
+    expect(q.denied).toBe(false);
+    expect(q.semantic.enabled).toBe(true);
+    expect(q.hits.length).toBe(1);
+    expect(q.hits[0]!.artifact.id).toBe("20-standards/conventions.md");
+    expect(q.hits[0]!.artifact.kind).toBe("convention");
+    expect(q.hits[0]!.artifact.trust).toBe("accepted");
+    expect(q.hits[0]!.explanation.whySelected.length).toBeGreaterThan(0);
+    expect(q.hits[0]!.explanation.score).toBeGreaterThan(0);
+
+    // D2/N6: two runs over an unchanged tree produce a byte-identical index file.
+    captured = "";
+    await runBridge(["knowledge-index", "--root", root]);
+    expect(await readFile(indexFile(), "utf8")).toBe(first);
+  });
+
+  it("denies an unknown role — zero hits, never the union of all kinds", async () => {
+    await treeWithSealedContent();
+    captured = "";
+    await runBridge(["knowledge-index", "--root", root]);
+
+    captured = "";
+    await runBridge(["knowledge-query", "--root", root, "--role", "not-a-role", "--keywords", "camelCase"]);
+    const denied = lastJSON<{ hits: unknown[]; denied: boolean; reason: string }>();
+    expect(denied.hits).toEqual([]);
+    expect(denied.denied).toBe(true);
+    expect(denied.reason).toBe("unknown role");
+  });
+
+  it("reports the semantic layer as disabled rather than querying a missing index", async () => {
+    process.env.STZ_EMBED = "fallback";
+    await scaffold(root);
+    captured = "";
+    await runBridge(["knowledge-query", "--root", root, "--role", "planning", "--keywords", "camelCase"]);
+    const q = lastJSON<{ hits: unknown[]; denied: boolean; semantic: { enabled: boolean; reason: string } }>();
+    expect(q.denied).toBe(false);
+    expect(q.hits).toEqual([]);
+    expect(q.semantic.enabled).toBe(false);
+    expect(q.semantic.reason).toMatch(/no index/);
   });
 });
