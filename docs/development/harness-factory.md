@@ -240,16 +240,17 @@ literature shapes the guardrails:
 
 ## Phases (detail in ROADMAP item 8)
 
-1. **Agentic eval seam** — `src/foundry/agent-runner.ts` + `battery-types.ts`
-   (+ `OracleReceipt` in the battery schema). Independently valuable as an
-   agent-benchmark harness.
-2. **Component tournaments** — swap the seam into the slice machinery;
-   GEPA-style mutation; split-battery Goodhart bound; seventh promotion gate.
-3. **Blueprint + deterministic assembly + data-ops pilot** — `HarnessBlueprint`,
+1. **Agentic eval seam — shipped (v1.18.0).** `src/foundry/agent-runner.ts` +
+   `battery-types.ts` (+ `OracleReceipt` in the battery schema). Independently
+   valuable as an agent-benchmark harness. See "Phase 1, as shipped" below.
+2. **Component tournaments — shipped (v1.18.0).** The seam swapped into the
+   slice machinery; GEPA-style mutation; split-battery Goodhart bound;
+   seventh promotion gate. See "Phase 2, as shipped" below.
+3. **Blueprint + deterministic assembly + data-ops pilot — NOT built.** `HarnessBlueprint`,
    fixture-warehouse generator, dbt/data-diff oracle.
-4. **Emit / packaging** — `src/foundry/emit.ts`, plugin.json/marketplace.json
+4. **Emit / packaging — NOT built.** `src/foundry/emit.ts`, plugin.json/marketplace.json
    generation, docs via documenter/summarizer, fix the installer skills gap.
-5. **Harness-level evolve** — parameterize `src/harness.ts` substrates; gated
+5. **Harness-level evolve — NOT built.** Parameterize `src/harness.ts` substrates; gated
    on phases 1–4 showing gains; the evolve discipline verbatim (held-out,
    recall-free, 3-seed minimum, variance floor, replay from MANIFEST).
 
@@ -404,3 +405,380 @@ observed)` is a new export holding the check-set pass rule verbatim;
 signature. `test/contract.test.ts`'s existing predicate-eval assertions pass
 unmodified — the executable proof this is behaviour-preserving, and exactly
 one implementation of the check-set pass rule exists in the repo afterward.
+
+### A found-and-closed gap, phase 1 → phase 2's clearest worked example
+
+`01-VERIFICATION.md` found that phase 1's own governing claim — "it is
+structurally impossible to score a fitness result without a receipt tracing
+that fitness back to an exogenous oracle" — was **not** true as shipped: a
+hand-built `AgentBattery`-shaped object literal (skipping `makeBattery`
+entirely) compiled under `tsc --noEmit --strict` with zero errors and ran
+through `runAgentBattery` with no throw, carrying an `anchored-judge`-rooted
+receipt — the exact case CONTEXT D2 named as forbidden. The guard was
+enforced only by the convention "always call `makeBattery` first," not by
+the type system or by `runAgentBattery` itself.
+
+The fix (`f0de8e6`, closing phase 1 before phase 2 opened) is two
+independent layers, not one: (a) `AgentBattery` is now branded with a
+module-private `readonly [VALIDATED_BATTERY]: true` field only `makeBattery`
+can produce, so a hand-built literal no longer type-checks (verified live:
+the scratch-file compile produced exactly one error, `Property
+'[VALIDATED_BATTERY]' is missing`); and (b) `runAgentBattery` calls
+`validateReceipt(battery.receipt, battery.id)` as its own first statement,
+before `provider` is even selected — defense in depth behind the brand,
+catching anything that arrives by a route the type system can't see
+(`JSON.parse`, an `as AgentBattery` cast). Both were mutation-checked:
+deleting the runtime call turned exactly the three
+`runAgentBattery rejects an unvalidated battery` tests red; deleting the
+brand field turned exactly the type-level source-assertion test red; no
+other test in either file moved.
+
+This is the clearest worked example, inside this milestone, of the α→0
+failure mode the whole design exists to prevent: a control that reads as
+load-bearing in review ("structurally impossible") but is convention-only at
+one call site is the same shape as a fitness signal that reads as earned but
+is self-generated — both fail *silently*, and both were caught only because
+D6/`01-VERIFICATION.md`'s own instruction was to hunt for an escape hatch,
+not to accept the doc's own claim. Phase 2's seventh gate, the split-battery
+guards, and the reflective-mutation caps all inherit this posture: compute
+the check, then mutation-prove it is the compute that fires, never trust the
+sentence that describes it.
+
+## Phase 2, as shipped
+
+Phase 2 swapped the phase-1 agentic eval seam into the existing slice
+tournament machinery, so that an agent definition (`agents/*.md` prompt
+text) is a specimen the SAME `select()` / GRPO / hack-detection path can
+rank — and added the seventh promotion gate the whole design's α→0 guard
+rests on. This section describes what exists, for a phase-3 reader landing
+here to plan `HarnessBlueprint` and deterministic assembly against.
+
+### The split battery
+
+`SplitBattery` (`src/foundry/battery-types.ts`) wraps two `AgentBattery`
+values — `search` (hill-climbed every generation) and `promotion` (read
+exactly once, at the final promotion decision). `makeSplitBattery(search,
+promotion)` runs each half through `makeBattery` first (so a per-half shape
+violation is never masked), then two pair-level guards, each throwing
+`BatteryShapeError` naming the concrete violation: distinct battery ids, and
+disjoint task-id sets across the two halves. Both guards close a distinct
+vacuity shape CONTEXT D3 warned about — a silently-empty promotion set
+(closed structurally: `makeBattery` already rejects a zero-task draft, so an
+empty half can never become a value) and a silently-identical promotion set
+(closed by the two pair-level checks together; neither alone is
+sufficient — id-distinctness alone permits two differently-named batteries
+sharing the same tasks).
+
+**The structural guarantee that matters lives in a function signature, not
+in the split type.** `runSearchGeneration(candidates, battery: AgentBattery,
+opts)` takes a plain `AgentBattery`, never `SplitBattery` — the promotion
+half is never in lexical scope inside the function that runs once per
+candidate per generation. `SplitBattery` itself could not enforce this; a
+caller could always reach into `split.promotion` if the search-loop function
+accepted the wrapper type. The proof this matters is behavioural, not a type
+check: a recording `Provider` double captures every `chat` request's system
+prompt and messages verbatim, and a test scans the captured log for every
+search-half task prompt (present) and every promotion-half task prompt
+(absent) across an N≥2-candidate run. A discrimination control (the full
+`runComponentTournament` DOES surface each promotion prompt exactly once,
+during the real promotion run) proves the search-only assertion is
+discriminating, not vacuously true because the promotion battery goes
+unused altogether — CONTEXT D3's own words: "a test that merely asserts the
+split exists proves nothing." A D-06 mutation (concatenate the promotion
+half's tasks into the search battery inside `runComponentTournament`) turned
+exactly the discrimination-control test red (expected 1 occurrence of the
+leaked prompt, observed 3) — proof the isolation is load-bearing, not
+decorative.
+
+### The tournament
+
+`runSearchGeneration` runs `runAgentBattery` once per candidate against the
+search battery and feeds the resulting `EvalResult[]` — completely
+unmodified — into `select()` (`src/selection.ts`). `promoteComponentWinner`
+(`src/foundry/component-tournament.ts`) is the single promotion decision.
+`runComponentTournament` is the orchestrator: it owns the bounded
+multi-generation search loop and is the ONLY place in the file where both
+halves of the split are ever in lexical scope together.
+
+`select`, `evalGate`, `evalReward`, `groupRelativeAdvantage`,
+`checkDiversity`, `onGeneration`, and `calibrationGate` were imported and
+called **unmodified** — `git diff f0de8e6...HEAD` (the phase-2-only diff,
+computed against the commit that closed phase 1) shows zero lines changed
+in `src/selection.ts`, `src/grpo.ts`, `src/diversity.ts`, or
+`src/foundry/spawn.ts`. State this plainly: REQ-18 needed **no production
+change to the selection path** — the entire deliverable was the N≥2 proving
+test (`select()`'s two-stage gate+rank path producing a winner across two
+agent-definition specimens), not new selection logic. The same tournament
+machinery that picks an implementation picks an agent definition, exactly
+as this document's opening section claimed, and the code proves it by
+reuse, not by parallel re-implementation.
+
+### The seventh gate
+
+`PromotionInputs.exogenousLineage` (`src/types.ts`) is the seventh field
+alongside the pre-existing six. `exogenousLineageGate(receipt, batteryId)`
+(`src/foundry/battery-types.ts`) computes it. The failure reason string
+(`fitness-lineage-not-exogenous`) is added to `harness.ts`'s `promotionGate`
+alongside the existing six clauses.
+
+The gate is **two named sequential steps**, computed inside
+`promoteComponentWinner`, never one compound boolean:
+
+1. **Provenance** — `Object.is(args.promotionRun.receipt,
+   args.promotionBattery.receipt)`. This is a reference-identity check, and
+   it works only because `runAgentBattery` returns `battery.receipt` **by
+   reference** on `BatteryRun.receipt` — the promotion run's receipt object
+   and the promotion battery's own receipt object must be the literal same
+   JS object in memory, not a deep-equal copy, not a re-derived receipt with
+   identical fields. A substituted, copied, or re-derived receipt fails this
+   step regardless of its field values.
+2. **`exogenousLineageGate`** — resolves the root oracle kind and checks it
+   against `EXOGENOUS_ROOT_KINDS`.
+
+**Why the gate is not vacuous, stated explicitly so a later reader does not
+"simplify" it back:** `makeBattery` already makes construction-time
+exogeneity tautological — any `AgentBattery` value that exists at all
+already passed `validateReceipt` once, at construction. So "is this
+receipt's lineage exogenous?" asked in isolation, at the promotion call
+site, would be true of every receipt reaching that call site by
+construction — a vacuous re-check, exactly the failure mode `01-VERIFICATION.md`
+found and this design's own research (Pitfall 1) warned about. The gate's
+REAL job is catching a **substituted, re-derived, or absent receipt at the
+promotion call site** — a receipt that is exogenous in isolation but is not
+provably the receipt that actually produced THIS promotion run's fitness
+number. That is what step 1 (provenance) tests, and it is the step that
+makes step 2 non-vacuous: step 2 only ever runs against a receipt already
+proven to be the real one.
+
+**`exogenousLineageGate` deliberately does NOT call `validateReceipt`.**
+`validateReceipt` already performs the identical `resolveRootKind` +
+`EXOGENOUS_ROOT_KINDS.has()` check internally, as part of construction-time
+validation, and throws before returning. Calling `validateReceipt` first and
+then independently re-deriving the same check would make the second check
+provably, unconditionally redundant — any receipt reaching it already passed
+the identical test inside `validateReceipt` — an untestable, dead-code
+re-check masquerading as a live gate. `exogenousLineageGate` instead
+performs its own self-contained resolve-then-check pair as the sole decision
+point. **Do not "fix" this by adding a `validateReceipt` call inside
+`exogenousLineageGate` — doing so makes the gate's own membership check
+provably dead code, the exact vacuous-gate failure mode this section exists
+to name and prevent.**
+
+Mutation checks (02-01 SUMMARY) proved both steps independently
+load-bearing and on different lines: disabling the provenance check
+(`Object.is` → `true`) turned exactly the "substituted receipt" control red;
+disabling the exogeneity step (`EXOGENOUS_ROOT_KINDS.has` → `true`) turned
+exactly the "anchored-judge-rooted receipt" control red; deleting the
+`promotionGate` clause itself turned four tests red across two files,
+including three of the seventh gate's own negative controls. No mutation
+left the whole suite green.
+
+The gate is wired identically — computed, never CLI-trusted — at the
+harness-genome altitude: `harnessPromote --receipt` (`src/bridge.ts`) reads
+a real `OracleReceipt` (a JSON file or inline JSON) and passes it through
+the same `exogenousLineageGate`. An absent `--receipt` is a fail-closed
+refusal, not a pass.
+
+**A known asymmetry, stated as fact, not as a fixed problem:** three of
+`harnessPromote`'s six pre-existing gates — `hackClean`, `sealOk`,
+`diversityOk` — are still CLI-trusted booleans, read through a `bool()`
+helper off `args["hack-clean"]` / `args["seal-ok"]` / `args["diversity-ok"]`.
+`beatsIncumbent` (compares `variant.fitness` against a baseline),
+`interfaceParity` (via `checkParity`), and `rubricCalibrated` (via
+`calibrationGate`) are computed. The seventh gate, `exogenousLineage`, is
+the one gate this phase touched, and it was deliberately built as computed
+from day one — this phase did not close the pre-existing asymmetry on the
+other three, and did not attempt to; that is out of this phase's scope
+fence, not an oversight left unmentioned.
+
+### Component-altitude gate meanings
+
+At the component altitude, `promoteComponentWinner` computes **all seven**
+gates from evidence — none is a parameter a caller could assert true. This
+resolves RESEARCH's Open Question 1 directly:
+
+| Gate | Component-altitude mechanism | CLI-trusted at this altitude? |
+|---|---|---|
+| `beatsIncumbent` | `promotionFitness > (incumbentFitness ?? -Infinity)` — `promotionFitness` from `evalReward` on the real promotion-battery run | No |
+| `hackClean` | `promotionRun.result.hackFindings.length === 0` — the real battery run's hack findings | No |
+| `sealOk` | Re-checked AT the gate (not trusted from `SplitBattery` construction): distinct battery ids AND disjoint task-id sets, re-derived from `searchBattery`/`promotionBattery` | No |
+| `interfaceParity` | **`agentFrontmatter(winner) === agentFrontmatter(incumbent)`** — frontmatter-block string equality between the winning agent definition's YAML frontmatter and the incumbent's. `checkParity(BRIDGE_COMMANDS, ...)` (the bridge-command-surface diff `harnessPromote` uses) is **NOT reused** — an agent-definition promotion doesn't touch `BRIDGE_COMMANDS` at all, so that check would be meaningless here. `true` when there is no incumbent yet (nothing to diverge from) | No |
+| `diversityOk` | `checkDiversity(generationRewards, diversityFloor).ok` — reused verbatim | No |
+| `rubricCalibrated` | `calibrationGate(judgeProfile, sliceType).calibrated` — reused verbatim | No |
+| `exogenousLineage` (seventh) | Two-step provenance + exogeneity check, above | No |
+
+This is RESEARCH Open Question 1's resolution: the component altitude does
+not reuse `checkParity(BRIDGE_COMMANDS, ...)`; `interfaceParity` is
+redefined per-altitude as frontmatter-block equality, exactly as the
+RESEARCH recommendation anticipated. No new bridge command
+(`component-promote` or similar) was built — see "No bridge verb" below.
+
+### Where the votes come from
+
+RESEARCH Open Question 2's resolution, stated plainly: **no judge
+implementation exists in `src/` at any altitude, at either the slice or the
+component altitude.** `select()` (`src/selection.ts`) takes `PairwiseVote[]`
+as an input at both altitudes identically — at the component altitude,
+`runSearchGeneration`'s `opts.votes` flows straight through to `select()`
+unchanged, exactly the way `record-votes` supplies them at the slice
+altitude. With no votes supplied, ranking falls back to `evalReward` then
+lexicographic specimen id (`select()`'s own pre-existing behavior, unchanged
+by this phase). This is named here as a **ceiling, not a gap**: nothing in
+phase 2 needed a judge to prove REQ-18's N≥2 selection claim, since
+`evalReward` alone is sufficient to rank battery-scored specimens. A future
+phase that wants LLM-judged pairwise votes over agent-definition specimens
+needs to wire an actual judge invocation — that wiring does not exist yet at
+either altitude.
+
+### The archive sibling
+
+`ComponentArchiveEntry` (`src/types.ts`) is the component-altitude sibling
+of `ArchiveEntry` — **`ArchiveEntry.genome` was deliberately NOT widened
+into a union.** `ComponentArchiveEntry` is a structurally parallel type with
+its own fields (`artifact: { slot, specimenId, definitionHash }` in place of
+`genome`, plus `searchFitness`/`promotionFitness`/`searchPromotionGap`
+alongside the shared `fitness`/`advantage`/`childCount`/`gates` shape), and
+its own manifest path: `componentDir`/`componentManifestPath`
+(`src/harness.ts`) resolve to
+`.stz/60-harness/component/<slot>/MANIFEST.json` — a sibling directory next
+to, never inside, the harness-genome `MANIFEST.json` at
+`.stz/60-harness/MANIFEST.json`. `readComponentArchive` /
+`appendComponentArchiveEntry` / `makeComponentArchiveEntry` /
+`componentIncumbent` mirror the genome trio's own I/O idioms (missing file
+⇒ empty list, append-order is audit sequence) without touching a line of
+them — `git diff` on the genome archive functions is empty for this phase.
+
+**The duplication is honest, not accidental**, and it is named in-source
+with a `ponytail:` comment in `src/harness.ts`: two parallel archive
+implementations exist (the component block and the genome trio) rather than
+one parameterized store keyed by an audit-kind enum. **Upgrade trigger:** a
+THIRD altitude arriving. Duplicating two small call sites now is cheaper
+than building a generic abstraction for one caller (the current two-caller
+state) that never exercises the flexibility a parameterized store would
+buy. Until phase 3+ adds a third altitude (or a `HarnessBlueprint`-level
+archive), the two siblings stay separate on purpose.
+
+`searchPromotionGap` (the measured Goodhart bound, arXiv:2606.11045) is
+derived — never accepted as a parameter — independently in two places that
+both perform the identical one-line subtraction: once inside
+`promoteComponentWinner` (the in-memory promotion result) and once inside
+`makeComponentArchiveEntry` (the persisted entry). Sign convention: **search
+minus promotion**, so a positive gap means the searched agent scored worse
+held out than while being searched against — it generalizes worse, the
+direction that matters for the Goodhart bound. An entry is appended on
+**both** promotion verdicts (promoted and refused) — a refusal is as much an
+audit record as a promotion, per REQ-21's framing that Goodharting must stay
+observable even when the gate correctly refuses.
+
+### Reflective mutation
+
+`src/foundry/reflective-mutation.ts` is GEPA-style bounded reflective
+mutation (arXiv:2507.19457). `buildReflectionTrace(run)` renders a real
+`BatteryRun`'s failing checks (id, description, expected, actual —
+distinguishing the no-observation sentinel from a wrong-value observation)
+into a bounded trace string, truncated at a whole-line boundary under
+`MAX_REFLECTION_TRACE_CHARS` (4000) with a visible `TRUNCATION_MARKER`. A
+candidate whose run produced no failures gets `buildReflectionTrace(run) ===
+""` and is carried forward **unmutated** to the next generation — distinct
+from a candidate that needs mutation but is blocked by the budget.
+`reflectMutate` is one metered `provider.chat()` call that structurally
+re-attaches the parent's frontmatter block to the model's rewritten body and
+refuses (`ReflectionRefusedError`) to spend a reflection on an empty trace.
+
+`onReflection`/`initialReflection` (a small sibling FSM mirroring
+`harness.ts`'s `onGeneration` `{next, action}` idiom and `escalation.ts`'s
+`-1`-means-unbounded convention) is the reflection-budget cap
+(`DEFAULT_REFLECTION_BUDGET = 10`). `onGeneration` (`harness.ts`, imported
+and called **verbatim**, never forked) is the hard search-horizon cap
+(`MAX_GENERATIONS_DEFAULT`). `runComponentTournament`'s loop drives both
+every generation; **the two caps are independently exceedable**, and
+exceeding either halts and surfaces via `RunComponentTournamentResult.halt:
+{ source: "search-horizon" | "reflection-budget", note }` — never a silent
+truncation. Mutation checks proved the two caps genuinely distinguishable,
+not incidentally so: disabling either one (via a targeted mutation) did not
+just fail that cap's own unit test — it flipped WHICH cap fired in
+scenarios specifically constructed so only the disabled cap could plausibly
+fire, and a third mutation (forcing `buildReflectionTrace` to always return
+`""`) silently broke the mutation mechanism itself (no candidate is ever
+mutated) and cascaded into flipping which cap fired in two loop scenarios —
+the direct proof the reflection step genuinely reads the trace rather than
+reflecting on nothing.
+
+**Two ceilings, named plainly:**
+
+1. **The reflection substrate is the check-level trace
+   (`BatteryTaskResult.checks[]`) — NOT the raw candidate response text.**
+   The raw text a candidate agent produced is still not plumbed out of
+   `runAgentBattery` anywhere; `buildReflectionTrace` reflects only on
+   structured check failures (id/description/expected/actual), never on the
+   candidate's own prose. Upgrade trigger: a mutation strategy that needs
+   the candidate's full response (e.g., "explain your reasoning, then try
+   again") requires threading the raw text through `BatteryRun` first — not
+   built, not silently skipped.
+2. **`promoted`, the signal fed into `onGeneration` each generation, is a
+   SEARCH-ONLY signal** — this generation's best search-half fitness beating
+   the running best *within this tournament call's own loop*
+   (`bestSearchFitness`, reset to `-Infinity` fresh on every
+   `runComponentTournament` call), never the archived incumbent's fitness.
+   Comparing against the real incumbent here would leak the held-out
+   promotion set's verdict into the search FSM — exactly the leak
+   D-03/CONTEXT D3 forbids. The archived incumbent only enters the picture
+   once, at the promotion step, after the search loop has already halted.
+
+`LOOP_GUARD_MAX_ITERATIONS = 20` (`component-tournament.ts`) is
+belt-and-suspenders only, mirroring `escalation.ts`'s `escalationTrace`
+guard — it is never the cap that fires in normal operation
+(`MAX_GENERATIONS_DEFAULT` is 5); it exists solely so a deliberately
+mutated (disabled) cap during a D-06 mutation check cannot hang the test
+suite, and it was proven to work (a disabled `onGeneration` halt still let
+the suite terminate in under 300ms).
+
+### No bridge verb
+
+This phase added **no bridge subcommand and no `commands/*.md`** for the
+component tournament. `checkParity` against the bridge command surface is
+meaningless at the component altitude (an agent-definition promotion cannot
+change `BRIDGE_COMMANDS`, so there is nothing for that specific check to
+diff), and a CLI entry point with no caller is unearned — nothing in this
+milestone invokes `runComponentTournament` from a markdown command yet.
+**Upgrade trigger:** phase 3's assembly step (`HarnessBlueprint`
+construction) is the first real caller that would need a CLI or
+programmatic entry point into a component tournament; that is the point at
+which a bridge verb becomes earned, not before.
+
+### What is still not built
+
+None of the following exist in `src/` after this phase, and none may be
+read as delivered by anything above:
+
+- **`HarnessBlueprint`** — the manifest type for an assembled harness (agents
+  + commands + skills + hooks + docs + battery + oracle receipt). Not
+  defined anywhere in `src/types.ts` or elsewhere.
+- **Deterministic assembly** — "pick the winning component per slot" with no
+  search. No assembly function exists.
+- **The data-ops pilot battery** — no fixture-warehouse generator, no
+  dbt/data-diff oracle wiring, no data-ops task battery.
+- **`src/foundry/emit.ts`** — does not exist. No `emit(blueprint, targetDir)`
+  function, no `plugin.json`/`marketplace.json` generation from a blueprint.
+- **Plugin/marketplace generation** from a tournament-won component set —
+  not built.
+- **The installer `skills/` gap** — `planInstall` (`src/installer.ts`) still
+  copies `commands/` + `agents/` + `hooks/` but not `skills/`; this
+  pre-existing asymmetry (noted in this document's own "Packaging" section
+  above) was not touched by phases 1 or 2.
+- **Harness-level evolve over domain substrates** — `src/harness.ts` still
+  points at the code pilots (cron/hexcolor/ipv4); nothing repoints it at a
+  domain battery. Explicitly gated on phases 1–4 showing gains, per this
+  document's own phased plan.
+- **The refused verticals** (RevOps / GTM / exec-strategy) remain refused;
+  no forecast-mode oracle was built.
+- **No vertical has been admitted, and no real domain battery exists.** What
+  shipped across phases 1–2 is the machinery — the agentic eval seam, the
+  split-battery Goodhart bound, GEPA-style bounded reflective mutation, the
+  seventh promotion gate, the component archive — proven against offline,
+  deterministic, hand-rolled test fixtures. No vertical (data-ops or
+  otherwise) has run a real tournament through this machinery yet, and no
+  tuned harness exists. A reader must not conclude from anything in this
+  section that a working data-ops (or any other) harness has been produced;
+  only the substrate that a future vertical pilot would run on top of has
+  been.
