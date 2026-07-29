@@ -352,18 +352,35 @@ export async function runAgentBattery(
   });
 
   const passedTasks = taskResults.filter((t) => t.pass).length;
-  // Denominator is the battery's task count — NEVER the survivor count, or a
-  // battery whose only surviving task passed would score a vacuous 1.
-  const testPassRate = battery.tasks.length > 0 ? passedTasks / battery.tasks.length : 0;
+  // Denominator is battery.tasks.length — NEVER the count of surviving
+  // records or successful outputs. A task whose record is not `ok` is
+  // `pass: false` and still occupies a slot here (criterion 6's "never a
+  // silently missing result", expressed as arithmetic); makeBattery already
+  // guarantees battery.tasks.length > 0.
+  const testPassRate = passedTasks / battery.tasks.length;
   // Deliberate scope limit (RESEARCH assumption A4): `detectHacks` matches
   // source-code shapes, which agent artifacts need not be.
   const hackFindings: HackFinding[] = [];
 
+  // Artifact-vacuity guard (T-01-08), the `commitEval`/`noSource` shape one
+  // altitude up (bridge.ts:239-276): a battery whose checks are all negative
+  // `file-invariant`s ("this file must NOT exist") would score a perfect
+  // pass against an agent that produced nothing, without this. `noArtifacts`
+  // is true only when EVERY task result — passing, failing, or errored —
+  // produced zero artifact entries.
+  const noArtifacts = taskResults.every((t) => t.artifactPaths.length === 0);
+
   const result: EvalResult = {
     specimen: candidateAgent.id,
-    // Identical threshold shape to bridge.ts:263, minus the artifact-vacuity
-    // term (lands in 01-03).
-    passedGate: testPassRate >= 1 && hackFindings.length === 0,
+    // Identical threshold shape to bridge.ts:263, now with the same
+    // artifact-vacuity term.
+    passedGate: !noArtifacts && testPassRate >= 1 && hackFindings.length === 0,
+    ...(noArtifacts
+      ? {
+          gateBlockedReason:
+            "no battery task produced any artifact — predicate scoring had no input",
+        }
+      : {}),
     testPassRate,
     coverage: AGENT_BATTERY_COVERAGE_SENTINEL,
     mutationScore: AGENT_BATTERY_MUTATION_SENTINEL,

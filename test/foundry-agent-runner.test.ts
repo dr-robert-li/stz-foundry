@@ -14,6 +14,7 @@ import { runAgentBattery, observeCheck } from "../src/foundry/agent-runner.js";
 import { makeBattery } from "../src/foundry/battery-types.js";
 import { evalGate, evalReward, select } from "../src/selection.js";
 import type { PredicateCheck } from "../src/contract/contract-types.js";
+import type { ChatRequest, ChatResponse, Provider } from "../src/foundry/provider.js";
 
 const check = (over: Partial<PredicateCheck>): PredicateCheck => ({
   checkId: "c",
@@ -328,5 +329,144 @@ describe("runAgentBattery — all four predicate kinds through one battery", () 
 
     expect(run.result.testPassRate).toBe(1);
     for (const t of run.tasks) expect(t.pass).toBe(true);
+  });
+});
+
+describe("runAgentBattery — vacuity guards", () => {
+  it("a battery whose tasks all produce no artifacts fails closed", async () => {
+    const srv = await fakeServer(() => ({
+      status: 200,
+      json: {
+        model: "test-model",
+        choices: [{ message: { content: "just prose, no fenced path= block anywhere" } }],
+      },
+    }));
+
+    const battery = makeBattery({
+      id: "battery-vacuous",
+      tasks: [
+        {
+          id: "t1",
+          prompt: "prompt 1",
+          checks: [
+            { checkId: "c1", kind: "file-invariant", input: "must-not-exist-1.txt", expect: "false", description: "d" },
+          ],
+        },
+        {
+          id: "t2",
+          prompt: "prompt 2",
+          checks: [
+            { checkId: "c2", kind: "file-invariant", input: "must-not-exist-2.txt", expect: "false", description: "d" },
+          ],
+        },
+      ],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    });
+
+    const run = await runAgentBattery(
+      { id: "cand-a", systemPrompt: "you write files as fenced blocks marked path=<file>" },
+      battery,
+      { provider: { kind: "openai", baseUrl: srv.url, model: "test-model" } },
+    );
+
+    // Without the guard, both negative file-invariants would score "false"
+    // (the file genuinely doesn't exist) and testPassRate would read 1.
+    expect(run.result.passedGate).toBe(false);
+    expect(run.result.gateBlockedReason).toBeTruthy();
+    expect(run.result.gateBlockedReason).toMatch(/artifact/i);
+    const gate = evalGate([run.result]);
+    expect(gate.passers).toEqual([]);
+    expect(gate.eliminated).toEqual([{ specimen: "cand-a", reason: expect.stringContaining("gate-fail") }]);
+  });
+
+  it("a failed task is a scored failure, not a dropped row", async () => {
+    class FlakyProvider implements Provider {
+      readonly kind = "openai" as const;
+      readonly baseUrl = "scripted://local";
+      async chat(req: ChatRequest): Promise<ChatResponse> {
+        const user = req.messages[req.messages.length - 1]?.content ?? "";
+        if (user.includes("TASK_2")) {
+          throw new Error("provider request failed (500, non-retryable)");
+        }
+        return {
+          text: "```path=out.txt\nok\n```",
+          model: req.model,
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadInputTokens: 0 },
+        };
+      }
+    }
+
+    const battery = makeBattery({
+      id: "battery-partial-fail",
+      tasks: [
+        {
+          id: "t1",
+          prompt: "TASK_1: write out.txt containing ok",
+          checks: [
+            { checkId: "c1", kind: "output-assertion", input: "out.txt", expect: "ok", description: "d" },
+          ],
+        },
+        {
+          id: "t2",
+          prompt: "TASK_2: this one always fails at the provider",
+          checks: [
+            { checkId: "c2", kind: "output-assertion", input: "out.txt", expect: "ok", description: "d" },
+          ],
+        },
+      ],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    });
+
+    const run = await runAgentBattery(
+      { id: "cand-a", systemPrompt: "you write files as fenced blocks marked path=<file>" },
+      battery,
+      { providerImpl: new FlakyProvider() },
+    );
+
+    expect(run.tasks).toHaveLength(2);
+    expect(run.records).toHaveLength(2);
+    expect(run.tasks[0]?.pass).toBe(true);
+    expect(run.tasks[1]?.status).toBe("error");
+    expect(run.tasks[1]?.pass).toBe(false);
+    expect(run.tasks[1]?.failureReason).not.toBeNull();
+    // NOT 1 — a mutant computing the denominator over surviving/ok records
+    // only would read 1 here (task 1 the sole "ok" record, passing).
+    expect(run.result.testPassRate).toBe(0.5);
+    expect(run.result.passedGate).toBe(false);
+  });
+
+  it("every result carries its OracleReceipt, including a failed task's", async () => {
+    class AlwaysFailsProvider implements Provider {
+      readonly kind = "openai" as const;
+      readonly baseUrl = "scripted://local";
+      async chat(): Promise<ChatResponse> {
+        throw new Error("provider unreachable");
+      }
+    }
+
+    const receipt = { kind: "execution" as const, acceptedBy: "Dr. Robert Li", lineage: [] };
+    const battery = makeBattery({
+      id: "battery-receipt-carry",
+      tasks: [
+        {
+          id: "t1",
+          prompt: "irrelevant — the provider always throws",
+          checks: [
+            { checkId: "c1", kind: "output-assertion", expect: "x", description: "d" },
+          ],
+        },
+      ],
+      receipt,
+    });
+
+    const run = await runAgentBattery(
+      { id: "cand-a", systemPrompt: "irrelevant" },
+      battery,
+      { providerImpl: new AlwaysFailsProvider() },
+    );
+
+    expect(run.receipt).toEqual(receipt);
+    expect(run.tasks[0]?.status).toBe("error");
+    expect(run.tasks[0]?.receipt).toEqual(receipt);
   });
 });
