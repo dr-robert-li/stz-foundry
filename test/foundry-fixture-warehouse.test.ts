@@ -327,3 +327,138 @@ describe("fixture-warehouse end to end — one seed, facts to scored run, offlin
     expect(run.receipt.lineage[0]).toContain(DATA_OPS_GENERATOR_ID);
   });
 });
+
+// ── non-triviality controls: does this battery measure anything? (SC3,
+// RESEARCH Pitfall 1) — four hand-rolled offline Provider doubles, passed as
+// providerImpl to the REAL runAgentBattery, matching the house style already
+// established by test/foundry-component-tournament.test.ts:28-57. ──────────
+
+/** Returns the task prompt verbatim inside a path=answer.json fenced block.
+ *  A battery this passes is measuring nothing. */
+const echoProvider: Provider = {
+  kind: "openai",
+  baseUrl: "http://test-provider.invalid",
+  async chat(req: ChatRequest): Promise<ChatResponse> {
+    const prompt = req.messages[0]!.content;
+    return {
+      text: "```path=answer.json\n" + prompt + "\n```",
+      model: "echo-double",
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 },
+    };
+  },
+};
+
+/** Prose, no fenced block at all — asserts the artifact-vacuity guard
+ *  (`agent-runner.ts`'s `noArtifacts`) still holds for a GENERATED battery,
+ *  not just a hand-built test fixture. */
+const emptyProvider: Provider = {
+  kind: "openai",
+  baseUrl: "http://test-provider.invalid",
+  async chat(_req: ChatRequest): Promise<ChatResponse> {
+    return {
+      text: "I am unable to help with this request.",
+      model: "empty-double",
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 },
+    };
+  },
+};
+
+/** The important control. Genuinely parses the embedded CSV and emits a
+ *  well-formed answer.json — but applies NONE of the reversals the task
+ *  asks for: sums rawAmount AS WRITTEN (no cents/dollars normalization, so
+ *  the three render formats are summed as if they were the same unit),
+ *  counts every row including verbatim duplicates (no dedup), drops rows
+ *  whose rawAmount is empty (no amountBackup recovery), and groups by the
+ *  raw date's first 7 characters (correct only for ISO-formatted rows,
+ *  wrong for the slashed/month-name renderings — no date normalization
+ *  either). This is the control that proves the messiness transforms are
+ *  LOAD-BEARING rather than decorative — without it, "the echo candidate
+ *  fails" would be satisfied by any task at all, including an unsolvable
+ *  one (RESEARCH Pitfall 1's own framing). */
+const rawSumProvider: Provider = {
+  kind: "openai",
+  baseUrl: "http://test-provider.invalid",
+  async chat(req: ChatRequest): Promise<ChatResponse> {
+    const csvMatch = req.messages[0]!.content.match(/```csv\n([\s\S]*?)```/);
+    const csvBody = csvMatch ? csvMatch[1]! : "";
+    const lines = csvBody.trim().split("\n").slice(1); // drop header
+    const totals: Record<string, { orderCount: number; revenueCents: number }> = {};
+    for (const line of lines) {
+      const fields = line.split(",");
+      const customerId = fields[1];
+      const rawDate = fields[2];
+      const rawAmount = fields[3];
+      if (!customerId || !rawDate || !rawAmount) continue; // drops empty-rawAmount rows
+      const groupKey = `${customerId}__${rawDate.slice(0, 7)}`; // naive: correct only for ISO dates
+      const cents = Number(rawAmount); // as written — no format normalization
+      const entry = totals[groupKey] ?? { orderCount: 0, revenueCents: 0 };
+      entry.orderCount += 1; // no dedup — every row counted, including duplicates
+      entry.revenueCents += Number.isFinite(cents) ? cents : 0;
+      totals[groupKey] = entry;
+    }
+    return {
+      text: "```path=answer.json\n" + JSON.stringify({ totals }) + "\n```",
+      model: "raw-sum-double",
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 },
+    };
+  },
+};
+
+describe("fixture-warehouse — non-triviality controls: the battery is not trivially passable (SC3, RESEARCH Pitfall 1)", () => {
+  it("echo candidate (returns the prompt verbatim) scores testPassRate < 1, across three distinct seeds", async () => {
+    for (const seed of [1, 2, 3]) {
+      const battery = generateFixtureBattery(seed, `data-ops-echo-control-${seed}`);
+      const candidate: CandidateAgent = { id: `cand-echo-${seed}`, systemPrompt: "n/a" };
+      const run = await runAgentBattery(candidate, battery, { providerImpl: echoProvider });
+      expect(run.result.testPassRate).toBeLessThan(1);
+    }
+  });
+
+  it("empty candidate (no fenced block at all) scores testPassRate === 0 and passedGate === false", async () => {
+    const battery = generateFixtureBattery(7, "data-ops-empty-control");
+    const candidate: CandidateAgent = { id: "cand-empty", systemPrompt: "n/a" };
+    const run = await runAgentBattery(candidate, battery, { providerImpl: emptyProvider });
+    expect(run.result.testPassRate).toBe(0);
+    expect(run.result.passedGate).toBe(false);
+  });
+
+  it("raw-sum candidate genuinely produces a well-formed answer.json, but scores testPassRate < 1 — the messiness transforms are load-bearing", async () => {
+    for (const seed of [1, 2, 3]) {
+      const battery = generateFixtureBattery(seed, `data-ops-raw-sum-control-${seed}`);
+      const candidate: CandidateAgent = { id: `cand-raw-sum-${seed}`, systemPrompt: "n/a" };
+      const run = await runAgentBattery(candidate, battery, { providerImpl: rawSumProvider });
+      expect(run.tasks.every((t) => t.artifactPaths.includes("answer.json"))).toBe(true);
+      expect(run.result.testPassRate).toBeLessThan(1);
+    }
+  });
+
+  // Oracle: demonstrates the checks are SATISFIABLE by a candidate holding
+  // the right answer — it says NOTHING about whether a real LLM agent can
+  // derive it. That honesty is the difference between a control and a
+  // claim (see the module doc comment on factDerivedProvider's own tracer
+  // usage above, and 01-01-SUMMARY.md's identical framing).
+  it("oracle candidate (answers from warehouse.facts directly) scores testPassRate === 1 and passedGate === true — the tasks are genuinely recoverable, not impossible", async () => {
+    const seed = 7;
+    const warehouse = generateWarehouse(seed);
+    const battery = generateFixtureBattery(seed, "data-ops-oracle-control");
+    const candidate: CandidateAgent = { id: "cand-oracle", systemPrompt: "n/a" };
+    const run = await runAgentBattery(candidate, battery, { providerImpl: factDerivedProvider(warehouse) });
+    expect(run.result.testPassRate).toBe(1);
+    expect(run.result.passedGate).toBe(true);
+  });
+});
+
+describe("fixture-warehouse — answer-key containment at the task-PROMPT level (T-01-03)", () => {
+  it("for every task and every fact, a digit-bounded regex for revenueCents does not match the task prompt", () => {
+    for (const seed of [1, 2, 3, 42, 9999]) {
+      const battery = generateFixtureBattery(seed, `data-ops-containment-check-${seed}`);
+      const warehouse = generateWarehouse(seed);
+      for (const task of battery.tasks) {
+        for (const fact of warehouse.facts) {
+          const re = new RegExp(`(?<!\\d)${fact.revenueCents}(?!\\d)`);
+          expect(re.test(task.prompt)).toBe(false);
+        }
+      }
+    }
+  });
+});
