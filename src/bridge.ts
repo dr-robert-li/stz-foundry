@@ -103,7 +103,8 @@ import {
 } from "./harness.js";
 import { initialInject, onInjectRound, summarizeSurvivors } from "./injector.js";
 import { consistencyScore, bucketOf, calibrationGate } from "./judge-reliability.js";
-import type { ArchiveEntry, HarnessGenome } from "./types.js";
+import { exogenousLineageGate, type OracleReceipt } from "./foundry/battery-types.js";
+import type { ArchiveEntry, HarnessGenome, PromotionInputs } from "./types.js";
 // ── 0.9.6 Contract Plane + Phase-0 eval (PHASED-PLAN) ────────────────────────
 import { execFileSync } from "node:child_process";
 import type { ContractArtifact, Predicate } from "./contract/contract-types.js";
@@ -1862,7 +1863,9 @@ async function harnessFitness(args: Record<string, string>): Promise<void> {
     fitness,
     perSubstrate: scores,
     advantage: 0, // filled by harness-select within its generation
-    gates: { hackClean: false, sealOk: false, interfaceParity: false, diversityOk: false, beatsIncumbent: false, rubricCalibrated: false },
+    // Fresh, ungated variant — unpromotable, fail-closed on all seven gates
+    // (Phase 2 adds exogenousLineage alongside the pre-existing six).
+    gates: { hackClean: false, sealOk: false, interfaceParity: false, diversityOk: false, beatsIncumbent: false, rubricCalibrated: false, exogenousLineage: false },
   });
   appendArchiveEntry(root, entry);
   if (entry.parent) bumpChildCount(root, entry.parent);
@@ -1937,20 +1940,28 @@ function harnessPromote(args: Record<string, string>): void {
   const calib = sliceType
     ? calibrationGate(profile, sliceType)
     : { calibrated: false, reason: "no --slice-type — judge calibration unknown (fail-closed)" };
-  const inputs = {
+  // Seventh gate (Phase 2, D-02/CONTEXT D2): computed from a real
+  // `OracleReceipt`, never through the `bool()` CLI-trust helper the three
+  // gates above already use — this is the one gate the milestone's whole
+  // design rests on. `--receipt` names a JSON file (or carries inline JSON)
+  // holding an `OracleReceipt`; absent ⇒ fail-closed refusal, not a pass.
+  const receipt = readJSONArg<OracleReceipt>(args.receipt);
+  const lineage = exogenousLineageGate(receipt ?? undefined, variantId!);
+  const inputs: PromotionInputs = {
     beatsIncumbent,
     hackClean: bool("hack-clean"),
     sealOk: bool("seal-ok"),
     interfaceParity: parity.ok,
     diversityOk: bool("diversity-ok"),
     rubricCalibrated: calib.calibrated,
+    exogenousLineage: lineage.exogenous,
   };
   const verdict = promotionGate(inputs);
   // Record the gate snapshot on the entry (audit), append-rewrite is fine: the
   // archive is the durable record and this is the gate result for THIS variant.
   variant.gates = { ...inputs };
   writeFileSync(join(stzPath(root, "60-harness"), "MANIFEST.json"), JSON.stringify(archive, null, 2) + "\n", "utf8");
-  print({ variantId, inputs, ...verdict, parity, calibration: calib, baselineFitness: baseline === -Infinity ? null : baseline, variantFitness: variant.fitness });
+  print({ variantId, inputs, ...verdict, parity, calibration: calib, lineage, baselineFitness: baseline === -Infinity ? null : baseline, variantFitness: variant.fitness });
 }
 
 /** harness-status: archive summary, incumbent, and meta-loop view. */

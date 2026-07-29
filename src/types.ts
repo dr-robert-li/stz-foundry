@@ -463,6 +463,39 @@ export interface HarnessGenome {
 }
 
 /**
+ * The promotion-gate boolean evidence set (0.9.0's DGM six-gate check; Phase 2
+ * adds a seventh — D-02/CONTEXT D2). This is the SINGLE definition:
+ * `ArchiveEntry.gates` aliases it rather than hand-duplicating the same keys a
+ * second time (RESEARCH flagged the two hand-written copies as a desync risk —
+ * a plan that added a field to only one would silently desync the archive's
+ * audit record from the gate that actually ran).
+ */
+export interface PromotionInputs {
+  beatsIncumbent: boolean;
+  hackClean: boolean;
+  sealOk: boolean;
+  interfaceParity: boolean;
+  diversityOk: boolean;
+  /**
+   * 0.9.5: the judge/verifier that produced this variant's selection signal is
+   * target-task CALIBRATED (passed the blind-accuracy battery). Fail-closed: an
+   * uncalibrated judge may not steer promotion (2606.14629).
+   */
+  rubricCalibrated: boolean;
+  /**
+   * Phase 2 (D-02/CONTEXT D2): the fitness number `beatsIncumbent` compares
+   * traces back, BY REFERENCE, to a real `BatteryRun` whose receipt roots in
+   * an exogenous oracle. COMPUTED inside the promotion decision from the
+   * actual `BatteryRun`/`OracleReceipt` that produced the fitness number —
+   * never a parameter a caller can assert true. See `exogenousLineageGate`
+   * (src/foundry/battery-types.ts) and `promoteComponentWinner`
+   * (src/foundry/component-tournament.ts). Fail-closed: an absent or
+   * unverifiable receipt reads as false, never a pass.
+   */
+  exogenousLineage: boolean;
+}
+
+/**
  * One archived harness variant (DGM stepping-stone). N6-CLEAN: no timestamps —
  * append-order in `60-harness/MANIFEST.json` is the audit sequence (mirrors
  * `seal.ts`). `variantId` is the content-addressed harness-contract hash.
@@ -481,6 +514,6 @@ export interface ArchiveEntry {
   advantage: number;
   /** For parent-sampling P ∝ fitness/(1+childCount). */
   childCount: number;
-  /** The six-gate promotion verdict snapshot (0.9.5 adds rubricCalibrated). */
-  gates: { hackClean: boolean; sealOk: boolean; interfaceParity: boolean; diversityOk: boolean; beatsIncumbent: boolean; rubricCalibrated: boolean };
+  /** The seven-gate promotion verdict snapshot (0.9.5 rubricCalibrated, Phase 2 exogenousLineage). */
+  gates: PromotionInputs;
 }

@@ -122,8 +122,8 @@ describe("harness — archive, parent-sampling, FSM, promotion gate", () => {
     expect(onGeneration(e, { promoted: true, collapsed: false }).next.stage).toBe("exhausted");
   });
 
-  it("promotion gate requires ALL six gates", () => {
-    const ok = { beatsIncumbent: true, hackClean: true, sealOk: true, interfaceParity: true, diversityOk: true, rubricCalibrated: true };
+  it("promotion gate requires ALL seven gates", () => {
+    const ok = { beatsIncumbent: true, hackClean: true, sealOk: true, interfaceParity: true, diversityOk: true, rubricCalibrated: true, exogenousLineage: true };
     expect(promotionGate(ok).promote).toBe(true);
     expect(promotionGate({ ...ok, hackClean: false }).promote).toBe(false);
     expect(promotionGate({ ...ok, beatsIncumbent: false }).failed).toContain("does-not-beat-incumbent");
@@ -131,6 +131,9 @@ describe("harness — archive, parent-sampling, FSM, promotion gate", () => {
     // 0.9.5 calibrated-verifier gate: an uncalibrated judge cannot steer promotion.
     expect(promotionGate({ ...ok, rubricCalibrated: false }).promote).toBe(false);
     expect(promotionGate({ ...ok, rubricCalibrated: false }).failed).toContain("judge-rubric-not-calibrated");
+    // Phase 2 seventh gate: fitness lineage must trace to an exogenous receipt.
+    expect(promotionGate({ ...ok, exogenousLineage: false }).promote).toBe(false);
+    expect(promotionGate({ ...ok, exogenousLineage: false }).failed).toContain("fitness-lineage-not-exogenous");
   });
 
   it("bumpChildCount increments lineage bookkeeping", () => {
@@ -147,7 +150,7 @@ describe("harness — archive, parent-sampling, FSM, promotion gate", () => {
 });
 
 function gates(): ArchiveEntry["gates"] {
-  return { hackClean: false, sealOk: false, interfaceParity: false, diversityOk: false, beatsIncumbent: false, rubricCalibrated: false };
+  return { hackClean: false, sealOk: false, interfaceParity: false, diversityOk: false, beatsIncumbent: false, rubricCalibrated: false, exogenousLineage: false };
 }
 
 describe("injector — bounded suite-hardening FSM", () => {

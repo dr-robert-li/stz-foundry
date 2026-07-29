@@ -267,3 +267,92 @@ export function makeBattery(draft: {
     }) as OracleReceipt,
   }) as AgentBattery;
 }
+
+// ── search/promotion split (Phase 2, D-03/CONTEXT D3) ──────────────────────
+
+/**
+ * The Goodhart-bound battery split: `search` is available for hill-climbing,
+ * `promotion` is held out for final selection ONLY (RESEARCH — the
+ * generalization gap of searched agents grows with search horizon,
+ * arXiv:2606.11045). Each half is independently `makeBattery()`-validated —
+ * fail-closed on its own, not just as a pair.
+ */
+export interface SplitBattery {
+  search: AgentBattery;
+  promotion: AgentBattery;
+}
+
+/**
+ * Construct a `SplitBattery` from two drafts, each independently run through
+ * `makeBattery`'s full gate. Refuses two halves sharing an id — a caller that
+ * accidentally split into two identical batteries would otherwise silently
+ * defeat the whole point of a held-out promotion set.
+ *
+ * ponytail: id-distinctness only. The disjoint-task-id-SET guard (proving the
+ * two halves don't merely have different ids but share ZERO tasks) is
+ * 02-02's own check, mutation-proven there against the search loop's own
+ * scope.
+ */
+export function makeSplitBattery(
+  searchDraft: { id: string; tasks: BatteryTask[]; receipt: OracleReceipt },
+  promotionDraft: { id: string; tasks: BatteryTask[]; receipt: OracleReceipt },
+): SplitBattery {
+  const search = makeBattery(searchDraft);
+  const held = makeBattery(promotionDraft);
+  if (search.id === held.id) {
+    throw new BatteryShapeError(
+      `split battery halves share id "${search.id}" — search and promotion must be independently identifiable`,
+    );
+  }
+  return { search, promotion: held };
+}
+
+/**
+ * The seventh promotion gate's exogeneity step (Phase 2, D-02/CONTEXT D2),
+ * modelled on `calibrationGate` (src/judge-reliability.ts): a function taking
+ * REAL evidence — never a CLI-trusted boolean (PATTERNS Analog A is the shape
+ * this must not become). Fail-closed: an absent receipt, or one whose
+ * lineage doesn't parse, is a refusal, never a pass.
+ *
+ * Deliberately does NOT re-invoke `validateReceipt`'s human-gate/lineage-
+ * integrity checks — those are already enforced at construction time
+ * (`makeBattery`) for every receipt this gate sees via a real `BatteryRun`.
+ * Re-running them here would make the resolve-then-check idiom below
+ * unmutable-to-fail (any receipt that reaches this point past a full
+ * `validateReceipt` call is, by that same function's own internal logic,
+ * already guaranteed exogenous — a redundant re-check the mutation-check in
+ * Task 2 would find is dead code, exactly RESEARCH Pitfall 1's vacuous-gate
+ * shape). Keeping this function's OWN resolve/check pair as the sole
+ * decision point keeps it genuinely, independently mutation-provable.
+ * ponytail: a raw CLI-supplied receipt (bridge.ts `harnessPromote --receipt`)
+ * that must also reject a non-human acceptor needs its own `validateReceipt`
+ * call at that call site. Upgrade trigger: a forged-acceptor bug report
+ * against the CLI path specifically.
+ */
+export function exogenousLineageGate(
+  receipt: OracleReceipt | undefined,
+  contextId: string,
+): { exogenous: boolean; reason: string } {
+  if (!receipt) {
+    return {
+      exogenous: false,
+      reason: `no receipt supplied for "${contextId}" — fail-closed: an absent receipt is a refusal, not a pass`,
+    };
+  }
+  // Two named sequential steps, never one compound boolean — mirrors
+  // validateReceipt's own exogeneity step above (resolve, then check
+  // membership), the mutation-checkable guard idiom this repo already uses.
+  let rootKind: OracleKind;
+  try {
+    rootKind = resolveRootKind(receipt);
+  } catch (e) {
+    return { exogenous: false, reason: e instanceof Error ? e.message : String(e) };
+  }
+  if (!EXOGENOUS_ROOT_KINDS.has(rootKind)) {
+    return {
+      exogenous: false,
+      reason: `receipt for "${contextId}" roots in "${rootKind}", which is not an exogenous source`,
+    };
+  }
+  return { exogenous: true, reason: `receipt for "${contextId}" roots in exogenous kind "${rootKind}"` };
+}

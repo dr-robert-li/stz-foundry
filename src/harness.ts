@@ -19,7 +19,11 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import type { ArchiveEntry, HarnessGenome } from "./types.js";
+import type { ArchiveEntry, HarnessGenome, PromotionInputs } from "./types.js";
+// Re-exported so every existing importer of `PromotionInputs` from
+// `../src/harness.js` keeps working — the single definition now lives in
+// `types.js` (see that file's doc comment for why).
+export type { PromotionInputs } from "./types.js";
 import type { JudgeReliabilityProfile, SliceTypeReliability } from "./judge-reliability.js";
 import { stzPath } from "./taxonomy.js";
 import { genomeHash } from "./harness-hash.js";
@@ -256,33 +260,22 @@ export function onGeneration(
 
 // ── promotion gate ──────────────────────────────────────────────────────────
 
-export interface PromotionInputs {
-  beatsIncumbent: boolean;
-  hackClean: boolean;
-  sealOk: boolean;
-  interfaceParity: boolean;
-  diversityOk: boolean;
-  /**
-   * 0.9.5: the judge/verifier that produced this variant's selection signal is
-   * target-task CALIBRATED (passed the blind-accuracy battery). Fail-closed: an
-   * uncalibrated judge may not steer promotion (2606.14629).
-   */
-  rubricCalibrated: boolean;
-}
-
 export interface PromotionVerdict {
   promote: boolean;
   failed: string[];
 }
 
 /**
- * The six-gate promotion decision (DGM hack-resistance built in). A variant
+ * The seven-gate promotion decision (DGM hack-resistance built in). A variant
  * replaces the incumbent ONLY if it beats it on held-out fitness AND is
  * hack-clean on its OWN outputs (it cannot win by weakening its gate — the DGM
  * self-detector-bypass failure) AND preserved sealing integrity AND interface
  * parity AND came from a diverse (non-collapsed) generation AND its selection
  * judge is target-task calibrated (0.9.5 — an uncalibrated verifier silently
- * regresses, per 2606.14629, so calibration must precede steering).
+ * regresses, per 2606.14629, so calibration must precede steering) AND its
+ * winning fitness traces back to an exogenous oracle receipt (Phase 2,
+ * D-02/CONTEXT D2 — a substituted, re-derived, absent, or non-exogenous
+ * receipt refuses promotion outright, fail-closed).
  */
 export function promotionGate(i: PromotionInputs): PromotionVerdict {
   const failed: string[] = [];
@@ -292,6 +285,7 @@ export function promotionGate(i: PromotionInputs): PromotionVerdict {
   if (!i.interfaceParity) failed.push("interface-parity-broken");
   if (!i.diversityOk) failed.push("generation-variance-collapsed");
   if (!i.rubricCalibrated) failed.push("judge-rubric-not-calibrated");
+  if (!i.exogenousLineage) failed.push("fitness-lineage-not-exogenous");
   return { promote: failed.length === 0, failed };
 }
 
