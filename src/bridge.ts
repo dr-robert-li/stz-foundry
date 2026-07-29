@@ -38,7 +38,9 @@ import type {
 } from "./types.js";
 import { PROJECT_PHASES } from "./types.js";
 import { scaffold, writeDoc, readDoc, stzPath, assertSafePathSegment } from "./taxonomy.js";
-import { createWorktree, listWorktrees, destroyWorktrees } from "./worktree.js";
+import { createWorktree, listWorktrees, destroyWorktrees, worktreeChangedFiles } from "./worktree.js";
+import type { WorktreeMode } from "./worktree.js";
+import type { SpecimenRunRecord } from "./foundry/spawn.js";
 import { freshState, saveState, loadState, stateExists, statePath, setPhaseStatus, appendEvent } from "./state.js";
 import { verifyDebugCase, loadDebugCases, type DebugCase } from "./debug.js";
 import { auditRoleTiers, tierOf } from "./tiers.js";
@@ -1459,6 +1461,97 @@ function worktreeDestroyCmd(args: Record<string, string>): void {
   print({ slice: a.slice, removed, pruned });
 }
 
+// ── per-specimen run record, in-session path (REQ-04) ──────────────────────
+
+/**
+ * The in-session half of REQ-04. The foundry runner builds a `SpecimenRunRecord`
+ * itself because it owns the spawn loop; the in-session path does not — Claude
+ * Code owns the subagent, so only IT knows the wall-clock and why a specimen
+ * stopped. Everything else the bridge derives, per the architecture rule: the
+ * command supplies observations, never decisions.
+ *
+ * Derived here, not trusted from the caller:
+ *   - `isolation` / `worktreePath` — read from the live worktree registry, so a
+ *     command that thinks it got a worktree but silently degraded cannot
+ *     misreport it.
+ *   - `diffFiles` — computed from the worktree itself.
+ *
+ * ORDERING: this must run BEFORE `worktree-destroy`. Teardown removes the tree,
+ * and with it the only source of `diffFiles`. `commands/run.md` records each
+ * specimen as it returns, which is also what keeps a crashed round attributable.
+ */
+function specimenRecordPath(root: string, slice: string): string {
+  return stzPath(root, join("90-audit", "specimens", `${slice}.jsonl`));
+}
+
+function specimenRecordCmd(args: Record<string, string>): void {
+  const a = worktreeArgs(args, "specimen-record");
+  if (!a) return;
+  const specimen = args.specimen;
+  if (!specimen) {
+    process.stderr.write("specimen-record requires --specimen <id>.\n");
+    process.exitCode = 1;
+    return;
+  }
+  assertSafePathSegment(specimen, "specimen id");
+
+  const status = args.status ?? "ok";
+  if (status !== "ok" && status !== "timeout" && status !== "error") {
+    process.stderr.write(`specimen-record: --status must be ok|timeout|error (got ${status}).\n`);
+    process.exitCode = 1;
+    return;
+  }
+  // A non-ok status without a reason is unattributable, which is the thing this
+  // record exists to prevent.
+  const killReason = args["kill-reason"] ?? null;
+  if (status !== "ok" && !killReason) {
+    process.stderr.write(`specimen-record: --kill-reason is required when --status is ${status}.\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const rawDuration = Number(args["duration-ms"] ?? "0");
+  const durationMs = Number.isFinite(rawDuration) && rawDuration >= 0 ? Math.round(rawDuration) : 0;
+
+  // Derive isolation from the registry rather than believing the caller.
+  const live = listWorktrees(a.target, a.root, a.slice);
+  const mine = live.find((w) => w.path.endsWith(`-${specimen}`) || w.path.endsWith(`/${specimen}`));
+  const isolation: WorktreeMode = mine ? "worktree" : "directory";
+  const worktreePath = mine ? mine.path : null;
+  const diffFiles = mine ? worktreeChangedFiles(mine.path) : null;
+
+  const record: SpecimenRunRecord = {
+    strategy: args.strategy ?? specimen,
+    specimen,
+    status,
+    killReason: status === "ok" ? null : killReason,
+    durationMs,
+    isolation,
+    worktreePath,
+    diffFiles,
+  };
+
+  const path = specimenRecordPath(a.root, a.slice);
+  mkdirSync(dirname(path), { recursive: true });
+  const prior = existsSync(path) ? readFileSync(path, "utf8") : "";
+  // Append-only: a re-run of the same specimen is a new line, not an overwrite,
+  // so a retry round stays visible in the audit trail (N1).
+  writeFileSync(path, prior + JSON.stringify(record) + "\n", "utf8");
+  print({ ...record, slice: a.slice, recorded: true });
+}
+
+/** Read every recorded specimen back — REQ-04's "retrievable per specimen". */
+function specimenRecordsCmd(args: Record<string, string>): void {
+  const a = worktreeArgs(args, "specimen-records");
+  if (!a) return;
+  const path = specimenRecordPath(a.root, a.slice);
+  const raw = existsSync(path) ? readFileSync(path, "utf8") : "";
+  const records = raw
+    .split("\n")
+    .filter((l) => l.trim() !== "")
+    .map((l) => JSON.parse(l) as SpecimenRunRecord);
+  print({ slice: a.slice, records });
+}
+
 // ── cross-slice merge integrity (sealed-invariant supersession) ─────────────
 
 /** Render the human-readable merge-compat.md mirror of the manifest. */
@@ -2121,6 +2214,8 @@ const BRIDGE_COMMANDS = [
   "worktree-create",
   "worktree-list",
   "worktree-destroy",
+  "specimen-record",
+  "specimen-records",
 ];
 
 export async function runBridge(argv: string[]): Promise<void> {
@@ -2186,6 +2281,8 @@ export async function runBridge(argv: string[]): Promise<void> {
     case "worktree-create": worktreeCreateCmd(args); break;
     case "worktree-list": worktreeListCmd(args); break;
     case "worktree-destroy": worktreeDestroyCmd(args); break;
+    case "specimen-record": specimenRecordCmd(args); break;
+    case "specimen-records": specimenRecordsCmd(args); break;
     default:
       process.stderr.write(`unknown bridge subcommand: ${sub}\n`);
       process.exitCode = 1;

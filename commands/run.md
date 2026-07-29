@@ -164,6 +164,20 @@ on prose-only acceptance (F2).
      its prototype directory. Under `mode: "directory"` the bridge already returned
      that same prototype directory, so there is nothing to copy.
 
+   - **Record each specimen's run BEFORE any teardown.** For every specimen —
+     including one that timed out or crashed — run
+     `$STZ bridge specimen-record --root . --slice $1 --specimen <id> --status
+     <ok|timeout|error> --duration-ms <wall-clock ms> [--kill-reason "<why>"]`.
+     You supply only what you alone observed: how long the subagent took, whether
+     it finished, and why it did not. The bridge derives the rest — which
+     isolation actually ran, the worktree path, and the changed-file list — so a
+     silent degrade cannot be misreported as a worktree run. `--kill-reason` is
+     REQUIRED whenever status is not `ok`; an outcome with no reason is
+     unattributable, which is what this record exists to prevent. This must run
+     **before** step 9's `worktree-destroy`: teardown removes the tree, and with
+     it the only source of the diff. Read them back any time with
+     `$STZ bridge specimen-records --root . --slice $1`.
+
 4b. **Verify the seal (gate the tournament).** Before any eval, run
     `$STZ bridge seal-verify --root .`. It re-hashes the held-out suite against
     SEAL.json and **exits non-zero on any drift** — a frozen-suite change between

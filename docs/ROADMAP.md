@@ -1020,6 +1020,16 @@ worktree.
   `foundry-cost.md`, an isolation event per round in `journal.md`, `specimen` +
   `durationMs` on the JSONL call ledger). The scope dies with the worktree; what
   outlives the slice is promoted into the existing `.stz/` audit tree.
+  **On both paths.** The foundry runner builds the record itself because it owns
+  the spawn loop; the in-session path gets `stz bridge specimen-record` /
+  `specimen-records`, which persist to `90-audit/specimens/<slice>.jsonl`
+  append-only. The split follows the architecture rule: `/stz-f:run` supplies only
+  what it alone observed (wall-clock, status, kill reason — the latter *required*
+  whenever status is not `ok`, since an unattributable outcome is what the record
+  exists to prevent) and the bridge derives isolation mode, worktree path and the
+  changed-file list from the live registry, so a silent degrade cannot be
+  misreported as a worktree run. Recording precedes teardown — the tree is the
+  only source of the diff.
 - **Both paths, in code not prose.** `stz bridge worktree-create` / `-list` /
   `-destroy` (with `--target`) are the in-session seam; `/stz-f:run` step 3b calls
   them and hands each `stz-specimen` the path the bridge returned, computing none

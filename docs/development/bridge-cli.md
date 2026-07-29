@@ -43,6 +43,11 @@ stz bridge worktree-create  --root . --slice slice-01 --specimen a  # {mode, pat
 stz bridge worktree-list    --root . --slice slice-01               # {slice, worktrees:[{path, head, detached, prunable}]}
 stz bridge worktree-destroy --root . --slice slice-01               # {slice, removed[], pruned} — idempotent, always exit 0
 
+# per-specimen run record, in-session path (1.17.0) — run BEFORE worktree-destroy
+stz bridge specimen-record  --root . --slice slice-01 --specimen a --status ok --duration-ms 1234
+stz bridge specimen-record  --root . --slice slice-01 --specimen b --status timeout --kill-reason "stuck" --duration-ms 30000
+stz bridge specimen-records --root . --slice slice-01               # {slice, records[]} — every recorded specimen, append-only
+
 # cross-slice semantic recall (1.17.0) — over the allowlisted .stz/ tiers only
 stz bridge knowledge-index --root .                                 # {rebuilt, embedded, evicted, total, fingerprint, provider} — walk/hash/embed/persist
 stz bridge knowledge-query --root . --role planning --keywords a,b [--symbols s] [--step-id id]

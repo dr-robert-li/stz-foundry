@@ -315,3 +315,127 @@ describe("bridge teardown — every way a slice can end removes its worktrees", 
     expect(existsSync(join(wtRoot(repo), "b"))).toBe(true);
   });
 });
+
+// ── REQ-04, in-session half: the per-specimen run record ───────────────────
+
+/**
+ * The foundry runner builds a `SpecimenRunRecord` itself because it owns the
+ * spawn loop. The in-session path does not — Claude Code owns the subagent, so
+ * only it knows wall-clock and why a specimen stopped. Phase-1 verification
+ * found criterion 4 was foundry-only: `grep -rln 'appendCall|writeAudit' src/`
+ * returned exactly one file, and the bridge wrote no per-specimen timing, cost,
+ * exit status or kill reason at all. These verbs close that.
+ *
+ * The design rule under test: the command supplies OBSERVATIONS (duration,
+ * status, reason); the bridge DERIVES everything else (isolation, worktree path,
+ * diff) so a command that thinks it got a worktree but silently degraded cannot
+ * misreport it.
+ */
+interface RecordJSON {
+  strategy: string;
+  specimen: string;
+  status: string;
+  killReason: string | null;
+  durationMs: number;
+  isolation: string;
+  worktreePath: string | null;
+  diffFiles: string[] | null;
+  slice: string;
+  recorded: boolean;
+}
+
+describe("bridge specimen-record — REQ-04 on the in-session path", () => {
+  it("derives isolation, worktree path and diff rather than trusting the caller", async () => {
+    if (!hasGit) return;
+    const repo = makeRepo();
+    const wt = await create(root, repo, "a");
+    expect(wt.mode).toBe("worktree");
+    // The specimen edits a file in ITS worktree — the diff must be attributable.
+    writeFileSync(join(wt.path, "src/a.ts"), "export const a = 2;\n", "utf8");
+
+    captured = "";
+    await runBridge([
+      "specimen-record", "--root", root, "--target", repo,
+      "--slice", "slice-01", "--specimen", "a",
+      "--status", "ok", "--duration-ms", "1234",
+    ]);
+    const rec = lastJSON<RecordJSON>();
+
+    expect(rec.specimen).toBe("a");
+    expect(rec.status).toBe("ok");
+    expect(rec.killReason).toBeNull();
+    expect(rec.durationMs).toBe(1234);
+    // Derived, not supplied — the caller passed neither of these.
+    expect(rec.isolation).toBe("worktree");
+    expect(rec.worktreePath).toBe(wt.path);
+    expect(rec.diffFiles).toContain("src/a.ts");
+  });
+
+  it("reports directory isolation when the specimen never got a worktree", async () => {
+    const notARepo = tempDir("stz-bwt-rec-plain-");
+    await create(root, notARepo, "b");
+
+    captured = "";
+    await runBridge([
+      "specimen-record", "--root", root, "--target", notARepo,
+      "--slice", "slice-01", "--specimen", "b",
+      "--status", "ok", "--duration-ms", "5",
+    ]);
+    const rec = lastJSON<RecordJSON>();
+
+    // A degrade is reported, never silent (D3) — and diffFiles is honestly null
+    // rather than an empty array that reads like "changed nothing".
+    expect(rec.isolation).toBe("directory");
+    expect(rec.worktreePath).toBeNull();
+    expect(rec.diffFiles).toBeNull();
+  });
+
+  it("refuses a non-ok status with no reason — an unattributable outcome", async () => {
+    captured = "";
+    await runBridge([
+      "specimen-record", "--root", root, "--target", root,
+      "--slice", "slice-01", "--specimen", "c", "--status", "timeout",
+    ]);
+    expect(process.exitCode).toBe(1);
+    process.exitCode = 0;
+  });
+
+  it("records a killed specimen with its reason, and reads every record back", async () => {
+    captured = "";
+    await runBridge([
+      "specimen-record", "--root", root, "--target", root,
+      "--slice", "slice-01", "--specimen", "d",
+      "--status", "timeout", "--kill-reason", "no result within 30000ms (stuck-killed)",
+      "--duration-ms", "30000",
+    ]);
+    expect(lastJSON<RecordJSON>().killReason).toMatch(/stuck-killed/);
+
+    captured = "";
+    await runBridge([
+      "specimen-record", "--root", root, "--target", root,
+      "--slice", "slice-01", "--specimen", "e",
+      "--status", "error", "--kill-reason", "threw: boom", "--duration-ms", "12",
+    ]);
+
+    captured = "";
+    await runBridge(["specimen-records", "--root", root, "--target", root, "--slice", "slice-01"]);
+    const all = lastJSON<{ slice: string; records: RecordJSON[] }>();
+
+    // Every specimen recorded so far is retrievable per specimen after the run.
+    const ids = all.records.map((r) => r.specimen);
+    expect(ids).toContain("d");
+    expect(ids).toContain("e");
+    expect(all.records.find((r) => r.specimen === "e")!.status).toBe("error");
+    // Append-only: a retry round stays visible rather than overwriting (N1).
+    expect(all.records.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("rejects a path-traversal specimen id", async () => {
+    await expect(
+      runBridge([
+        "specimen-record", "--root", root, "--target", root,
+        "--slice", "slice-01", "--specimen", "../../evil", "--status", "ok",
+      ]),
+    ).rejects.toThrow(/path-traversal guard/);
+  });
+});

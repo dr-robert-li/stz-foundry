@@ -114,8 +114,18 @@ missing. Mechanism, durable side effects and stated ceilings:
   create. Wired into bridge `finalize` / `escalate`(halt) / `slice-halt` /
   `slice-reset` and one `finally` around the foundry loop covering stuck-kill,
   crash and the budget throw. Retry and replan deliberately do not tear down.
-- **Three new bridge verbs and the in-session wiring.** `stz bridge
-  worktree-create` / `worktree-list` / `worktree-destroy` (with `--target`);
+- **The run record covers both paths, not just the foundry one.** The runner
+  builds its own record because it owns the spawn loop; the in-session path gets
+  `stz bridge specimen-record` / `specimen-records`, appending to
+  `90-audit/specimens/<slice>.jsonl`. `/stz-f:run` supplies only what it alone
+  observed — wall-clock, status, and a kill reason that is *required* whenever
+  status is not `ok` — while the bridge derives isolation mode, worktree path and
+  the changed-file list from the live registry, so a command that silently
+  degraded cannot report itself as a worktree run. Recording precedes teardown;
+  the tree is the only source of the diff.
+- **Five new bridge verbs and the in-session wiring.** `stz bridge
+  worktree-create` / `worktree-list` / `worktree-destroy` (with `--target`), plus
+  the two record verbs above;
   `/stz-f:run` step 3b calls `worktree-create` once per specimen and hands each
   `stz-specimen` the path it printed. The command computes no path and makes no
   fallback decision — the bridge owns both.
