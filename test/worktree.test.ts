@@ -183,6 +183,59 @@ describe("specimen worktrees", () => {
     expect(g(target, "status", "--porcelain")).toBe(before.status);
   });
 
+  it("isolation: three worktrees edit the same tracked file without colliding", () => {
+    if (!hasGit) return expectDirectoryFallback();
+    const target = makeRepo(REPO);
+    const handles = ["s0", "s1", "s2"].map((n) => create(target, n));
+    for (const h of handles) expect(h.mode).toBe("worktree");
+
+    // Write the way a specimen would — straight to disk, no STZ API. The point
+    // is git's per-worktree index (`.git/worktrees/<n>/index`) making three
+    // concurrent editors collision-free.
+    handles.forEach((h, i) =>
+      writeFileSync(join(h.path, "src/a.ts"), `export const a = ${i + 10};\n`, "utf8"),
+    );
+
+    handles.forEach((h, i) => {
+      expect(g(h.path, "diff", "--name-only").trim().split("\n")).toEqual(["src/a.ts"]);
+      expect(readFileSync(join(h.path, "src/a.ts"), "utf8")).toBe(`export const a = ${i + 10};\n`);
+    });
+    expect(readFileSync(join(target, "src/a.ts"), "utf8")).toBe(REPO["src/a.ts"]);
+    expect(g(target, "status", "--porcelain").trim()).toBe("");
+
+    destroyWorktrees(target, target, "slice-01");
+  });
+
+  it("no branches: the branch set is identical before creates and after teardown", () => {
+    if (!hasGit) return expectDirectoryFallback();
+    const target = makeRepo(REPO);
+    const before = g(target, "branch", "--list");
+
+    for (const n of ["s0", "s1", "s2"]) expect(create(target, n).mode).toBe("worktree");
+    destroyWorktrees(target, target, "slice-01");
+
+    // Detached HEAD means no branch was ever created, so REQ-03's "branches
+    // pruned" clause is vacuously true — and directly assertable.
+    expect(g(target, "branch", "--list")).toBe(before);
+  });
+
+  it("naive worktree add exposes the sealed suite", () => {
+    if (!hasGit) return expectDirectoryFallback();
+    const target = makeRepo(REPO);
+    const naive = join(tempDir("stz-wt-naive-"), "leak");
+
+    // DELIBERATE NEGATIVE CONTROL — the unmitigated path, asserting the THREAT
+    // rather than our code. It must NOT be copied into src/: it is here so the
+    // suite fails loudly if a future refactor drops the sparse-checkout firewall
+    // or git changes checkout semantics.
+    g(target, "worktree", "add", naive, "HEAD");
+    try {
+      expect(existsSync(join(naive, SEALED))).toBe(true);
+    } finally {
+      g(target, "worktree", "remove", "--force", "--force", naive);
+    }
+  });
+
   it("reports which isolation actually ran", () => {
     if (!hasGit) return expectDirectoryFallback();
     const target = makeRepo(REPO);
