@@ -11,7 +11,17 @@
  * Scoring is a deterministic overlap: symbol matches weigh more than keyword
  * matches. Same pool + query → same hits, every run (N6).
  */
-export type RetrievableKind = "predicate" | "contract_delta" | "rubric" | "search_heuristic" | "repo_note";
+export type RetrievableKind =
+  | "predicate"
+  | "contract_delta"
+  | "rubric"
+  | "search_heuristic"
+  | "repo_note"
+  // `.stz/` audit-tree documents (cross-slice recall). `repo_note` would be the
+  // wrong home: it is capped at 0 for CTIM-Rover reasons, so a hit would silently
+  // never appear and raising the cap would undo that safety property.
+  | "convention"
+  | "decision";
 
 export interface RetrievableArtifact {
   id: string;
@@ -51,6 +61,8 @@ export const DEFAULT_CAPS: Record<RetrievableKind, number> = {
   rubric: 1,
   search_heuristic: 1,
   repo_note: 0,
+  convention: 2,
+  decision: 2,
 };
 
 const lc = (s: string) => s.toLowerCase();
