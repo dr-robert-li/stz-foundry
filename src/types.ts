@@ -101,6 +101,12 @@ export interface EvalResult {
   /** Hack-pattern findings (F10/L3). Non-empty ⇒ disqualified. */
   hackFindings: HackFinding[];
   /**
+   * Set only when the gate was forced closed for a reason other than the metrics —
+   * today: no specimen source was found, so L3 hack detection ran on an empty input
+   * and an empty `hackFindings` proves nothing (1.17.0). Absent on every normal result.
+   */
+  gateBlockedReason?: string;
+  /**
    * 0..1 code-health score (0.9.0, CodeClash-informed). Rewards parsimony and
    * penalizes bloat/redundancy/branch-sprawl. Optional: absent ⇒ treated as the
    * neutral best (1) so legacy callers are unaffected and a perfect specimen
@@ -162,11 +168,24 @@ export interface CallRecord {
   id: string;
   phase: Phase;
   role: "specimen" | "judge" | "test-author" | "documenter" | "elicitor" | "researcher" | "planner";
+  /**
+   * Which specimen incurred this call (REQ-04). Optional: absent on non-specimen
+   * roles, and absent on ledgers written before per-specimen attribution existed,
+   * so persisted 90-audit/calls/*.jsonl keeps round-tripping.
+   */
+  specimen?: SpecimenId;
   model: string;
   temperature: number;
   seed: number | null;
   promptTokens: number;
   completionTokens: number;
+  /**
+   * Wall-clock the call took (REQ-04), when the caller measured one. Optional
+   * for the same reason `specimen` is: most roles have no measured duration and
+   * older ledgers have no field, so `90-audit/calls/*.jsonl` keeps round-tripping.
+   * Deliberately absent from the replay-stable markdown reports (N6).
+   */
+  durationMs?: number;
   /** Monotonic sequence index for deterministic replay ordering. */
   seq: number;
 }

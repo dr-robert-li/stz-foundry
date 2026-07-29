@@ -77,6 +77,45 @@ describe("FoundryCostMeter (stage 4)", () => {
     expect(m.totals().inputTokens + m.totals().outputTokens).toBe(1_100); // recorded
   });
 
+  it("buckets cost by specimen without disturbing byRole (REQ-04)", () => {
+    const m = new FoundryCostMeter(PRICING);
+    m.add("specimen", "gpt-x", usage(1_000, 500), "a");
+    m.add("specimen", "gpt-x", usage(1_000, 500), "a");
+    m.add("specimen", "gpt-x", usage(2_000, 1_000), "b");
+
+    const bySpec = m.bySpecimen();
+    expect(Object.keys(bySpec).sort()).toEqual(["a", "b"]);
+    expect(bySpec.a!.calls).toBe(2);
+    expect(bySpec.a!.tokens).toBe(3_000);
+    expect(bySpec.a!.usd).toBeCloseTo((2 * (1_000 * 2 + 500 * 8)) / 1e6);
+    expect(bySpec.b!.calls).toBe(1);
+    expect(bySpec.b!.tokens).toBe(3_000);
+    expect(bySpec.b!.usd).toBeCloseTo((2_000 * 2 + 1_000 * 8) / 1e6);
+
+    // Regression: the role dimension is byte-for-byte unaffected by the new one.
+    const roles = m.byRole();
+    expect(Object.keys(roles)).toEqual(["specimen"]);
+    expect(roles.specimen!.calls).toBe(3);
+    expect(roles.specimen!.tokens).toBe(6_000);
+    expect(roles.specimen!.usd).toBeCloseTo(bySpec.a!.usd + bySpec.b!.usd);
+  });
+
+  it("a call with no specimen argument stays out of bySpecimen()", () => {
+    const m = new FoundryCostMeter(PRICING);
+    m.add("judge", "gpt-x", usage(1_000, 100));
+    m.add("test-author", "gpt-x", usage(1_000, 100));
+    expect(m.bySpecimen()).toEqual({});
+    expect(Object.keys(m.byRole()).sort()).toEqual(["judge", "test-author"]);
+  });
+
+  it("the cap still fires on the crossing call when a specimen id is attached", () => {
+    const m = new FoundryCostMeter({}, { maxTokens: 1_000 });
+    m.add("specimen", "m", usage(400, 300), "a"); // 700 — fine
+    expect(() => m.add("specimen", "m", usage(400, 0), "a")).toThrow(CostCapExceededError);
+    expect(m.totals().inputTokens + m.totals().outputTokens).toBe(1_100); // recorded
+    expect(m.bySpecimen().a!.calls).toBe(2); // and attributed
+  });
+
   it("throws on the call that crosses the USD cap", () => {
     const m = new FoundryCostMeter(PRICING, { maxUsd: 0.01 });
     m.add("judge", "gpt-x", usage(1_000, 100)); // $0.0028
@@ -130,5 +169,24 @@ describe("cap composition with the model layer and spawn containment (stage 4)",
     expect(r.killed[0]!.detail).toContain("token cap 1000 exceeded");
     // The meter's record survives the kill (audit trail intact).
     expect(meter.totals().calls).toBe(2);
+  });
+
+  it("the model layer attributes each specimen's real usage to its own id (REQ-04)", async () => {
+    const meter = new FoundryCostMeter({ m: { inputPerMTok: 1, outputPerMTok: 1 } });
+    const role = { provider: chattyProvider, model: "m" };
+    const layer = new FoundryModelLayer({
+      roles: { testAuthor: role, strategist: role, specimen: role, judge: role, documenter: role, planner: role },
+      meter,
+    });
+    const r = await spawnSpecimens(layer.specimen, manifest, ["s1", "s2"], null);
+    expect(r.outputs).toHaveLength(2);
+    // Ids come from the layer's ordinal; the buckets must match the outputs.
+    expect(Object.keys(meter.bySpecimen()).sort()).toEqual(r.outputs.map((o) => o.specimen).sort());
+    for (const v of Object.values(meter.bySpecimen())) {
+      expect(v.calls).toBe(1);
+      expect(v.tokens).toBe(800);
+    }
+    // Roles keep aggregating exactly as before.
+    expect(meter.byRole().specimen!.calls).toBe(2);
   });
 });

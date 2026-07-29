@@ -9,6 +9,132 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.17.0] — per-specimen git worktrees + cross-slice semantic recall
+
+### Cross-slice semantic recall
+
+"Did an earlier slice already set a convention for this?" is now a lookup rather
+than the operator's memory. Local embeddings over the `.stz/` markdown tree, no
+vector service, no new runtime dependency. Mechanism, the calibration procedure
+and the stated gaps:
+[`docs/development/semantic-recall.md`](docs/development/semantic-recall.md).
+
+- **The indexable tiers are an allowlist, not a denylist (security).** Only
+  `00-intent`, `10-research` and `20-standards` are ever walked — the three tiers
+  written behind a pipeline approval gate, which is the warrant for the single
+  line that stamps `trust: "accepted"`. `30-tests/` is not filtered out, it is
+  never opened, so no path-normalization bug, symlink or future tier can serve the
+  sealed suite or the test author's reference implementation into a specimen's
+  context. The negative test asserts by iterating the tier constant, so a new tier
+  is covered without anyone remembering to add a case.
+- **The daemon is an optimization, never a requirement.** Ollama
+  `nomic-embed-text` over `POST /api/embed` when it answers; a deterministic,
+  dependency-free, corpus-independent fallback embedder otherwise — proven
+  byte-identical across two separate Node processes. Selection is always reported.
+  There is deliberately no `/api/version` liveness probe: it answers 200 while
+  `/api/embed` 404s on a model that was never pulled, so the real embed call is
+  the probe. Absent, wedged, unpulled, malformed and dimension-drifted responses
+  all land on the fallback with a reason instead of failing the run.
+- **A similarity floor is what keeps "no bulk injection" true.** Every artifact
+  has a non-zero cosine to every query, so without a floor `score > 0` is
+  universally true and the guard evaporates with every test still green.
+  The floor is now **measured, not guessed — and resolved per embedder**, because
+  a cosine only means anything relative to the model that produced it. Measured
+  over one 21-document tree, the two shipped embedders do not overlap: nomic
+  (768-dim) has a noise ceiling of 0.5242 with true positives 0.5504–0.7003, while
+  the hashed-n-gram fallback (256-dim) has a noise ceiling of 0.2036 with its best
+  true positive at 0.3953 — so they calibrate to **0.54** and **0.24**
+  respectively. One shared constant is wrong for at least one of them by
+  construction: an earlier single value of 0.6 sat above nomic's weakest true
+  positive AND above every fallback cosine ever observed, so the layer never fired
+  on a real corpus in either mode. `resolveSemanticFloor()` takes an operator's
+  `STZ_SEMANTIC_FLOOR` override (out-of-range values ignored, not honored), then
+  the calibration table, then a deliberately high uncalibrated default that is
+  reported as such — because a too-high floor fails *silently* ("recall isn't very
+  good") while a too-low one deletes the guard.
+- **The embed timeout scales with the batch.** A flat 2s bound was wrong in two
+  independent ways — a cold model load answered in 7.9s and a warm 21-document
+  batch took 4.4s, and a whole rebuild is one batched call — so the first run of
+  the day *and* every realistic rebuild silently used the fallback. Replaced with
+  `15s + 500ms × inputs`, still strictly bounded.
+- **Incremental rebuild at slice close.** `finalize` rebuilds the index after
+  `saveState`, wrapped whole: it may report failure, it can never cause one. The
+  rebuild is a sha256 diff — one edited summary costs one embed call, unchanged
+  vectors are carried forward byte-for-byte, a deleted document is evicted rather
+  than kept, and a changed embedder fingerprint discards every prior vector
+  instead of comparing across identities.
+- **Role scoping is default-deny.** An unknown `--role` (including a case variant
+  of a real one) retrieves nothing rather than the union of all kinds; per-role
+  caps merge *over* `DEFAULT_CAPS` so `repo_note` stays at 0 everywhere; an
+  `execution` specimen cannot reach the judging rubric even at cosine 1.0. The
+  cosine is quantized to an integer before it enters the score, so the documented
+  `score desc, id asc` tie rule survives instead of being decided by float noise.
+- **Two new bridge verbs.** `stz bridge knowledge-index` and `stz bridge
+  knowledge-query`. **Not yet wired into any command or agent** — the engine and
+  the CLI surface ship here; automatic mid-slice consultation by a phase agent is
+  one orchestration line per call site and is deliberately out of scope.
+
+### Per-specimen git worktrees + ephemeral run record
+
+Specimens no longer share a working tree. Each gets a real detached git worktree
+when the target is a repository, so parallel edits to the same tracked file stop
+colliding and every diff is attributable — the piece brownfield (1.12.0) was
+missing. Mechanism, durable side effects and stated ceilings:
+[`docs/development/worktrees.md`](docs/development/worktrees.md).
+
+- **Sealed-suite exposure closed (security).** A plain `git worktree add`
+  materializes `.stz/30-tests/held-out/` inside the specimen's checkout — the
+  answer key, on disk, readable. Reproduced, and kept as a negative-control test.
+  Worktrees are now created `add --no-checkout --detach` → per-worktree
+  `sparse-checkout set --no-cone '/*' '!/.stz/'` → `checkout`, so the suite is
+  never written at all; a worktree that cannot be firewalled is rolled back to the
+  directory fallback rather than handed over. The confidentiality control is
+  structural — `hooks/held-out-guard.mjs` is a destruction guard that exempts
+  every non-Bash tool and was never a read barrier.
+- **A second path-traversal hole closed (security).** Model-returned file paths
+  reached `join(protoDir, path)` and a write with no containment check at all;
+  `writeSpecimenFiles` is now the single guarded write path for both the prototype
+  tree and the worktree. The bridge's worktree verbs validate slice and specimen
+  ids at the argv boundary, before the never-throws create path can convert a
+  traversal id into a directory outside `.stz/`.
+- **Base is a working-tree snapshot, not `HEAD`.** STZ never commits, so a
+  multi-slice brownfield run would otherwise hand specimens a stale repo.
+  A throwaway `GIT_INDEX_FILE` → `write-tree` → `commit-tree` leaves the operator's
+  status, index, stash and refs byte-identical. `commit-tree` runs under
+  `-c commit.gpgsign=false` — it honours `commit.gpgsign`, and a signing repo would
+  otherwise block on a passphrase prompt mid-round.
+- **Ephemeral run record + cost attribution.** One record per specimen (status,
+  kill reason, duration, isolation mode, worktree path, changed files) plus real
+  per-specimen spend: `bySpecimen()`, a `## By specimen` section and a
+  `- **worktree isolation:**` line in `foundry-cost.md`, an isolation event per
+  round in `journal.md`, and `specimen` + `durationMs` on the JSONL call ledger.
+  It rides the existing audit tree — no second persistence system.
+- **Teardown on every terminal path, idempotent.** `remove --force --force` +
+  `prune`, detached HEAD so no branch leaks, crash orphans reconciled by the next
+  create. Wired into bridge `finalize` / `escalate`(halt) / `slice-halt` /
+  `slice-reset` and one `finally` around the foundry loop covering stuck-kill,
+  crash and the budget throw. Retry and replan deliberately do not tear down.
+- **The run record covers both paths, not just the foundry one.** The runner
+  builds its own record because it owns the spawn loop; the in-session path gets
+  `stz bridge specimen-record` / `specimen-records`, appending to
+  `90-audit/specimens/<slice>.jsonl`. `/stz-f:run` supplies only what it alone
+  observed — wall-clock, status, and a kill reason that is *required* whenever
+  status is not `ok` — while the bridge derives isolation mode, worktree path and
+  the changed-file list from the live registry, so a command that silently
+  degraded cannot report itself as a worktree run. Recording precedes teardown;
+  the tree is the only source of the diff.
+- **Five new bridge verbs and the in-session wiring.** `stz bridge
+  worktree-create` / `worktree-list` / `worktree-destroy` (with `--target`), plus
+  the two record verbs above;
+  `/stz-f:run` step 3b calls `worktree-create` once per specimen and hands each
+  `stz-specimen` the path it printed. The command computes no path and makes no
+  fallback decision — the bridge owns both.
+- **The fallback is reported, never silent.** No git, not a repo, unborn HEAD, a
+  submodule superproject or any failed step yields a usable directory handle with
+  a reason; the run report and the audit tree both surface `directory (DEGRADED —
+  <reason>)`. Greenfield synthesis is still the common case, so this is a normal
+  outcome, not an error.
+
 ## [1.16.1] — path-traversal guard on slice-reset (security)
 
 A missing-validation fix in `src/bridge.ts`. A slice `id` flowed unmodified into

@@ -37,7 +37,10 @@ import type {
   SpecimenId,
 } from "./types.js";
 import { PROJECT_PHASES } from "./types.js";
-import { scaffold, writeDoc, readDoc, stzPath } from "./taxonomy.js";
+import { scaffold, writeDoc, readDoc, stzPath, assertSafePathSegment } from "./taxonomy.js";
+import { createWorktree, listWorktrees, destroyWorktrees, worktreeChangedFiles } from "./worktree.js";
+import type { WorktreeMode } from "./worktree.js";
+import type { SpecimenRunRecord } from "./foundry/spawn.js";
 import { freshState, saveState, loadState, stateExists, statePath, setPhaseStatus, appendEvent } from "./state.js";
 import { verifyDebugCase, loadDebugCases, type DebugCase } from "./debug.js";
 import { auditRoleTiers, tierOf } from "./tiers.js";
@@ -64,6 +67,16 @@ import {
   defaultRunConfig,
 } from "./project.js";
 import { detectHacks, suspicionScore } from "./hack-detector.js";
+import { selectEmbedder, embedderForFingerprint, fallbackEmbedder } from "./knowledge/embedder.js";
+import { buildIndex, readIndex, poolFromIndex, vectorsFromIndex } from "./knowledge/index-store.js";
+import { resolveRoleScope, capsForRole } from "./knowledge/scope.js";
+import {
+  retrieve,
+  resolveSemanticFloor,
+  SEMANTIC_WEIGHT,
+  type RetrievalQuery,
+  type SemanticInput,
+} from "./knowledge/retrieval.js";
 import { STZ_VERSION, SCHEMA_VERSION, PACKAGE_NAME } from "./version.js";
 import { onNoPassers, DEFAULT_RETRY_POLICY, type EscalationState } from "./escalation.js";
 import { evalGate, select, pairings } from "./selection.js";
@@ -233,13 +246,22 @@ function commitEval(
   extra: Record<string, unknown> = {},
 ): void {
   const files = readSpecimenFiles(root, slice, specimen);
+  // L3 fail-closed (1.17.0): `files` is the ONLY input the hack detector and the
+  // pressure-log diff ever see. An empty map is not "a clean specimen" — it means the
+  // detector was fed nothing, so `hackFindings.length === 0` is vacuous and the gate
+  // would pass a specimen no anti-hacking layer ever inspected. Pre-worktrees this was
+  // unreachable (no files ⇒ the specimen produced nothing ⇒ eval failed loudly); once a
+  // specimen can write into a worktree, `prototypes/specimen-<id>/` can be empty while
+  // the eval still passes. Fail closed and say why.
+  const noSource = Object.keys(files).length === 0;
   const hackFindings = detectHacks(specimen, files, { fixtureNames });
   // 0.9.0: graded soft-suspicion (a hard-passer can still carry it) + code-health
   // feed the multi-objective reward. codeHealth absent ⇒ neutral best (1).
   const suspicion = suspicionScore(files, { fixtureNames });
   const result: EvalResult = {
     specimen,
-    passedGate: metrics.testPassRate >= 1 && hackFindings.length === 0,
+    passedGate: !noSource && metrics.testPassRate >= 1 && hackFindings.length === 0,
+    ...(noSource ? { gateBlockedReason: "no specimen source under prototypes/ — hack detection had no input" } : {}),
     testPassRate: metrics.testPassRate,
     coverage: metrics.coverage,
     mutationScore: metrics.mutationScore,
@@ -393,6 +415,9 @@ async function escalateCmd(args: Record<string, string>): Promise<void> {
       body: report,
     });
     await saveState(root, state);
+    // Terminal: the slice is over. Retry/replan below deliberately do NOT tear
+    // down — the next round re-creates, and createWorktree is idempotent.
+    destroyWorktrees(args.target ?? root, root, slice);
     print({
       action: "halt",
       note: action.note,
@@ -460,6 +485,7 @@ async function sliceHaltCmd(args: Record<string, string>): Promise<void> {
     body: report,
   });
   await saveState(root, state);
+  destroyWorktrees(args.target ?? root, root, slice); // terminal: no orphan survives a halt
   print({
     action: "halt",
     phase,
@@ -571,6 +597,31 @@ async function finalize(args: Record<string, string>): Promise<void> {
       state.events.map((e) => `${e.seq}. [${e.phase}] ${e.kind}: ${e.detail}`).join("\n") +
       "\n",
   });
+  // The winner is accepted and the audit is written: the slice is closed, so the
+  // per-specimen worktrees go with it (D-04). A leaked one is a full unsealed
+  // checkout of the repo left on disk.
+  destroyWorktrees(args.target ?? root, root, slice);
+
+  // Slice close is the index rebuild trigger (D4): by here the tier documents
+  // this slice produced are on disk and settled.
+  //
+  // The WHOLE hook is wrapped, and it neither rethrows nor touches
+  // `process.exitCode`. `finalize` is the tournament-half completion barrier —
+  // `deriveSliceStatus()` reads the state it just wrote and `/stz-f:pipeline`
+  // advances on it — so a slice whose tournament succeeded must never be marked
+  // failed because a daemon hiccuped or the index path was unwritable. The index
+  // is a derived artifact; the next `knowledge-index` run rebuilds it.
+  let knowledgeIndex: unknown;
+  try {
+    const { embedder, reason } = await selectEmbedder();
+    knowledgeIndex = await buildIndex(root, embedder, reason);
+  } catch (e) {
+    process.stderr.write(
+      `warning: knowledge index rebuild failed (${String(e)}) — the slice is closed regardless; re-run \`stz bridge knowledge-index --root ${root}\`.\n`,
+    );
+    knowledgeIndex = { rebuilt: "failed", embedded: 0, evicted: 0, provider: "none", error: String(e).slice(0, 200) };
+  }
+
   print({
     winner: judgment.winner,
     faithful: isFaithful(sdiff),
@@ -578,6 +629,7 @@ async function finalize(args: Record<string, string>): Promise<void> {
     culled: culled.length,
     unmatchedIntentIds: unmatched.length ? unmatched : undefined,
     mismatchedAsBuiltIds: mismatched.length ? mismatched : undefined,
+    knowledgeIndex,
   });
 }
 
@@ -1292,14 +1344,21 @@ async function debugCaseCmd(args: Record<string, string>): Promise<void> {
  * for the mutator battery filename.
  */
 function assertSafeSliceId(id: string): void {
-  if (!/^[A-Za-z0-9_-]+$/.test(id)) {
-    throw new Error(`unsafe slice id ${JSON.stringify(id)} — expected [A-Za-z0-9_-]+ (path-traversal guard)`);
-  }
+  assertSafePathSegment(id, "slice id"); // one allowlist shared with worktreePathFor
 }
 
-/** Reset one slice's per-slice artifacts so its derived status returns to pending. */
+/**
+ * Reset one slice's per-slice artifacts so its derived status returns to pending.
+ * This is also the crash-recovery entry point (`debug-case --apply` calls it too),
+ * so worktree reconciliation lives here rather than in `sliceResetCmd`.
+ */
 function resetSlice(root: string, id: string): void {
   assertSafeSliceId(id); // guard the forced recursive delete against path traversal
+  // ponytail: target == root here — this function has no args object, so a target
+  // repo distinct from the project root is not reconciled by `slice-reset`. The
+  // next `worktree-create` prunes it anyway; thread a target through if that ever
+  // stops being true.
+  destroyWorktrees(root, root, id);
   for (const p of [
     statePath(root, id),
     stzPath(root, join(sliceRel(id), "tournament")),
@@ -1330,6 +1389,167 @@ async function sliceResetCmd(args: Record<string, string>): Promise<void> {
   }
   for (const id of ids) resetSlice(root, id);
   print({ reset: ids, note: "per-slice state + winner artifacts removed; these slices are now pending and will re-run" });
+}
+
+// ── per-specimen worktree isolation (the in-session path) ───────────────────
+
+/**
+ * The in-session path has no materialization step — the `stz-specimen` subagent
+ * writes files itself — so isolation there is entirely a matter of telling each
+ * specimen a different directory. These three verbs are that, and they own the
+ * whole decision: path computation, naming, and whether to fall back.
+ * `commands/run.md` may only call them and act on the printed JSON; it must never
+ * compute a worktree path or decide when to degrade (CLAUDE.md architecture rule).
+ *
+ * `--target` is the repo being edited, defaulting to the project root that holds
+ * the `.stz` tree — the same shape `explore` uses.
+ */
+function worktreeArgs(
+  args: Record<string, string>,
+  verb: string,
+): { root: string; slice: string; target: string } | null {
+  const { root, slice } = args;
+  if (!root || !slice) {
+    process.stderr.write(`${verb} requires --root <dir> --slice <id> [--target <repo>].\n`);
+    process.exitCode = 1;
+    return null;
+  }
+  // Guard HERE, not downstream: createWorktree never throws, so an unguarded
+  // traversal id would be swallowed into a fallback that mkdirs outside `.stz`.
+  assertSafeSliceId(slice);
+  return { root, slice, target: args.target ?? root };
+}
+
+function worktreeCreateCmd(args: Record<string, string>): void {
+  const a = worktreeArgs(args, "worktree-create");
+  if (!a) return;
+  const specimen = args.specimen;
+  if (!specimen) {
+    process.stderr.write("worktree-create requires --specimen <id>.\n");
+    process.exitCode = 1;
+    return;
+  }
+  assertSafePathSegment(specimen, "specimen id");
+  // The fallback is the prototype directory the in-session specimen already
+  // writes into, so a degrade is a no-op for /stz-f:run rather than a second
+  // code path in the command markdown.
+  const h = createWorktree({
+    target: a.target,
+    root: a.root,
+    slice: a.slice,
+    name: specimen,
+    fallbackDir: stzPath(a.root, protoRel(a.slice, specimen)),
+  });
+  print({ mode: h.mode, path: h.path, name: h.name, reason: h.reason, slice: a.slice, specimen });
+}
+
+function worktreeListCmd(args: Record<string, string>): void {
+  const a = worktreeArgs(args, "worktree-list");
+  if (!a) return;
+  print({ slice: a.slice, worktrees: listWorktrees(a.target, a.root, a.slice) });
+}
+
+/**
+ * Never sets a non-zero exit code: this runs from a terminal step, and teardown
+ * reporting failure when it succeeded would read as a run failure. An already-
+ * clean slice prints `removed: []` and exits 0.
+ */
+function worktreeDestroyCmd(args: Record<string, string>): void {
+  const a = worktreeArgs(args, "worktree-destroy");
+  if (!a) return;
+  const { removed, pruned } = destroyWorktrees(a.target, a.root, a.slice);
+  print({ slice: a.slice, removed, pruned });
+}
+
+// ── per-specimen run record, in-session path (REQ-04) ──────────────────────
+
+/**
+ * The in-session half of REQ-04. The foundry runner builds a `SpecimenRunRecord`
+ * itself because it owns the spawn loop; the in-session path does not — Claude
+ * Code owns the subagent, so only IT knows the wall-clock and why a specimen
+ * stopped. Everything else the bridge derives, per the architecture rule: the
+ * command supplies observations, never decisions.
+ *
+ * Derived here, not trusted from the caller:
+ *   - `isolation` / `worktreePath` — read from the live worktree registry, so a
+ *     command that thinks it got a worktree but silently degraded cannot
+ *     misreport it.
+ *   - `diffFiles` — computed from the worktree itself.
+ *
+ * ORDERING: this must run BEFORE `worktree-destroy`. Teardown removes the tree,
+ * and with it the only source of `diffFiles`. `commands/run.md` records each
+ * specimen as it returns, which is also what keeps a crashed round attributable.
+ */
+function specimenRecordPath(root: string, slice: string): string {
+  return stzPath(root, join("90-audit", "specimens", `${slice}.jsonl`));
+}
+
+function specimenRecordCmd(args: Record<string, string>): void {
+  const a = worktreeArgs(args, "specimen-record");
+  if (!a) return;
+  const specimen = args.specimen;
+  if (!specimen) {
+    process.stderr.write("specimen-record requires --specimen <id>.\n");
+    process.exitCode = 1;
+    return;
+  }
+  assertSafePathSegment(specimen, "specimen id");
+
+  const status = args.status ?? "ok";
+  if (status !== "ok" && status !== "timeout" && status !== "error") {
+    process.stderr.write(`specimen-record: --status must be ok|timeout|error (got ${status}).\n`);
+    process.exitCode = 1;
+    return;
+  }
+  // A non-ok status without a reason is unattributable, which is the thing this
+  // record exists to prevent.
+  const killReason = args["kill-reason"] ?? null;
+  if (status !== "ok" && !killReason) {
+    process.stderr.write(`specimen-record: --kill-reason is required when --status is ${status}.\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const rawDuration = Number(args["duration-ms"] ?? "0");
+  const durationMs = Number.isFinite(rawDuration) && rawDuration >= 0 ? Math.round(rawDuration) : 0;
+
+  // Derive isolation from the registry rather than believing the caller.
+  const live = listWorktrees(a.target, a.root, a.slice);
+  const mine = live.find((w) => w.path.endsWith(`-${specimen}`) || w.path.endsWith(`/${specimen}`));
+  const isolation: WorktreeMode = mine ? "worktree" : "directory";
+  const worktreePath = mine ? mine.path : null;
+  const diffFiles = mine ? worktreeChangedFiles(mine.path) : null;
+
+  const record: SpecimenRunRecord = {
+    strategy: args.strategy ?? specimen,
+    specimen,
+    status,
+    killReason: status === "ok" ? null : killReason,
+    durationMs,
+    isolation,
+    worktreePath,
+    diffFiles,
+  };
+
+  const path = specimenRecordPath(a.root, a.slice);
+  mkdirSync(dirname(path), { recursive: true });
+  const prior = existsSync(path) ? readFileSync(path, "utf8") : "";
+  // Append-only: a re-run of the same specimen is a new line, not an overwrite,
+  // so a retry round stays visible in the audit trail (N1).
+  writeFileSync(path, prior + JSON.stringify(record) + "\n", "utf8");
+  print({ ...record, slice: a.slice, recorded: true });
+}
+
+/** Read every recorded specimen back — REQ-04's "retrievable per specimen". */
+function specimenRecordsCmd(args: Record<string, string>): void {
+  const a = worktreeArgs(args, "specimen-records");
+  if (!a) return;
+  const path = specimenRecordPath(a.root, a.slice);
+  const raw = existsSync(path) ? readFileSync(path, "utf8") : "";
+  const records = raw
+    .split("\n")
+    .filter((l) => l.trim() !== "")
+    .map((l) => JSON.parse(l) as SpecimenRunRecord);
+  print({ slice: a.slice, records });
 }
 
 // ── cross-slice merge integrity (sealed-invariant supersession) ─────────────
@@ -1847,6 +2067,137 @@ function evalBaselineCmd(args: Record<string, string>): void {
   print(report);
 }
 
+// ── 1.17.0 cross-slice semantic recall ───────────────────────────────────────
+
+/**
+ * knowledge-index: walk the allowlisted `.stz/` tiers, embed each document's
+ * summary, and persist `.stz/90-audit/knowledge-index.json`. Two runs over an
+ * unchanged tree produce byte-identical output (D2/N6).
+ *
+ *   stz bridge knowledge-index --root D
+ */
+async function knowledgeIndexCmd(args: Record<string, string>): Promise<void> {
+  const root = args.root;
+  if (!root) {
+    process.stderr.write("knowledge-index requires --root\n");
+    process.exitCode = 1;
+    return;
+  }
+  const { embedder, reason } = await selectEmbedder();
+  print(await buildIndex(root, embedder, reason));
+}
+
+const csv = (raw: string | undefined): string[] =>
+  raw && raw !== "true" ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+
+/**
+ * knowledge-query: capped, explained, role-scoped recall over the index. Never
+ * writes the index and never re-embeds the tree — one query embedding, that is all.
+ *
+ *   stz bridge knowledge-query --root D --role planning --keywords a,b [--symbols s] [--step-id id]
+ */
+async function knowledgeQueryCmd(args: Record<string, string>): Promise<void> {
+  const root = args.root;
+  if (!root) {
+    process.stderr.write("knowledge-query requires --root\n");
+    process.exitCode = 1;
+    return;
+  }
+  const role = args.role ?? "";
+  const scope = resolveRoleScope(role);
+  if (!scope) {
+    // Default-deny. An unknown or absent role retrieves nothing — never the union
+    // of all kinds, never a defaulted role, and never a thrown error the caller
+    // might paper over.
+    print({ hits: [], role, denied: true, reason: "unknown role" });
+    return;
+  }
+  const keywords = csv(args.keywords);
+  const query: RetrievalQuery = {
+    symbols: csv(args.symbols),
+    keywords,
+    // THE ROLE-SCOPING CONTROL. `requestedKinds` is what `retrieve()` iterates, so
+    // it is what decides which kinds this role can see, and it comes from
+    // `resolveRoleScope(role).kinds` and from nothing else. `capsForRole()` cannot
+    // substitute: it merges OVER `DEFAULT_CAPS` and therefore still carries a
+    // non-zero cap for kinds this role's scope excludes — an `execution` specimen
+    // would receive exactly the `decision` documents its scope was written to deny.
+    // If a `--kinds` argument is ever accepted it must be INTERSECTED with these,
+    // never unioned: the role's kinds are the ceiling.
+    requestedKinds: scope.kinds,
+    stepId: args["step-id"] ?? "adhoc",
+  };
+  const caps = capsForRole(role)!;
+
+  const index = readIndex(root);
+  const pool = index ? poolFromIndex(index) : [];
+  const queryEmbedder = index ? embedderForFingerprint(index.fingerprint) : null;
+
+  let semantic: SemanticInput | undefined;
+  let semanticReport: Record<string, unknown>;
+  if (!index) {
+    semanticReport = { enabled: false, reason: "no index — run `stz bridge knowledge-index --root <dir>`" };
+  } else if (!queryEmbedder) {
+    // Both identities are named because the operator's next move depends on
+    // which one is wrong — re-index under the current embedder, or bring back
+    // the one that built it. "Semantic disabled" with no fingerprints in it is
+    // not an explanation. `embedderForFingerprint()` already refuses anything
+    // that parses but does not round-trip, so this is the ONLY cross-embedder
+    // branch: no redundant equality check is added here.
+    semanticReport = {
+      enabled: false,
+      reason:
+        `index fingerprint ${index.fingerprint} is not reconstructible in this build; the only identity available ` +
+        `offline is ${fallbackEmbedder().fingerprint} — comparing vectors across embedders is noise that clears the ` +
+        `similarity floor, so the semantic layer is off rather than lying`,
+    };
+  } else {
+    // The reconstructed embedder may reach a daemon (an `ollama:` fingerprint),
+    // and that daemon can be gone by query time even though it built the index.
+    // D1 says the daemon is never a requirement, so a dead daemon degrades this
+    // query to the lexical layer with a reason — it does not fail the command.
+    // Falling back to a *different* embedder is not an option: cross-embedder
+    // cosines are noise that clears the floor often enough to look like signal.
+    try {
+      const [queryVector] = await queryEmbedder.embed([keywords.join(" ")], "query");
+      // Per-embedder floor: a cosine is only meaningful relative to the model that
+      // produced it, and the two shipped embedders' ranges do not overlap.
+      const resolved = resolveSemanticFloor(index.fingerprint);
+      semantic = {
+        vectors: vectorsFromIndex(index),
+        queryVector: queryVector ?? [],
+        embedder: index.fingerprint,
+        floor: resolved.floor,
+      };
+      semanticReport = {
+        enabled: true,
+        embedder: index.fingerprint,
+        floor: resolved.floor,
+        floorSource: resolved.source,
+        weight: SEMANTIC_WEIGHT,
+        ...(resolved.source === "uncalibrated"
+          ? {
+              note: `no calibrated floor for ${index.fingerprint} — using the conservative default, so semantic hits will be rare. Measure your corpus and set STZ_SEMANTIC_FLOOR (see docs/development/semantic-recall.md).`,
+            }
+          : {}),
+      };
+    } catch (e) {
+      semanticReport = {
+        enabled: false,
+        reason: `embedder ${index.fingerprint} failed to embed the query (${String(e).slice(0, 160)}) — lexical retrieval only`,
+      };
+    }
+  }
+
+  print({
+    role,
+    denied: false,
+    requestedKinds: query.requestedKinds,
+    hits: retrieve(pool, query, caps, semantic),
+    semantic: semanticReport,
+  });
+}
+
 const BRIDGE_COMMANDS = [
   "version", "begin", "record-eval", "eval", "gate", "escalate", "slice-halt", "record-votes", "select", "finalize",
   "project-init", "project-phase", "project-write-intent", "project-record-area", "project-set-config",
@@ -1857,6 +2208,14 @@ const BRIDGE_COMMANDS = [
   "harness-promote", "harness-status", "judge-stress", "judge-calibration",
   // 0.9.6 Contract Plane + Phase-0 eval
   "separation-gate", "contract-accept", "eval-baseline",
+  // 1.17.0 cross-slice semantic recall
+  "knowledge-index", "knowledge-query",
+  // per-specimen worktree isolation (in-session path)
+  "worktree-create",
+  "worktree-list",
+  "worktree-destroy",
+  "specimen-record",
+  "specimen-records",
 ];
 
 export async function runBridge(argv: string[]): Promise<void> {
@@ -1915,6 +2274,15 @@ export async function runBridge(argv: string[]): Promise<void> {
     case "separation-gate": separationGateCmd(args); break;
     case "contract-accept": contractAcceptCmd(args); break;
     case "eval-baseline": evalBaselineCmd(args); break;
+    // ── 1.17.0 cross-slice semantic recall ─────────────────────────────────
+    case "knowledge-index": await knowledgeIndexCmd(args); break;
+    case "knowledge-query": await knowledgeQueryCmd(args); break;
+    // ── per-specimen worktree isolation (in-session path) ──────────────────
+    case "worktree-create": worktreeCreateCmd(args); break;
+    case "worktree-list": worktreeListCmd(args); break;
+    case "worktree-destroy": worktreeDestroyCmd(args); break;
+    case "specimen-record": specimenRecordCmd(args); break;
+    case "specimen-records": specimenRecordsCmd(args); break;
     default:
       process.stderr.write(`unknown bridge subcommand: ${sub}\n`);
       process.exitCode = 1;

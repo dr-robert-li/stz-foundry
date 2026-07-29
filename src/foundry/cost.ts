@@ -79,14 +79,20 @@ export class FoundryCostMeter {
     unpricedModels: [],
   };
   private perRole = new Map<string, { calls: number; tokens: number; usd: number }>();
+  /** Second dimension (REQ-04), surfaced by `bySpecimen()`: only calls carrying an id. */
+  private perSpecimen = new Map<string, { calls: number; tokens: number; usd: number }>();
 
   constructor(
     private pricing: PricingTable = {},
     private caps: CostCaps = {},
   ) {}
 
-  /** Record one call's real usage. Throws when a cap is crossed (spend stays recorded). */
-  add(role: string, model: string, usage: ChatUsage): void {
+  /**
+   * Record one call's real usage. Throws when a cap is crossed (spend stays recorded).
+   * `specimen` is passed explicitly (never held as a field) — N specimens run
+   * concurrently under the pool, so a shared "current specimen" would race.
+   */
+  add(role: string, model: string, usage: ChatUsage, specimen?: string): void {
     const p = this.pricing[model];
     if (!p && !this.t.unpricedModels.includes(model)) this.t.unpricedModels.push(model);
     const usd = priceUsage(usage, p);
@@ -102,6 +108,14 @@ export class FoundryCostMeter {
     r.tokens += usage.inputTokens + usage.outputTokens;
     r.usd += usd;
     this.perRole.set(role, r);
+
+    if (specimen !== undefined) {
+      const s = this.perSpecimen.get(specimen) ?? { calls: 0, tokens: 0, usd: 0 };
+      s.calls++;
+      s.tokens += usage.inputTokens + usage.outputTokens;
+      s.usd += usd;
+      this.perSpecimen.set(specimen, s);
+    }
 
     const spentTokens = this.t.inputTokens + this.t.outputTokens;
     if (this.caps.maxTokens !== undefined && spentTokens > this.caps.maxTokens) {
@@ -124,5 +138,10 @@ export class FoundryCostMeter {
 
   byRole(): Record<string, { calls: number; tokens: number; usd: number }> {
     return Object.fromEntries([...this.perRole.entries()].map(([k, v]) => [k, { ...v }]));
+  }
+
+  /** Per-specimen spend (REQ-04). Empty when no call carried a specimen id. */
+  bySpecimen(): Record<string, { calls: number; tokens: number; usd: number }> {
+    return Object.fromEntries([...this.perSpecimen.entries()].map(([k, v]) => [k, { ...v }]));
   }
 }

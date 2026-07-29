@@ -12,6 +12,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadFoundryConfig, buildRoles, runFoundry } from "../src/foundry/runner.js";
+import { createWorktree, _resetWorktreeState } from "../src/worktree.js";
 import type { SliceManifest } from "../src/types.js";
 
 const servers: Server[] = [];
@@ -161,6 +162,7 @@ describe("runFoundry e2e (stage 5)", () => {
       preflight: false,
     });
 
+    _resetWorktreeState(); // clean slate; the round below requests isolation itself
     const { result, cost } = await runFoundry({ root, configPath, manifest: MANIFEST });
 
     expect(result.halted).toBe(false);
@@ -177,7 +179,43 @@ describe("runFoundry e2e (stage 5)", () => {
     expect(report).toContain("## Model tiers");
     expect(report).toMatch(/\*\*specimen:\*\* `fake-model` \(unknown\)/);
     expect(report).toMatch(/\*\*specimen:\*\* 2 call\(s\)/);
+    // REQ-04: real usage is bucketed per specimen id, not just per role.
+    expect(report).toContain("## By specimen");
+    expect(report).toMatch(/\*\*a:\*\* 1 call\(s\)/);
+    expect(report).toMatch(/\*\*b:\*\* 1 call\(s\)/);
+    // The round now really asks for per-specimen worktrees (phase 01 plan 04),
+    // and this e2e root is a bare tmp dir, so it degrades — and REQ-05 requires
+    // the report to say so rather than go quiet about it.
+    expect(report).toMatch(/\*\*worktree isolation:\*\* directory \(DEGRADED — .+\)\n/);
+    // Replay-stable: the markdown carries no wall-clock of any kind.
+    expect(report).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+    expect(report).not.toContain("durationMs");
     expect(existsSync(join(root, ".stz", "40-slices", "slice-runner-e2e", "tournament.md"))).toBe(true);
+  }, 60_000);
+
+  it("reports the worktree fallback as DEGRADED with its reason (REQ-05/D3)", async () => {
+    const root = tmp();
+    const url = await fakeLlmServer();
+    const configPath = writeConfig(root, {
+      providers: { local: { kind: "openai", baseUrl: url } },
+      roles: { default: { provider: "local", model: "fake-model" } },
+      n: 2,
+      votesPerPair: 1,
+      specimenTimeoutMs: 30_000,
+      preflight: false,
+    });
+    try {
+      // tmp() is not a git repository ⇒ the create degrades and reports why.
+      const h = createWorktree({ target: tmp(), root, slice: "s", name: "a", fallbackDir: join(root, "fb") });
+      expect(h.mode).toBe("directory");
+      expect(h.reason).toBeTruthy();
+
+      await runFoundry({ root, configPath, manifest: { ...MANIFEST, id: "slice-degraded" } });
+      const report = readFileSync(join(root, ".stz", "90-audit", "foundry-cost.md"), "utf8");
+      expect(report).toContain(`- **worktree isolation:** directory (DEGRADED — ${h.reason})`);
+    } finally {
+      _resetWorktreeState();
+    }
   }, 60_000);
 });
 

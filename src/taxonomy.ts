@@ -162,3 +162,19 @@ export async function readDoc(root: string, relPath: string): Promise<MarkdownDo
 export function stzPath(root: string, relPath: string): string {
   return join(root, STZ_DIR, relPath);
 }
+
+/**
+ * Reject any caller-supplied id that could escape the tree it is joined into.
+ * Such ids flow unmodified into `join(root, ".stz", …)` and then into a forced
+ * recursive delete; `path.join` normalizes `..`, so an id like `../../../x`
+ * would resolve outside `.stz` (and outside `root`). Real ids are `slice-01` /
+ * `specimen-3` form, so a strict allowlist rejects nothing legitimate.
+ *
+ * `label` names the offending field in the message so each call site keeps its
+ * own error text (`unsafe slice id …`, `unsafe worktree name …`).
+ */
+export function assertSafePathSegment(seg: string, label: string): void {
+  if (!/^[A-Za-z0-9_-]+$/.test(seg)) {
+    throw new Error(`unsafe ${label} ${JSON.stringify(seg)} — expected [A-Za-z0-9_-]+ (path-traversal guard)`);
+  }
+}

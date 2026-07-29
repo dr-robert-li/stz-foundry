@@ -3,7 +3,7 @@ import { mkdtemp, rm, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runBridge } from "../src/bridge.js";
-import { STZ_DIR } from "../src/taxonomy.js";
+import { STZ_DIR, scaffold, writeDoc } from "../src/taxonomy.js";
 import { freshState, loadState, saveState, setPhaseStatus, isComplete } from "../src/state.js";
 import { deriveSliceStatus } from "../src/project.js";
 import { PHASES, type SliceManifest } from "../src/types.js";
@@ -13,6 +13,9 @@ let captured: string;
 const origWrite = process.stdout.write.bind(process.stdout);
 
 beforeEach(async () => {
+  // `finalize` now selects an embedding provider (the slice-close index rebuild),
+  // so pin the offline one: no bridge test may contact a daemon.
+  process.env.STZ_EMBED = "fallback";
   root = await mkdtemp(join(tmpdir(), "stz-bridge-"));
   captured = "";
   // Capture the JSON the bridge prints to stdout (the command parses this).
@@ -23,6 +26,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   process.stdout.write = origWrite;
+  delete process.env.STZ_EMBED;
   await rm(root, { recursive: true, force: true });
 });
 
@@ -428,5 +432,220 @@ describe("bridge — calibrated-verifier gating (0.9.5)", () => {
     await runBridge(["harness-promote", "--root", root, "--variant", variantId, "--slice-type", "parser", "--hack-clean", "true", "--seal-ok", "true", "--diversity-ok", "true"]);
     const after = lastJSON<{ promote: boolean; failed: string[] }>();
     expect(after.promote).toBe(true);
+  });
+});
+
+describe("bridge — L3 fail-closed on an empty specimen source (1.17.0)", () => {
+  // L3 fail-closed (1.17.0). `readSpecimenFiles` returns {} for an absent prototype
+  // directory, so detectHacks runs on nothing and hackFindings.length === 0 is vacuous.
+  // Before worktrees this was unreachable — no files meant the specimen produced nothing
+  // and eval failed loudly. Once a specimen can write into its own worktree instead,
+  // prototypes/specimen-<id>/ can be empty while metrics still say 1.0, and the specimen
+  // would take a clean L3 pass no anti-hacking layer ever inspected.
+  it("refuses to pass the gate when there is no specimen source to hack-detect", async () => {
+    const manifestPath = join(root, "m.json");
+    await writeFile(manifestPath, JSON.stringify(manifest), "utf8");
+    await runBridge(["begin", "--root", root, "--manifest", manifestPath]);
+
+    // Note: no writeSpecimen("ghost", …) — nothing under prototypes/specimen-ghost/.
+    captured = "";
+    await runBridge([
+      "record-eval", "--root", root, "--slice", "slice-01", "--specimen", "ghost",
+      "--metrics", await metricsFile({ testPassRate: 1, coverage: 1, mutationScore: 0 }),
+    ]);
+    const ghost = lastJSON<{ passedGate: boolean; hackFindings: unknown[]; gateBlockedReason?: string }>();
+
+    // Perfect metrics and a clean detector run — and still not a pass.
+    expect(ghost.hackFindings.length).toBe(0);
+    expect(ghost.passedGate).toBe(false);
+    expect(ghost.gateBlockedReason).toMatch(/no specimen source/);
+
+    // The same specimen with real source on the same metrics DOES pass — proving the
+    // refusal is caused by the empty input, not by the metrics or the manifest.
+    await writeSpecimen("ghost", { "impl.ts": "export const run = (x:number)=>x*2;\n" });
+    captured = "";
+    await runBridge([
+      "record-eval", "--root", root, "--slice", "slice-01", "--specimen", "ghost",
+      "--metrics", await metricsFile({ testPassRate: 1, coverage: 1, mutationScore: 0 }),
+    ]);
+    const real = lastJSON<{ passedGate: boolean; gateBlockedReason?: string }>();
+    expect(real.passedGate).toBe(true);
+    expect(real.gateBlockedReason).toBeUndefined();
+  });
+});
+
+describe("bridge — cross-slice semantic recall (1.17.0)", () => {
+  // The tracer: one document walked under a default-deny tier allowlist, embedded,
+  // persisted, and recalled through the capped/explained/trust-filtered contract —
+  // over a tree that ALSO contains sealed held-out content.
+  const indexFile = () => join(root, STZ_DIR, "90-audit", "knowledge-index.json");
+
+  async function treeWithSealedContent(): Promise<void> {
+    process.env.STZ_EMBED = "fallback"; // never reach for a daemon, even if one runs
+    await scaffold(root);
+    await writeDoc(root, "20-standards/conventions.md", {
+      frontmatter: { summary: "naming conventions - camelCase functions and kebab-case filenames" },
+      body: "# Conventions",
+    });
+    await mkdir(join(root, STZ_DIR, "30-tests", "held-out"), { recursive: true });
+    await writeFile(
+      join(root, STZ_DIR, "30-tests", "held-out", "sealed.mjs"),
+      "export const cases = [[1, 2], [3, 4]];\n",
+      "utf8",
+    );
+    await writeDoc(root, "30-tests/held-out/reference.md", {
+      frontmatter: { summary: "reference implementation using camelCase naming conventions" },
+      body: "# Reference",
+    });
+  }
+
+  it("indexes the allowlisted document, never the sealed tier, and recalls it explained", async () => {
+    await treeWithSealedContent();
+
+    captured = "";
+    await runBridge(["knowledge-index", "--root", root]);
+    const built = lastJSON<{ embedded: number; total: number; rebuilt: string; fingerprint: string; provider: string }>();
+    expect(built.embedded).toBe(1);
+    expect(built.total).toBe(1);
+    expect(built.fingerprint).toMatch(/^fallback:/);
+    expect(built.provider.length).toBeGreaterThan(0);
+
+    const first = await readFile(indexFile(), "utf8");
+    const onDisk = JSON.parse(first) as { entries: Record<string, unknown>; dim: number };
+    // The sealed suite and the reference implementation are absent BY CONSTRUCTION.
+    expect(Object.keys(onDisk.entries)).toEqual(["20-standards/conventions.md"]);
+
+    captured = "";
+    await runBridge(["knowledge-query", "--root", root, "--role", "planning", "--keywords", "camelCase"]);
+    const q = lastJSON<{
+      denied: boolean;
+      hits: { artifact: { id: string; kind: string; trust: string }; explanation: { whySelected: string; score: number } }[];
+      semantic: { enabled: boolean };
+    }>();
+    expect(q.denied).toBe(false);
+    expect(q.semantic.enabled).toBe(true);
+    expect(q.hits.length).toBe(1);
+    expect(q.hits[0]!.artifact.id).toBe("20-standards/conventions.md");
+    expect(q.hits[0]!.artifact.kind).toBe("convention");
+    expect(q.hits[0]!.artifact.trust).toBe("accepted");
+    expect(q.hits[0]!.explanation.whySelected.length).toBeGreaterThan(0);
+    expect(q.hits[0]!.explanation.score).toBeGreaterThan(0);
+
+    // D2/N6: two runs over an unchanged tree produce a byte-identical index file.
+    captured = "";
+    await runBridge(["knowledge-index", "--root", root]);
+    expect(await readFile(indexFile(), "utf8")).toBe(first);
+  });
+
+  it("denies an unknown role — zero hits, never the union of all kinds", async () => {
+    await treeWithSealedContent();
+    captured = "";
+    await runBridge(["knowledge-index", "--root", root]);
+
+    captured = "";
+    await runBridge(["knowledge-query", "--root", root, "--role", "not-a-role", "--keywords", "camelCase"]);
+    const denied = lastJSON<{ hits: unknown[]; denied: boolean; reason: string }>();
+    expect(denied.hits).toEqual([]);
+    expect(denied.denied).toBe(true);
+    expect(denied.reason).toBe("unknown role");
+  });
+
+  // Slice close is the rebuild trigger (D4). `finalize` is the tournament-half
+  // completion barrier — what makes deriveSliceStatus() read "done" — so the hook
+  // must be incapable of failing the slice it closes.
+  async function sliceReadyToFinalize(): Promise<string[]> {
+    const manifestPath = join(root, "m.json");
+    await writeFile(manifestPath, JSON.stringify(manifest), "utf8");
+    await runBridge(["begin", "--root", root, "--manifest", manifestPath]);
+    await writeDoc(root, "20-standards/conventions.md", {
+      frontmatter: { summary: "naming conventions - camelCase functions and kebab-case filenames" },
+      body: "# Conventions",
+    });
+    const intent = join(root, "intent.json");
+    const asbuilt = join(root, "asbuilt.json");
+    await writeFile(intent, JSON.stringify({ claims: ["exposes run()"] }), "utf8");
+    await writeFile(asbuilt, JSON.stringify({ claims: ["exposes run()"] }), "utf8");
+    return ["finalize", "--root", root, "--slice", "slice-01", "--intent", intent, "--asbuilt", asbuilt];
+  }
+
+  type FinalizeJSON = {
+    winner: string | null;
+    faithful: boolean;
+    specDiff: { missing: number; added: number; kept: number };
+    culled: number;
+    knowledgeIndex: { rebuilt: string; embedded: number; evicted: number; provider: string; error?: string };
+  };
+
+  it("rebuilds the knowledge index at slice close and reports the outcome", async () => {
+    const argv = await sliceReadyToFinalize();
+    captured = "";
+    await runBridge(argv);
+    const fin = lastJSON<FinalizeJSON>();
+
+    // every key finalize printed before this plan, unchanged
+    expect(fin).toHaveProperty("winner");
+    expect(fin.faithful).toBe(true);
+    expect(fin.specDiff).toEqual({ missing: 0, added: 0, kept: 1 });
+    expect(fin.culled).toBe(0);
+    // ...plus the new one, so the orchestrator can surface what the rebuild did
+    expect(fin.knowledgeIndex.rebuilt).toBe("full");
+    expect(fin.knowledgeIndex.embedded).toBe(1);
+    expect(fin.knowledgeIndex.evicted).toBe(0);
+    expect(fin.knowledgeIndex.provider.length).toBeGreaterThan(0);
+
+    const idx = JSON.parse(await readFile(indexFile(), "utf8")) as { entries: Record<string, unknown> };
+    expect(Object.keys(idx.entries)).toEqual(["20-standards/conventions.md"]);
+  });
+
+  it("survives a throwing indexer with finalize's contract intact", async () => {
+    const argv = await sliceReadyToFinalize();
+    // A directory where the index file must go: writeIndex's writeFileSync throws
+    // EISDIR. Deterministic, and it needs no mock.
+    await mkdir(indexFile(), { recursive: true });
+
+    const warnings: string[] = [];
+    const origErr = process.stderr.write.bind(process.stderr);
+    (process.stderr.write as unknown as (s: string) => boolean) = (s: string) => {
+      warnings.push(s);
+      return true;
+    };
+    process.exitCode = undefined;
+    captured = "";
+    try {
+      await runBridge(argv);
+    } finally {
+      process.stderr.write = origErr;
+    }
+
+    // A completed tournament is not marked failed because an index hiccuped:
+    // every original key still printed, all four tournament-half phases done,
+    // exit status untouched, and the failure said out loud on stderr.
+    const fin = lastJSON<FinalizeJSON>();
+    expect(fin).toHaveProperty("winner");
+    expect(fin.faithful).toBe(true);
+    expect(fin.specDiff).toEqual({ missing: 0, added: 0, kept: 1 });
+    expect(fin.culled).toBe(0);
+    expect(fin.knowledgeIndex.rebuilt).toBe("failed");
+    expect(fin.knowledgeIndex.error!.length).toBeGreaterThan(0);
+    expect(warnings.join("")).toMatch(/knowledge index/i);
+    expect(process.exitCode).toBeUndefined();
+
+    const state = await loadState(root, "slice-01");
+    for (const p of ["test-authoring", "planning", "tournament", "judgment"] as const) {
+      expect(state.phaseStatus[p]).toBe("done");
+    }
+    expect(await readFile(join(root, STZ_DIR, "40-slices/slice-01/spec-diff.md"), "utf8")).toMatch(/Planned but missing/);
+  });
+
+  it("reports the semantic layer as disabled rather than querying a missing index", async () => {
+    process.env.STZ_EMBED = "fallback";
+    await scaffold(root);
+    captured = "";
+    await runBridge(["knowledge-query", "--root", root, "--role", "planning", "--keywords", "camelCase"]);
+    const q = lastJSON<{ hits: unknown[]; denied: boolean; semantic: { enabled: boolean; reason: string } }>();
+    expect(q.denied).toBe(false);
+    expect(q.hits).toEqual([]);
+    expect(q.semantic.enabled).toBe(false);
+    expect(q.semantic.reason).toMatch(/no index/);
   });
 });

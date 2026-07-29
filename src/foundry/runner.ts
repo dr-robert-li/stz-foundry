@@ -27,6 +27,7 @@ import { FoundryModelLayer, type FoundryRoles, type RoleModel } from "./model-la
 import { FoundryCostMeter, type CostCaps, type PricingTable } from "./cost.js";
 import { runSlice, type SliceResult } from "../mock/orchestrator.js";
 import { lastIsolation } from "../sandbox.js";
+import { lastWorktreeMode, lastWorktreeReason } from "../worktree.js";
 import { auditRoleTiers, withTierPricing, tierOf } from "../tiers.js";
 
 export interface FoundryProviderSpec {
@@ -242,8 +243,13 @@ export async function runFoundry(opts: FoundryRunOptions): Promise<FoundryRunRes
   });
 
   // Real-usage cost report beside the synthetic ledger (90-audit/foundry-cost.md).
+  // Replay-stable by construction: no timestamp, no wall-clock, no duration in
+  // this report. Per-specimen durations live only in 90-audit/calls/*.jsonl.
   const totals = meter.totals();
   const byRole = meter.byRole();
+  const bySpecimen = meter.bySpecimen();
+  const wtMode = lastWorktreeMode();
+  const wtReason = lastWorktreeReason();
   const report = [
     `# Foundry cost — ${manifest.id}`,
     "",
@@ -255,6 +261,10 @@ export async function runFoundry(opts: FoundryRunOptions): Promise<FoundryRunRes
     `- **eval sandbox isolation:** ${lastIsolation()}` +
       (lastIsolation() === "node-permission" ? " (DEGRADED — no network isolation on this host)" : "") +
       (lastIsolation() === "none" ? " (DISABLED — STZ_SANDBOX=none)" : ""),
+    // Same convention as the line above: a degrade is reported, never silent (D3).
+    // A "directory" mode with no reason means no worktree was ever requested.
+    `- **worktree isolation:** ${wtMode}` +
+      (wtMode === "directory" && wtReason ? ` (DEGRADED — ${wtReason})` : ""),
     totals.unpricedModels.length
       ? `- **unpriced models ($0 assumed):** ${totals.unpricedModels.join(", ")}`
       : `- **unpriced models:** none`,
@@ -269,6 +279,13 @@ export async function runFoundry(opts: FoundryRunOptions): Promise<FoundryRunRes
     ...Object.entries(byRole).map(
       ([role, v]) => `- **${role}:** ${v.calls} call(s), ${v.tokens} tokens, $${v.usd.toFixed(4)}`,
     ),
+    "",
+    "## By specimen",
+    ...(Object.keys(bySpecimen).length
+      ? Object.entries(bySpecimen).map(
+          ([id, v]) => `- **${id}:** ${v.calls} call(s), ${v.tokens} tokens, $${v.usd.toFixed(4)}`,
+        )
+      : ["- (no per-specimen attribution recorded)"]),
     "",
     "## retryPolicy telemetry",
     `- **rounds run:** ${result.retryTelemetry.roundsRun}`,

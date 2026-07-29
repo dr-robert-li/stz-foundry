@@ -24,6 +24,14 @@
  *     (Ollama) answers a non-streaming completion only after FULL generation —
  *     long generations on slow hardware exceed 300s and surface as spurious
  *     "fetch failed" network errors. node:http has no client timeout.
+ *
+ * `postJson` takes an OPTIONAL trailing `timeoutMs` and is exported, so callers
+ * with a different latency profile (the embedding seam: a sub-second local call
+ * where a wedged listener must not block the run) can bound the request without
+ * reimplementing the retry classification. It is a parameter and not a
+ * `ProviderSpec` field on purpose: the chat adapters never pass it, so their
+ * no-client-timeout behaviour above is unchanged by construction rather than by
+ * a default value that a future config edit could flip.
  */
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
@@ -96,11 +104,12 @@ function retryable(status: number): boolean {
   return status === 429 || status >= 500;
 }
 
-/** One POST over node:http(s) — no client timeout, unlike fetch/undici. */
+/** One POST over node:http(s) — no client timeout by default, unlike fetch/undici. */
 function rawPost(
   url: string,
   headers: Record<string, string>,
   payload: string,
+  timeoutMs?: number,
 ): Promise<{ status: number; text: string }> {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
@@ -122,24 +131,31 @@ function rawPost(
       },
     );
     req.on("error", reject);
+    // undefined => setTimeout is never called, so the emitted request is the same
+    // one the chat path has always emitted. A fired timeout destroys the request,
+    // which surfaces through the `error` handler above as a network-class failure
+    // — no new error type for callers to classify.
+    if (timeoutMs !== undefined)
+      req.setTimeout(timeoutMs, () => req.destroy(new Error(`request timed out after ${timeoutMs}ms`)));
     req.end(payload);
   });
 }
 
-/** POST JSON with bounded retry. Shared by both adapters. */
-async function postJson(
+/** POST JSON with bounded retry. Shared by both adapters and the embedding seam. */
+export async function postJson(
   url: string,
   headers: Record<string, string>,
   body: unknown,
   maxAttempts: number,
   sleep: (ms: number) => Promise<void>,
+  timeoutMs?: number,
 ): Promise<any> {
   let lastStatus: number | null = null;
   let lastSnippet = "";
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     let res: { status: number; text: string };
     try {
-      res = await rawPost(url, headers, JSON.stringify(body));
+      res = await rawPost(url, headers, JSON.stringify(body), timeoutMs);
     } catch (e) {
       lastStatus = null;
       lastSnippet = String(e);

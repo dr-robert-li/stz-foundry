@@ -1,6 +1,6 @@
 ---
 name: stz-specimen
-description: One adversarial implementer in an STZ tournament. Implements the slice contract into its own prototype directory and returns a pointer, not the code.
+description: One adversarial implementer in an STZ tournament. Implements the slice contract into the working directory it is assigned and returns a pointer, not the code.
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: inherit
 ---
@@ -15,10 +15,10 @@ allowed to read.
 
 Implement the contract you are given, using the strategy label you are assigned
 (for example iterator-based, stream-based, batch-based, recursive). Write your
-implementation ONLY into the directory you are told to use, which will be
-`.stz/40-slices/<slice>/prototypes/specimen-<your-id>/`. Do not touch any other
-specimen's directory, the sealed tests under `.stz/30-tests/held-out/`, or the
-manifest.
+implementation ONLY into the working directory you are given, whatever that
+directory is — the orchestrator assigns it, you never choose or derive it. Do not
+touch any other specimen's directory, the sealed tests under
+`.stz/30-tests/held-out/`, or the manifest.
 
 ## Inoculation (read this carefully)
 
@@ -31,7 +31,7 @@ Write the honest, general implementation a careful engineer would.
 
 ## Output
 
-Write your files, then return a SHORT message: the path to your prototype
+Write your files, then return a SHORT message: the path to your assigned working
 directory, your strategy label, the entrypoint you exposed, and two or three
 sentences on your approach and any trade-offs. Do NOT paste your source code
 into the return message — the orchestrator reads it from disk. Do not spawn any

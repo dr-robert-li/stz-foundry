@@ -169,20 +169,19 @@ exercised), and a `prepublishOnly` (typecheck + test) guard before any npm publi
   suite has been built since 0.5.0.)
 - **Python eval drivers** (Hypothesis, mutmut, Stryker) are not used. Coverage and
   mutation are executed in JavaScript via V8 and source mutators.
-- **Per-specimen git worktrees and observability stacks** are **not built**
-  (answers a common question). The 1.8.0 foundry added a real bounded-concurrency
-  spawn pool with per-specimen wall-clock kill (`src/foundry/spawn.ts`) and
-  per-specimen private temp-dir execution under the sandbox, but specimens still
-  materialize into distinct `prototypes/specimen-X/` directories rather than git
-  worktrees, and no per-specimen Prometheus/OTel stack is spun up. Worktrees
-  matter once slices *edit* an existing repo (see the brownfield item below);
-  today's foundry specimens synthesize files from a contract, so directory
-  isolation is the honest minimum.
-- **Cross-slice RAG / embeddings** are **not built** — no vector store ships with
-  the harness and no semantic lookup runs across the markdown tree. (The spec-diff's
-  old literal over-flagging is fixed: claims carry stable ids and the documenter
-  adjudicates each intent claim by id, so reworded as-built claims match without
-  embeddings. Fully semantic, id-free cross-slice recall would still need them.)
+- **Per-specimen observability *stacks*** are **not built** — no per-worktree
+  Prometheus pushgateway, trace collector or scoped log directory is spun up. The
+  worktrees themselves shipped in 1.17.0 (see item 5 below), and the observability
+  half landed as a per-specimen **run record** in the existing `.stz/` audit tree
+  (status, kill reason, duration, isolation mode, changed files, per-specimen
+  cost) rather than a second persistence system.
+- **Cross-slice RAG / embeddings** shipped in 1.17.0 (see item 6 below): local
+  embeddings over the `.stz/` tree, an allowlisted index, and two bridge verbs.
+  What is **still not built** is the *automatic* half — no command or agent calls
+  `knowledge-query`, so a phase agent does not consult recall mid-slice — and
+  id-free semantic spec-diff matching, which still uses stable claim ids (the
+  documenter adjudicates each intent claim by id, so reworded as-built claims
+  already match without embeddings).
 - **OS-level sealing** is **partially built.** The held-out suite is now sealed by
   a deterministic content hash (`src/seal.ts`: `SEAL.json` + `seal-verify` drift
   gate + audited `seal-amend`), and a **PreToolUse ownership-guard hook**
@@ -201,8 +200,10 @@ exercised), and a `prepublishOnly` (typecheck + test) guard before any npm publi
   anti-reward-hacking, the replayable audit trail, and an installable plugin.
 - **Deferred and documented (not missing by accident):** cross-family specimens
   and judge *in the in-session path* (the standalone foundry runner already does
-  heterogeneous families), Python eval libraries, git worktrees and per-specimen
-  observability, cross-slice RAG, VCS-layer OS sealing, and the `dist/` build.
+  heterogeneous families), Python eval libraries, per-specimen observability
+  *stacks* (the worktrees themselves shipped in 1.17.0), agent-side invocation of
+  cross-slice recall (the index and its CLI shipped in 1.17.0; no command or agent
+  calls it yet), VCS-layer OS sealing, and the `dist/` build.
 - **Built beyond the original plan:** the `stz bridge` JSON contract, a
   dependency-free real eval runner (V8 coverage plus source mutation), the
   two-level project DAG driver, the persisted run config (granularity, fan-out,
@@ -286,8 +287,9 @@ directly over HTTP, not bound to any vendor CLI. Delivered:
   small models elsewhere.
 
 Still open here: **LiteLLM** as a 100+-model routing layer is not wired (the two
-native provider kinds cover the field cases); the spawn pool uses directory
-isolation, not git worktrees + per-specimen observability (see below).
+native provider kinds cover the field cases). The spawn pool's directory
+isolation was replaced by real per-specimen git worktrees in 1.17.0 (see below);
+a scoped per-worktree observability *stack* is still not built.
 
 ### Supporting hardening (partially shipped)
 
@@ -297,9 +299,17 @@ isolation, not git worktrees + per-specimen observability (see below).
   + `runWallClockMs` run-level wall-clock ceiling.
 - ✅ **Code-level held-out sealing** (`SEAL.json` + `seal-verify` + the 1.9.x
   PreToolUse ownership-guard hook).
-- ⬜ Still gaps: per-specimen **git worktrees + ephemeral observability**, a
-  prebuilt **`dist/`** to drop runtime `tsx`, **VCS-layer** OS sealing (git
-  attributes + pre-commit), Python eval drivers, and cross-slice RAG/embeddings.
+- ✅ **Per-specimen git worktrees + ephemeral run record** (1.17.0,
+  `src/worktree.ts`): sparse-checkout firewalled against the sealed suite,
+  reported directory fallback, idempotent teardown on every terminal path.
+- ✅ **Cross-slice RAG / embeddings** (1.17.0, `src/knowledge/`): allowlisted
+  index over the `.stz/` tree, Ollama-or-deterministic-fallback provider seam,
+  incremental rebuild at slice close, role-scoped capped explained recall.
+- ⬜ Still gaps: a scoped per-worktree **observability stack**
+  (logs/metrics/traces), a prebuilt **`dist/`** to drop runtime `tsx`,
+  **VCS-layer** OS sealing (git attributes + pre-commit), Python eval drivers,
+  and **agent-side** invocation of cross-slice recall (the verbs exist; nothing
+  in `commands/` or `agents/` calls them).
 
 ### Multi-round convergence: iterative selection-pressure → design-feedback loop (0.8.0) — ⛔ SHELVED, SUPERSEDED BY 0.9.0
 
@@ -952,9 +962,9 @@ to real code locations; `checkAnchor` rejects a dangling path, a missing
 preserved export, or an `add` that would overwrite. `stz bridge explore` /
 `anchor-check` + the `/stz-f:explore` command; `/stz-f:slice` anchors brownfield
 slices when a map is present. The `preservedExports` are the surrounding contract
-feeding item 4's source-preservation gate. Still open (folds into item 5): the
-per-specimen git **worktrees** that let specimens *edit* the mapped repo in
-parallel rather than synthesize — anchoring is the prerequisite that is now done.
+feeding item 4's source-preservation gate. The per-specimen git **worktrees** that
+let specimens *edit* the mapped repo in parallel rather than synthesize — the
+piece anchoring was the prerequisite for — shipped in 1.17.0 as item 5.
 
 ### 4. Sealed end-to-end integration + functional testing — ✅ BUILT (1.13.0)
 
@@ -978,30 +988,99 @@ hash, cross-referenced). It applies to both kinds — the reference oracle diffe
 `stz bridge integration-gate` (seal-verify → gate → `90-audit/integration.md`,
 exit 1 on failure) + the `/stz-f:integration` command. ✅ BUILT (1.13.0).
 
-### 5. Per-specimen git worktrees + ephemeral observability
+### 5. Per-specimen git worktrees + ephemeral observability — ✅ BUILT (1.17.0)
 
-**Gap (answers the standing question — NOT built):** specimens materialize into
-`prototypes/specimen-X/` directories and run in private temp dirs under the
-sandbox; there are **no git worktrees** and **no per-specimen observability
-stack**. Directory isolation is the honest minimum while specimens *synthesize*
-files.
+**Shipped.** `src/worktree.ts` is the single git seam: each specimen gets a real
+detached worktree under `.stz/40-slices/<slice>/worktrees/<name>/`, based on a
+snapshot of the operator's *working tree* (temp-index `write-tree`/`commit-tree`)
+rather than `HEAD` — so a multi-slice brownfield run starts from the previous
+slice's merged winner, and nothing the operator owns is mutated. Parallel edits to
+the same tracked file no longer collide and each diff is attributable to its own
+worktree.
 
-Wanted (paired with 3): real per-specimen git worktrees once slices **edit** a
-shared repo (so parallel edits don't collide), each with a scoped ephemeral
-observability stack (logs/metrics/traces) torn down at slice close — the Codex
-per-worktree pattern the original design called for, now motivated by brownfield.
+- **Sealed-suite firewall.** `add --no-checkout --detach` → per-worktree
+  `sparse-checkout set --no-cone '/*' '!/.stz/'` → `checkout`. A plain
+  `git worktree add` **does** materialize the held-out suite — reproduced, and
+  kept as a negative-control test. A worktree that could not be firewalled is
+  rolled back and never handed to a specimen; `seal-verify` passes after a
+  worktree-isolated round.
+- **Teardown that survives the unhappy path.** `remove --force --force` + `prune`,
+  idempotent, crash-orphan reconciling, detached HEAD so there is no branch to
+  leak. Wired into bridge `finalize` / `escalate`(halt) / `slice-halt` /
+  `slice-reset` and into one `finally` around the foundry tournament loop that
+  covers the stuck-kill, crash and budget-throw exits. Retry/replan deliberately
+  do not tear down.
+- **Reported fallback, never silent.** No git, not a repo, unborn HEAD, submodule
+  superproject or any failed step returns a usable directory handle with a reason;
+  greenfield synthesis stays the common case.
+- **Ephemeral observability, scoped to the audit tree (not a second stack).** A
+  per-specimen run record — status, kill reason, duration, isolation mode,
+  worktree path, changed files — plus real per-specimen cost attribution
+  (`bySpecimen()`, `## By specimen` and the `- **worktree isolation:**` line in
+  `foundry-cost.md`, an isolation event per round in `journal.md`, `specimen` +
+  `durationMs` on the JSONL call ledger). The scope dies with the worktree; what
+  outlives the slice is promoted into the existing `.stz/` audit tree.
+  **On both paths.** The foundry runner builds the record itself because it owns
+  the spawn loop; the in-session path gets `stz bridge specimen-record` /
+  `specimen-records`, which persist to `90-audit/specimens/<slice>.jsonl`
+  append-only. The split follows the architecture rule: `/stz-f:run` supplies only
+  what it alone observed (wall-clock, status, kill reason — the latter *required*
+  whenever status is not `ok`, since an unattributable outcome is what the record
+  exists to prevent) and the bridge derives isolation mode, worktree path and the
+  changed-file list from the live registry, so a silent degrade cannot be
+  misreported as a worktree run. Recording precedes teardown — the tree is the
+  only source of the diff.
+- **Both paths, in code not prose.** `stz bridge worktree-create` / `-list` /
+  `-destroy` (with `--target`) are the in-session seam; `/stz-f:run` step 3b calls
+  them and hands each `stz-specimen` the path the bridge returned, computing none
+  itself. Mechanism, the three durable side effects on a target repo and the
+  stated ceilings: `docs/development/worktrees.md`.
 
-### 6. Cross-slice RAG / embeddings
+**Still open:** the *scoped observability stack* of the original Codex pattern —
+a per-worktree log directory, Prometheus pushgateway and trace collector — is
+deliberately not built; the run record rides the existing audit tree instead of a
+second persistence system. Disk usage for N full checkouts is documented rather
+than capped, and submodule superprojects fall back by probe (documented by git,
+not reproduced here).
 
-**Gap (confirmed — NOT built):** no vector store ships with the harness and no
-semantic lookup runs across the `.stz/` markdown tree. Progressive disclosure is
-by frontmatter summaries + stable claim ids only; cross-slice recall
-("did an earlier slice already set a convention for X?") is manual.
+### 6. Cross-slice RAG / embeddings — ✅ BUILT (1.17.0)
 
-Wanted: local embeddings (e.g. `nomic-embed-text` via Ollama — no managed vector
-service, matching N9/N5) over the markdown tree, scoped per phase-agent role,
-rebuilt incrementally on slice close. Unlocks id-free semantic spec-diff matching
-and cross-slice convention/decision recall as the tree grows.
+**Shipped.** Local embeddings over the `.stz/` markdown tree, scoped per
+phase-agent role, rebuilt incrementally on slice close — no vector service, no
+new runtime dependency (deps stay `{tsx}`), matching N9/N5. `src/knowledge/`
+(`scope.ts`, `embedder.ts`, `index-store.ts`) plus the semantic layer inside the
+existing `retrieve()` contract, and two bridge verbs. Mechanism, the calibration
+procedure and the stated gaps: `docs/development/semantic-recall.md`.
+
+- **The tier list is an allowlist, and that is the security boundary.**
+  `00-intent`, `10-research`, `20-standards` — the three tiers written behind a
+  pipeline approval gate, which is the warrant for the one line that stamps
+  `trust: "accepted"`. Everything else is never walked, so `30-tests/`'s sealed
+  suite and the test author's reference implementation are unreachable by
+  construction rather than by a filter that could miss a case.
+- **Provider seam, offline-first.** Ollama `nomic-embed-text` when it answers, a
+  deterministic corpus-independent fallback otherwise (byte-identical across
+  processes), selection always reported. The real embed call is the probe — there
+  is no `/api/version` liveness check, because it answers 200 while `/api/embed`
+  404s on an unpulled model.
+- **Incremental at slice close.** `finalize` rebuilds after `saveState`, wrapped so
+  it may report failure but never cause one. sha256 diff: one edited summary is
+  one embed call, a deleted document is evicted, a changed embedder fingerprint
+  discards every prior vector rather than comparing across identities.
+- **Capped, explained, role-scoped, floor-gated.** Default-deny roles (an unknown
+  or case-variant role retrieves nothing), `repo_note` pinned at 0, an integer-
+  quantized cosine so the `score desc, id asc` tie rule survives, and a measured
+  **per-embedder** similarity floor (nomic 0.54, hashed-n-gram fallback 0.24 —
+  their cosine ranges do not overlap) that is the only thing keeping the
+  no-bulk-injection guard alive.
+
+**Still open — the query side has no automatic caller.** No `commands/*.md` step
+and no `agents/stz-*.md` instruction invokes `knowledge-query`, so a phase agent
+does not consult recall mid-slice; a human at a shell can. That wiring is one
+orchestration line per call site and was deliberately outside the phase's scope
+fence. Also unshipped: id-free semantic spec-diff matching (the spec-diff still
+uses stable claim ids), and paraphrase recall requires the pulled model — the
+offline fallback catches morphology, never synonymy.
 
 ### 7. Unified installer — one `npm install`, every harness registered — ✅ BUILT (1.14.0)
 

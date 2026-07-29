@@ -260,6 +260,12 @@ export class FoundryModelLayer implements ModelLayer {
     roleName: keyof FoundryRoles,
     system: string,
     user: string,
+    /**
+     * Which specimen this call belongs to (REQ-04). Passed explicitly, never
+     * held as a field: implement() runs concurrently for all N specimens under
+     * the pool, so a shared "current specimen" would race and mis-attribute cost.
+     */
+    specimen?: string,
   ): Promise<string> {
     const role = this.opts.roles[roleName];
     const res = await role.provider.chat({
@@ -272,7 +278,7 @@ export class FoundryModelLayer implements ModelLayer {
     this.usage.push({ role: roleName, model: role.model, usage: res.usage });
     // Cost cap check AFTER recording: the crossing call throws, the spend stays
     // on the record (CostCapExceededError propagates as the kill-switch, R3).
-    this.opts.meter?.add(roleName, role.model, res.usage);
+    this.opts.meter?.add(roleName, role.model, res.usage, specimen);
     return res.text;
   }
 
@@ -431,7 +437,7 @@ export class FoundryModelLayer implements ModelLayer {
         `Contract:\n${manifest.contract}\n\nStrategy: ${strategy}\n` +
         (refinement ? `\nRefinement context from prior failed round:\n${refinement}\n` : "");
 
-      let code = extractCode(await this.ask("specimen", system, user));
+      let code = extractCode(await this.ask("specimen", system, user, id));
       const defect = checkEsmSyntax(code);
       if (defect) {
         // ONE bounded re-ask; if still broken, ship it anyway — the gate culls
@@ -442,6 +448,7 @@ export class FoundryModelLayer implements ModelLayer {
             system,
             `${user}\nYour previous code failed to parse as JavaScript:\n${defect}\n` +
               "Produce corrected PLAIN JavaScript. Reply with ONLY the code in a single fenced code block.",
+            id,
           ),
         );
       }
