@@ -37,7 +37,8 @@ import type {
   SpecimenId,
 } from "./types.js";
 import { PROJECT_PHASES } from "./types.js";
-import { scaffold, writeDoc, readDoc, stzPath } from "./taxonomy.js";
+import { scaffold, writeDoc, readDoc, stzPath, assertSafePathSegment } from "./taxonomy.js";
+import { createWorktree, listWorktrees, destroyWorktrees } from "./worktree.js";
 import { freshState, saveState, loadState, stateExists, statePath, setPhaseStatus, appendEvent } from "./state.js";
 import { verifyDebugCase, loadDebugCases, type DebugCase } from "./debug.js";
 import { auditRoleTiers, tierOf } from "./tiers.js";
@@ -1292,9 +1293,7 @@ async function debugCaseCmd(args: Record<string, string>): Promise<void> {
  * for the mutator battery filename.
  */
 function assertSafeSliceId(id: string): void {
-  if (!/^[A-Za-z0-9_-]+$/.test(id)) {
-    throw new Error(`unsafe slice id ${JSON.stringify(id)} — expected [A-Za-z0-9_-]+ (path-traversal guard)`);
-  }
+  assertSafePathSegment(id, "slice id"); // one allowlist shared with worktreePathFor
 }
 
 /** Reset one slice's per-slice artifacts so its derived status returns to pending. */
@@ -1330,6 +1329,76 @@ async function sliceResetCmd(args: Record<string, string>): Promise<void> {
   }
   for (const id of ids) resetSlice(root, id);
   print({ reset: ids, note: "per-slice state + winner artifacts removed; these slices are now pending and will re-run" });
+}
+
+// ── per-specimen worktree isolation (the in-session path) ───────────────────
+
+/**
+ * The in-session path has no materialization step — the `stz-specimen` subagent
+ * writes files itself — so isolation there is entirely a matter of telling each
+ * specimen a different directory. These three verbs are that, and they own the
+ * whole decision: path computation, naming, and whether to fall back.
+ * `commands/run.md` may only call them and act on the printed JSON; it must never
+ * compute a worktree path or decide when to degrade (CLAUDE.md architecture rule).
+ *
+ * `--target` is the repo being edited, defaulting to the project root that holds
+ * the `.stz` tree — the same shape `explore` uses.
+ */
+function worktreeArgs(
+  args: Record<string, string>,
+  verb: string,
+): { root: string; slice: string; target: string } | null {
+  const { root, slice } = args;
+  if (!root || !slice) {
+    process.stderr.write(`${verb} requires --root <dir> --slice <id> [--target <repo>].\n`);
+    process.exitCode = 1;
+    return null;
+  }
+  // Guard HERE, not downstream: createWorktree never throws, so an unguarded
+  // traversal id would be swallowed into a fallback that mkdirs outside `.stz`.
+  assertSafeSliceId(slice);
+  return { root, slice, target: args.target ?? root };
+}
+
+function worktreeCreateCmd(args: Record<string, string>): void {
+  const a = worktreeArgs(args, "worktree-create");
+  if (!a) return;
+  const specimen = args.specimen;
+  if (!specimen) {
+    process.stderr.write("worktree-create requires --specimen <id>.\n");
+    process.exitCode = 1;
+    return;
+  }
+  assertSafePathSegment(specimen, "specimen id");
+  // The fallback is the prototype directory the in-session specimen already
+  // writes into, so a degrade is a no-op for /stz-f:run rather than a second
+  // code path in the command markdown.
+  const h = createWorktree({
+    target: a.target,
+    root: a.root,
+    slice: a.slice,
+    name: specimen,
+    fallbackDir: stzPath(a.root, protoRel(a.slice, specimen)),
+  });
+  print({ mode: h.mode, path: h.path, name: h.name, reason: h.reason, slice: a.slice, specimen });
+}
+
+function worktreeListCmd(args: Record<string, string>): void {
+  const a = worktreeArgs(args, "worktree-list");
+  if (!a) return;
+  print({ slice: a.slice, worktrees: listWorktrees(a.target, a.root, a.slice) });
+}
+
+/**
+ * Never sets a non-zero exit code: this runs from a terminal step, and teardown
+ * reporting failure when it succeeded would read as a run failure. An already-
+ * clean slice prints `removed: []` and exits 0.
+ */
+function worktreeDestroyCmd(args: Record<string, string>): void {
+  const a = worktreeArgs(args, "worktree-destroy");
+  if (!a) return;
+  const { removed, pruned } = destroyWorktrees(a.target, a.root, a.slice);
+  print({ slice: a.slice, removed, pruned });
 }
 
 // ── cross-slice merge integrity (sealed-invariant supersession) ─────────────
@@ -1857,6 +1926,10 @@ const BRIDGE_COMMANDS = [
   "harness-promote", "harness-status", "judge-stress", "judge-calibration",
   // 0.9.6 Contract Plane + Phase-0 eval
   "separation-gate", "contract-accept", "eval-baseline",
+  // per-specimen worktree isolation (in-session path)
+  "worktree-create",
+  "worktree-list",
+  "worktree-destroy",
 ];
 
 export async function runBridge(argv: string[]): Promise<void> {
@@ -1915,6 +1988,10 @@ export async function runBridge(argv: string[]): Promise<void> {
     case "separation-gate": separationGateCmd(args); break;
     case "contract-accept": contractAcceptCmd(args); break;
     case "eval-baseline": evalBaselineCmd(args); break;
+    // ── per-specimen worktree isolation (in-session path) ──────────────────
+    case "worktree-create": worktreeCreateCmd(args); break;
+    case "worktree-list": worktreeListCmd(args); break;
+    case "worktree-destroy": worktreeDestroyCmd(args); break;
     default:
       process.stderr.write(`unknown bridge subcommand: ${sub}\n`);
       process.exitCode = 1;
