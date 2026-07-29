@@ -1,24 +1,32 @@
 /**
- * Vertical admission (Phase 1 — Data-ops pilot battery, Plan 01-01, REQ-27).
+ * Vertical admission (Phase 1 — Data-ops pilot battery, Plans 01-01/01-02,
+ * REQ-27). Three things a later reader would otherwise re-litigate:
  *
- * `docs/development/harness-factory.md` § "Vertical admission: oracles
- * decide" names five verticals and states their verdict in prose. D1 makes
- * that table a deterministic TypeScript decision instead — not documentation,
- * not agent judgement (architecture rule, CLAUDE.md).
+ * 1. `docs/development/harness-factory.md` § "Vertical admission: oracles
+ *    decide" names five verticals and states their verdict in prose. D1
+ *    makes that table a deterministic TypeScript decision instead — not
+ *    documentation, not agent judgement (architecture rule, CLAUDE.md).
+ *    `VERTICAL_ADMISSION` below is the complete, five-row transcription.
  *
- * The single largest named risk in RESEARCH (Pitfall 4) is a refusal table
- * that is correct in isolation but never consulted on the real battery-
- * construction path. `admitVerticalBattery` closes that gap by being the
- * ONLY way this phase's code may construct a shipped `AgentBattery`: it
- * calls `requireAdmitted` first, then delegates to the existing, unmodified
- * `makeBattery`. There is no second, parallel path.
+ * 2. No exported function here takes an override, a judge profile or a
+ *    config key. A refused vertical stays refused; refusal is stated in the
+ *    product, never papered over by a caller-supplied opinion.
+ *
+ * 3. The single largest named risk in RESEARCH (Pitfall 4) is a refusal
+ *    table that is correct in isolation but never consulted on the real
+ *    battery-construction path — the deliverable is not the table, it is
+ *    the proof the table fires. `admitVerticalBattery` closes that gap by
+ *    being the ONLY way this phase's code may construct a shipped
+ *    `AgentBattery`: it calls `requireAdmitted` first, then delegates to
+ *    the existing, unmodified `makeBattery`. There is no second, parallel
+ *    path.
  */
 import { makeBattery, type AgentBattery, type BatteryTask, type OracleReceipt } from "./battery-types.js";
 
 /** The five verticals named in `docs/development/harness-factory.md`'s
- *  admission table. Plan 01-02 fills the remaining three rows of
- *  `VERTICAL_ADMISSION`; this type already names all five so a later plan
- *  cannot silently add a sixth without a type-level review. */
+ *  admission table — the type union and `VERTICAL_ADMISSION`'s key set are
+ *  both complete as of Plan 01-02; a later plan cannot silently add a sixth
+ *  without a type-level review. */
 export type Vertical =
   | "data-ops"
   | "bi-analytics"
@@ -37,13 +45,15 @@ export interface AdmissionRecord {
 }
 
 /**
- * ponytail: only the two rows this plan's own code needs (`data-ops`
- * admitted, `revops-gtm-exec-strategy` refused) are seeded here — a
- * hardcoded literal, not loaded from config, mirroring
- * `EXOGENOUS_ROOT_KINDS`'s own small-literal-Set shape. Plan 01-02 adds
- * `bi-analytics` / `performance-marketing` / `customer-support` as
- * `"pending"` rows. An id absent from this map is refused by `admitVertical`
- * below regardless — absence is never treated as "pending" by default.
+ * All five rows, transcribed verbatim from
+ * `docs/development/harness-factory.md` § "Vertical admission: oracles
+ * decide" — a hardcoded literal, not loaded from config, mirroring
+ * `EXOGENOUS_ROOT_KINDS`'s own small-literal-Set shape. An id absent from
+ * this map is refused by `admitVertical` below regardless — absence is
+ * never treated as "pending" by default.
+ *
+ * A test asserts `VERTICAL_ADMISSION.size === 5` and that its key set
+ * equals the `Vertical` union exactly, so a row cannot be dropped silently.
  */
 export const VERTICAL_ADMISSION: ReadonlyMap<Vertical, AdmissionRecord> = new Map([
   [
@@ -54,6 +64,36 @@ export const VERTICAL_ADMISSION: ReadonlyMap<Vertical, AdmissionRecord> = new Ma
       oracleClass: "execution + construction",
       mechanism: "dbt tests, data-diff, SQL vs fixture warehouse",
       note: "Pilot — first",
+    },
+  ],
+  [
+    "bi-analytics",
+    {
+      vertical: "bi-analytics",
+      verdict: "pending",
+      oracleClass: "construction",
+      mechanism: "query results vs known fixture numbers on a frozen warehouse",
+      note: "Second",
+    },
+  ],
+  [
+    "performance-marketing",
+    {
+      vertical: "performance-marketing",
+      verdict: "pending",
+      oracleClass: "replay",
+      mechanism: "replayed campaign logs vs held-out actuals",
+      note: "Later; horizon-capped",
+    },
+  ],
+  [
+    "customer-support",
+    {
+      vertical: "customer-support",
+      verdict: "pending",
+      oracleClass: "replay + construction",
+      mechanism: "historical tickets w/ known resolutions; resolution-first ticket synthesis",
+      note: "Later; rubricCalibrated mandatory",
     },
   ],
   [
@@ -87,7 +127,8 @@ export function admitVertical(vertical: Vertical): AdmissionRecord {
   if (!record) {
     throw new VerticalRefusedError(
       `vertical ${JSON.stringify(vertical)} is not in the admission table — an id absent from ` +
-        `the table is never treated as admitted or pending`,
+        `the table is never treated as admitted or pending (known: ` +
+        `${[...VERTICAL_ADMISSION.keys()].map((id) => JSON.stringify(id)).join(", ")})`,
     );
   }
   return record;
