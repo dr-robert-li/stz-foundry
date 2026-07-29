@@ -8,13 +8,19 @@
  * The model layer is injected (ModelLayer), so this runs identically against
  * the deterministic mock and a future live Claude Code / Codex implementation.
  *
+ * Isolation (v1.17.0): each strategy slot gets a real, sealed-suite-firewalled
+ * git worktree for the round, created before the spawn and destroyed in a single
+ * `finally` that covers every exit — including the BudgetExceededError throw. A
+ * target that cannot host one degrades to directory isolation, reported in the
+ * journal, never aborting the round. The per-specimen prototype tree remains the
+ * record surface eval, gate, select and seal all read; the worktree is where the
+ * diff that makes each specimen's work attributable lives.
+ *
  * STUBBED vs the full design (logged via the `log` sink, surfaced in ROADMAP):
- *   - git worktrees per specimen → prototypes/specimen-X/ directories instead.
- *   - per-worktree ephemeral observability stacks → not spun up.
  *   - live Python eval drivers / mutation / PBT → mock EvalRunner.
  *   - local embeddings / cross-slice RAG → not built.
  */
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import type {
   Judgment,
@@ -48,10 +54,24 @@ import {
   type PressureLog,
 } from "../pressure.js";
 import { diffSpecs, renderSpecDiff, isFaithful, type Spec } from "../specdiff.js";
-import { spawnSpecimens } from "../foundry/spawn.js";
+import { spawnSpecimens, type SpecimenRunRecord } from "../foundry/spawn.js";
+import {
+  createWorktree,
+  destroyWorktrees,
+  worktreeChangedFiles,
+  lastWorktreeMode,
+  lastWorktreeReason,
+  type WorktreeHandle,
+} from "../worktree.js";
 
 export interface OrchestratorOptions {
   root: string;
+  /**
+   * The repo the specimens edit. Defaults to `root` — but the project holding
+   * `.stz/` is not necessarily the repo under work (same convention as
+   * `bridge explore`), and worktrees are created against THIS.
+   */
+  target?: string;
   manifest: SliceManifest;
   model: ModelLayer & { nextRound?: () => void };
   /** Specimen count N (F6, default 4). */
@@ -104,6 +124,46 @@ export interface SliceResult {
   rounds: number;
   /** retryPolicy telemetry (#6) — recovery vs burn for escalation rounds. */
   retryTelemetry: RetryTelemetry;
+  /**
+   * The final round's per-specimen run records (REQ-04) — status, kill reason,
+   * duration, isolation and the worktree's changed-file list, in input-strategy
+   * order (N6). Empty when the run halted before a round ever spawned.
+   */
+  records: SpecimenRunRecord[];
+}
+
+/**
+ * Write a specimen's returned files into `dir`, rejecting any key that escapes
+ * it (T-01-13). `files` is a MODEL-PRODUCED map, so `../../etc/x`, `/tmp/x` and
+ * `a/../../x` all reach this loop; since v1.17.0 one of the destinations is a
+ * real worktree of the operator's repo, not only a throwaway prototype tree.
+ * Both destinations go through here, so one check covers both — a guard bolted
+ * onto the newer call site alone would leave the older one wide open.
+ *
+ * `resolve` also neutralizes an absolute key: `resolve(dir, "/tmp/x")` is
+ * `/tmp/x`, which fails the prefix test.
+ *
+ * ponytail: the containment check is LEXICAL, not `realpathSync`. A symlinked
+ * parent INSIDE `dir` is out of scope — reaching it needs a specimen to have
+ * planted a symlink in a directory STZ created moments earlier in the same
+ * round, and realpath-ing every entry costs a syscall per file for a case that
+ * cannot currently occur. Swap in `realpathSync` on the resolved parent if
+ * specimens ever gain a write that lands before materialization.
+ */
+async function writeSpecimenFiles(dir: string, files: Record<string, string>): Promise<void> {
+  const base = resolve(dir);
+  await mkdir(base, { recursive: true });
+  for (const [path, contents] of Object.entries(files)) {
+    const full = resolve(base, path);
+    if (!full.startsWith(base + sep)) {
+      throw new Error(
+        `unsafe specimen file path ${JSON.stringify(path)} — escapes ` +
+          `${JSON.stringify(base)} (path-traversal guard)`,
+      );
+    }
+    await mkdir(join(full, ".."), { recursive: true });
+    await writeFile(full, contents, "utf8");
+  }
 }
 
 /** Synthetic per-call token charge so the ledger/budget are exercised (N5). */
@@ -119,6 +179,7 @@ export class BudgetExceededError extends Error {
 
 export async function runSlice(opts: OrchestratorOptions): Promise<SliceResult> {
   const { root, manifest, model } = opts;
+  const target = opts.target ?? root;
   const n = opts.n ?? 4;
   const log = opts.log ?? (() => {});
   const tracker = new CostTracker();
@@ -133,7 +194,14 @@ export async function runSlice(opts: OrchestratorOptions): Promise<SliceResult> 
   // Elicitation drives the budget, so allocate after we know complexity.
   let state = freshState(manifest.id, manifest.complexity, opts.poolRemaining ?? 5_000_000);
 
-  const charge = (phase: Phase, role: Parameters<CostTracker["record"]>[0]["role"]) => {
+  const charge = (
+    phase: Phase,
+    role: Parameters<CostTracker["record"]>[0]["role"],
+    /** Which specimen incurred it, when the call is attributable (REQ-04). */
+    specimen?: SpecimenId,
+    /** Measured wall-clock, when the caller has one (REQ-04). */
+    durationMs?: number,
+  ) => {
     const cost = TOKENS_PER_CALL.prompt + TOKENS_PER_CALL.completion;
     // N5 hard per-slice token cap / R3 kill-switch: refuse to proceed past the
     // cap rather than silently overrunning. The cap is enforced here, the one
@@ -148,6 +216,10 @@ export async function runSlice(opts: OrchestratorOptions): Promise<SliceResult> 
       id: `${manifest.id}-${role}-${tracker.count()}`,
       phase,
       role,
+      // Omitted rather than written as null when absent, so a ledger from a
+      // non-specimen role is byte-identical to the pre-REQ-04 shape.
+      ...(specimen !== undefined ? { specimen } : {}),
+      ...(durationMs !== undefined ? { durationMs } : {}),
       model: "mock",
       temperature: 0,
       seed: 0,
@@ -254,6 +326,8 @@ export async function runSlice(opts: OrchestratorOptions): Promise<SliceResult> 
   let winner: SpecimenId | null = null;
   let asBuilt: Spec | null = null;
   let rounds = 0;
+  /** The most recent round's run records (REQ-04); every exit reports them. */
+  let lastRecords: SpecimenRunRecord[] = [];
   // retryPolicy telemetry accumulators (#6).
   let tokensRound1: number | null = null;
   const escalations: ("retry" | "replan")[] = [];
@@ -273,181 +347,234 @@ export async function runSlice(opts: OrchestratorOptions): Promise<SliceResult> 
     };
   };
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    rounds++;
-    // Once round 2 begins, round 1's full spend is known — snapshot it so the
-    // telemetry can separate first-round cost from the cost of retrying (#6).
-    if (rounds === 2) tokensRound1 = state.budget.tokensSpent;
-    // Run-level wall-clock ceiling (F14-adjacent, #4): a looping or wedged run
-    // is halted here rather than left to burn to the token cap. Checked before
-    // each round; the per-round spawn pool honours the same deadline.
-    if (Date.now() > runDeadline) {
-      state = appendEvent(
-        state,
-        "tournament",
-        "run-wall-clock-halt",
-        `run wall-clock cap (${opts.runWallClockMs}ms) exceeded after ${rounds - 1} round(s)`,
-      );
-      state.failureReport = `# Halt — run wall-clock cap exceeded\n\nThe run-level wall-clock ceiling of ${opts.runWallClockMs}ms was reached after ${rounds - 1} round(s) without a selectable winner.\n`;
-      await writeDoc(root, join(sliceDir, "failure-report.md"), {
-        frontmatter: { summary: `Halt: run wall-clock cap exceeded after ${rounds - 1} round(s).` },
-        body: state.failureReport,
-      });
-      artifacts.push(`${sliceDir}/failure-report.md`);
-      state = setPhaseStatus(state, "tournament", "failed");
-      await checkpoint();
-      await writeAudit(root, manifest.id, tracker, state);
-      return { sliceId: manifest.id, state, judgment: null, winner: null, halted: true, faithful: false, artifacts, rounds: rounds - 1, retryTelemetry: buildTelemetry("halted", rounds - 1) };
-    }
-    state = setPhaseStatus(state, "tournament", "running");
-    state.escalation = esc.stage;
-    state.retryCount = esc.retryCount;
-    state.replanCount = esc.replanCount;
-    await checkpoint();
-
-    // Strategy diversification (R5) → spawn N specimens in parallel (F6).
-    const strategies = await model.strategist.strategies(manifest, n);
-    charge("tournament", "specimen");
-    log(`[${manifest.id}] round ${rounds}: spawning ${n} specimens [${strategies.join(", ")}] (worktrees STUBBED → prototype dirs)`);
-
-    // Spawn concurrently under the bounded pool with stuck-kill (stage 3/R10).
-    const spawned = await spawnSpecimens(model.specimen, manifest, strategies, refinement, {
-      concurrency: opts.specimenConcurrency,
-      timeoutMs: opts.specimenTimeoutMs,
-      deadlineMs: Number.isFinite(runDeadline) ? runDeadline : undefined,
-    });
-    for (const k of spawned.killed) {
-      state = appendEvent(state, "tournament", "specimen-killed", `${k.strategy}: ${k.reason} — ${k.detail}`);
-      log(`[${manifest.id}] specimen (${k.strategy}) ${k.reason}: ${k.detail}`);
-    }
-    const outputs: SpecimenOutput[] = [];
-    for (const out of spawned.outputs) {
-      charge("tournament", "specimen");
-      outputs.push(out);
-      // Materialize into prototypes/specimen-X/ (worktree stand-in).
-      const protoDir = stzPath(root, join(sliceDir, "prototypes", `specimen-${out.specimen}`));
-      await mkdir(protoDir, { recursive: true });
-      for (const [path, contents] of Object.entries(out.files)) {
-        const full = join(protoDir, path);
-        await mkdir(join(full, ".."), { recursive: true });
-        await writeFile(full, contents, "utf8");
-      }
-    }
-
-    // Eval gate: sealed suite + coverage + mutation + hack-pattern detect (F7/F10).
-    const evals = [];
-    for (const out of outputs) {
-      const r = await model.evalRunner.evaluate(out, sealed);
-      charge("tournament", "specimen");
-      evals.push(r);
-    }
-    state = setPhaseStatus(state, "tournament", "done");
-    state.activeSpecimens = evals.filter((e) => e.passedGate).map((e) => e.specimen);
-    await checkpoint();
-
-    // Judgment (F7 stage 2 + F8).
-    state = setPhaseStatus(state, "judgment", "running");
-    await checkpoint();
-    const passers = evals.filter((e) => e.passedGate).map((e) => e.specimen);
-    const outById = new Map(outputs.map((o) => [o.specimen, o]));
-
-    if (passers.length === 0) {
-      // No passers → consult the escalation FSM (F14). The orchestrator NEVER
-      // loops on its own; the FSM alone decides whether another round is allowed.
-      const culled = buildPressure(manifest.id, evals, outputs, []);
-      await persistPressure(root, manifest.id, culled, []);
-      artifacts.push(`50-pressure/${manifest.id}`);
-      const { next, action } = onNoPassers(esc, opts.retryPolicy);
-      esc = next;
-      state.escalation = esc.stage;
-      if (action.type === "retry" || action.type === "replan") escalations.push(action.type);
-      state = appendEvent(state, "judgment", `escalation-${action.type}`, action.note);
-      await checkpoint();
-      log(`[${manifest.id}] no passers → ${action.type}: ${action.note}`);
-
-      if (action.type === "halt") {
-        state.failureReport = structuredFailure(manifest, evals, rounds);
+  // Teardown anchor. This `finally` is the ONLY one on this path and it covers
+  // all four exits: the run wall-clock halt, the escalation halt, the winner,
+  // and an uncaught BudgetExceededError thrown from charge(). A `catch` here
+  // would change the N5/R3 kill-switch semantics; a `finally` preserves them,
+  // and teardown never throws, so it cannot mask the exception it is unwinding.
+  try {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      rounds++;
+      // Once round 2 begins, round 1's full spend is known — snapshot it so the
+      // telemetry can separate first-round cost from the cost of retrying (#6).
+      if (rounds === 2) tokensRound1 = state.budget.tokensSpent;
+      // Run-level wall-clock ceiling (F14-adjacent, #4): a looping or wedged run
+      // is halted here rather than left to burn to the token cap. Checked before
+      // each round; the per-round spawn pool honours the same deadline.
+      if (Date.now() > runDeadline) {
+        state = appendEvent(
+          state,
+          "tournament",
+          "run-wall-clock-halt",
+          `run wall-clock cap (${opts.runWallClockMs}ms) exceeded after ${rounds - 1} round(s)`,
+        );
+        state.failureReport = `# Halt — run wall-clock cap exceeded\n\nThe run-level wall-clock ceiling of ${opts.runWallClockMs}ms was reached after ${rounds - 1} round(s) without a selectable winner.\n`;
         await writeDoc(root, join(sliceDir, "failure-report.md"), {
-          frontmatter: { summary: `Halt: no passers after ${rounds} round(s).` },
+          frontmatter: { summary: `Halt: run wall-clock cap exceeded after ${rounds - 1} round(s).` },
           body: state.failureReport,
         });
         artifacts.push(`${sliceDir}/failure-report.md`);
-        state = setPhaseStatus(state, "judgment", "failed");
+        state = setPhaseStatus(state, "tournament", "failed");
         await checkpoint();
         await writeAudit(root, manifest.id, tracker, state);
-        return { sliceId: manifest.id, state, judgment: null, winner: null, halted: true, faithful: false, artifacts, rounds, retryTelemetry: buildTelemetry("halted", rounds) };
+        return { sliceId: manifest.id, state, judgment: null, winner: null, halted: true, faithful: false, artifacts, rounds: rounds - 1, retryTelemetry: buildTelemetry("halted", rounds - 1), records: lastRecords };
+      }
+      state = setPhaseStatus(state, "tournament", "running");
+      state.escalation = esc.stage;
+      state.retryCount = esc.retryCount;
+      state.replanCount = esc.replanCount;
+      await checkpoint();
+
+      // Strategy diversification (R5) → spawn N specimens in parallel (F6).
+      const strategies = await model.strategist.strategies(manifest, n);
+      charge("tournament", "specimen");
+
+      // One worktree per strategy SLOT, named by INDEX — on this path the
+      // specimen id is assigned inside implement(), and a killed specimen never
+      // returns one, so the index is the only name available before the spawn.
+      // Strategy order is already the deterministic axis (N6), so `s0`, `s1`, …
+      // is both stable and allowlist-safe.
+      const protoRoot = stzPath(root, join(sliceDir, "prototypes"));
+      const handles = strategies.map((_s, i) =>
+        createWorktree({
+          target,
+          root,
+          slice: manifest.id,
+          name: `s${i}`,
+          fallbackDir: join(protoRoot, `s${i}`),
+        }),
+      );
+      const wtMode = lastWorktreeMode();
+      const wtReason = lastWorktreeReason();
+      // REQ-05: the isolation actually used is journaled, never silent. Rides the
+      // existing appendEvent → 90-audit/journal.md writer; no new file (D-05).
+      state = appendEvent(
+        state,
+        "tournament",
+        "isolation",
+        `round ${rounds}: ${wtMode} isolation for ${handles.length} specimen slot(s)` +
+          (wtMode === "directory" && wtReason ? ` (DEGRADED — ${wtReason})` : ""),
+      );
+      log(`[${manifest.id}] round ${rounds}: spawning ${n} specimens [${strategies.join(", ")}] (${wtMode} isolation)`);
+
+      // Spawn concurrently under the bounded pool with stuck-kill (stage 3/R10).
+      const spawned = await spawnSpecimens(model.specimen, manifest, strategies, refinement, {
+        concurrency: opts.specimenConcurrency,
+        timeoutMs: opts.specimenTimeoutMs,
+        deadlineMs: Number.isFinite(runDeadline) ? runDeadline : undefined,
+        // A directory fallback has no worktree, and its fallbackDir is never
+        // written to here (the prototype tree is the record surface), so reporting
+        // it as `worktreePath` would be a fiction. Index alignment is preserved.
+        worktrees: handles.map((h): WorktreeHandle | null => (h.mode === "worktree" ? h : null)),
+      });
+      lastRecords = spawned.records;
+      for (const k of spawned.killed) {
+        state = appendEvent(state, "tournament", "specimen-killed", `${k.strategy}: ${k.reason} — ${k.detail}`);
+        log(`[${manifest.id}] specimen (${k.strategy}) ${k.reason}: ${k.detail}`);
+      }
+      // `outputs` and the ok-status records are both filtered from the same slot
+      // array in input order, so the k-th of each is the same specimen. Matching
+      // by INDEX, never by the strategy string, which is not guaranteed unique
+      // and would misattribute a worktree to the wrong specimen (T-01-14).
+      const okRecords = spawned.records.filter((r) => r.status === "ok");
+      const outputs: SpecimenOutput[] = [];
+      for (let k = 0; k < spawned.outputs.length; k++) {
+        const out = spawned.outputs[k]!;
+        const rec = okRecords[k]!;
+        charge("tournament", "specimen", out.specimen, rec.durationMs);
+        outputs.push(out);
+        // The record surface: eval, gate, select and seal all read the specimen's
+        // work through prototypes/specimen-X/, so it stays exactly where it is.
+        await writeSpecimenFiles(
+          stzPath(root, join(sliceDir, "prototypes", `specimen-${out.specimen}`)),
+          out.files,
+        );
+        // …and when the slot got a real worktree, the same files land there too,
+        // making the diff attributable to one specimen (ROADMAP criterion 1).
+        if (rec.isolation === "worktree" && rec.worktreePath) {
+          await writeSpecimenFiles(rec.worktreePath, out.files);
+          rec.diffFiles = worktreeChangedFiles(rec.worktreePath);
+        }
       }
 
-      // retry or replan: build refinement context (F9), advance the model round.
-      const advantages = select(evals, []).judgment.advantages;
-      refinement = refinementContext({ sliceId: manifest.id, culled }, advantages);
-      if (action.type === "replan") {
-        // Re-enter planning with failure analysis (F14).
-        state = setPhaseStatus(state, "planning", "running");
-        intent = await model.planner.intentSpec(manifest);
-        charge("planning", "planner");
-        state = setPhaseStatus(state, "planning", "done");
+      // Eval gate: sealed suite + coverage + mutation + hack-pattern detect (F7/F10).
+      const evals = [];
+      for (const out of outputs) {
+        const r = await model.evalRunner.evaluate(out, sealed);
+        charge("tournament", "specimen");
+        evals.push(r);
       }
-      model.nextRound?.();
-      continue;
+      state = setPhaseStatus(state, "tournament", "done");
+      state.activeSpecimens = evals.filter((e) => e.passedGate).map((e) => e.specimen);
+      await checkpoint();
+
+      // Judgment (F7 stage 2 + F8).
+      state = setPhaseStatus(state, "judgment", "running");
+      await checkpoint();
+      const passers = evals.filter((e) => e.passedGate).map((e) => e.specimen);
+      const outById = new Map(outputs.map((o) => [o.specimen, o]));
+
+      if (passers.length === 0) {
+        // No passers → consult the escalation FSM (F14). The orchestrator NEVER
+        // loops on its own; the FSM alone decides whether another round is allowed.
+        const culled = buildPressure(manifest.id, evals, outputs, []);
+        await persistPressure(root, manifest.id, culled, []);
+        artifacts.push(`50-pressure/${manifest.id}`);
+        const { next, action } = onNoPassers(esc, opts.retryPolicy);
+        esc = next;
+        state.escalation = esc.stage;
+        if (action.type === "retry" || action.type === "replan") escalations.push(action.type);
+        state = appendEvent(state, "judgment", `escalation-${action.type}`, action.note);
+        await checkpoint();
+        log(`[${manifest.id}] no passers → ${action.type}: ${action.note}`);
+
+        if (action.type === "halt") {
+          state.failureReport = structuredFailure(manifest, evals, rounds);
+          await writeDoc(root, join(sliceDir, "failure-report.md"), {
+            frontmatter: { summary: `Halt: no passers after ${rounds} round(s).` },
+            body: state.failureReport,
+          });
+          artifacts.push(`${sliceDir}/failure-report.md`);
+          state = setPhaseStatus(state, "judgment", "failed");
+          await checkpoint();
+          await writeAudit(root, manifest.id, tracker, state);
+          return { sliceId: manifest.id, state, judgment: null, winner: null, halted: true, faithful: false, artifacts, rounds, retryTelemetry: buildTelemetry("halted", rounds), records: lastRecords };
+        }
+
+        // retry or replan: build refinement context (F9), advance the model round.
+        const advantages = select(evals, []).judgment.advantages;
+        refinement = refinementContext({ sliceId: manifest.id, culled }, advantages);
+        if (action.type === "replan") {
+          // Re-enter planning with failure analysis (F14).
+          state = setPhaseStatus(state, "planning", "running");
+          intent = await model.planner.intentSpec(manifest);
+          charge("planning", "planner");
+          state = setPhaseStatus(state, "planning", "done");
+        }
+        model.nextRound?.();
+        continue;
+      }
+
+      // We have passers → pairwise V votes (F7), then select.
+      const pairs = pairings(passers);
+      const votes = [];
+      for (const [pa, pb] of pairs) {
+        const oa = outById.get(pa)!;
+        const ob = outById.get(pb)!;
+        const v = await votePair(model.judge, oa, ob, sealed, manifest.judge.votesPerPair);
+        for (let i = 0; i < manifest.judge.votesPerPair; i++) charge("judgment", "judge");
+        votes.push(...v);
+      }
+      const sel = select(evals, votes);
+      judgment = sel.judgment;
+      winner = judgment.winner;
+      state.activeSpecimens = passers;
+      state = appendEvent(state, "judgment", "winner", `winner=${winner}, ranking=[${judgment.ranking.join(",")}]`);
+
+      // Pressure log for culled + non-winning passers (F9).
+      const culled = buildPressure(manifest.id, evals, outputs, judgment.ranking.slice(1).concat(sel.eliminated.map((e) => e.specimen)));
+      await persistPressure(root, manifest.id, culled, judgment.advantages);
+      artifacts.push(`50-pressure/${manifest.id}`);
+
+      // Documenter → as-built spec → spec-diff (F13).
+      const winnerOut = outById.get(winner!)!;
+      asBuilt = await model.documenter.asBuilt(winnerOut);
+      charge("judgment", "documenter");
+      const sdiff = diffSpecs(intent, asBuilt);
+      await writeDoc(root, join(sliceDir, "tournament.md"), {
+        frontmatter: { summary: `Tournament ${manifest.id}: winner specimen-${winner}, ${passers.length}/${outputs.length} passed gate.` },
+        body:
+          `# Tournament — ${manifest.id}\n\n- **winner:** specimen-${winner}\n- **ranking:** ${judgment.ranking.join(" > ")}\n` +
+          `- **votes:** ${votes.length} pairwise (V=${manifest.judge.votesPerPair}/pair)\n\n## GRPO advantages\n` +
+          judgment.advantages.map((a) => `- specimen-${a.specimen}: reward=${a.reward.toFixed(3)} advantage=${a.advantage.toFixed(3)}`).join("\n") +
+          "\n",
+      });
+      await writeDoc(root, join(sliceDir, "spec-diff.md"), {
+        frontmatter: { summary: `Spec diff ${manifest.id}: ${sdiff.missing.length} missing, ${sdiff.added.length} added, ${sdiff.kept.length} kept.` },
+        body: renderSpecDiff(manifest.id, sdiff),
+      });
+      artifacts.push(`${sliceDir}/tournament.md`, `${sliceDir}/spec-diff.md`);
+
+      state = setPhaseStatus(state, "judgment", "done");
+      await checkpoint();
+      log(`[${manifest.id}] winner=specimen-${winner}; faithful=${isFaithful(sdiff)}`);
+      await writeAudit(root, manifest.id, tracker, state);
+      return {
+        sliceId: manifest.id,
+        state,
+        judgment,
+        winner,
+        halted: false,
+        faithful: isFaithful(sdiff),
+        artifacts,
+        rounds,
+        retryTelemetry: buildTelemetry(rounds > 1 ? "recovered" : "first-round", rounds),
+        records: lastRecords,
+      };
     }
-
-    // We have passers → pairwise V votes (F7), then select.
-    const pairs = pairings(passers);
-    const votes = [];
-    for (const [pa, pb] of pairs) {
-      const oa = outById.get(pa)!;
-      const ob = outById.get(pb)!;
-      const v = await votePair(model.judge, oa, ob, sealed, manifest.judge.votesPerPair);
-      for (let i = 0; i < manifest.judge.votesPerPair; i++) charge("judgment", "judge");
-      votes.push(...v);
-    }
-    const sel = select(evals, votes);
-    judgment = sel.judgment;
-    winner = judgment.winner;
-    state.activeSpecimens = passers;
-    state = appendEvent(state, "judgment", "winner", `winner=${winner}, ranking=[${judgment.ranking.join(",")}]`);
-
-    // Pressure log for culled + non-winning passers (F9).
-    const culled = buildPressure(manifest.id, evals, outputs, judgment.ranking.slice(1).concat(sel.eliminated.map((e) => e.specimen)));
-    await persistPressure(root, manifest.id, culled, judgment.advantages);
-    artifacts.push(`50-pressure/${manifest.id}`);
-
-    // Documenter → as-built spec → spec-diff (F13).
-    const winnerOut = outById.get(winner!)!;
-    asBuilt = await model.documenter.asBuilt(winnerOut);
-    charge("judgment", "documenter");
-    const sdiff = diffSpecs(intent, asBuilt);
-    await writeDoc(root, join(sliceDir, "tournament.md"), {
-      frontmatter: { summary: `Tournament ${manifest.id}: winner specimen-${winner}, ${passers.length}/${outputs.length} passed gate.` },
-      body:
-        `# Tournament — ${manifest.id}\n\n- **winner:** specimen-${winner}\n- **ranking:** ${judgment.ranking.join(" > ")}\n` +
-        `- **votes:** ${votes.length} pairwise (V=${manifest.judge.votesPerPair}/pair)\n\n## GRPO advantages\n` +
-        judgment.advantages.map((a) => `- specimen-${a.specimen}: reward=${a.reward.toFixed(3)} advantage=${a.advantage.toFixed(3)}`).join("\n") +
-        "\n",
-    });
-    await writeDoc(root, join(sliceDir, "spec-diff.md"), {
-      frontmatter: { summary: `Spec diff ${manifest.id}: ${sdiff.missing.length} missing, ${sdiff.added.length} added, ${sdiff.kept.length} kept.` },
-      body: renderSpecDiff(manifest.id, sdiff),
-    });
-    artifacts.push(`${sliceDir}/tournament.md`, `${sliceDir}/spec-diff.md`);
-
-    state = setPhaseStatus(state, "judgment", "done");
-    await checkpoint();
-    log(`[${manifest.id}] winner=specimen-${winner}; faithful=${isFaithful(sdiff)}`);
-    await writeAudit(root, manifest.id, tracker, state);
-    return {
-      sliceId: manifest.id,
-      state,
-      judgment,
-      winner,
-      halted: false,
-      faithful: isFaithful(sdiff),
-      artifacts,
-      rounds,
-      retryTelemetry: buildTelemetry(rounds > 1 ? "recovered" : "first-round", rounds),
-    };
+  } finally {
+    destroyWorktrees(target, root, manifest.id);
   }
 }
 

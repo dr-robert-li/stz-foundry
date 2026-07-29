@@ -313,6 +313,25 @@ export function listWorktrees(target: string, root: string, slice: string): Work
 }
 
 /**
+ * The worktree's changed-file list — the diff attribution that lands on the run
+ * record (REQ-04). Stays in this module so `src/` keeps exactly one git seam.
+ *
+ * `add -A -N` runs first: a specimen that CREATES a module has changed the tree
+ * just as much as one that edits it, and `diff --name-only` alone lists neither
+ * new file. Intent-to-add touches only this worktree's own index
+ * (`.git/worktrees/<n>/index`), which teardown deletes minutes later.
+ *
+ * Never throws — this runs on the same path as a killed specimen, where an
+ * unattributable diff must not abort the round.
+ */
+export function worktreeChangedFiles(wtPath: string): string[] {
+  git(["add", "-A", "-N"], wtPath);
+  const r = git(["diff", "--name-only"], wtPath);
+  if (!r.ok) return [];
+  return r.stdout.split("\n").map((l) => l.trim()).filter((l) => l !== "");
+}
+
+/**
  * Remove every worktree for a slice. Idempotent and never throws — teardown has
  * to hold under the same posture that already tolerates a killed specimen
  * without aborting the round.

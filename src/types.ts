@@ -173,6 +173,13 @@ export interface CallRecord {
   seed: number | null;
   promptTokens: number;
   completionTokens: number;
+  /**
+   * Wall-clock the call took (REQ-04), when the caller measured one. Optional
+   * for the same reason `specimen` is: most roles have no measured duration and
+   * older ledgers have no field, so `90-audit/calls/*.jsonl` keeps round-tripping.
+   * Deliberately absent from the replay-stable markdown reports (N6).
+   */
+  durationMs?: number;
   /** Monotonic sequence index for deterministic replay ordering. */
   seq: number;
 }

@@ -162,7 +162,7 @@ describe("runFoundry e2e (stage 5)", () => {
       preflight: false,
     });
 
-    _resetWorktreeState(); // no worktree requested ⇒ directory, no reason
+    _resetWorktreeState(); // clean slate; the round below requests isolation itself
     const { result, cost } = await runFoundry({ root, configPath, manifest: MANIFEST });
 
     expect(result.halted).toBe(false);
@@ -183,9 +183,10 @@ describe("runFoundry e2e (stage 5)", () => {
     expect(report).toContain("## By specimen");
     expect(report).toMatch(/\*\*a:\*\* 1 call\(s\)/);
     expect(report).toMatch(/\*\*b:\*\* 1 call\(s\)/);
-    // Nothing degraded here — the isolation line states the mode and no more.
-    expect(report).toMatch(/\*\*worktree isolation:\*\* directory\n/);
-    expect(report).not.toContain("DEGRADED — ");
+    // The round now really asks for per-specimen worktrees (phase 01 plan 04),
+    // and this e2e root is a bare tmp dir, so it degrades — and REQ-05 requires
+    // the report to say so rather than go quiet about it.
+    expect(report).toMatch(/\*\*worktree isolation:\*\* directory \(DEGRADED — .+\)\n/);
     // Replay-stable: the markdown carries no wall-clock of any kind.
     expect(report).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
     expect(report).not.toContain("durationMs");
