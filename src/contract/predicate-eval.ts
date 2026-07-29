@@ -45,14 +45,34 @@ function evalCheck(check: PredicateCheck, observed: Observations): CheckResult {
   };
 }
 
+/**
+ * Evaluate a bare set of checks against observations. Pure. Holds the
+ * check-set pass rule verbatim — this is the ONLY implementation of it;
+ * `evaluatePredicate` below delegates to it rather than re-deriving `pass`
+ * (STZ 0.9.7 — the agentic eval seam, Phase 1 Plan 01-01). A `BatteryTask`
+ * has no `ContractState` lifecycle, so this entry point takes `checks`
+ * directly instead of requiring a full contract-plane `Predicate`.
+ */
+export function evaluateChecks(
+  checks: PredicateCheck[],
+  observed: Observations,
+): { pass: boolean; checks: CheckResult[]; vacuous: boolean } {
+  const results = checks.map((c) => evalCheck(c, observed));
+  const vacuous = checks.some((c) => observed[c.checkId] === undefined);
+  return {
+    pass: results.length > 0 && results.every((c) => c.pass),
+    checks: results,
+    vacuous,
+  };
+}
+
 /** Evaluate one predicate against observations. Pure. */
 export function evaluatePredicate(pred: Predicate, observed: Observations): PredicateResult {
-  const checks = pred.checks.map((c) => evalCheck(c, observed));
-  const vacuous = pred.checks.some((c) => observed[c.checkId] === undefined);
+  const { pass, checks, vacuous } = evaluateChecks(pred.checks, observed);
   return {
     predicateId: pred.id,
     severity: pred.severity,
-    pass: checks.length > 0 && checks.every((c) => c.pass),
+    pass,
     checks,
     vacuous,
   };

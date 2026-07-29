@@ -20,7 +20,7 @@
  *   - live Python eval drivers / mutation / PBT → mock EvalRunner.
  *   - local embeddings / cross-slice RAG → not built.
  */
-import { join, resolve, sep } from "node:path";
+import { join } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import type {
   Judgment,
@@ -55,6 +55,7 @@ import {
 } from "../pressure.js";
 import { diffSpecs, renderSpecDiff, isFaithful, type Spec } from "../specdiff.js";
 import { spawnSpecimens, type SpecimenRunRecord } from "../foundry/spawn.js";
+import { writeSpecimenFiles } from "../write-guard.js";
 import {
   createWorktree,
   destroyWorktrees,
@@ -130,40 +131,6 @@ export interface SliceResult {
    * order (N6). Empty when the run halted before a round ever spawned.
    */
   records: SpecimenRunRecord[];
-}
-
-/**
- * Write a specimen's returned files into `dir`, rejecting any key that escapes
- * it (T-01-13). `files` is a MODEL-PRODUCED map, so `../../etc/x`, `/tmp/x` and
- * `a/../../x` all reach this loop; since v1.17.0 one of the destinations is a
- * real worktree of the operator's repo, not only a throwaway prototype tree.
- * Both destinations go through here, so one check covers both — a guard bolted
- * onto the newer call site alone would leave the older one wide open.
- *
- * `resolve` also neutralizes an absolute key: `resolve(dir, "/tmp/x")` is
- * `/tmp/x`, which fails the prefix test.
- *
- * ponytail: the containment check is LEXICAL, not `realpathSync`. A symlinked
- * parent INSIDE `dir` is out of scope — reaching it needs a specimen to have
- * planted a symlink in a directory STZ created moments earlier in the same
- * round, and realpath-ing every entry costs a syscall per file for a case that
- * cannot currently occur. Swap in `realpathSync` on the resolved parent if
- * specimens ever gain a write that lands before materialization.
- */
-async function writeSpecimenFiles(dir: string, files: Record<string, string>): Promise<void> {
-  const base = resolve(dir);
-  await mkdir(base, { recursive: true });
-  for (const [path, contents] of Object.entries(files)) {
-    const full = resolve(base, path);
-    if (!full.startsWith(base + sep)) {
-      throw new Error(
-        `unsafe specimen file path ${JSON.stringify(path)} — escapes ` +
-          `${JSON.stringify(base)} (path-traversal guard)`,
-      );
-    }
-    await mkdir(join(full, ".."), { recursive: true });
-    await writeFile(full, contents, "utf8");
-  }
 }
 
 /** Synthetic per-call token charge so the ledger/budget are exercised (N5). */

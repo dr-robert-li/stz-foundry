@@ -463,6 +463,39 @@ export interface HarnessGenome {
 }
 
 /**
+ * The promotion-gate boolean evidence set (0.9.0's DGM six-gate check; Phase 2
+ * adds a seventh — D-02/CONTEXT D2). This is the SINGLE definition:
+ * `ArchiveEntry.gates` aliases it rather than hand-duplicating the same keys a
+ * second time (RESEARCH flagged the two hand-written copies as a desync risk —
+ * a plan that added a field to only one would silently desync the archive's
+ * audit record from the gate that actually ran).
+ */
+export interface PromotionInputs {
+  beatsIncumbent: boolean;
+  hackClean: boolean;
+  sealOk: boolean;
+  interfaceParity: boolean;
+  diversityOk: boolean;
+  /**
+   * 0.9.5: the judge/verifier that produced this variant's selection signal is
+   * target-task CALIBRATED (passed the blind-accuracy battery). Fail-closed: an
+   * uncalibrated judge may not steer promotion (2606.14629).
+   */
+  rubricCalibrated: boolean;
+  /**
+   * Phase 2 (D-02/CONTEXT D2): the fitness number `beatsIncumbent` compares
+   * traces back, BY REFERENCE, to a real `BatteryRun` whose receipt roots in
+   * an exogenous oracle. COMPUTED inside the promotion decision from the
+   * actual `BatteryRun`/`OracleReceipt` that produced the fitness number —
+   * never a parameter a caller can assert true. See `exogenousLineageGate`
+   * (src/foundry/battery-types.ts) and `promoteComponentWinner`
+   * (src/foundry/component-tournament.ts). Fail-closed: an absent or
+   * unverifiable receipt reads as false, never a pass.
+   */
+  exogenousLineage: boolean;
+}
+
+/**
  * One archived harness variant (DGM stepping-stone). N6-CLEAN: no timestamps —
  * append-order in `60-harness/MANIFEST.json` is the audit sequence (mirrors
  * `seal.ts`). `variantId` is the content-addressed harness-contract hash.
@@ -481,6 +514,55 @@ export interface ArchiveEntry {
   advantage: number;
   /** For parent-sampling P ∝ fitness/(1+childCount). */
   childCount: number;
-  /** The six-gate promotion verdict snapshot (0.9.5 adds rubricCalibrated). */
-  gates: { hackClean: boolean; sealOk: boolean; interfaceParity: boolean; diversityOk: boolean; beatsIncumbent: boolean; rubricCalibrated: boolean };
+  /** The seven-gate promotion verdict snapshot (0.9.5 rubricCalibrated, Phase 2 exogenousLineage). */
+  gates: PromotionInputs;
+}
+
+/**
+ * The component-altitude sibling of `ArchiveEntry` (Phase 2 — 02-03,
+ * D-02/CONTEXT D2/D5). Component tournaments select agent-definition
+ * specimens, not harness genomes, so this entry gets its OWN shape and its
+ * OWN manifest path (`.stz/60-harness/component/<slot>/MANIFEST.json`, see
+ * `componentManifestPath` in harness.ts) rather than widening
+ * `ArchiveEntry.genome` into a union. The 0.9.0 meta-loop's `incumbent()` /
+ * `sampleParents()` / `readArchive` and `harness-status` / `harnessPromote`
+ * (bridge.ts) are hard-typed to `genome: HarnessGenome` and read ONLY
+ * `.stz/60-harness/MANIFEST.json` — a union would force every one of those
+ * existing genome consumers into a re-audit for a code path they never
+ * touch. This entry is the design finding 02-03-SUMMARY.md restates.
+ */
+export interface ComponentArchiveEntry {
+  schemaVersion: 1;
+  variantId: string;
+  /** Stepping-stone lineage; null for the first-ever promotion at this slot. */
+  parent: string | null;
+  /**
+   * The artifact reference — WHICH component slot, WHICH specimen, and a
+   * content hash of the agent-definition text that produced this entry.
+   * Deliberately not the definition text itself: the manifest stays a small
+   * audit record, not a second copy of every prompt ever tried.
+   */
+  artifact: { slot: string; specimenId: SpecimenId; definitionHash: string };
+  /** Held-out promotion-set fitness — the honest number (REQ-21: the
+   *  search-set number is easier to game, so `fitness` is never that one). */
+  fitness: number;
+  /** The search-set fitness the promoted candidate hill-climbed against. */
+  searchFitness: number;
+  /** The promotion-set (held-out) fitness — identical to `fitness` above,
+   *  carried again by name so a reader never has to infer which raw number
+   *  `fitness` is without cross-referencing this doc comment. */
+  promotionFitness: number;
+  /**
+   * `searchFitness - promotionFitness`, DERIVED (never caller-supplied) —
+   * the measured Goodhart bound (SC5, REQ-21, arXiv:2606.11045). Positive ⇒
+   * the searched agent scored worse held out than while being searched
+   * against (it generalizes worse — the direction that matters).
+   */
+  searchPromotionGap: number;
+  /** GRPO advantage within its generation. */
+  advantage: number;
+  /** For parent-sampling P ∝ fitness/(1+childCount), mirrors `ArchiveEntry`. */
+  childCount: number;
+  /** The seven-gate promotion verdict snapshot for this decision. */
+  gates: PromotionInputs;
 }

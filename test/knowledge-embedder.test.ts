@@ -14,7 +14,6 @@
  * rather than rejecting.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
@@ -26,48 +25,11 @@ import {
   SEARCH_QUERY_PREFIX,
   embedTimeoutMs,
 } from "../src/knowledge/embedder.js";
+import { fakeServer, closeAllFakeServers } from "./helpers/fake-server.js";
 
-/** `null` = never answer, which is the wedged-listener case. */
-type Handler = (req: IncomingMessage, body: any) => { status: number; json: unknown } | null;
-
-const servers: Server[] = [];
 afterEach(() => {
-  for (const s of servers.splice(0)) s.close();
+  closeAllFakeServers();
 });
-
-/**
- * Boot an in-process HTTP server; returns its base URL and captured requests.
- * ponytail: copied from `test/foundry-provider.test.ts` rather than extracted —
- * the repo has no shared test-helper module and two consumers do not justify
- * establishing one. Extract if a third arrives.
- */
-async function fakeServer(handler: Handler): Promise<{
-  url: string;
-  requests: Array<{ path: string; body: any }>;
-  close: () => void;
-}> {
-  const requests: Array<{ path: string; body: any }> = [];
-  const server = createServer((req, res: ServerResponse) => {
-    let raw = "";
-    req.on("data", (c) => (raw += c));
-    req.on("end", () => {
-      const body = raw ? JSON.parse(raw) : null;
-      requests.push({ path: req.url ?? "", body });
-      const out = handler(req, body);
-      if (!out) return; // hang: headers never written, response never ended
-      res.writeHead(out.status, { "content-type": "application/json" });
-      res.end(JSON.stringify(out.json));
-    });
-  });
-  servers.push(server);
-  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  const addr = server.address() as { port: number };
-  return {
-    url: `http://127.0.0.1:${addr.port}`,
-    requests,
-    close: () => server.close(),
-  };
-}
 
 const UNIT = [3, 4, 0, 0, 12]; // deliberately NOT unit length — the seam must normalize
 

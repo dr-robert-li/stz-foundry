@@ -405,7 +405,7 @@ describe("bridge — calibrated-verifier gating (0.9.5)", () => {
     expect(e.blindAccuracyBucket).toBe("high"); // 100% accuracy from judge-calibration — not clobbered
   });
 
-  it("harness-promote fails closed when the judge is uncalibrated, passes once calibrated", async () => {
+  it("harness-promote fails closed when the judge is uncalibrated OR the receipt is missing; passes once both are satisfied", async () => {
     const genome = {
       heuristicId: "v", mutatorIds: [], strategySet: [], rubricId: "r",
       weights: { pass: 1, coverage: 0, kill: 0, codeHealth: 0, clean: 0 }, fanout: 4, votesPerPair: 8,
@@ -420,6 +420,8 @@ describe("bridge — calibrated-verifier gating (0.9.5)", () => {
     const before = lastJSON<{ promote: boolean; failed: string[] }>();
     expect(before.promote).toBe(false);
     expect(before.failed).toContain("judge-rubric-not-calibrated");
+    // Phase 2's seventh gate is ALSO fail-closed here — no --receipt supplied.
+    expect(before.failed).toContain("fitness-lineage-not-exogenous");
 
     // Calibrate the judge for this slice-type (consistency + blind accuracy).
     captured = "";
@@ -427,9 +429,23 @@ describe("bridge — calibrated-verifier gating (0.9.5)", () => {
     captured = "";
     await runBridge(["judge-calibration", "--root", root, "--slice-type", "parser", "--verdicts", JSON.stringify(["a", "b"]), "--labels", JSON.stringify(["a", "b"])]);
 
-    // Now the same promotion call passes.
+    // Calibrated now, but STILL no --receipt ⇒ still refused on the seventh gate
+    // alone — proving it is independently load-bearing, not just co-incident
+    // with the calibration gate above.
     captured = "";
     await runBridge(["harness-promote", "--root", root, "--variant", variantId, "--slice-type", "parser", "--hack-clean", "true", "--seal-ok", "true", "--diversity-ok", "true"]);
+    const calibratedNoReceipt = lastJSON<{ promote: boolean; failed: string[] }>();
+    expect(calibratedNoReceipt.promote).toBe(false);
+    expect(calibratedNoReceipt.failed).toContain("fitness-lineage-not-exogenous");
+    expect(calibratedNoReceipt.failed).not.toContain("judge-rubric-not-calibrated");
+
+    // Now supply a real, exogenous-rooted receipt — every gate is satisfied.
+    captured = "";
+    await runBridge([
+      "harness-promote", "--root", root, "--variant", variantId, "--slice-type", "parser",
+      "--hack-clean", "true", "--seal-ok", "true", "--diversity-ok", "true",
+      "--receipt", JSON.stringify({ kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] }),
+    ]);
     const after = lastJSON<{ promote: boolean; failed: string[] }>();
     expect(after.promote).toBe(true);
   });

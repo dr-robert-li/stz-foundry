@@ -35,7 +35,7 @@ describe("Phase 7 — G7 crystallization gene", () => {
   it("a G7 gene-change is gated by the EXISTING six-gate guard — promotes only on a real win", () => {
     const win = promotionGate({
       beatsIncumbent: true, hackClean: true, sealOk: true,
-      interfaceParity: true, diversityOk: true, rubricCalibrated: true,
+      interfaceParity: true, diversityOk: true, rubricCalibrated: true, exogenousLineage: true,
     });
     expect(win.promote).toBe(true);
   });
@@ -43,7 +43,7 @@ describe("Phase 7 — G7 crystallization gene", () => {
   it("preserves halt-on-tie: a G7 change that ties the incumbent is DECLINED (the proven property)", () => {
     const tie = promotionGate({
       beatsIncumbent: false, hackClean: true, sealOk: true,
-      interfaceParity: true, diversityOk: true, rubricCalibrated: true,
+      interfaceParity: true, diversityOk: true, rubricCalibrated: true, exogenousLineage: true,
     });
     expect(tie.promote).toBe(false);
     expect(tie.failed).toContain("does-not-beat-incumbent");
