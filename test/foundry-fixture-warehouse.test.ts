@@ -15,6 +15,8 @@ import {
   generateFixtureBattery,
   acceptedGeneratorReceipt,
   DATA_OPS_GENERATOR_ID,
+  rootGeneratorId,
+  requireGeneratorRooted,
   type FixtureWarehouse,
 } from "../src/foundry/fixture-warehouse.js";
 import {
@@ -23,8 +25,21 @@ import {
   admitVerticalBattery,
   VerticalRefusedError,
 } from "../src/foundry/vertical-admission.js";
+import type { OracleReceipt } from "../src/foundry/battery-types.js";
 import { runAgentBattery, type CandidateAgent } from "../src/foundry/agent-runner.js";
 import type { ChatRequest, ChatResponse, Provider } from "../src/foundry/provider.js";
+
+/** House rule (test/foundry-battery-types.test.ts:44-51): assert the thrown
+ *  message's CONTENT, never bare `.toThrow()` — a mutation that relocates
+ *  which branch throws must not pass by accident. */
+function thrown(fn: () => unknown): Error {
+  try {
+    fn();
+  } catch (e) {
+    return e as Error;
+  }
+  throw new Error("expected fn to throw, it did not");
+}
 
 function fakeWarehouseTotals(warehouse: FixtureWarehouse): Record<string, { orderCount: number; revenueCents: number }> {
   const totals: Record<string, { orderCount: number; revenueCents: number }> = {};
@@ -132,7 +147,7 @@ describe("vertical admission is wired on the REAL construction path (D1/REQ-27, 
   });
 });
 
-describe("fixture-warehouse — receipt sharing (REQ-23, partial — full generator-rootedness gate lands in Task 2)", () => {
+describe("fixture-warehouse — receipt sharing (REQ-23)", () => {
   it("acceptedGeneratorReceipt returns the SAME frozen object on every call", () => {
     const a = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_ID);
     const b = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_ID);
@@ -151,6 +166,74 @@ describe("fixture-warehouse — receipt sharing (REQ-23, partial — full genera
     const batteryB = generateFixtureBattery(202, "data-ops-battery-b");
     expect(Object.is(receiptBefore, acceptedGeneratorReceipt(DATA_OPS_GENERATOR_ID))).toBe(true);
     expect(batteryA.receipt).toEqual(batteryB.receipt);
+  });
+});
+
+describe("fixture-warehouse — generator-rooted receipt discipline (REQ-23, the enforcement makeBattery structurally cannot provide)", () => {
+  it("rootGeneratorId resolves the id half of lineage[0]", () => {
+    const receipt = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_ID);
+    expect(rootGeneratorId(receipt)).toBe(DATA_OPS_GENERATOR_ID);
+  });
+
+  it("rootGeneratorId throws on an empty lineage — a constructed receipt with no lineage names no generator", () => {
+    const receipt: OracleReceipt = { kind: "constructed", acceptedBy: "Dr. Robert Li", lineage: [] };
+    const err = thrown(() => rootGeneratorId(receipt));
+    expect(err.message).toContain("lineage");
+  });
+
+  it("rootGeneratorId throws on a lineage[0] with no colon, an empty prefix, or an empty id", () => {
+    for (const badEntry of ["no-colon-here", ":empty-prefix", "empty-id:"]) {
+      const receipt: OracleReceipt = { kind: "constructed", acceptedBy: "Dr. Robert Li", lineage: [badEntry] };
+      const err = thrown(() => rootGeneratorId(receipt));
+      expect(err.message).toContain(badEntry);
+    }
+  });
+
+  it("requireGeneratorRooted passes for the memoized receipt returned by acceptedGeneratorReceipt", () => {
+    const receipt = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_ID);
+    expect(() => requireGeneratorRooted(receipt, DATA_OPS_GENERATOR_ID)).not.toThrow();
+  });
+
+  it("requireGeneratorRooted throws on an INSTANCE-rooted lineage — the id is not in ACCEPTED_GENERATORS", () => {
+    const receipt: OracleReceipt = {
+      kind: "constructed",
+      acceptedBy: "Dr. Robert Li",
+      lineage: ["constructed:data-ops-warehouse-seed-7"],
+    };
+    const err = thrown(() => requireGeneratorRooted(receipt, DATA_OPS_GENERATOR_ID));
+    expect(err.message).toContain("data-ops-warehouse-seed-7");
+    expect(err.message).toContain(DATA_OPS_GENERATOR_ID);
+  });
+
+  it("requireGeneratorRooted throws on an UNACCEPTED-generator lineage", () => {
+    const receipt: OracleReceipt = {
+      kind: "constructed",
+      acceptedBy: "Dr. Robert Li",
+      lineage: ["constructed:some-other-generator-v2"],
+    };
+    const err = thrown(() => requireGeneratorRooted(receipt, DATA_OPS_GENERATOR_ID));
+    expect(err.message).toContain("some-other-generator-v2");
+    expect(err.message).toContain(DATA_OPS_GENERATOR_ID);
+  });
+
+  it("requireGeneratorRooted throws on a field-identical but reference-distinct receipt — the Object.is step no field comparison can substitute for", () => {
+    const original = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_ID);
+    const lookalike: OracleReceipt = {
+      kind: original.kind,
+      acceptedBy: original.acceptedBy,
+      lineage: [...original.lineage],
+    };
+    expect(Object.is(lookalike, original)).toBe(false);
+    expect(lookalike).toEqual(original);
+    const err = thrown(() => requireGeneratorRooted(lookalike, DATA_OPS_GENERATOR_ID));
+    expect(err.message).toContain("not the accepted generator");
+  });
+
+  it("generateFixtureBattery calls requireGeneratorRooted before the draft reaches admitVerticalBattery — the receipt threaded into the battery is the memoized object", () => {
+    const battery = generateFixtureBattery(555, "data-ops-battery-generator-rooted-check");
+    const memoized = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_ID);
+    expect(battery.receipt).toEqual(memoized);
+    expect(rootGeneratorId(battery.receipt)).toBe(DATA_OPS_GENERATOR_ID);
   });
 });
 

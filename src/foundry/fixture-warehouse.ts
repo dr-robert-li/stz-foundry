@@ -62,6 +62,72 @@ export function acceptedGeneratorReceipt(generatorId: string): OracleReceipt {
   return receipt;
 }
 
+/**
+ * The id half of `receipt.lineage[0]` — carries NO acceptance opinion at
+ * all (mirrors `resolveRootKind`'s deliberate "no exogeneity opinion"
+ * split, `battery-types.ts:96-107`). Fails closed: an empty lineage names
+ * no generator, and a `lineage[0]` with no `:`, an empty prefix, or an
+ * empty id is not a `<kind>:<id>` pair — both throw, naming the offending
+ * entry.
+ */
+export function rootGeneratorId(receipt: OracleReceipt): string {
+  if (receipt.lineage.length === 0) {
+    throw new Error(
+      `[foundry:fixture-warehouse] receipt has empty lineage — a constructed receipt with no ` +
+        `lineage names no generator`,
+    );
+  }
+  const entry = receipt.lineage[0]!;
+  const idx = entry.indexOf(":");
+  if (idx <= 0 || idx === entry.length - 1) {
+    throw new Error(
+      `[foundry:fixture-warehouse] lineage root entry ${JSON.stringify(entry)} is not a ` +
+        `"<kind>:<id>" pair`,
+    );
+  }
+  return entry.slice(idx + 1);
+}
+
+/**
+ * THIS PHASE's own construction discipline (D4) — `resolveRootKind`/
+ * `validateReceipt` (already invoked inside `makeBattery`) parse a lineage
+ * entry as an OPAQUE `<kind>:<id>` string and are structurally incapable of
+ * telling a generator id from an instance id (`battery-types.ts:107-126`).
+ * `makeBattery` does NOT already cover "the receipt traces to the accepted
+ * generator, not an instance" — this function is what does.
+ *
+ * Three named sequential steps, never one compound boolean, so a mutation
+ * can disable exactly one:
+ *   1. `rootGeneratorId` — resolve the id half of `lineage[0]`.
+ *   2. Membership — `ACCEPTED_GENERATORS.has(rootId)`; refuses an
+ *      instance-rooted or unaccepted-generator lineage.
+ *   3. Reference identity — `Object.is(receipt, acceptedGeneratorReceipt(rootId))`
+ *      (the `component-tournament.ts:154` idiom one altitude down); a miss
+ *      means a substituted, copied, or re-derived receipt carrying the
+ *      right fields is still not the receipt the human accepted.
+ *
+ * `generatorId` names the EXPECTED accepted generator in every thrown
+ * message, alongside the offending id `rootGeneratorId` resolved.
+ */
+export function requireGeneratorRooted(receipt: OracleReceipt, generatorId: string): void {
+  const rootId = rootGeneratorId(receipt);
+  if (!ACCEPTED_GENERATORS.has(rootId)) {
+    throw new Error(
+      `[foundry:fixture-warehouse] lineage root id ${JSON.stringify(rootId)} is not an accepted ` +
+        `generator (expected ${JSON.stringify(generatorId)}; accepted: ` +
+        `${[...ACCEPTED_GENERATORS.keys()].map((id) => JSON.stringify(id)).join(", ")})`,
+    );
+  }
+  if (!Object.is(receipt, acceptedGeneratorReceipt(rootId))) {
+    throw new Error(
+      `[foundry:fixture-warehouse] receipt claiming root ${JSON.stringify(rootId)} (expected ` +
+        `generator ${JSON.stringify(generatorId)}) is not the accepted generator's own receipt ` +
+        `object — a substituted, copied, or re-derived receipt carrying the right fields is ` +
+        `still not the receipt the human accepted`,
+    );
+  }
+}
+
 /** THE ANSWER KEY. Computed first, from the seeded PRNG, before any row
  *  exists (D2). */
 export interface WarehouseFact {
@@ -250,15 +316,16 @@ export function buildTasks(warehouse: FixtureWarehouse): BatteryTask[] {
 
 /**
  * `generateWarehouse` -> `buildTasks` -> draft with the accepted generator's
- * memoized receipt -> `admitVerticalBattery("data-ops", draft)`. There is no
- * other route from this module to `makeBattery` — this is the ONLY
- * construction path for the pilot battery (D1/REQ-27, Pitfall 4). Arity 2
- * (REQ-24's compile-time guard).
+ * memoized receipt -> `requireGeneratorRooted` (REQ-23) -> `admitVerticalBattery`
+ * (REQ-27) -> `makeBattery`. There is no other route from this module to
+ * `makeBattery` — this is the ONLY construction path for the pilot battery
+ * (D1/REQ-27, Pitfall 4). Arity 2 (REQ-24's compile-time guard).
  */
 export function generateFixtureBattery(seed: number, batteryId: string): AgentBattery {
   const warehouse = generateWarehouse(seed);
   const tasks = buildTasks(warehouse);
   const receipt = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_ID);
+  requireGeneratorRooted(receipt, DATA_OPS_GENERATOR_ID);
   const draft = { id: batteryId, tasks, receipt };
   return admitVerticalBattery("data-ops", draft);
 }
