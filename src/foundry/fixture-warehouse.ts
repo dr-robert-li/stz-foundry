@@ -1,22 +1,43 @@
 /**
- * The fixture-warehouse generator (Phase 1 — Data-ops pilot battery, Plan
- * 01-01 tracer, REQ-22/REQ-23/REQ-26). Answer-first, per D2: ground-truth
+ * The fixture-warehouse generator (Phase 1 — Data-ops pilot battery, Plans
+ * 01-01/01-03, REQ-22/REQ-23/REQ-24/REQ-26). Answer-first, per D2: ground-truth
  * `WarehouseFact`s are computed FIRST, from the seeded PRNG, before any
  * `RawOrderRow` exists — the raw rows are DERIVED from the facts, never the
  * reverse. `generateWarehouse` is a pure function of `(seed: number)` with
  * no `Provider`/`CandidateAgent`/network parameter anywhere in its
  * signature — the compile-time half of REQ-24 (RESEARCH's own framing); the
- * import-graph half and the discrimination control land in Plan 01-03.
+ * import-graph half and the discrimination control live in
+ * `test/foundry-fixture-warehouse.test.ts` / `test/fixtures/answer-key-violation.ts`
+ * (Plan 01-03).
  *
  * `runAgentBattery`'s candidate loop is a SINGLE `provider.chat()` call per
  * task (`agent-runner.ts:353-357`) — no tool-use loop, no filesystem the
  * candidate can browse. ponytail: the warehouse is therefore toy-scale and
  * embedded verbatim in `BatteryTask.prompt`, not a real explorable
  * warehouse. Upgrade trigger: a candidate loop that can browse files.
+ *
+ * Plan 01-03 resolves RESEARCH's Open Question 2 in favour of TWO
+ * independently-seeded warehouses for the search/promotion split
+ * (`generateFixtureSplitBattery`/`derivePromotionSeed`), rather than one
+ * shared warehouse with its task set merely partitioned. Task-id
+ * disjointness alone (what `makeSplitBattery` already enforces) holds out
+ * the SELECTION METRIC, but a candidate that overfits to one warehouse's
+ * specific messy-data quirks (its exact date-format mix, its exact
+ * duplicate placement) could still transfer within a single shared
+ * warehouse in a way it would not across two warehouses generated from
+ * independent seeds. Two independent warehouses buy the stronger Goodhart
+ * bound at the cost of one extra `sha256` call.
  */
+import { createHash } from "node:crypto";
 import { mulberry32 } from "../harness.js";
 import { admitVerticalBattery } from "./vertical-admission.js";
-import type { AgentBattery, BatteryTask, OracleReceipt } from "./battery-types.js";
+import {
+  makeSplitBattery,
+  type AgentBattery,
+  type BatteryTask,
+  type OracleReceipt,
+  type SplitBattery,
+} from "./battery-types.js";
 import type { PredicateCheck } from "../contract/contract-types.js";
 
 /** Names the ACCEPTED GENERATOR — never an instance, never a seed (D4/REQ-23).
@@ -159,6 +180,11 @@ const MONTHS_2026 = [
   "2026-07", "2026-08", "2026-09", "2026-10", "2026-11", "2026-12",
 ];
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 /** Bare cents, dollars, or dollars-with-symbol — the three formats the
  *  candidate must normalize (D2's "genuine transformation to reverse"). */
 function formatAmount(cents: number, formatIdx: number): string {
@@ -170,6 +196,23 @@ function formatAmount(cents: number, formatIdx: number): string {
       return dollars;
     default:
       return `$${dollars}`;
+  }
+}
+
+/** ISO (`2026-01-05`), slashed (`05/01/2026`), or month-name
+ *  (`January 5, 2026`) — the second messiness transform Plan 01-03 adds:
+ *  month bucketing genuinely requires normalizing `rawDate`, not just
+ *  reading its `YYYY-MM` prefix. `monthLabel` is always `YYYY-MM`
+ *  (`MONTHS_2026`'s own shape). */
+function formatDate(monthLabel: string, dayStr: string, formatIdx: number): string {
+  const [yearStr, monthStr] = monthLabel.split("-") as [string, string];
+  switch (formatIdx) {
+    case 0:
+      return `${monthLabel}-${dayStr}`;
+    case 1:
+      return `${dayStr}/${monthStr}/${yearStr}`;
+    default:
+      return `${MONTH_NAMES[Number(monthStr) - 1]} ${Number(dayStr)}, ${yearStr}`;
   }
 }
 
@@ -196,47 +239,93 @@ function assertAnswerNotLeaked(warehouse: FixtureWarehouse): void {
 /**
  * Pure function of a seed, arity 1 (REQ-24's compile-time guard — no
  * `Provider`/`CandidateAgent`/clock parameter anywhere). Same seed
- * reproduces the warehouse exactly; different seeds produce different
- * warehouses (D3/N6). For the tracer: one customer, one month, an
+ * reproduces the warehouse exactly; different seeds produce different fact
+ * VALUES, not merely a different top-level id (D3/N6). Three `customerId`s
+ * x two `month`s = six fact groups, all drawn from the ONE `mulberry32`
+ * stream so a single seed replays the whole warehouse. Per-group
  * `orderCount` in `[11, 20]`, per-row amounts in `[10_000, 99_999]` cents —
- * magnitude discipline load-bearing for `assertAnswerNotLeaked` above.
- * Messiness applied, each a transformation the candidate must reverse: one
- * verbatim-duplicated row (dedupe), three `rawAmount` render formats
- * (normalize), some rows with an empty `rawAmount` and the value carried in
- * `amountBackup` instead (recover). `rawDate` uses one ISO format for the
- * tracer; Plan 01-03 adds mixed formats and multiple months.
+ * the same magnitude discipline as the tracer, unchanged: every group total
+ * is >=6 digits while every field stays <=5 digits, so `assertAnswerNotLeaked`
+ * remains enforceable.
+ *
+ * Messiness, each a transformation the candidate must reverse: one
+ * verbatim-duplicated row per group (dedupe), three `rawAmount` render
+ * formats (normalize), some rows with an empty `rawAmount` and the value
+ * carried in `amountBackup` instead (recover), and — new in Plan 01-03 —
+ * three `rawDate` render formats (`formatDate` above) so month-bucketing
+ * itself requires normalizing the date, not just reading its prefix.
+ *
+ * ponytail: `runAgentBattery`'s candidate loop is a SINGLE `provider.chat()`
+ * call (`agent-runner.ts:353-357`) — the whole warehouse must fit in one
+ * prompt string. Six groups x up to 21 rows (20 orders + 1 duplicate) is at
+ * most 126 CSV lines, comfortably inside any local/hosted model's context
+ * window at this row count. Upgrade trigger: a candidate loop that can read
+ * files, if the pilot warehouse ever needs to grow beyond toy scale.
  */
 export function generateWarehouse(seed: number): FixtureWarehouse {
   const rand = mulberry32(seed);
-  const customerId = `cust-${1000 + Math.floor(rand() * 9000)}`;
-  const month = MONTHS_2026[Math.floor(rand() * MONTHS_2026.length)]!;
-  const orderCount = 11 + Math.floor(rand() * 10); // [11, 20]
 
-  const amounts: number[] = [];
-  for (let i = 0; i < orderCount; i++) {
-    amounts.push(10_000 + Math.floor(rand() * 90_000)); // [10_000, 99_999]
-  }
-  const revenueCents = amounts.reduce((sum, cents) => sum + cents, 0);
-  const facts: WarehouseFact[] = [{ customerId, month, orderCount, revenueCents }];
-
-  const rows: RawOrderRow[] = [];
-  for (let i = 0; i < orderCount; i++) {
-    const orderId = `ord-${i + 1}`;
-    const cents = amounts[i]!;
-    const day = 1 + Math.floor(rand() * 28);
-    const dayStr = day < 10 ? `0${day}` : `${day}`;
-    const rawDate = `${month}-${dayStr}`;
-    const formatIdx = Math.floor(rand() * 3);
-    const carryInBackup = rand() < 0.3;
-    const formatted = formatAmount(cents, formatIdx);
-    const rawAmount = carryInBackup ? "" : formatted;
-    const amountBackup = carryInBackup ? formatted : "";
-    rows.push({ orderId, customerId, rawDate, rawAmount, amountBackup });
+  const customerIds: string[] = [];
+  while (customerIds.length < 3) {
+    const cid = `cust-${1000 + Math.floor(rand() * 9000)}`;
+    if (!customerIds.includes(cid)) customerIds.push(cid);
   }
 
-  // (a) one row duplicated verbatim, same orderId — must be deduped.
-  const dupIdx = Math.floor(rand() * orderCount);
-  rows.push({ ...rows[dupIdx]! });
+  const months: string[] = [];
+  while (months.length < 2) {
+    const m = MONTHS_2026[Math.floor(rand() * MONTHS_2026.length)]!;
+    if (!months.includes(m)) months.push(m);
+  }
+
+  const facts: WarehouseFact[] = [];
+  // Rows carry a PRNG-derived sort key so the emitted order is stable AND
+  // interleaves rows across customers/months — never grouped strictly by
+  // (customerId, month) position, which would let a candidate infer month
+  // bucketing from position instead of normalizing rawDate. Sorting by a
+  // derived numeric key (never by object-key or Set iteration order, and
+  // never by anything time-derived) is the class of determinism bug
+  // `src/knowledge/embedder.ts`'s own `l2Normalize` doc comment names —
+  // fixing iteration order rather than leaving it to insertion order.
+  const sortableRows: { row: RawOrderRow; sortKey: number }[] = [];
+
+  let groupIdx = 0;
+  for (const customerId of customerIds) {
+    for (const month of months) {
+      const orderCount = 11 + Math.floor(rand() * 10); // [11, 20]
+      const amounts: number[] = [];
+      for (let i = 0; i < orderCount; i++) {
+        amounts.push(10_000 + Math.floor(rand() * 90_000)); // [10_000, 99_999]
+      }
+      const revenueCents = amounts.reduce((sum, cents) => sum + cents, 0);
+      facts.push({ customerId, month, orderCount, revenueCents });
+
+      const groupRows: RawOrderRow[] = [];
+      for (let i = 0; i < orderCount; i++) {
+        const orderId = `ord-${groupIdx}-${i + 1}`;
+        const cents = amounts[i]!;
+        const day = 1 + Math.floor(rand() * 28);
+        const dayStr = day < 10 ? `0${day}` : `${day}`;
+        const dateFormatIdx = Math.floor(rand() * 3);
+        const rawDate = formatDate(month, dayStr, dateFormatIdx);
+        const amountFormatIdx = Math.floor(rand() * 3);
+        const carryInBackup = rand() < 0.3;
+        const formatted = formatAmount(cents, amountFormatIdx);
+        const rawAmount = carryInBackup ? "" : formatted;
+        const amountBackup = carryInBackup ? formatted : "";
+        groupRows.push({ orderId, customerId, rawDate, rawAmount, amountBackup });
+      }
+
+      // one row per group duplicated verbatim, same orderId — must be deduped.
+      const dupIdx = Math.floor(rand() * orderCount);
+      groupRows.push({ ...groupRows[dupIdx]! });
+
+      for (const row of groupRows) sortableRows.push({ row, sortKey: rand() });
+      groupIdx++;
+    }
+  }
+
+  sortableRows.sort((a, b) => a.sortKey - b.sortKey);
+  const rows: RawOrderRow[] = sortableRows.map((r) => r.row);
 
   const csvLines = ["orderId,customerId,rawDate,rawAmount,amountBackup"];
   for (const row of rows) {
@@ -264,12 +353,19 @@ export function generateWarehouse(seed: number): FixtureWarehouse {
  * — a double underscore between customerId and month because `observeCheck`
  * splits the dotted json-invariant path on `.`, and neither field contains a
  * literal `.`.
+ *
+ * `taskIdPrefix` (default `""`, so every existing single-battery caller is
+ * unaffected) makes task-id disjointness STRUCTURAL rather than coincidental
+ * for `generateFixtureSplitBattery` below: two halves built from two
+ * different battery ids get two different prefixes, so their task ids
+ * cannot collide even if both warehouses happen to draw the same
+ * `(customerId, month)` pair from their independent PRNG streams.
  */
-export function buildTasks(warehouse: FixtureWarehouse): BatteryTask[] {
+export function buildTasks(warehouse: FixtureWarehouse, taskIdPrefix: string = ""): BatteryTask[] {
   const tasks: BatteryTask[] = [];
   for (const fact of warehouse.facts) {
     const groupKey = `${fact.customerId}__${fact.month}`;
-    const taskId = `data-ops-fact-recovery-${groupKey}`;
+    const taskId = `${taskIdPrefix}data-ops-fact-recovery-${groupKey}`;
     const prompt = [
       `You are given raw order data extracted from a data warehouse, for`,
       `customer ${fact.customerId} in month ${fact.month}. The data is messy:`,
@@ -279,6 +375,11 @@ export function buildTasks(warehouse: FixtureWarehouse): BatteryTask[] {
       `  normalize all of them to integer cents before summing.`,
       `- Some rows have an empty "rawAmount"; the true amount is instead`,
       `  carried in "amountBackup", in one of the same three formats.`,
+      `- "rawDate" is rendered in one of three formats: ISO ("2026-01-05"),`,
+      `  slashed ("05/01/2026"), or a month name ("January 5, 2026") — normalize`,
+      `  all of them to determine which month a row belongs to.`,
+      `- Rows for other customers/months are interleaved in the same CSV; only`,
+      `  count rows for customer ${fact.customerId} in month ${fact.month}.`,
       ``,
       `CSV:`,
       "```csv",
@@ -328,4 +429,62 @@ export function generateFixtureBattery(seed: number, batteryId: string): AgentBa
   requireGeneratorRooted(receipt, DATA_OPS_GENERATOR_ID);
   const draft = { id: batteryId, tasks, receipt };
   return admitVerticalBattery("data-ops", draft);
+}
+
+/**
+ * `archiveSeed`'s own sha256-then-parseInt idiom (`src/harness.ts:171-174`
+ * / `component-tournament.ts`'s citation of it), copied verbatim rather than
+ * imported across altitudes: turn `seed` plus a fixed label into a second,
+ * independent 32-bit seed. Stable across calls for the same `seed`, and
+ * different from `seed` itself (`|"promotion"` is appended, never omitted).
+ * One top-level seed still reproduces BOTH halves of the split battery
+ * (N6 replay unaffected) even though the two halves draw from independent
+ * PRNG streams.
+ */
+export function derivePromotionSeed(seed: number): number {
+  const h = createHash("sha256").update(`${seed}|promotion`).digest("hex");
+  return parseInt(h.slice(0, 8), 16);
+}
+
+/**
+ * Two INDEPENDENTLY-seeded warehouses (see the module doc comment's
+ * rationale) — `search` from `seed`, `promotion` from `derivePromotionSeed(seed)`
+ * — each built through the SAME real construction path as
+ * `generateFixtureBattery` (`admitVerticalBattery`, REQ-27), then handed to
+ * the existing, unmodified `makeSplitBattery` for the pair-level disjoint-id
+ * / disjoint-task-id guarantees (Phase 2, D-03/CONTEXT D3). Task ids embed
+ * each half's own battery id (`buildTasks`'s `taskIdPrefix`), so
+ * disjointness holds structurally even in the astronomically unlikely case
+ * the two independent warehouses draw the same `(customerId, month)` pair.
+ * Arity 1 (REQ-24's compile-time guard).
+ */
+export function generateFixtureSplitBattery(seed: number): SplitBattery {
+  const promotionSeed = derivePromotionSeed(seed);
+  const searchBatteryId = `data-ops-search-${seed}`;
+  const promotionBatteryId = `data-ops-promotion-${seed}`;
+
+  const searchWarehouse = generateWarehouse(seed);
+  const promotionWarehouse = generateWarehouse(promotionSeed);
+
+  const receipt = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_ID);
+  requireGeneratorRooted(receipt, DATA_OPS_GENERATOR_ID);
+
+  const searchTasks = buildTasks(searchWarehouse, `${searchBatteryId}::`);
+  const promotionTasks = buildTasks(promotionWarehouse, `${promotionBatteryId}::`);
+
+  const searchBattery = admitVerticalBattery("data-ops", {
+    id: searchBatteryId,
+    tasks: searchTasks,
+    receipt,
+  });
+  const promotionBattery = admitVerticalBattery("data-ops", {
+    id: promotionBatteryId,
+    tasks: promotionTasks,
+    receipt,
+  });
+
+  return makeSplitBattery(
+    { id: searchBattery.id, tasks: searchBattery.tasks, receipt: searchBattery.receipt },
+    { id: promotionBattery.id, tasks: promotionBattery.tasks, receipt: promotionBattery.receipt },
+  );
 }

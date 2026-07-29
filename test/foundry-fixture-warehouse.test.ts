@@ -13,6 +13,8 @@ import {
   generateWarehouse,
   buildTasks,
   generateFixtureBattery,
+  generateFixtureSplitBattery,
+  derivePromotionSeed,
   acceptedGeneratorReceipt,
   DATA_OPS_GENERATOR_ID,
   rootGeneratorId,
@@ -78,6 +80,10 @@ describe("fixture-warehouse — REQ-24 compile-time signature guarantees", () =>
   it("generateFixtureBattery takes only (seed, batteryId) — no Provider param can be added silently", () => {
     expect(generateFixtureBattery.length).toBe(2);
   });
+
+  it("generateFixtureSplitBattery takes only a seed — no Provider param can be added silently", () => {
+    expect(generateFixtureSplitBattery.length).toBe(1);
+  });
 });
 
 describe("vertical-admission — arity guarantees (no override/judge parameter)", () => {
@@ -97,11 +103,49 @@ describe("fixture-warehouse — D3/N6 determinism", () => {
     expect(a).toEqual(b);
   });
 
+  it("the same seed reproduces the emitted task prompts and check expects exactly", () => {
+    const tasksA = buildTasks(generateWarehouse(20260729));
+    const tasksB = buildTasks(generateWarehouse(20260729));
+    expect(tasksA.map((t) => t.prompt)).toEqual(tasksB.map((t) => t.prompt));
+    expect(tasksA.map((t) => t.checks.map((c) => c.expect))).toEqual(
+      tasksB.map((t) => t.checks.map((c) => c.expect)),
+    );
+  });
+
   it("different seeds produce different facts/rows/csv — catches a generator that ignores its seed", () => {
     const a = generateWarehouse(1);
     const b = generateWarehouse(2);
     expect(a).not.toEqual(b);
     expect(a.facts).not.toEqual(b.facts);
+    // Assertion on FACT VALUES and csv specifically, not merely on a
+    // top-level id — a generator that reads seed on a dead code path (Plan
+    // 01-01 tracer's Pitfall 2(b)) would still pass the coarser checks above.
+    expect(a.facts.map((f) => f.revenueCents)).not.toEqual(b.facts.map((f) => f.revenueCents));
+    expect(a.csv).not.toEqual(b.csv);
+  });
+
+  it("row ordering is stable across calls for a given seed — no iteration-order or wall-clock dependence", () => {
+    const a = generateWarehouse(555);
+    const b = generateWarehouse(555);
+    expect(a.rows.map((r) => r.orderId)).toEqual(b.rows.map((r) => r.orderId));
+  });
+});
+
+describe("fixture-warehouse — magnitude discipline (T-01-03, Pitfall 1)", () => {
+  it("every fact's revenueCents is >=6 digits, and no single csv field exceeds 5 digits, for several seeds", () => {
+    for (const seed of [1, 2, 3, 42, 9999]) {
+      const warehouse = generateWarehouse(seed);
+      for (const fact of warehouse.facts) {
+        expect(String(fact.revenueCents).length).toBeGreaterThanOrEqual(6);
+      }
+      for (const row of warehouse.rows) {
+        for (const field of [row.orderId, row.rawDate, row.rawAmount, row.amountBackup]) {
+          for (const digitRun of field.match(/\d+/g) ?? []) {
+            expect(digitRun.length).toBeLessThanOrEqual(5);
+          }
+        }
+      }
+    }
   });
 });
 
@@ -114,6 +158,37 @@ describe("fixture-warehouse — the answer key does not leak into the csv (T-01-
         expect(re.test(warehouse.csv)).toBe(false);
       }
     }
+  });
+});
+
+describe("fixture-warehouse — two independently-seeded halves (REQ-24, RESEARCH Open Question 2)", () => {
+  it("derivePromotionSeed is stable across calls and differs from the input seed", () => {
+    const a = derivePromotionSeed(7);
+    const b = derivePromotionSeed(7);
+    expect(a).toBe(b);
+    expect(a).not.toBe(7);
+  });
+
+  it("generateFixtureSplitBattery(7) yields halves with distinct ids, disjoint task-id sets, and non-deep-equal facts", () => {
+    const split = generateFixtureSplitBattery(7);
+    expect(split.search.id).not.toBe(split.promotion.id);
+
+    const searchTaskIds = new Set(split.search.tasks.map((t) => t.id));
+    for (const task of split.promotion.tasks) {
+      expect(searchTaskIds.has(task.id)).toBe(false);
+    }
+
+    const searchWarehouse = generateWarehouse(7);
+    const promotionWarehouse = generateWarehouse(derivePromotionSeed(7));
+    expect(searchWarehouse.facts).not.toEqual(promotionWarehouse.facts);
+  });
+
+  it("both halves carry the SAME pre-makeBattery accepted-generator receipt object", () => {
+    const receiptBefore = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_ID);
+    const split = generateFixtureSplitBattery(7);
+    expect(Object.is(receiptBefore, acceptedGeneratorReceipt(DATA_OPS_GENERATOR_ID))).toBe(true);
+    expect(split.search.receipt).toEqual(receiptBefore);
+    expect(split.promotion.receipt).toEqual(receiptBefore);
   });
 });
 
