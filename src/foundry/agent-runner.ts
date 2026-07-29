@@ -22,7 +22,7 @@ import { spawnSpecimens, type SpecimenRunRecord } from "./spawn.js";
 import { createProvider, type Provider, type ProviderKind } from "./provider.js";
 import { evaluateChecks, type CheckResult, type Observations } from "../contract/predicate-eval.js";
 import type { PredicateCheck } from "../contract/contract-types.js";
-import type { AgentBattery, OracleReceipt } from "./battery-types.js";
+import { validateReceipt, type AgentBattery, type OracleReceipt } from "./battery-types.js";
 import { resolveContained, writeSpecimenFiles } from "../write-guard.js";
 import { FoundryCostMeter, type CostTotals } from "./cost.js";
 
@@ -295,6 +295,14 @@ export async function runAgentBattery(
   battery: AgentBattery,
   opts: RunBatteryOptions = {},
 ): Promise<BatteryRun> {
+  // Defense in depth behind the `AgentBattery` brand. The brand stops a
+  // hand-built literal in TypeScript; this stops one that arrives from
+  // JavaScript, from `JSON.parse`, or through an `as AgentBattery` cast.
+  // Re-running the gate is cheap (it walks one lineage array) and it is the
+  // difference between "no fitness without an exogenous receipt" being
+  // enforced and being merely intended.
+  validateReceipt(battery.receipt, battery.id);
+
   let provider: Provider;
   let providerSelection: ProviderSelection;
   if (opts.providerImpl) {

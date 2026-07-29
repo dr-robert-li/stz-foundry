@@ -792,3 +792,49 @@ describe("runAgentBattery output feeds evalGate/evalReward/select unchanged (REQ
     expect("suspicion" in run.result).toBe(false);
   });
 });
+
+describe("runAgentBattery rejects an unvalidated battery (defense in depth behind the brand)", () => {
+  // The brand stops a TypeScript caller from hand-building an AgentBattery.
+  // This proves the RUNTIME half: a battery arriving from JavaScript, from
+  // JSON.parse, or through an `as AgentBattery` cast is still gated. Without
+  // this, the phase's governing claim — "structurally impossible to score a
+  // fitness result without an exogenous receipt" — was false: this exact
+  // literal ran to a complete scored BatteryRun with zero throw.
+  const forged = (kind: string, lineage: string[]) =>
+    ({
+      schemaVersion: 1,
+      id: "forged",
+      tasks: [{ id: "t1", prompt: "p", checks: [check({ checkId: "c1", expect: "ok" })] }],
+      receipt: { kind, acceptedBy: "human:someone", lineage },
+    }) as unknown as Parameters<typeof runAgentBattery>[1];
+
+  const agent = { id: "a" } as unknown as Parameters<typeof runAgentBattery>[0];
+
+  it("throws on a receipt rooted solely in anchored-judge", async () => {
+    await expect(runAgentBattery(agent, forged("anchored-judge", []))).rejects.toThrow(
+      /anchored-judge/,
+    );
+  });
+
+  it("throws on a lineage rooted in anchored-judge even when the leaf kind is execution", async () => {
+    await expect(
+      runAgentBattery(agent, forged("execution", ["anchored-judge:j1"])),
+    ).rejects.toThrow(/anchored-judge/);
+  });
+
+  it("throws before any provider call — an invalid battery costs zero inference", async () => {
+    let calls = 0;
+    const provider: Provider = {
+      kind: "ollama",
+      baseUrl: "http://127.0.0.1:1",
+      async chat(_req: ChatRequest): Promise<ChatResponse> {
+        calls += 1;
+        throw new Error("provider must not be reached");
+      },
+    } as unknown as Provider;
+    await expect(
+      runAgentBattery(agent, forged("anchored-judge", []), { providerImpl: provider }),
+    ).rejects.toThrow(/anchored-judge/);
+    expect(calls).toBe(0);
+  });
+});

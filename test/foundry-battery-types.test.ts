@@ -314,3 +314,31 @@ describe("validateReceipt — exported directly, exercised without going through
     expect(e.message).toContain("anchored-judge");
   });
 });
+
+describe("the AgentBattery brand — makeBattery is the ONLY way to get one", () => {
+  it("a hand-built battery-shaped literal does not satisfy AgentBattery (type-level proof)", async () => {
+    // The runtime half of this guard is proven in foundry-agent-runner.test.ts
+    // ("runAgentBattery rejects an unvalidated battery"). This half proves the
+    // TYPE half: the same literal, cast to the parameter type, is a compile
+    // error without the cast — so a TypeScript caller cannot forge one at all.
+    //
+    // Kept as a source assertion rather than a type-test dependency (N: zero
+    // runtime deps, and the repo has no tsd/expect-type). The brand's presence
+    // in the interface is what makes the cast necessary; if the brand is
+    // deleted, this assertion fails and names why.
+    const src = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/foundry/battery-types.ts", import.meta.url), "utf8"),
+    );
+    expect(src).toContain("declare const VALIDATED_BATTERY: unique symbol");
+    expect(src).toContain("readonly [VALIDATED_BATTERY]: true");
+  });
+
+  it("makeBattery's return is assignable to AgentBattery (the brand is minted, not merely declared)", () => {
+    const battery = makeBattery({ id: "b24", tasks: [task()], receipt: receipt() });
+    // If the brand were declared on the interface but never minted by the
+    // factory, this assignment would not typecheck and `npm run typecheck`
+    // would fail — the test is the assignment itself.
+    const asBattery: import("../src/foundry/battery-types.js").AgentBattery = battery;
+    expect(asBattery.id).toBe("b24");
+  });
+});

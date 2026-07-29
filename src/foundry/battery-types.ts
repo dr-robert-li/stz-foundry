@@ -49,11 +49,24 @@ export interface BatteryTask {
   checks: PredicateCheck[];
 }
 
+/** Type-only nominal brand. It has no runtime representation, so it costs
+ *  nothing at runtime and cannot be forged in TypeScript: an object literal
+ *  with the right fields does NOT satisfy `AgentBattery`, because a caller
+ *  outside this module cannot name this symbol. Only `makeBattery` — which
+ *  runs the receipt gate first — can mint the branded value.
+ *
+ *  This is what makes "no receipt, no battery" structural rather than a
+ *  convention. Without it, `AgentBattery` was a plain structural interface and
+ *  a hand-built literal rooted only in `anchored-judge` scored clean. */
+declare const VALIDATED_BATTERY: unique symbol;
+
 export interface AgentBattery {
   schemaVersion: 1;
   id: string;
   tasks: BatteryTask[];
   receipt: OracleReceipt;
+  /** Brand — see `VALIDATED_BATTERY`. Never present at runtime. */
+  readonly [VALIDATED_BATTERY]: true;
 }
 
 /** The three legal sources of exogenous bits (docs/development/harness-factory.md
@@ -242,6 +255,8 @@ export function makeBattery(draft: {
     );
   }
 
+  // The one cast that mints the brand. It is safe precisely here and nowhere
+  // else: every gate above has already run on this value.
   return Object.freeze({
     schemaVersion: 1,
     id,
@@ -250,5 +265,5 @@ export function makeBattery(draft: {
       ...draft.receipt,
       lineage: Object.freeze([...draft.receipt.lineage]) as string[],
     }) as OracleReceipt,
-  });
+  }) as AgentBattery;
 }
