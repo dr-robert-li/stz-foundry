@@ -162,28 +162,45 @@ export interface BuildResult {
 }
 
 /**
- * Walk → hash → embed → persist.
+ * Walk → hash → diff → embed only what changed → persist (D4, REQ-07).
  *
- * ponytail: embeds every walked document and reports `rebuilt: "full"` — honest,
- * and correct for a tree of this size. 02-03 adds the content-hash diff so only
- * changed documents are re-embedded and `"incremental"` becomes reachable; the
- * returned shape is already final so that change is internal.
+ * The same added/drifted/removed reconciliation `seal()` already does over the
+ * held-out suite, keyed the same way (sha256 over content) and for the same
+ * reason: re-doing unchanged work is not just slow, it is a chance to produce a
+ * different answer for input that did not change.
+ *
+ * Two rules that are not optimizations and must not be relaxed:
+ *   - a prior key absent from the walk is DROPPED, never carried "just in case".
+ *     An index serving a document that no longer exists — possibly deleted
+ *     *because* it was sensitive — is the exact failure REQ-07 names (T-02-14).
+ *   - a fingerprint change discards everything. Vectors from two embedders are
+ *     not comparable, and the resulting noise clears the similarity floor often
+ *     enough to look like signal (T-02-17), so there is nothing to reconcile.
  */
 export async function buildIndex(root: string, embedder: Embedder, providerReason: string): Promise<BuildResult> {
-  const docs = walkIndexable(root);
+  const docs = walkIndexable(root).map((d) => ({ ...d, hash: sha256(d.indexText) }));
   const prior = readIndex(root);
-  const vectors = docs.length ? await embedder.embed(docs.map((d) => d.indexText), "document") : [];
+  const usable = prior && prior.fingerprint === embedder.fingerprint && prior.dim === embedder.dim ? prior : null;
+
+  const changed = docs.filter((d) => usable?.entries[d.relPath]?.hash !== d.hash);
+  // Guarded, not merely empty-safe: a no-change rebuild must issue no embed call
+  // at all, which is what the counting-embedder test asserts.
+  const vectors = changed.length ? await embedder.embed(changed.map((d) => d.indexText), "document") : [];
+  const fresh = new Map(changed.map((d, i) => [d.relPath, (vectors[i] ?? []).map(round6)]));
 
   const entries: Record<string, IndexEntry> = {};
-  docs.forEach((doc, i) => {
-    entries[doc.relPath] = {
-      hash: sha256(doc.indexText),
-      kind: kindForPath(doc.relPath),
-      summary: doc.indexText,
-      vector: (vectors[i] ?? []).map(round6),
-    };
-  });
+  for (const doc of docs) {
+    const vector = fresh.get(doc.relPath);
+    // Exactly one branch applies: a document is either in the changed set (fresh
+    // vector) or its hash matched a usable prior entry, which is then carried
+    // forward untouched — same bytes, not a re-derivation.
+    entries[doc.relPath] = vector
+      ? { hash: doc.hash, kind: kindForPath(doc.relPath), summary: doc.indexText, vector }
+      : usable!.entries[doc.relPath]!;
+  }
 
+  // Counted against what was ON DISK, not against `usable`: a document that left
+  // the tree is evicted whether or not the embedder identity also changed.
   const evicted = prior ? Object.keys(prior.entries).filter((k) => !(k in entries)).length : 0;
   writeIndex(root, {
     schemaVersion: 1,
@@ -193,8 +210,8 @@ export async function buildIndex(root: string, embedder: Embedder, providerReaso
     entries,
   });
   return {
-    rebuilt: "full",
-    embedded: docs.length,
+    rebuilt: usable ? "incremental" : "full",
+    embedded: changed.length,
     evicted,
     total: docs.length,
     fingerprint: embedder.fingerprint,
