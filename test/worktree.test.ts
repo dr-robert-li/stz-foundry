@@ -20,6 +20,8 @@ import {
   lastWorktreeReason,
   _resetWorktreeState,
 } from "../src/worktree.js";
+import { seal, verifySeal } from "../src/seal.js";
+import { createHash } from "node:crypto";
 import { runSlice } from "../src/mock/orchestrator.js";
 import { MockModelLayer, defaultMockConfig } from "../src/mock/mock.js";
 import type { Specimen } from "../src/mock/interfaces.js";
@@ -550,4 +552,48 @@ describe("worktree-isolated round (REQ-01/REQ-03/REQ-04)", () => {
       rmSync(PROBE, { force: true });
     }
   }, 60_000);
+
+  // ── ROADMAP criterion 3: the seal survives isolation (C3b + C3c) ──────────
+
+  it("seal survives a worktree round and the suite was never written into one", async () => {
+    const root = makeRepo(REPO);
+    const suite = join(root, SEALED);
+    // Same primitive src/seal.ts uses; hand-rolling a comparison would be a
+    // second definition of "unchanged".
+    const sha = () => createHash("sha256").update(readFileSync(suite)).digest("hex");
+    const before = sha();
+
+    expect((await seal(root)).sealed).toBe(true);
+    expect(verifySeal(root)).toEqual({ sealed: true, ok: true, drift: [] });
+
+    if (!hasGit) {
+      // No git ⇒ the fallback round. There is no worktree to firewall, so the
+      // only claim left is that the seal is untouched — assert it rather than
+      // skip, so the test stays meaningful on a git-less host.
+      const h = createWorktree({ target: root, root, slice: SLICE, name: "s0", fallbackDir: join(root, "fb") });
+      expect(h.mode).toBe("directory");
+      expect(verifySeal(root)).toEqual({ sealed: true, ok: true, drift: [] });
+      expect(sha()).toBe(before);
+      return;
+    }
+
+    const handles = ["s0", "s1", "s2"].map((n) =>
+      createWorktree({ target: root, root, slice: SLICE, name: n, fallbackDir: join(root, "fb", n) }),
+    );
+    for (const h of handles) expect(h.mode).toBe("worktree");
+
+    // Captured WHILE the worktrees are live. Asserting this after teardown would
+    // prove only that cleanup removed the directory — "the sealed suite was
+    // cleaned up" is a different, far weaker claim than "it was never written".
+    const sealedSuiteInWorktree = handles.map((h) => existsSync(join(h.path, ".stz")));
+
+    handles.forEach((h, i) =>
+      writeFileSync(join(h.path, "src/a.ts"), `export const a = ${i};\n`, "utf8"),
+    );
+    destroyWorktrees(root, root, SLICE);
+
+    expect(sealedSuiteInWorktree).toEqual([false, false, false]);
+    expect(verifySeal(root)).toEqual({ sealed: true, ok: true, drift: [] });
+    expect(sha()).toBe(before);
+  }, 30_000);
 });
