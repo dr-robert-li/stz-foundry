@@ -125,12 +125,79 @@ export function parseArtifacts(responseText: string): Record<string, string> {
 }
 
 /**
- * Build `Observations` for one task's checks. In this task only the
- * `output-assertion` branch is implemented; the other three kinds throw,
- * naming the kind and plan 01-03 (they land there). A missing artifact leaves
- * the entry `undefined` — never a truthy default — so `evalCheck`'s existing
- * missing-observation-is-a-fail rule does the work (RESEARCH Pitfall 3).
- * Exported so 01-03 can test it directly.
+ * The kind-dispatching observation PRODUCER (RESEARCH Pattern 1): the fourth
+ * such producer in the repo (after `bridge.ts`'s output-assertion-only shell
+ * and the two test-file examples), a translation function, never a second
+ * evaluator — it must not branch on anything `evalCheck` already decides
+ * (D-05, REQ-10). One branch per `PredicateCheck.kind`, each a translation
+ * from artifacts to a string.
+ *
+ * The rule that matters more than the four branches: a missing, unparseable
+ * or inapplicable observation returns `undefined` — never `""`, `"false"`,
+ * `"null"`, or any `??`/`||` fallback that could coincide with some check's
+ * `expect` (RESEARCH Pitfall 3). `evalCheck` already fails a missing
+ * observation (`predicate-eval.ts:36-38`); that is the whole safety property.
+ *
+ * The `switch` is exhaustive over the four kinds — dropping a case is a
+ * compile error under `npm run typecheck`, not a silent fallthrough.
+ * Exported so 01-03's tests can drive it directly, one check at a time.
+ */
+export function observeCheck(
+  check: PredicateCheck,
+  files: Record<string, string>,
+  rawResponse: string,
+): string | undefined {
+  switch (check.kind) {
+    case "output-assertion": {
+      const value = check.input !== undefined ? files[check.input.trim()] : rawResponse;
+      return value !== undefined ? value.trim() : undefined;
+    }
+    case "file-invariant": {
+      if (check.input === undefined) return undefined;
+      return Object.prototype.hasOwnProperty.call(files, check.input.trim()) ? "true" : "false";
+    }
+    case "json-invariant": {
+      if (check.input === undefined) return undefined;
+      const hashIdx = check.input.indexOf("#");
+      // Malformed input (no `#`) is inapplicable, not a crash — undefined,
+      // same as every other unresolvable case here (RESEARCH Pitfall 3).
+      if (hashIdx < 0) return undefined;
+      const artifactPath = check.input.slice(0, hashIdx).trim();
+      const dottedPath = check.input.slice(hashIdx + 1).trim();
+      const raw = files[artifactPath];
+      if (raw === undefined) return undefined;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        return undefined;
+      }
+      // ponytail: plain property access — numeric segments index arrays via
+      // string-keyed lookup; no bracket, filter or wildcard syntax. Upgrade
+      // when a battery task needs one.
+      let cur: unknown = parsed;
+      if (dottedPath !== "") {
+        for (const segment of dottedPath.split(".")) {
+          if (cur === null || typeof cur !== "object") return undefined;
+          cur = (cur as Record<string, unknown>)[segment];
+          if (cur === undefined) return undefined;
+        }
+      }
+      return JSON.stringify(cur);
+    }
+    case "diff-constraint": {
+      // ponytail: exact sorted path-set comparison, not a glob. Upgrade when
+      // a battery task needs pattern matching over touched files.
+      const keys = Object.keys(files);
+      if (keys.length === 0) return undefined;
+      return [...keys].sort().join("\n");
+    }
+  }
+}
+
+/**
+ * Build `Observations` for one task's checks — maps `observeCheck` over each
+ * check in the task. Exported so 01-03 can test it directly.
  */
 export function buildObservations(
   checks: PredicateCheck[],
@@ -139,14 +206,7 @@ export function buildObservations(
 ): Observations {
   const observed: Observations = {};
   for (const check of checks) {
-    if (check.kind !== "output-assertion") {
-      throw new Error(
-        `[foundry:agent-runner] predicate kind "${check.kind}" is not yet supported by ` +
-          `runAgentBattery — lands in plan 01-03`,
-      );
-    }
-    const value = check.input !== undefined ? files[check.input.trim()] : rawResponse;
-    observed[check.checkId] = value !== undefined ? value.trim() : undefined;
+    observed[check.checkId] = observeCheck(check, files, rawResponse);
   }
   return observed;
 }
