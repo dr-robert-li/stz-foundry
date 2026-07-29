@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, realpathSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { runBridge } from "../src/bridge.js";
+import { STZ_DIR } from "../src/taxonomy.js";
+import type { SliceManifest } from "../src/types.js";
 
 /**
  * The in-session half of per-specimen isolation. `commands/run.md` must never
@@ -61,6 +64,9 @@ function worktreeCount(repo: string): number {
     .split("\n")
     .filter((l) => l.startsWith("worktree ")).length;
 }
+
+const wtRoot = (root: string, slice = "slice-01") =>
+  join(root, STZ_DIR, "40-slices", slice, "worktrees");
 
 // ── stdout capture (same fixture shape as test/bridge.test.ts) ──────────────
 
@@ -209,5 +215,99 @@ describe("bridge worktree verbs — the JSON contract commands/run.md consumes",
     process.exitCode = undefined;
     await runBridge(["worktree-list", "--root", root]);
     expect(process.exitCode).toBe(1);
+  });
+});
+
+// ── task 2: teardown at every terminal path ────────────────────────────────
+
+const manifest: SliceManifest = {
+  id: "slice-01",
+  name: "demo",
+  contract: "export function run(input: Request): Result",
+  donePredicates: [{ id: "schema", expr: "returns_schema(Result)", kind: "schema" }],
+  traceTier: "minimal",
+  complexity: 2,
+  dependsOn: [],
+  judge: { votesPerPair: 2 },
+  summary: "worktree teardown demo",
+};
+
+describe("bridge teardown — every way a slice can end removes its worktrees", () => {
+  /** Project root == target repo, which is the production shape. */
+  async function slice(): Promise<string> {
+    const repo = makeRepo();
+    const manifestPath = join(repo, "m.json");
+    await writeFile(manifestPath, JSON.stringify(manifest), "utf8");
+    captured = "";
+    await runBridge(["begin", "--root", repo, "--manifest", manifestPath]);
+    await create(repo, repo, "a");
+    await create(repo, repo, "b");
+    expect(worktreeCount(repo)).toBe(3);
+    return repo;
+  }
+
+  function expectTornDown(repo: string): void {
+    expect(worktreeCount(repo)).toBe(1);
+    expect(existsSync(join(wtRoot(repo), "a"))).toBe(false);
+    expect(existsSync(join(wtRoot(repo), "b"))).toBe(false);
+  }
+
+  it("bridge teardown after finalize", async () => {
+    if (!hasGit) return;
+    const repo = await slice();
+    const intent = join(repo, "intent.json");
+    const asbuilt = join(repo, "asbuilt.json");
+    await writeFile(intent, JSON.stringify({ claims: ["exposes run()"] }), "utf8");
+    await writeFile(asbuilt, JSON.stringify({ claims: ["exposes run()"] }), "utf8");
+
+    captured = "";
+    await runBridge(["finalize", "--root", repo, "--slice", "slice-01", "--intent", intent, "--asbuilt", asbuilt]);
+    expectTornDown(repo);
+  });
+
+  it("bridge teardown after halt", async () => {
+    if (!hasGit) return;
+    const repo = await slice();
+    // retryPolicy {0,0}: the first no-passers round is terminal.
+    await writeFile(
+      join(repo, STZ_DIR, "00-intent", "run-config.json"),
+      JSON.stringify({ retryPolicy: { retries: 0, replans: 0 } }),
+      "utf8",
+    );
+    captured = "";
+    await runBridge(["escalate", "--root", repo, "--slice", "slice-01"]);
+    expect(lastJSON<{ action: string }>().action).toBe("halt");
+    expectTornDown(repo);
+  });
+
+  it("bridge teardown after slice-halt", async () => {
+    if (!hasGit) return;
+    const repo = await slice();
+    captured = "";
+    await runBridge([
+      "slice-halt", "--root", repo, "--slice", "slice-01",
+      "--reason", "Seal-crosscheck divergence — human decision required.",
+    ]);
+    expect(lastJSON<{ action: string }>().action).toBe("halt");
+    expectTornDown(repo);
+  });
+
+  it("bridge teardown after slice-reset (crash-recovery reconciliation)", async () => {
+    if (!hasGit) return;
+    const repo = await slice();
+    captured = "";
+    await runBridge(["slice-reset", "--root", repo, "--slice", "slice-01"]);
+    expectTornDown(repo);
+  });
+
+  it("bridge teardown skipped on retry — a retry round is not a slice close", async () => {
+    if (!hasGit) return;
+    const repo = await slice();
+    captured = "";
+    await runBridge(["escalate", "--root", repo, "--slice", "slice-01"]);
+    expect(lastJSON<{ action: string }>().action).toBe("retry");
+    expect(worktreeCount(repo)).toBe(3);
+    expect(existsSync(join(wtRoot(repo), "a"))).toBe(true);
+    expect(existsSync(join(wtRoot(repo), "b"))).toBe(true);
   });
 });

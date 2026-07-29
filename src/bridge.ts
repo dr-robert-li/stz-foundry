@@ -394,6 +394,9 @@ async function escalateCmd(args: Record<string, string>): Promise<void> {
       body: report,
     });
     await saveState(root, state);
+    // Terminal: the slice is over. Retry/replan below deliberately do NOT tear
+    // down — the next round re-creates, and createWorktree is idempotent.
+    destroyWorktrees(args.target ?? root, root, slice);
     print({
       action: "halt",
       note: action.note,
@@ -461,6 +464,7 @@ async function sliceHaltCmd(args: Record<string, string>): Promise<void> {
     body: report,
   });
   await saveState(root, state);
+  destroyWorktrees(args.target ?? root, root, slice); // terminal: no orphan survives a halt
   print({
     action: "halt",
     phase,
@@ -572,6 +576,10 @@ async function finalize(args: Record<string, string>): Promise<void> {
       state.events.map((e) => `${e.seq}. [${e.phase}] ${e.kind}: ${e.detail}`).join("\n") +
       "\n",
   });
+  // The winner is accepted and the audit is written: the slice is closed, so the
+  // per-specimen worktrees go with it (D-04). A leaked one is a full unsealed
+  // checkout of the repo left on disk.
+  destroyWorktrees(args.target ?? root, root, slice);
   print({
     winner: judgment.winner,
     faithful: isFaithful(sdiff),
@@ -1296,9 +1304,18 @@ function assertSafeSliceId(id: string): void {
   assertSafePathSegment(id, "slice id"); // one allowlist shared with worktreePathFor
 }
 
-/** Reset one slice's per-slice artifacts so its derived status returns to pending. */
+/**
+ * Reset one slice's per-slice artifacts so its derived status returns to pending.
+ * This is also the crash-recovery entry point (`debug-case --apply` calls it too),
+ * so worktree reconciliation lives here rather than in `sliceResetCmd`.
+ */
 function resetSlice(root: string, id: string): void {
   assertSafeSliceId(id); // guard the forced recursive delete against path traversal
+  // ponytail: target == root here — this function has no args object, so a target
+  // repo distinct from the project root is not reconciled by `slice-reset`. The
+  // next `worktree-create` prunes it anyway; thread a target through if that ever
+  // stops being true.
+  destroyWorktrees(root, root, id);
   for (const p of [
     statePath(root, id),
     stzPath(root, join(sliceRel(id), "tournament")),
