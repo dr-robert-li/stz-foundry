@@ -21,6 +21,7 @@ import {
   requireAdmitted,
   admitVerticalBattery,
   type Vertical,
+  type AdmissionRecord,
 } from "../src/foundry/vertical-admission.js";
 import {
   generateWarehouse,
@@ -196,5 +197,59 @@ describe("admitVerticalBattery — the refusal fires on the REAL construction pa
     const err = thrown(() => admitVerticalBattery("bi-analytics", validDraft()));
     expect(err).toBeInstanceOf(VerticalRefusedError);
     expect(err.message).toContain("bi-analytics");
+  });
+});
+
+describe("the admission table is sealed at RUNTIME, not merely typed readonly", () => {
+  // `ReadonlyMap` is a compile-time convention. Before sealing, a holder of the
+  // exported reference could `.set("revops-gtm-exec-strategy", {verdict:
+  // "admitted", ...})` and walk past `requireAdmitted` without ever supplying an
+  // override, a judge, or a config key — REQ-27's guarantee would have been a
+  // convention rather than a guard, which is exactly v1.18.0's found gap one
+  // altitude down.
+  const mutable = () => VERTICAL_ADMISSION as unknown as Map<Vertical, AdmissionRecord>;
+
+  it("set() on the admission table throws", () => {
+    const e = thrown(() =>
+      mutable().set("revops-gtm-exec-strategy", {
+        vertical: "revops-gtm-exec-strategy",
+        verdict: "admitted",
+        oracleClass: "forged",
+        mechanism: "forged",
+        note: "forged",
+      }),
+    );
+    expect(e.message).toContain("sealed");
+  });
+
+  it("delete() and clear() on the admission table throw", () => {
+    expect(thrown(() => mutable().delete("data-ops")).message).toContain("sealed");
+    expect(thrown(() => mutable().clear()).message).toContain("sealed");
+  });
+
+  it("a refused vertical CANNOT be admitted by rewriting the table — the real path still refuses", () => {
+    // The bypass attempt and the real-path consequence, in one test: even after
+    // trying to flip the row, requireAdmitted still refuses.
+    try {
+      mutable().set("revops-gtm-exec-strategy", {
+        vertical: "revops-gtm-exec-strategy",
+        verdict: "admitted",
+        oracleClass: "forged",
+        mechanism: "forged",
+        note: "forged",
+      });
+    } catch {
+      /* expected — sealed */
+    }
+    expect(admitVertical("revops-gtm-exec-strategy").verdict).toBe("refused");
+    expect(thrown(() => requireAdmitted("revops-gtm-exec-strategy")).message).toContain("refused");
+  });
+
+  it("an admission record cannot be mutated in place either", () => {
+    const record = admitVertical("revops-gtm-exec-strategy");
+    expect(() => {
+      (record as { verdict: string }).verdict = "admitted";
+    }).toThrow();
+    expect(admitVertical("revops-gtm-exec-strategy").verdict).toBe("refused");
   });
 });

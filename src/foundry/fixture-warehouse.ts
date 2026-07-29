@@ -30,7 +30,7 @@
  */
 import { createHash } from "node:crypto";
 import { mulberry32 } from "../harness.js";
-import { admitVerticalBattery } from "./vertical-admission.js";
+import { admitVerticalBattery, sealTable } from "./vertical-admission.js";
 import {
   makeSplitBattery,
   type AgentBattery,
@@ -49,9 +49,10 @@ export const DATA_OPS_GENERATOR_ID = "data-ops-fixture-warehouse-generator-v1";
  *  accepted it. This map IS the acceptance event for this phase; a later
  *  phase's blocking checkpoint is where a human actually performs one for a
  *  NEW generator id (Plan 01-05). */
-export const ACCEPTED_GENERATORS: ReadonlyMap<string, string> = new Map([
-  [DATA_OPS_GENERATOR_ID, "Dr. Robert Li"],
-]);
+export const ACCEPTED_GENERATORS: ReadonlyMap<string, string> = sealTable(
+  new Map([[DATA_OPS_GENERATOR_ID, "Dr. Robert Li"]]),
+  "the accepted-generator table",
+);
 
 const receiptMemo = new Map<string, OracleReceipt>();
 

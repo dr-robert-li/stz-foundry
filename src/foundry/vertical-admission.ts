@@ -55,7 +55,43 @@ export interface AdmissionRecord {
  * A test asserts `VERTICAL_ADMISSION.size === 5` and that its key set
  * equals the `Vertical` union exactly, so a row cannot be dropped silently.
  */
-export const VERTICAL_ADMISSION: ReadonlyMap<Vertical, AdmissionRecord> = new Map([
+/**
+ * Make a lookup table immutable AT RUNTIME, not merely in the type system.
+ *
+ * `ReadonlyMap<K, V>` is a compile-time convention: the value is still a plain
+ * `Map`, so any holder of the exported reference can `.set()` a refused
+ * vertical to `"admitted"` and walk straight past `requireAdmitted` without
+ * ever supplying an override, a judge, or a config key. That is the same shape
+ * as v1.18.0's found gap — a guard that was a convention rather than a guard —
+ * one altitude down. `Object.freeze` alone does NOT close it: freezing a `Map`
+ * leaves its internal slots writable, so `.set()` still succeeds.
+ *
+ * ponytail: mutators are replaced with throwing stubs rather than swapping the
+ * table for a frozen plain object, which would break `.get`/`.size`/iteration
+ * at every call site. Ceiling: a determined caller can still reach the
+ * prototype (`Map.prototype.set.call(table, …)`). Upgrade trigger: if a table
+ * ever crosses a real trust boundary, move it behind an accessor that returns a
+ * defensive copy and stop exporting the container at all.
+ */
+export function sealTable<K, V>(table: Map<K, V>, what: string): ReadonlyMap<K, V> {
+  for (const mutator of ["set", "delete", "clear"] as const) {
+    Object.defineProperty(table, mutator, {
+      value: () => {
+        throw new VerticalRefusedError(
+          `${what} is sealed — ${mutator}() is refused. A refused vertical stays refused; ` +
+            `admission is not editable at runtime.`,
+        );
+      },
+      writable: false,
+      configurable: false,
+      enumerable: false,
+    });
+  }
+  for (const record of table.values()) Object.freeze(record);
+  return Object.freeze(table);
+}
+
+export const VERTICAL_ADMISSION: ReadonlyMap<Vertical, AdmissionRecord> = sealTable(new Map([
   [
     "data-ops",
     {
@@ -107,7 +143,7 @@ export const VERTICAL_ADMISSION: ReadonlyMap<Vertical, AdmissionRecord> = new Ma
       note: "Refused until a forecast-mode oracle is built",
     },
   ],
-]);
+]), "the vertical-admission table");
 
 export class VerticalRefusedError extends Error {
   constructor(message: string) {
