@@ -246,8 +246,14 @@ literature shapes the guardrails:
 2. **Component tournaments — shipped (v1.18.0).** The seam swapped into the
    slice machinery; GEPA-style mutation; split-battery Goodhart bound;
    seventh promotion gate. See "Phase 2, as shipped" below.
-3. **Blueprint + deterministic assembly + data-ops pilot — NOT built.** `HarnessBlueprint`,
-   fixture-warehouse generator, dbt/data-diff oracle.
+3. **Blueprint + deterministic assembly + data-ops pilot — the data-ops pilot
+   battery half is shipped (v1.19.0 Phase 1); `HarnessBlueprint` and
+   deterministic assembly are NOT built.** The fixture-warehouse generator,
+   the vertical-admission table, and the dbt/data-diff execution-oracle seam
+   exist and are mutation-checked. See "Phase 3, as shipped" below. Pending
+   the human generator-acceptance checkpoint (Plan 01-05) at the time this
+   section was written — treat the battery as not-yet-legally-exogenous until
+   that acceptance is recorded.
 4. **Emit / packaging — NOT built.** `src/foundry/emit.ts`, plugin.json/marketplace.json
    generation, docs via documenter/summarizer, fix the installer skills gap.
 5. **Harness-level evolve — NOT built.** Parameterize `src/harness.ts` substrates; gated
@@ -746,18 +752,274 @@ construction) is the first real caller that would need a CLI or
 programmatic entry point into a component tournament; that is the point at
 which a bridge verb becomes earned, not before.
 
-### What is still not built
+## Phase 3, as shipped (data-ops pilot battery)
 
-None of the following exist in `src/` after this phase, and none may be
-read as delivered by anything above:
+Phase 3 admitted the first vertical and built the first real exogenous
+battery this factory has ever scored anything against — data-ops, chosen
+because its oracle class is execution + construction with zero oracle
+latency. This section describes what exists, for a phase-4 reader landing
+here to plan `HarnessBlueprint` and deterministic assembly against.
+
+**The headline, stated before any mechanism below: the generator's
+acceptance is a checkpoint, not a foregone conclusion.** `ACCEPTED_GENERATORS`
+in `src/foundry/fixture-warehouse.ts` already contains an entry for
+`data-ops-fixture-warehouse-generator-v1`, but the design's own legal basis
+for treating every instance that generator emits as exogenous is that a
+human looked at one generated warehouse — its facts, its messy CSV, one real
+task prompt — and said yes (Plan 01-05's blocking `checkpoint:human-verify`).
+Until that acceptance is actually recorded by a human, not merely encoded in
+a map, this battery's `constructed` receipt has not yet harvested the α it
+claims to carry. A reader landing on this section after that checkpoint
+should confirm the acceptance happened; a reader landing before it must not
+treat the battery as already legally exogenous.
+
+### The generator, answer-first
+
+`generateWarehouse(seed)` (`src/foundry/fixture-warehouse.ts`) is the
+literal order of operations D2 requires: draw six `WarehouseFact`s (3
+`customerId`s × 2 `month`s) from one `mulberry32` stream *first* — each
+fact's `orderCount` and `revenueCents` computed from PRNG draws with no row
+in existence yet — then derive `RawOrderRow`s *from* those facts, never the
+reverse. The fact schema is deliberately small: `{customerId, month,
+orderCount, revenueCents}`. Per-row amounts are drawn in `[10_000, 99_999]`
+cents and every group's `orderCount` is `[11, 20]`, a magnitude discipline
+that keeps every individual CSV field at ≤5 digits while every fact's
+`revenueCents` total is ≥6 digits — the gap `assertAnswerNotLeaked` (same
+file) turns into an enforced invariant, not a comment: it regex-scans the
+emitted `csv` for every fact's `revenueCents` value at a digit boundary and
+throws if any appears verbatim.
+
+Five messiness transforms derive the raw rows from the facts, each one a
+transformation the candidate must reverse to recover the answer: (1) one
+row per group is verbatim-duplicated (dedupe), (2) `rawAmount` renders in
+one of three formats — bare cents, dollars, dollars-with-`$` (normalize),
+(3) some rows carry an empty `rawAmount` with the true value in
+`amountBackup` instead (recover), (4) `rawDate` renders in one of three
+formats — ISO, slashed, month-name (normalize before bucketing by month),
+and (5) rows are interleaved across customer/month groups via a
+PRNG-drawn `sortKey` sort — never object-key or insertion order, the same
+determinism-bug shape `src/knowledge/embedder.ts`'s `l2Normalize` doc
+comment names — so a candidate cannot infer month membership from row
+position.
+
+Same seed reproduces the warehouse, the facts, and every task prompt/check
+exactly (N6); different seeds produce different fact *values*
+(`revenueCents`, `csv`), not merely a different top-level id — the exact
+asymmetry mutation M1 below proves. The measured `testPassRate` of four
+hand-rolled offline `Provider` doubles through the real `runAgentBattery`
+(seed 7, battery `data-ops-measure`, 6 tasks, from 01-03-SUMMARY.md) is the
+evidence the battery is neither trivially passable nor impossible:
+
+| Control | testPassRate | passedGate |
+|---|---|---|
+| echo (returns the prompt verbatim) | 0 | false |
+| empty (no fenced block) | 0 | false |
+| raw-sum (parses the CSV, applies none of the reversals) | 0 | false |
+| oracle (answers from `warehouse.facts`) | 1 | true |
+
+### The receipt traces to the generator, and why `makeBattery` could not do it
+
+State this plainly, because it is the one claim in this section a later
+reader is most likely to misread as already covered: `resolveRootKind`
+(`battery-types.ts:107-126`) parses a lineage entry as an **opaque**
+`<kind>:<id>` pair and inspects only `<kind>`. It has no way to tell
+`constructed:some-instance-42` apart from
+`constructed:data-ops-fixture-warehouse-generator-v1` — both parse to root
+kind `constructed`, both pass `validateReceipt`'s `EXOGENOUS_ROOT_KINDS`
+check identically. **`makeBattery` alone does not, and structurally cannot,
+satisfy ROADMAP success criterion 2** ("the lineage is rooted at the
+accepted generator, not an instance"). This phase's own machinery is what
+does: `rootGeneratorId`/`requireGeneratorRooted`
+(`src/foundry/fixture-warehouse.ts:94-150`), three named sequential steps,
+never one compound boolean, so a mutation disables exactly one:
+
+1. `rootGeneratorId(receipt)` — resolve the id half of `lineage[0]`, no
+   acceptance opinion of its own (mirrors `resolveRootKind`'s own
+   deliberate split).
+2. `ACCEPTED_GENERATORS.has(rootId)` — membership; refuses an
+   instance-rooted or unaccepted-generator lineage.
+3. `Object.is(receipt, acceptedGeneratorReceipt(rootId))` — reference
+   identity against the **pre-`makeBattery`** receipt held in
+   `receiptMemo`. This is the `component-tournament.ts:154` provenance
+   idiom applied one altitude down, and the "pre-`makeBattery`" qualifier is
+   load-bearing: `makeBattery` freezes and returns a **new**, defensively
+   copied object onto the constructed `AgentBattery`, so the receipt a
+   caller holds after construction is never the same reference as the one
+   `acceptedGeneratorReceipt` memoized. `requireGeneratorRooted` is called
+   with the memoized receipt *before* it is handed to `admitVerticalBattery`
+   (`generateFixtureBattery`/`generateFixtureSplitBattery`, same file) —
+   check the object identity before `makeBattery` ever touches it, not
+   after. **A future reader must not "simplify" step 3 to a deep-equality
+   check** — a field-identical but reference-distinct receipt is exactly
+   the substituted/copied/re-derived case this step exists to catch, and
+   deep equality would silently let it through.
+
+### Answer-key independence, enforced structurally
+
+REQ-24/D5 (the answer key must be independent of the harness under test) is
+enforced two ways, neither alone sufficient. First, a compile-time
+guarantee: `generateWarehouse`/`buildTasks`/`generateFixtureBattery` all
+have arity asserted in tests and no `Provider`/`CandidateAgent` parameter
+anywhere in their signatures — the answer key cannot be computed from
+something that requires a running agent, because nothing in the call chain
+can reach one. Second, a runtime-structural guarantee: a test-only
+import-graph walker starts at `fixture-warehouse.ts` and proves its
+reachable relative-import set has **zero intersection** with an explicit
+`ANSWER_KEY_FORBIDDEN_MODULES` list (the seven named agent/provider-layer
+files, plus anything under `src/mock/` checked by directory prefix since
+that directory holds several files and an enumerable literal would drift).
+
+Neither guarantee is trusted without a negative control:
+`test/fixtures/answer-key-violation.ts` is a deliberately-broken sibling
+module that imports `Provider` as a value import and derives a
+"ground-truth fact" from `provider.chat()` — never imported by `src/`,
+never executed by any test, read only as text by the same walker. The same
+walker that finds a zero-intersection set for `fixture-warehouse.ts` DOES
+flag this file when pointed at it, proving the invariant is discriminating
+rather than vacuously passing because nothing was ever wired to fail it.
+
+### Vertical admission
+
+`src/foundry/vertical-admission.ts` is the deterministic-TypeScript home
+for the five-row table `docs/development/harness-factory.md` (this
+document) states in prose above — `VERTICAL_ADMISSION`, a hardcoded
+`ReadonlyMap` transcribed verbatim from the "Vertical admission" table.
+Two named sequential steps: `admitVertical` (the no-opinion lookup — an id
+absent from the table throws, never defaults to `"pending"`) and
+`requireAdmitted` (the separately-named throw step, fires when the verdict
+isn't `"admitted"`). `admitVerticalBattery` is the sole route to
+`makeBattery` for every battery this phase's code constructs — no exported
+function in the module takes an override, a judge profile, or a config
+key, so a refused vertical cannot be admitted by supplying one.
+
+**M1's real-path/isolated-test asymmetry (01-02-SUMMARY.md) is the phase's
+clearest worked example of Pitfall 4**, and it belongs in this document for
+the same reason the phase-1 gap does: deleting the `requireAdmitted(vertical)`
+call inside `admitVerticalBattery` turned the real-path discrimination
+tests red (the same otherwise-valid draft, passed through the real
+construction entry point, no longer refused) — but every isolated unit test
+of `admitVertical`/`requireAdmitted` themselves stayed green, because those
+functions were never touched by the mutation and were never exercising the
+real construction path in the first place. A table that is correct in
+isolation but silently unconsulted on the real path would have shipped with
+this mutation in place if only the isolated tests existed.
+
+### The execution-oracle seam and its posture
+
+`src/foundry/execution-oracle.ts` names itself explicitly as a **fourth
+posture**, distinct from every other probe-shaped module in this repo, so a
+future reader cannot collapse them into "just another optional-tool
+check":
+
+- `selectEmbedder` (`src/knowledge/embedder.ts`) probes and **falls back** —
+  a weaker embedder is an acceptable trade.
+- `resolveProviderSelection` (`src/foundry/agent-runner.ts`) **never
+  probes** — substituting a provider would change what is measured.
+- `sandbox.ts`'s `probe()` warns and **downgrades** but proceeds.
+- This seam **detects, reports, and fails attributably.** There is no
+  acceptable degraded substitute for a missing execution oracle (D6).
+
+`runExecutionOracle` has three named, separately-mutatable branches per
+spec: absence (the tool is not on the machine), unreachable-at-invocation
+(present per the probe, but the invocation itself fails, e.g. `ENOENT`),
+and ran (a real invocation, clean or nonzero exit, that produced stdout).
+The absence and unreachable branches both build their `BatteryTaskResult`
+through one shared `attributableFailure` helper and construct **no
+`Observations` object at all** — no `evaluateChecks` call is made on those
+paths. This is the vacuous-pass trap's actual closure, not merely a
+described intent: if a placeholder failure note were instead scored against
+a check's `expect` string, a spec whose `expect` happened to equal that
+placeholder text would score a pass by coincidence. The test named exactly
+that — `runExecutionOracle — branch 1: absence > the vacuous-pass trap` —
+constructs a spec whose `expect` equals the absence note verbatim and
+asserts `pass: false` and zero checks regardless, because the absence
+branch never reaches the scoring code path that could coincide with
+anything.
+
+### Two independently-seeded halves
+
+`generateFixtureSplitBattery(seed)` builds two warehouses from two
+**independent** PRNG streams — `search` from `seed`, `promotion` from
+`derivePromotionSeed(seed)` (a `sha256(seed|"promotion")`-then-`parseInt`
+derivation, one top-level seed still replays both halves) — rather than one
+shared warehouse with its task set merely partitioned. The reasoning:
+task-id disjointness (what `makeSplitBattery` already enforces) holds out
+the *selection metric*, but a candidate that overfits to one warehouse's
+specific messy-data quirks (its exact date-format mix, its exact duplicate
+placement) could still transfer within a single shared warehouse in a way
+it would not across two warehouses generated from independent seeds. Two
+independent warehouses buy the stronger Goodhart bound (arXiv:2606.11045)
+for the cost of one extra `sha256` call.
+
+### Ceilings, named plainly
+
+1. **The warehouse is toy-scale and embedded verbatim in the task prompt.**
+   `runAgentBattery`'s candidate gets exactly **one** `provider.chat()` call
+   per task (`agent-runner.ts:353-357`) — no tool-use loop, no filesystem
+   the candidate can browse. The whole CSV has to fit in one prompt string,
+   so the generator is sized to that ceiling (six groups × up to 21 rows =
+   at most 126 CSV lines; largest measured task prompt, seed 7, was 5171
+   characters). A real explorable warehouse — one a candidate discovers
+   through files rather than reads verbatim in its prompt — requires
+   changing the candidate loop itself. This phase deliberately did not do
+   that; it is a design finding about the shape of a future phase's work,
+   not something left half-done here.
+2. **The dbt/data-diff stdout-and-exit-code contract is unverified against a
+   real installation.** Neither `dbt` nor `data-diff` is present on the
+   development machine this phase shipped from. Open dbt-core issues report
+   exit code 0 on some failed-test paths in some versions; at least one
+   `data-diff` fork requires an explicit flag to exit nonzero on a detected
+   diff. The shipped hedge is stdout-primary, exit-code-corroborating,
+   never decisive (`runExecutionOracle`'s branch-3 comment, `ponytail:`-marked
+   with the upgrade trigger named: a real dbt/data-diff install, to verify
+   the parse contract against reality and promote exit code to a co-equal
+   signal if it proves reliable). What is verified is the **seam** — the
+   injectable `execFn`/`probeFn`, the argv-array invocation, the explicit
+   timeout, the attributable-absence branch — all offline, all tested with
+   an injected fake `execFn`. The real adapter that would parse a live
+   `dbt`/`data-diff` invocation's actual output is a thin, marked layer on
+   top of this seam, not yet written or verified against reality.
+3. **The oracle candidate control proves the checks are satisfiable, not
+   that a real LLM agent can derive the answer.** The `oracle`
+   non-triviality control (table above) answers directly from
+   `warehouse.facts` — it is a positive control proving the battery's
+   checks are passable at all, not evidence that a real candidate agent,
+   reasoning only from the messy CSV, can recover the facts. No real agent
+   has been run against this battery yet; that is Phase 2's (blueprint
+   assembly's) work, not this phase's.
+
+### Mutation checks
+
+Every mutation run across Plans 01-01 through 01-04, transcribed verbatim
+from the four plan summaries, with its OBSERVED failing test name(s) — the
+project's own D8 discipline (never an *expected* name):
+
+| Plan | Mutation | What was disabled | Observed failing test(s) |
+|---|---|---|---|
+| 01-01 M0 | Deleted `requireAdmitted(vertical)` inside `admitVerticalBattery` | Vertical-admission real-path wiring | `vertical admission is wired on the REAL construction path (D1/REQ-27, Pitfall 4) > admitVerticalBattery refuses a battery tagged revops-gtm-exec-strategy through the real construction entry point` |
+| 01-01 M1 | `if (!ACCEPTED_GENERATORS.has(rootId))` → `if (false)` | Generator-rootedness step 2 (membership) | `requireGeneratorRooted throws on an INSTANCE-rooted lineage — the id is not in ACCEPTED_GENERATORS`; `requireGeneratorRooted throws on an UNACCEPTED-generator lineage` |
+| 01-01 M2 | `if (!Object.is(receipt, acceptedGeneratorReceipt(rootId)))` → `if (!true)` | Generator-rootedness step 3 (reference identity) | `requireGeneratorRooted throws on a field-identical but reference-distinct receipt — the Object.is step no field comparison can substitute for` (only that one) |
+| 01-02 M1 | Deleted `requireAdmitted(vertical)` inside `admitVerticalBattery` (repeated, against the completed five-row table) | Vertical-admission real-path wiring | `admitVerticalBattery — the refusal fires on the REAL construction path, not only in isolation (D8, RESEARCH Pitfall 4) > refuses revops-gtm-exec-strategy through the real construction entry point, with an otherwise-completely-legal draft`; `... > refuses bi-analytics too — a pending vertical is not silently treated as admitted`; `test/foundry-fixture-warehouse.test.ts > vertical admission is wired on the REAL construction path (D1/REQ-27, Pitfall 4) > admitVerticalBattery refuses a battery tagged revops-gtm-exec-strategy through the real construction entry point` |
+| 01-02 M2 | Flipped `revops-gtm-exec-strategy`'s row `verdict` to `"admitted"` | Table content (refusal row) | The `revops-gtm-exec-strategy: refused, ...` row-posture test; the `requireAdmitted` refusal test for `revops-gtm-exec-strategy`; "each of the four refusal messages names ONLY its own vertical"; the real-path `refuses revops-gtm-exec-strategy ...` test; `foundry-fixture-warehouse.test.ts`'s real-path refusal test (5 total) |
+| 01-02 M3 | `admitVertical`'s unknown-id branch returns a `pending` record instead of throwing | Fail-closed unknown-id guard | `admitVertical — unknown id fails closed (never defaults to admitted or pending) > an id absent from the table throws, naming the unknown id and listing the known ones` (only that one) |
+| 01-03 M1 | `mulberry32(seed)` replaced with hardcoded `mulberry32(42)` inside `generateWarehouse` | Seed-dependence (D3/N6) | `fixture-warehouse — D3/N6 determinism > different seeds produce different facts/rows/csv — catches a generator that ignores its seed`; `fixture-warehouse — two independently-seeded halves (REQ-24, RESEARCH Open Question 2) > generateFixtureSplitBattery(7) yields halves with distinct ids, disjoint task-id sets, and non-deep-equal facts` (same-seed determinism tests stayed GREEN throughout) |
+| 01-03 M2 | Added an unused value import of `provider.js` into `fixture-warehouse.ts` | Import-graph independence (REQ-24/D5) | `fixture-warehouse — answer-key independence as a walkable import-graph invariant (REQ-24/D5, RESEARCH Pitfall 5) > the reachable set from fixture-warehouse.ts has ZERO intersection with the agent/provider layer, and is non-empty` (only that one) |
+| 01-04 M1 | Absence branch falls through to `evaluateChecks` with a placeholder observation instead of short-circuiting | Vacuous-pass trap closure | `runExecutionOracle — branch 1: absence > the vacuous-pass trap: a spec whose expect equals the exact absence note still yields pass:false and zero checks` (1 of 4 tests that went red) |
+| 01-04 M2 | Dropped `timeout` from the injected `execFn` call options | Argument-injection discipline | `runExecutionOracle — the argument-injection control (T-01-01) > execFn is always called (file, argvArray, opts) with an unexpanded shell-metacharacter element and a finite positive timeout` (only that one) |
+| 01-04 M3 | Per-task merge kept only the agent's `pass`, ignoring the oracle's | `mergeOracleVerdicts` conjunction | `mergeOracleVerdicts > an absent-tool outcome merged into a real generateFixtureBattery run (agent half at testPassRate 1) drops the rate below 1 and closes the gate, naming the missing tool` (1 of 2 tests that went red) |
+
+No mutation across any of the four plans left the full suite green.
+
+## What is still not built
+
+None of the following exist in `src/` after Phase 3, and none may be read
+as delivered by anything above:
 
 - **`HarnessBlueprint`** — the manifest type for an assembled harness (agents
   + commands + skills + hooks + docs + battery + oracle receipt). Not
   defined anywhere in `src/types.ts` or elsewhere.
 - **Deterministic assembly** — "pick the winning component per slot" with no
   search. No assembly function exists.
-- **The data-ops pilot battery** — no fixture-warehouse generator, no
-  dbt/data-diff oracle wiring, no data-ops task battery.
 - **`src/foundry/emit.ts`** — does not exist. No `emit(blueprint, targetDir)`
   function, no `plugin.json`/`marketplace.json` generation from a blueprint.
 - **Plugin/marketplace generation** from a tournament-won component set —
@@ -765,20 +1027,33 @@ read as delivered by anything above:
 - **The installer `skills/` gap** — `planInstall` (`src/installer.ts`) still
   copies `commands/` + `agents/` + `hooks/` but not `skills/`; this
   pre-existing asymmetry (noted in this document's own "Packaging" section
-  above) was not touched by phases 1 or 2.
+  above) was not touched by phases 1, 2, or 3.
 - **Harness-level evolve over domain substrates** — `src/harness.ts` still
   points at the code pilots (cron/hexcolor/ipv4); nothing repoints it at a
   domain battery. Explicitly gated on phases 1–4 showing gains, per this
   document's own phased plan.
 - **The refused verticals** (RevOps / GTM / exec-strategy) remain refused;
   no forecast-mode oracle was built.
-- **No vertical has been admitted, and no real domain battery exists.** What
-  shipped across phases 1–2 is the machinery — the agentic eval seam, the
-  split-battery Goodhart bound, GEPA-style bounded reflective mutation, the
-  seventh promotion gate, the component archive — proven against offline,
-  deterministic, hand-rolled test fixtures. No vertical (data-ops or
-  otherwise) has run a real tournament through this machinery yet, and no
-  tuned harness exists. A reader must not conclude from anything in this
-  section that a working data-ops (or any other) harness has been produced;
-  only the substrate that a future vertical pilot would run on top of has
-  been.
+- **A real, explorable data-ops warehouse.** What Phase 3 built is a
+  toy-scale, prompt-embedded warehouse — see "Ceilings, named plainly"
+  above. A real candidate-explorable warehouse is future work gated on
+  changing `runAgentBattery`'s single-`chat()` candidate loop.
+- **A verified dbt/data-diff adapter.** The execution-oracle seam is built
+  and tested with an injected fake `execFn`; the real parse contract
+  against a live `dbt`/`data-diff` install is unverified — see "Ceilings,
+  named plainly" above.
+- **No real candidate agent has been run against the data-ops battery.**
+  The four non-triviality controls (echo/empty/raw-sum/oracle) are
+  hand-rolled offline `Provider` doubles, not a live LLM. Whether a real
+  agent can recover the facts from the messy CSV is untested.
+- **No tournament has selected anything against this battery.** Phase 3
+  built the battery and its admission/receipt/oracle machinery; wiring
+  `generateFixtureBattery`/`generateFixtureSplitBattery` into
+  `runComponentTournament` is Phase 2 (blueprint assembly)'s work, not
+  started here.
+- **The generator's human acceptance may still be open.** `ACCEPTED_GENERATORS`
+  encodes the acceptance event; whether a human has actually performed it
+  (Plan 01-05's blocking checkpoint) is the one fact this document cannot
+  assert on the code's behalf — check the plan's own SUMMARY for the
+  recorded verbatim signal before treating this battery as legally
+  exogenous.
