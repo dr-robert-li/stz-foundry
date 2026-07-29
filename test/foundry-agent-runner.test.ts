@@ -13,6 +13,7 @@ import { fakeServer, closeAllFakeServers } from "./helpers/fake-server.js";
 import { runAgentBattery, observeCheck } from "../src/foundry/agent-runner.js";
 import { makeBattery } from "../src/foundry/battery-types.js";
 import { evalGate, evalReward, select } from "../src/selection.js";
+import { FoundryCostMeter } from "../src/foundry/cost.js";
 import type { PredicateCheck } from "../src/contract/contract-types.js";
 import type { ChatRequest, ChatResponse, Provider } from "../src/foundry/provider.js";
 
@@ -468,5 +469,150 @@ describe("runAgentBattery — vacuity guards", () => {
     expect(run.receipt).toEqual(receipt);
     expect(run.tasks[0]?.status).toBe("error");
     expect(run.tasks[0]?.receipt).toEqual(receipt);
+  });
+});
+
+describe("runAgentBattery — wall-clock kill and cost cap (01-04)", () => {
+  it("a task exceeding its wall-clock cap is killed and recorded", async () => {
+    let calls = 0;
+    const srv = await fakeServer(() => {
+      calls++;
+      if (calls === 1) {
+        return {
+          status: 200,
+          json: { model: "test-model", choices: [{ message: { content: "```path=out.txt\nok\n```" } }] },
+        };
+      }
+      return null; // never answer — task 2 wedges forever
+    });
+
+    const battery = makeBattery({
+      id: "battery-wedged",
+      tasks: [
+        {
+          id: "t1",
+          prompt: "TASK_1: write out.txt containing ok",
+          checks: [
+            { checkId: "c1", kind: "output-assertion", input: "out.txt", expect: "ok", description: "d" },
+          ],
+        },
+        {
+          id: "t2",
+          prompt: "TASK_2: this task's provider call is never answered",
+          checks: [
+            { checkId: "c2", kind: "output-assertion", input: "out.txt", expect: "ok", description: "d" },
+          ],
+        },
+      ],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    });
+
+    const run = await runAgentBattery(
+      { id: "cand-a", systemPrompt: "you write files as fenced blocks marked path=<file>" },
+      battery,
+      { provider: { kind: "openai", baseUrl: srv.url, model: "test-model" }, taskTimeoutMs: 150 },
+    );
+
+    expect(run.tasks).toHaveLength(2);
+    expect(run.records[1]?.status).toBe("timeout");
+    expect(run.records[1]?.killReason).toMatch(/stuck-killed/);
+    expect(run.tasks[1]?.pass).toBe(false);
+    expect(run.tasks[1]?.failureReason).not.toBeNull();
+    expect(run.result.testPassRate).toBe(0.5);
+    expect(run.result.passedGate).toBe(false);
+    expect(run.bounds.taskTimeoutMs).toBe(150);
+  });
+
+  it("a cost cap breach halts with spend recorded and remaining tasks attributed", async () => {
+    const srv = await fakeServer(() => ({
+      status: 200,
+      json: {
+        model: "test-model",
+        choices: [{ message: { content: "```path=out.txt\nok\n```" } }],
+        usage: { prompt_tokens: 10, completion_tokens: 10 },
+      },
+    }));
+
+    const battery = makeBattery({
+      id: "battery-cost-cap",
+      tasks: [
+        {
+          id: "t1",
+          prompt: "TASK_1",
+          checks: [{ checkId: "c1", kind: "output-assertion", input: "out.txt", expect: "ok", description: "d" }],
+        },
+        {
+          id: "t2",
+          prompt: "TASK_2",
+          checks: [{ checkId: "c2", kind: "output-assertion", input: "out.txt", expect: "ok", description: "d" }],
+        },
+        {
+          id: "t3",
+          prompt: "TASK_3",
+          checks: [{ checkId: "c3", kind: "output-assertion", input: "out.txt", expect: "ok", description: "d" }],
+        },
+      ],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    });
+
+    // Priced absurdly high so task 1's own 20-token call alone crosses maxUsd.
+    const meter = new FoundryCostMeter(
+      { "test-model": { inputPerMTok: 1_000_000_000, outputPerMTok: 1_000_000_000 } },
+      { maxUsd: 1 },
+    );
+
+    const run = await runAgentBattery(
+      { id: "cand-a", systemPrompt: "you write files as fenced blocks marked path=<file>" },
+      battery,
+      { provider: { kind: "openai", baseUrl: srv.url, model: "test-model" }, costMeter: meter },
+    );
+
+    expect(run.records).toHaveLength(3);
+    for (const t of run.tasks) {
+      expect(t.status).toBe("error");
+      expect(t.failureReason).toMatch(/cap/i);
+    }
+    expect(meter.totals().usd).toBeGreaterThan(0);
+    expect(run.cost?.usd).toBeGreaterThan(0);
+  });
+
+  it("token usage is metered per call", async () => {
+    const srv = await fakeServer(() => ({
+      status: 200,
+      json: {
+        model: "test-model",
+        choices: [{ message: { content: "```path=out.txt\nok\n```" } }],
+        usage: { prompt_tokens: 5, completion_tokens: 5 },
+      },
+    }));
+
+    const battery = makeBattery({
+      id: "battery-metered",
+      tasks: [
+        {
+          id: "t1",
+          prompt: "TASK_1",
+          checks: [{ checkId: "c1", kind: "output-assertion", input: "out.txt", expect: "ok", description: "d" }],
+        },
+        {
+          id: "t2",
+          prompt: "TASK_2",
+          checks: [{ checkId: "c2", kind: "output-assertion", input: "out.txt", expect: "ok", description: "d" }],
+        },
+      ],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    });
+
+    const meter = new FoundryCostMeter({ "test-model": { inputPerMTok: 1, outputPerMTok: 1 } });
+
+    const run = await runAgentBattery(
+      { id: "cand-a", systemPrompt: "you write files as fenced blocks marked path=<file>" },
+      battery,
+      { provider: { kind: "openai", baseUrl: srv.url, model: "test-model" }, costMeter: meter },
+    );
+
+    expect(run.result.testPassRate).toBe(1);
+    expect(meter.totals().calls).toBe(2);
+    expect(meter.bySpecimen()["cand-a"]?.calls).toBe(2);
   });
 });

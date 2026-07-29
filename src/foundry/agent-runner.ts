@@ -24,6 +24,7 @@ import { evaluateChecks, type CheckResult, type Observations } from "../contract
 import type { PredicateCheck } from "../contract/contract-types.js";
 import type { AgentBattery, OracleReceipt } from "./battery-types.js";
 import { resolveContained, writeSpecimenFiles } from "../write-guard.js";
+import { FoundryCostMeter, type CostTotals } from "./cost.js";
 
 export interface CandidateAgent {
   id: SpecimenId;
@@ -50,12 +51,29 @@ export interface BatteryTaskResult {
   receipt: OracleReceipt;
 }
 
+/**
+ * The bounds that actually governed a run, reported so a caller can see what
+ * was in effect without re-deriving it from `RunBatteryOptions`. `concurrency`
+ * is always resolved (the pool always has one); `taskTimeoutMs`/`deadlineMs`
+ * stay `undefined` when the caller left the run unbounded — never defaulted
+ * to an arbitrary number (see the "unbounded-but-explicit" comment below).
+ */
+export interface BatteryBounds {
+  concurrency: number;
+  taskTimeoutMs: number | undefined;
+  deadlineMs: number | undefined;
+}
+
 export interface BatteryRun {
   result: EvalResult;
   receipt: OracleReceipt;
   provider: ProviderSelection;
   tasks: BatteryTaskResult[];
   records: SpecimenRunRecord[];
+  bounds: BatteryBounds;
+  /** `undefined` when no `costMeter` was supplied — reuses `CostTotals` from
+   *  `cost.ts` rather than inventing a parallel shape. */
+  cost: CostTotals | undefined;
 }
 
 export interface RunBatteryOptions {
@@ -69,6 +87,27 @@ export interface RunBatteryOptions {
    * caller in `runAgentBattery`).
    */
   artifactDir?: string;
+  /** Max tasks in flight at once. Passed straight through to `spawnSpecimens`
+   *  (REQ-16 forbids a second scheduler). Default 1 — a local daemon
+   *  serializes generations anyway; raise it once a hosted provider that can
+   *  genuinely parallelize is the default. */
+  concurrency?: number;
+  /** Per-task wall-clock kill (criterion 6). Passed straight through to
+   *  `spawnSpecimens`'s `timeoutMs` — the kill comes from the unmodified
+   *  pool, never a second timeout layer. Default: no timeout (unbounded but
+   *  explicit, matching `spawnSpecimens`'s own default). */
+  taskTimeoutMs?: number;
+  /** Absolute run-level deadline (epoch ms). Passed straight through to
+   *  `spawnSpecimens`'s `deadlineMs`. Default: none. */
+  deadlineMs?: number;
+  /**
+   * When present, every successful `provider.chat` call is metered through it
+   * (hosted spend goes through the existing governance, never around it —
+   * CONTEXT N5/N9). Absent by default: local inference is $0 and `cost.ts`
+   * already prices unknown models at zero and reports them, so there is
+   * nothing worth metering until a caller opts into a hosted provider.
+   */
+  costMeter?: FoundryCostMeter;
 }
 
 /** The values `FOUNDRY_CONFIG_TEMPLATE` already defaults to (runner.ts:307-319) — D-03. */
@@ -289,6 +328,19 @@ export async function runAgentBattery(
         system: candidateAgent.systemPrompt,
         messages: [{ role: "user", content: task.prompt }],
       });
+      // `add` deliberately records spend BEFORE it throws on a cap breach
+      // (cost.ts), so the audit trail survives the halt. Let the thrown
+      // `CostCapExceededError` propagate out of implement() uncaught —
+      // spawnSpecimens's existing catch converts it into an attributable
+      // `status: "error"` record, same as any other provider failure. This
+      // is deliberately NOT short-circuited: remaining tasks breach on their
+      // own first `add` and are attributed the same way, so a cost-cap halt
+      // still ends with one record per task — "never a silently missing
+      // result" (criterion 6/REQ-16), not "the run stops and some tasks
+      // vanish".
+      if (opts.costMeter) {
+        opts.costMeter.add("battery", providerSelection.model, res.usage, candidateAgent.id);
+      }
       rawResponses.set(strategy, res.text);
       const files = parseArtifacts(res.text);
       // An escaping key throws here — uncaught, converted by spawnSpecimens's
@@ -305,15 +357,28 @@ export async function runAgentBattery(
     },
   };
 
-  // ponytail: concurrency 1 — a local daemon serializes generations anyway.
-  // Upgrade trigger: raise it once a hosted provider that can genuinely
-  // parallelize is the default.
+  // Bounds pass straight through to the existing pool — this is the entire
+  // kill mechanism (REQ-16 forbids a second scheduler). spawn.ts already
+  // computes the effective per-task bound as min(timeoutMs, time remaining
+  // to deadlineMs), already marks a killed item `stuck-killed`, and already
+  // writes a `SpecimenRunRecord` with `status: "timeout"` and a non-null
+  // `killReason`. Default concurrency 1 (ponytail: a local daemon serializes
+  // generations anyway; upgrade trigger: raise it once a hosted provider
+  // that can genuinely parallelize is the default) — unbounded-but-explicit
+  // otherwise: no default timeout/deadline, exactly as spawnSpecimens itself
+  // defaults, rather than inventing an arbitrary cap number that would
+  // surprise a caller.
+  const bounds: BatteryBounds = {
+    concurrency: opts.concurrency ?? 1,
+    taskTimeoutMs: opts.taskTimeoutMs,
+    deadlineMs: opts.deadlineMs,
+  };
   const spawnResult = await spawnSpecimens(
     adapter,
     BATTERY_MANIFEST,
     battery.tasks.map((t) => t.id),
     null,
-    { concurrency: 1 },
+    { concurrency: bounds.concurrency, timeoutMs: bounds.taskTimeoutMs, deadlineMs: bounds.deadlineMs },
   );
 
   const outputsByStrategy = new Map(spawnResult.outputs.map((o) => [o.strategy, o]));
@@ -396,5 +461,7 @@ export async function runAgentBattery(
     provider: providerSelection,
     tasks: taskResults,
     records: spawnResult.records,
+    bounds,
+    cost: opts.costMeter?.totals(),
   };
 }
