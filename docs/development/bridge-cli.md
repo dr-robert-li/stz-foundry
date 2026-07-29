@@ -37,6 +37,11 @@ stz bridge merge-compat-propose  --root . --entry entry.json       # merge agent
 stz bridge merge-compat-approve  --root . --id <id> --by "<who/why>"  # approver blesses it (recorded)
 stz bridge merge-compat-retire   --root . --id <id> --amendment "<ref>"  # retire once the superseded suite is seal-amended
 stz bridge merge-compat-list     --root .                          # read-only dump of the manifest
+
+# per-specimen worktree isolation (1.17.0) — --target defaults to --root
+stz bridge worktree-create  --root . --slice slice-01 --specimen a  # {mode, path, name, reason, slice, specimen} — the bridge owns the path AND the fallback
+stz bridge worktree-list    --root . --slice slice-01               # {slice, worktrees:[{path, head, detached, prunable}]}
+stz bridge worktree-destroy --root . --slice slice-01               # {slice, removed[], pruned} — idempotent, always exit 0
 ```
 
 `merge-validate` adjudicates *reported* sealed-suite results (`{slice, passed,
@@ -72,6 +77,17 @@ each phase, so engaging it mid-run takes effect at the next phase. See
 meta-loop: it flips `harness.enabled` in place (hoisted as `harnessEvolve`),
 which the pipeline reads to decide whether to run `/stz-f:evolve` after the
 summary. Off by default.
+
+The `worktree-*` verbs are the in-session seam for per-specimen isolation:
+`/stz-f:run` calls `worktree-create` once per specimen and hands each the `path`
+it printed, never computing one itself — the bridge owns both the path and the
+decision to degrade to directory isolation, and `mode`/`reason` are what the run
+report surfaces. `--target` is the repo being edited, defaulting to the project
+root that holds the `.stz` tree (the same shape `explore` uses). Teardown is
+already wired into `finalize`, `escalate`(halt), `slice-halt` and `slice-reset`,
+so `worktree-destroy` is only needed on an abort that reaches none of them; it is
+idempotent and never sets a non-zero exit code. Mechanism, durable side effects
+on the target repo, and the stated ceilings: [`worktrees.md`](./worktrees.md).
 
 The sealed-suite commands back the anti-hacking freeze: `seal-crosscheck` (0.5.0)
 runs the suite against a second, independently-authored reference before sealing,
