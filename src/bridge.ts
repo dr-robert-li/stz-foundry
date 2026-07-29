@@ -234,13 +234,22 @@ function commitEval(
   extra: Record<string, unknown> = {},
 ): void {
   const files = readSpecimenFiles(root, slice, specimen);
+  // L3 fail-closed (1.17.0): `files` is the ONLY input the hack detector and the
+  // pressure-log diff ever see. An empty map is not "a clean specimen" — it means the
+  // detector was fed nothing, so `hackFindings.length === 0` is vacuous and the gate
+  // would pass a specimen no anti-hacking layer ever inspected. Pre-worktrees this was
+  // unreachable (no files ⇒ the specimen produced nothing ⇒ eval failed loudly); once a
+  // specimen can write into a worktree, `prototypes/specimen-<id>/` can be empty while
+  // the eval still passes. Fail closed and say why.
+  const noSource = Object.keys(files).length === 0;
   const hackFindings = detectHacks(specimen, files, { fixtureNames });
   // 0.9.0: graded soft-suspicion (a hard-passer can still carry it) + code-health
   // feed the multi-objective reward. codeHealth absent ⇒ neutral best (1).
   const suspicion = suspicionScore(files, { fixtureNames });
   const result: EvalResult = {
     specimen,
-    passedGate: metrics.testPassRate >= 1 && hackFindings.length === 0,
+    passedGate: !noSource && metrics.testPassRate >= 1 && hackFindings.length === 0,
+    ...(noSource ? { gateBlockedReason: "no specimen source under prototypes/ — hack detection had no input" } : {}),
     testPassRate: metrics.testPassRate,
     coverage: metrics.coverage,
     mutationScore: metrics.mutationScore,

@@ -430,3 +430,42 @@ describe("bridge — calibrated-verifier gating (0.9.5)", () => {
     expect(after.promote).toBe(true);
   });
 });
+
+describe("bridge — L3 fail-closed on an empty specimen source (1.17.0)", () => {
+  // L3 fail-closed (1.17.0). `readSpecimenFiles` returns {} for an absent prototype
+  // directory, so detectHacks runs on nothing and hackFindings.length === 0 is vacuous.
+  // Before worktrees this was unreachable — no files meant the specimen produced nothing
+  // and eval failed loudly. Once a specimen can write into its own worktree instead,
+  // prototypes/specimen-<id>/ can be empty while metrics still say 1.0, and the specimen
+  // would take a clean L3 pass no anti-hacking layer ever inspected.
+  it("refuses to pass the gate when there is no specimen source to hack-detect", async () => {
+    const manifestPath = join(root, "m.json");
+    await writeFile(manifestPath, JSON.stringify(manifest), "utf8");
+    await runBridge(["begin", "--root", root, "--manifest", manifestPath]);
+
+    // Note: no writeSpecimen("ghost", …) — nothing under prototypes/specimen-ghost/.
+    captured = "";
+    await runBridge([
+      "record-eval", "--root", root, "--slice", "slice-01", "--specimen", "ghost",
+      "--metrics", await metricsFile({ testPassRate: 1, coverage: 1, mutationScore: 0 }),
+    ]);
+    const ghost = lastJSON<{ passedGate: boolean; hackFindings: unknown[]; gateBlockedReason?: string }>();
+
+    // Perfect metrics and a clean detector run — and still not a pass.
+    expect(ghost.hackFindings.length).toBe(0);
+    expect(ghost.passedGate).toBe(false);
+    expect(ghost.gateBlockedReason).toMatch(/no specimen source/);
+
+    // The same specimen with real source on the same metrics DOES pass — proving the
+    // refusal is caused by the empty input, not by the metrics or the manifest.
+    await writeSpecimen("ghost", { "impl.ts": "export const run = (x:number)=>x*2;\n" });
+    captured = "";
+    await runBridge([
+      "record-eval", "--root", root, "--slice", "slice-01", "--specimen", "ghost",
+      "--metrics", await metricsFile({ testPassRate: 1, coverage: 1, mutationScore: 0 }),
+    ]);
+    const real = lastJSON<{ passedGate: boolean; gateBlockedReason?: string }>();
+    expect(real.passedGate).toBe(true);
+    expect(real.gateBlockedReason).toBeUndefined();
+  });
+});
