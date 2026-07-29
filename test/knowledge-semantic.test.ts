@@ -21,8 +21,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   retrieve,
+  semanticPoints,
   DEFAULT_CAPS,
+  SEMANTIC_FLOOR,
+  SEMANTIC_WEIGHT,
   type RetrievableArtifact,
+  type RetrievableKind,
   type RetrievalQuery,
   type SemanticInput,
 } from "../src/knowledge/retrieval.js";
@@ -154,5 +158,132 @@ describe("criterion 1 — a paraphrase hit the lexical scorer provably misses", 
     expect(DEFAULT_CAPS.convention).toBe(2);
     expect(hits.length).toBeLessThanOrEqual(DEFAULT_CAPS.convention);
     expect(hits.length).toBe(2);
+  });
+});
+
+// ── the floor, the integer score, and the caps under semantic pressure ───────
+
+/**
+ * A vector whose cosine against `[1, 0]` is EXACTLY `cos`: the second component
+ * multiplies by zero in the dot product, so no float error can enter and the
+ * boundary cases land on the boundary rather than one ulp either side of it.
+ */
+const atCosine = (cos: number): number[] => [cos, Math.sqrt(Math.max(0, 1 - cos * cos))];
+
+function semanticAt(cosines: Record<string, number>): SemanticInput {
+  const vectors: Record<string, number[]> = {};
+  for (const [id, cos] of Object.entries(cosines)) vectors[id] = atCosine(cos);
+  return { vectors, queryVector: [1, 0], embedder: "stub:cosine:2:v1" };
+}
+
+/** Shares nothing with any artifact text below — the score is purely semantic. */
+const NO_OVERLAP = "zzzz-no-lexical-overlap";
+
+const kindArt = (id: string, kind: RetrievableKind): RetrievableArtifact => ({
+  id,
+  kind,
+  trust: "accepted",
+  symbols: [],
+  text: "house style for module layout",
+});
+
+describe("the similarity floor — the no-bulk-dump guard under semantic pressure", () => {
+  const query: RetrievalQuery = {
+    symbols: [],
+    keywords: [NO_OVERLAP],
+    requestedKinds: ["convention"],
+    stepId: "step-floor",
+  };
+  const pool = [kindArt("20-standards/a.md", "convention")];
+
+  it("drops an artifact whose cosine is strictly positive but below the floor", () => {
+    // Named-constant guard: a positive-but-below-floor cosine only EXISTS while
+    // the floor is in (0, 1]. 02-05 recalibrates SEMANTIC_FLOOR, and a
+    // recalibration out of that range must fail here, naming the constant,
+    // rather than failing opaquely inside a fixture that cannot be built.
+    expect(SEMANTIC_FLOOR).toBeGreaterThan(0);
+    expect(SEMANTIC_FLOOR).toBeLessThanOrEqual(1);
+
+    const below = SEMANTIC_FLOOR / 2;
+    expect(below).toBeGreaterThan(0); // every artifact has a non-zero cosine
+    const hits = retrieve(pool, query, DEFAULT_CAPS, semanticAt({ "20-standards/a.md": below }));
+    // Without the floor, `score > 0` is universally true and the guard evaporates
+    // while every pre-existing test stays green (they all pass zero-cosine data).
+    expect(hits).toEqual([]);
+  });
+
+  it("keeps an artifact sitting exactly ON the floor (inclusive boundary, pinned)", () => {
+    const hits = retrieve(pool, query, DEFAULT_CAPS, semanticAt({ "20-standards/a.md": SEMANTIC_FLOOR }));
+    expect(hits.map((h) => h.artifact.id)).toEqual(["20-standards/a.md"]);
+    expect(hits[0]!.explanation.semantic!.points).toBeGreaterThan(0);
+  });
+});
+
+describe("semanticPoints — integer quantization, NaN-safe, never negative", () => {
+  it("returns an integer for every cosine that clears the floor", () => {
+    for (const cos of [0.6, 0.75, 0.99, 1.0]) {
+      const pts = semanticPoints(cos);
+      expect(Number.isInteger(pts), `cos=${cos} -> ${pts}`).toBe(true);
+      expect(pts).toBeGreaterThanOrEqual(0);
+      expect(pts).toBeLessThanOrEqual(SEMANTIC_WEIGHT);
+    }
+  });
+
+  it("returns exactly 0 for NaN, for a negative cosine, and below the floor", () => {
+    for (const cos of [Number.NaN, -0.5, -1, SEMANTIC_FLOOR / 2]) {
+      const pts = semanticPoints(cos);
+      expect(pts, `cos=${cos}`).toBe(0);
+      // `Math.round(-0.5)` is `-0`; a negative zero reaching the score would sort
+      // as a number that is neither above nor below its peers by `y - x`.
+      expect(Object.is(pts, -0), `cos=${cos} produced -0`).toBe(false);
+    }
+  });
+});
+
+describe("deterministic tie-ordering survives semantic scoring (N6, H1)", () => {
+  const query: RetrievalQuery = {
+    symbols: [],
+    keywords: [NO_OVERLAP],
+    requestedKinds: ["convention"],
+    stepId: "step-ties",
+  };
+  const a = kindArt("20-standards/a.md", "convention");
+  const b = kindArt("20-standards/b.md", "convention");
+  // Cosines that differ only in the third decimal. A FLOAT score would make
+  // `y.score - x.score` a tiny non-zero here, the `id asc` branch would never
+  // fire, and float noise would dictate the order. The integer quantization is
+  // what keeps this a tie at all.
+  const cosines = { "20-standards/a.md": 1.0, "20-standards/b.md": 0.999 };
+
+  it("quantizes near-equal cosines to the same integer", () => {
+    expect(SEMANTIC_FLOOR).toBeLessThanOrEqual(0.999); // else the pair cannot be built
+    expect(semanticPoints(1.0)).toBe(semanticPoints(0.999));
+  });
+
+  it("orders equal-scoring hits by id ascending, identically across runs and pool orders", () => {
+    const semantic = semanticAt(cosines);
+    const forward = retrieve([a, b], query, DEFAULT_CAPS, semantic);
+    const reversed = retrieve([b, a], query, DEFAULT_CAPS, semantic);
+    const repeat = retrieve([a, b], query, DEFAULT_CAPS, semantic);
+
+    expect(forward.map((h) => h.artifact.id)).toEqual(["20-standards/a.md", "20-standards/b.md"]);
+    expect(forward[0]!.explanation.score).toBe(forward[1]!.explanation.score); // a genuine tie
+    expect(reversed.map((h) => h.artifact.id)).toEqual(forward.map((h) => h.artifact.id));
+    expect(repeat).toEqual(forward);
+  });
+});
+
+describe("repo_note stays capped at 0 with the semantic layer engaged (CTIM-Rover)", () => {
+  it("returns zero hits for a perfect-cosine repo_note under DEFAULT_CAPS", () => {
+    const note = kindArt("note.messy", "repo_note");
+    const query: RetrievalQuery = {
+      symbols: [],
+      keywords: [NO_OVERLAP],
+      requestedKinds: ["repo_note"], // requested EXPLICITLY — the cap is the control
+      stepId: "step-repo-note",
+    };
+    const hits = retrieve([note], query, DEFAULT_CAPS, semanticAt({ "note.messy": 1.0 }));
+    expect(DEFAULT_CAPS.repo_note).toBe(0);
+    expect(hits).toEqual([]);
   });
 });
