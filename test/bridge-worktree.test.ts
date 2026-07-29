@@ -75,6 +75,9 @@ let captured: string;
 const origWrite = process.stdout.write.bind(process.stdout);
 
 beforeEach(() => {
+  // `finalize` rebuilds the knowledge index at slice close and therefore selects
+  // an embedding provider; pin the offline one so no test reaches a daemon.
+  process.env.STZ_EMBED = "fallback";
   root = tempDir("stz-bwt-root-");
   captured = "";
   process.exitCode = undefined;
@@ -86,6 +89,7 @@ beforeEach(() => {
 afterEach(() => {
   process.stdout.write = origWrite;
   process.exitCode = undefined;
+  delete process.env.STZ_EMBED;
 });
 afterAll(() => {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });

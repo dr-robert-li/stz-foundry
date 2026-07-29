@@ -599,6 +599,27 @@ async function finalize(args: Record<string, string>): Promise<void> {
   // per-specimen worktrees go with it (D-04). A leaked one is a full unsealed
   // checkout of the repo left on disk.
   destroyWorktrees(args.target ?? root, root, slice);
+
+  // Slice close is the index rebuild trigger (D4): by here the tier documents
+  // this slice produced are on disk and settled.
+  //
+  // The WHOLE hook is wrapped, and it neither rethrows nor touches
+  // `process.exitCode`. `finalize` is the tournament-half completion barrier —
+  // `deriveSliceStatus()` reads the state it just wrote and `/stz-f:pipeline`
+  // advances on it — so a slice whose tournament succeeded must never be marked
+  // failed because a daemon hiccuped or the index path was unwritable. The index
+  // is a derived artifact; the next `knowledge-index` run rebuilds it.
+  let knowledgeIndex: unknown;
+  try {
+    const { embedder, reason } = await selectEmbedder();
+    knowledgeIndex = await buildIndex(root, embedder, reason);
+  } catch (e) {
+    process.stderr.write(
+      `warning: knowledge index rebuild failed (${String(e)}) — the slice is closed regardless; re-run \`stz bridge knowledge-index --root ${root}\`.\n`,
+    );
+    knowledgeIndex = { rebuilt: "failed", embedded: 0, evicted: 0, provider: "none", error: String(e).slice(0, 200) };
+  }
+
   print({
     winner: judgment.winner,
     faithful: isFaithful(sdiff),
@@ -606,6 +627,7 @@ async function finalize(args: Record<string, string>): Promise<void> {
     culled: culled.length,
     unmatchedIntentIds: unmatched.length ? unmatched : undefined,
     mismatchedAsBuiltIds: mismatched.length ? mismatched : undefined,
+    knowledgeIndex,
   });
 }
 

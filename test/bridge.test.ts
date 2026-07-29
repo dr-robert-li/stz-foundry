@@ -13,6 +13,9 @@ let captured: string;
 const origWrite = process.stdout.write.bind(process.stdout);
 
 beforeEach(async () => {
+  // `finalize` now selects an embedding provider (the slice-close index rebuild),
+  // so pin the offline one: no bridge test may contact a daemon.
+  process.env.STZ_EMBED = "fallback";
   root = await mkdtemp(join(tmpdir(), "stz-bridge-"));
   captured = "";
   // Capture the JSON the bridge prints to stdout (the command parses this).
@@ -23,6 +26,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   process.stdout.write = origWrite;
+  delete process.env.STZ_EMBED;
   await rm(root, { recursive: true, force: true });
 });
 
@@ -544,6 +548,93 @@ describe("bridge — cross-slice semantic recall (1.17.0)", () => {
     expect(denied.hits).toEqual([]);
     expect(denied.denied).toBe(true);
     expect(denied.reason).toBe("unknown role");
+  });
+
+  // Slice close is the rebuild trigger (D4). `finalize` is the tournament-half
+  // completion barrier — what makes deriveSliceStatus() read "done" — so the hook
+  // must be incapable of failing the slice it closes.
+  async function sliceReadyToFinalize(): Promise<string[]> {
+    const manifestPath = join(root, "m.json");
+    await writeFile(manifestPath, JSON.stringify(manifest), "utf8");
+    await runBridge(["begin", "--root", root, "--manifest", manifestPath]);
+    await writeDoc(root, "20-standards/conventions.md", {
+      frontmatter: { summary: "naming conventions - camelCase functions and kebab-case filenames" },
+      body: "# Conventions",
+    });
+    const intent = join(root, "intent.json");
+    const asbuilt = join(root, "asbuilt.json");
+    await writeFile(intent, JSON.stringify({ claims: ["exposes run()"] }), "utf8");
+    await writeFile(asbuilt, JSON.stringify({ claims: ["exposes run()"] }), "utf8");
+    return ["finalize", "--root", root, "--slice", "slice-01", "--intent", intent, "--asbuilt", asbuilt];
+  }
+
+  type FinalizeJSON = {
+    winner: string | null;
+    faithful: boolean;
+    specDiff: { missing: number; added: number; kept: number };
+    culled: number;
+    knowledgeIndex: { rebuilt: string; embedded: number; evicted: number; provider: string; error?: string };
+  };
+
+  it("rebuilds the knowledge index at slice close and reports the outcome", async () => {
+    const argv = await sliceReadyToFinalize();
+    captured = "";
+    await runBridge(argv);
+    const fin = lastJSON<FinalizeJSON>();
+
+    // every key finalize printed before this plan, unchanged
+    expect(fin).toHaveProperty("winner");
+    expect(fin.faithful).toBe(true);
+    expect(fin.specDiff).toEqual({ missing: 0, added: 0, kept: 1 });
+    expect(fin.culled).toBe(0);
+    // ...plus the new one, so the orchestrator can surface what the rebuild did
+    expect(fin.knowledgeIndex.rebuilt).toBe("full");
+    expect(fin.knowledgeIndex.embedded).toBe(1);
+    expect(fin.knowledgeIndex.evicted).toBe(0);
+    expect(fin.knowledgeIndex.provider.length).toBeGreaterThan(0);
+
+    const idx = JSON.parse(await readFile(indexFile(), "utf8")) as { entries: Record<string, unknown> };
+    expect(Object.keys(idx.entries)).toEqual(["20-standards/conventions.md"]);
+  });
+
+  it("survives a throwing indexer with finalize's contract intact", async () => {
+    const argv = await sliceReadyToFinalize();
+    // A directory where the index file must go: writeIndex's writeFileSync throws
+    // EISDIR. Deterministic, and it needs no mock.
+    await mkdir(indexFile(), { recursive: true });
+
+    const warnings: string[] = [];
+    const origErr = process.stderr.write.bind(process.stderr);
+    (process.stderr.write as unknown as (s: string) => boolean) = (s: string) => {
+      warnings.push(s);
+      return true;
+    };
+    process.exitCode = undefined;
+    captured = "";
+    try {
+      await runBridge(argv);
+    } finally {
+      process.stderr.write = origErr;
+    }
+
+    // A completed tournament is not marked failed because an index hiccuped:
+    // every original key still printed, all four tournament-half phases done,
+    // exit status untouched, and the failure said out loud on stderr.
+    const fin = lastJSON<FinalizeJSON>();
+    expect(fin).toHaveProperty("winner");
+    expect(fin.faithful).toBe(true);
+    expect(fin.specDiff).toEqual({ missing: 0, added: 0, kept: 1 });
+    expect(fin.culled).toBe(0);
+    expect(fin.knowledgeIndex.rebuilt).toBe("failed");
+    expect(fin.knowledgeIndex.error!.length).toBeGreaterThan(0);
+    expect(warnings.join("")).toMatch(/knowledge index/i);
+    expect(process.exitCode).toBeUndefined();
+
+    const state = await loadState(root, "slice-01");
+    for (const p of ["test-authoring", "planning", "tournament", "judgment"] as const) {
+      expect(state.phaseStatus[p]).toBe("done");
+    }
+    expect(await readFile(join(root, STZ_DIR, "40-slices/slice-01/spec-diff.md"), "utf8")).toMatch(/Planned but missing/);
   });
 
   it("reports the semantic layer as disabled rather than querying a missing index", async () => {
