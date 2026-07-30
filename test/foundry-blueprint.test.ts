@@ -5,15 +5,17 @@
  * no daemon.
  */
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { join, dirname } from "node:path";
 import {
   makeHarnessBlueprint,
   resolveComponentRef,
   assemble,
   batteryRef,
   SLOT_REQUIREMENT,
+  SLOT_ORDER,
   BlueprintError,
   type ComponentRef,
 } from "../src/foundry/blueprint.js";
@@ -33,6 +35,8 @@ import type { BatteryRef, HarnessBlueprint } from "../src/foundry/blueprint.js";
 function tmpRoot(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix));
 }
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** All seven `PromotionInputs` booleans true by default; pass overrides to
  *  flip exactly one (mirrors `test/foundry-component-archive.test.ts`'s
@@ -1138,5 +1142,363 @@ describe("the receipt gate — catch 0: an absent battery/oracle is refused with
     } finally {
       rmSync(targetParent, { recursive: true, force: true });
     }
+  });
+});
+
+// ── Plan 02-03, Task 1: determinism — explicit ordering proven against
+// input-order variation, and no search reachable from the harness altitude
+// ────────────────────────────────────────────────────────────────────────
+//
+// SC4/REQ-31's claim is "the same inputs produce byte-identical output" —
+// not "byte-identical on this machine because Object.keys happened to be
+// insertion-ordered." Every test below varies an input DIMENSION that would
+// expose an incidental (rather than explicit) sort if one existed.
+
+/** Two real, distinct promoted `agents` archive entries plus a `commands`
+ *  entry, and the two `ComponentRef`s naming the agents entries by their OWN
+ *  distinct sourcePath — so a test can reorder the two agents refs in the
+ *  array without changing what either resolves to. Caller owns cleanup. */
+function setupTwoAgentFixture(seed: number, idSuffix: string) {
+  const archiveRoot = tmpRoot("stz-blueprint-determinism-archive-");
+  const assetRoot = tmpRoot("stz-blueprint-determinism-assets-");
+  mkdirSync(join(assetRoot, "agents"), { recursive: true });
+  mkdirSync(join(assetRoot, "commands"), { recursive: true });
+  const agentText1 = "---\nname: stz-agent-one\n---\nAgent one body.";
+  const agentText2 = "---\nname: stz-agent-two\n---\nAgent two body.";
+  writeFileSync(join(assetRoot, "agents", "agent-one.md"), agentText1, "utf8");
+  writeFileSync(join(assetRoot, "agents", "agent-two.md"), agentText2, "utf8");
+  writeFileSync(join(assetRoot, "commands", "audit.md"), COMMANDS_DEF, "utf8");
+  appendComponentArchiveEntry(
+    archiveRoot,
+    "agents",
+    makeComponentArchiveEntry({
+      slot: "agents",
+      specimenId: "agent-one",
+      definitionText: agentText1,
+      parent: null,
+      searchFitness: 0.9,
+      promotionFitness: 0.8,
+      advantage: 0.1,
+      gates: sevenGates(),
+    }),
+  );
+  appendComponentArchiveEntry(
+    archiveRoot,
+    "agents",
+    makeComponentArchiveEntry({
+      slot: "agents",
+      specimenId: "agent-two",
+      definitionText: agentText2,
+      parent: null,
+      searchFitness: 0.85,
+      promotionFitness: 0.7,
+      advantage: 0.1,
+      gates: sevenGates(),
+    }),
+  );
+  appendComponentArchiveEntry(
+    archiveRoot,
+    "commands",
+    makeComponentArchiveEntry({
+      slot: "commands",
+      specimenId: "commands-winner",
+      definitionText: COMMANDS_DEF,
+      parent: null,
+      searchFitness: 0.85,
+      promotionFitness: 0.75,
+      advantage: 0.1,
+      gates: sevenGates(),
+    }),
+  );
+  const battery = generateFixtureBattery(seed, `data-ops-blueprint-determinism-${idSuffix}`);
+  const agentRef1: ComponentRef = {
+    slot: "agents",
+    sourcePath: "agents/agent-one.md",
+    winnerVariantId: componentVariantId(agentText1),
+    batteryId: battery.id,
+  };
+  const agentRef2: ComponentRef = {
+    slot: "agents",
+    sourcePath: "agents/agent-two.md",
+    winnerVariantId: componentVariantId(agentText2),
+    batteryId: battery.id,
+  };
+  const commandsRef: ComponentRef = {
+    slot: "commands",
+    sourcePath: "commands/audit.md",
+    winnerVariantId: componentVariantId(COMMANDS_DEF),
+    batteryId: battery.id,
+  };
+  return { archiveRoot, assetRoot, battery, agentRef1, agentRef2, commandsRef };
+}
+
+describe("assemble is byte-identical when the same refs are supplied in reverse order", () => {
+  it("agents: [ref1, ref2] and agents: [ref2, ref1] produce JSON.stringify-identical ops", () => {
+    const f = setupTwoAgentFixture(6001, "reverse-refs");
+    const targetParent = tmpRoot("stz-blueprint-reverse-refs-target-");
+    try {
+      const forward = makeHarnessBlueprint({
+        schemaVersion: 1,
+        id: "matrix-determinism-reverse-forward",
+        vertical: "data-ops",
+        version: "0.1.0",
+        agents: [f.agentRef1, f.agentRef2],
+        commands: [f.commandsRef],
+        skills: [],
+        hooks: [],
+        docs: [],
+        bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+        battery: batteryRef(f.battery),
+        oracle: f.battery.receipt,
+      });
+      const reversed = makeHarnessBlueprint({
+        schemaVersion: 1,
+        id: "matrix-determinism-reverse-reversed",
+        vertical: "data-ops",
+        version: "0.1.0",
+        agents: [f.agentRef2, f.agentRef1],
+        commands: [f.commandsRef],
+        skills: [],
+        hooks: [],
+        docs: [],
+        bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+        battery: batteryRef(f.battery),
+        oracle: f.battery.receipt,
+      });
+      const targetDir = join(targetParent, "target");
+      const a = assemble(forward, { archiveRoot: f.archiveRoot, assetRoot: f.assetRoot, targetDir });
+      const b = assemble(reversed, { archiveRoot: f.archiveRoot, assetRoot: f.assetRoot, targetDir });
+      expect(a.ops).toHaveLength(3);
+      expect(JSON.stringify(a.ops)).toBe(JSON.stringify(b.ops));
+    } finally {
+      cleanupFixture(f);
+      rmSync(targetParent, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("assemble is byte-identical when the blueprint's slot fields are written in a different literal key order", () => {
+  it("a draft with keys agents..docs and a draft with keys docs..agents produce JSON.stringify-identical ops", () => {
+    const f = setupTwoAgentFixture(6002, "reverse-keys");
+    const targetParent = tmpRoot("stz-blueprint-reverse-keys-target-");
+    try {
+      // Object-literal keys in the "natural" order.
+      const draftForward = {
+        schemaVersion: 1 as const,
+        id: "matrix-determinism-keys-forward",
+        vertical: "data-ops",
+        version: "0.1.0",
+        agents: [f.agentRef1, f.agentRef2],
+        commands: [f.commandsRef],
+        skills: [],
+        hooks: [],
+        docs: [],
+        bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+        battery: batteryRef(f.battery),
+        oracle: f.battery.receipt,
+      };
+      // The SAME field values, object-literal keys written in the OPPOSITE
+      // order — a test that would fail if any code path ever iterated
+      // `Object.keys(blueprint)` instead of the explicit `SLOT_ORDER`.
+      const draftReversed = {
+        oracle: f.battery.receipt,
+        battery: batteryRef(f.battery),
+        bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+        docs: [],
+        hooks: [],
+        skills: [],
+        commands: [f.commandsRef],
+        agents: [f.agentRef1, f.agentRef2],
+        version: "0.1.0",
+        vertical: "data-ops",
+        id: "matrix-determinism-keys-reversed",
+        schemaVersion: 1 as const,
+      };
+      const bpForward = makeHarnessBlueprint(draftForward);
+      const bpReversed = makeHarnessBlueprint(draftReversed);
+      const targetDir = join(targetParent, "target");
+      const a = assemble(bpForward, { archiveRoot: f.archiveRoot, assetRoot: f.assetRoot, targetDir });
+      const b = assemble(bpReversed, { archiveRoot: f.archiveRoot, assetRoot: f.assetRoot, targetDir });
+      expect(JSON.stringify(a.ops)).toBe(JSON.stringify(b.ops));
+    } finally {
+      cleanupFixture(f);
+      rmSync(targetParent, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("assemble is byte-identical across repeated calls on the same blueprint", () => {
+  it("calling assemble twice with no file changes produces deep- and stringify-equal results", () => {
+    const f = setupTwoAgentFixture(6003, "repeated-calls");
+    const targetParent = tmpRoot("stz-blueprint-repeated-calls-target-");
+    try {
+      const bp = makeHarnessBlueprint({
+        schemaVersion: 1,
+        id: "matrix-determinism-repeated",
+        vertical: "data-ops",
+        version: "0.1.0",
+        agents: [f.agentRef1, f.agentRef2],
+        commands: [f.commandsRef],
+        skills: [],
+        hooks: [],
+        docs: [],
+        bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+        battery: batteryRef(f.battery),
+        oracle: f.battery.receipt,
+      });
+      const targetDir = join(targetParent, "target");
+      const first = assemble(bp, { archiveRoot: f.archiveRoot, assetRoot: f.assetRoot, targetDir });
+      const second = assemble(bp, { archiveRoot: f.archiveRoot, assetRoot: f.assetRoot, targetDir });
+      expect(first.ops).toEqual(second.ops);
+      expect(JSON.stringify(first.ops)).toBe(JSON.stringify(second.ops));
+    } finally {
+      cleanupFixture(f);
+      rmSync(targetParent, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("SLOT_ORDER is sorted and covers exactly the ComponentSlot union", () => {
+  it("SLOT_ORDER deep-equals its own sorted copy, and its member set equals SLOT_REQUIREMENT's key set", () => {
+    expect(SLOT_ORDER).toEqual([...SLOT_ORDER].sort());
+    expect([...SLOT_ORDER].sort()).toEqual([...SLOT_REQUIREMENT.keys()].sort());
+    expect(new Set(SLOT_ORDER)).toEqual(new Set(SLOT_REQUIREMENT.keys()));
+    // A sixth slot cannot be added to SLOT_REQUIREMENT without this test
+    // noticing the member-set mismatch.
+    expect(SLOT_ORDER).toHaveLength(5);
+  });
+});
+
+describe("assembly performs no search: a higher-fitness promoted entry at the same slot does not change the output", () => {
+  it("assemble still emits the FileOp the ComponentRef names, while componentIncumbent would have picked the OTHER, higher-fitness entry", () => {
+    const archiveRoot = tmpRoot("stz-blueprint-nosearch-archive-");
+    const assetRoot = tmpRoot("stz-blueprint-nosearch-assets-");
+    const targetParent = tmpRoot("stz-blueprint-nosearch-target-");
+    try {
+      mkdirSync(join(assetRoot, "agents"), { recursive: true });
+      mkdirSync(join(assetRoot, "commands"), { recursive: true });
+      writeFileSync(join(assetRoot, "agents", "planner.md"), AGENTS_DEF, "utf8");
+      writeFileSync(join(assetRoot, "commands", "audit.md"), COMMANDS_DEF, "utf8");
+
+      // The ref's own entry — lower fitness, PROMOTED.
+      appendComponentArchiveEntry(
+        archiveRoot,
+        "agents",
+        makeComponentArchiveEntry({
+          slot: "agents",
+          specimenId: "named-entry",
+          definitionText: AGENTS_DEF,
+          parent: null,
+          searchFitness: 0.5,
+          promotionFitness: 0.4,
+          advantage: 0.1,
+          gates: sevenGates(),
+        }),
+      );
+      // A SECOND promoted entry at the SAME slot, different text, HIGHER
+      // fitness than the ref's own entry — assembly must not choose it.
+      const higherFitnessText = "---\nname: stz-agent-higher-fitness\n---\nA better agent nobody asked for.";
+      appendComponentArchiveEntry(
+        archiveRoot,
+        "agents",
+        makeComponentArchiveEntry({
+          slot: "agents",
+          specimenId: "higher-fitness-entry",
+          definitionText: higherFitnessText,
+          parent: null,
+          searchFitness: 0.99,
+          promotionFitness: 0.99,
+          advantage: 0.3,
+          gates: sevenGates(),
+        }),
+      );
+      appendComponentArchiveEntry(
+        archiveRoot,
+        "commands",
+        makeComponentArchiveEntry({
+          slot: "commands",
+          specimenId: "commands-winner",
+          definitionText: COMMANDS_DEF,
+          parent: null,
+          searchFitness: 0.85,
+          promotionFitness: 0.75,
+          advantage: 0.1,
+          gates: sevenGates(),
+        }),
+      );
+
+      const battery = generateFixtureBattery(6004, "data-ops-blueprint-nosearch");
+      const agentsRef: ComponentRef = {
+        slot: "agents",
+        sourcePath: "agents/planner.md",
+        winnerVariantId: componentVariantId(AGENTS_DEF),
+        batteryId: battery.id,
+      };
+      const commandsRef: ComponentRef = {
+        slot: "commands",
+        sourcePath: "commands/audit.md",
+        winnerVariantId: componentVariantId(COMMANDS_DEF),
+        batteryId: battery.id,
+      };
+      const bp = makeHarnessBlueprint({
+        schemaVersion: 1,
+        id: "matrix-nosearch",
+        vertical: "data-ops",
+        version: "0.1.0",
+        agents: [agentsRef],
+        commands: [commandsRef],
+        skills: [],
+        hooks: [],
+        docs: [],
+        bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+        battery: batteryRef(battery),
+        oracle: battery.receipt,
+      });
+      const targetDir = join(targetParent, "target");
+
+      // The pre-existing "best" helper WOULD pick the higher-fitness entry —
+      // and it disagrees with what assemble() resolves. That disagreement is
+      // the point (D2): assembly resolves what the blueprint names; it does
+      // not choose among candidates.
+      const incumbent = componentIncumbent(archiveRoot, "agents");
+      expect(incumbent).not.toBeNull();
+      expect(incumbent!.variantId).toBe(componentVariantId(higherFitnessText));
+      expect(incumbent!.variantId).not.toBe(agentsRef.winnerVariantId);
+
+      const result = assemble(bp, { archiveRoot, assetRoot, targetDir });
+      expect(result.ops).toHaveLength(2);
+      const agentsOp = result.ops.find((op) => op.to === join(targetDir, "agents", "planner.md"));
+      expect(agentsOp).toBeDefined();
+      expect(agentsOp!.from).toBe(join(assetRoot, "agents", "planner.md"));
+    } finally {
+      rmSync(archiveRoot, { recursive: true, force: true });
+      rmSync(assetRoot, { recursive: true, force: true });
+      rmSync(targetParent, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("blueprint.ts imports only from an allowlist — no search machinery reachable from the harness altitude", () => {
+  it("every 'from \"...\"' specifier in src/foundry/blueprint.ts is a subset of the allowlist, excluding node:crypto and every selection/GRPO/provider module", () => {
+    const source = readFileSync(join(repoRoot, "src/foundry/blueprint.ts"), "utf8");
+    const specifiers = [...source.matchAll(/from\s+"([^"]+)"/g)].map((m) => m[1]!);
+    const allowlist = new Set([
+      "node:fs",
+      "node:path",
+      "./battery-types.js",
+      "./runner.js",
+      "./vertical-admission.js",
+      "../harness.js",
+      "../installer.js",
+      "../types.js",
+      "../write-guard.js",
+    ]);
+    // A structural assertion over the SET of specifiers — a comment
+    // mentioning a module name cannot satisfy or break it.
+    expect(specifiers.length).toBeGreaterThan(0);
+    for (const s of specifiers) {
+      expect(allowlist.has(s)).toBe(true);
+    }
+    expect(specifiers).not.toContain("node:crypto");
   });
 });
