@@ -288,20 +288,38 @@ describe("the v2 battery — less prescriptive prompt, graded revenue", () => {
     }
   });
 
-  it("v2 is a DIFFERENT generator id and is NOT yet human-accepted", () => {
+  it("v2 is a SEPARATE generator id, separately accepted — v1's acceptance is untouched", () => {
+    // Revising prompt+scoring under the v1 id would have silently redefined
+    // what the v1 acceptance covered. Two ids, two entries.
     expect(DATA_OPS_GENERATOR_V2_ID).not.toBe(DATA_OPS_GENERATOR_ID);
-    expect(ACCEPTED_GENERATORS.has(DATA_OPS_GENERATOR_ID)).toBe(true);
-    // The blocking checkpoint: revising prompt+scoring under the v1 id would
-    // silently redefine what a human accepted, so v2 needs its own acceptance.
-    expect(ACCEPTED_GENERATORS.has(DATA_OPS_GENERATOR_V2_ID)).toBe(false);
+    expect(ACCEPTED_GENERATORS.get(DATA_OPS_GENERATOR_ID)).toBe("Dr. Robert Li");
+    expect(ACCEPTED_GENERATORS.get(DATA_OPS_GENERATOR_V2_ID)).toBe("Dr. Robert Li");
   });
 
-  it("constructing a v2 battery is REFUSED until a human accepts the v2 generator", () => {
-    expect(() => acceptedGeneratorReceipt(DATA_OPS_GENERATOR_V2_ID)).toThrow(
+  it("an UNACCEPTED generator id is still refused — the checkpoint is real, not spent", () => {
+    // v2 is accepted now, so the refusal is proven with an id that is not in
+    // the table. Without this the guard would be untested the moment its one
+    // subject was accepted.
+    expect(() => acceptedGeneratorReceipt("data-ops-fixture-warehouse-generator-v3")).toThrow(
       /is not in ACCEPTED_GENERATORS/,
     );
-    expect(() => generateFixtureBatteryV2(7, "data-ops-v2-7")).toThrow(
-      /is not in ACCEPTED_GENERATORS/,
+  });
+
+  it("a v2 battery now constructs through the real admission path", () => {
+    const battery = generateFixtureBatteryV2(7, "data-ops-v2-7");
+    expect(battery.tasks).toHaveLength(6);
+    expect(battery.receipt.acceptedBy).toBe("Dr. Robert Li");
+    // NOT reference-identical: makeBattery defensively copies+freezes the
+    // receipt, so a validated battery cannot be mutated into an invalid one
+    // after the gate. The reference-identity check (requireGeneratorRooted's
+    // Object.is step) runs on the DRAFT, upstream of that copy — so what the
+    // battery carries is the accepted generator's lineage, verified there.
+    expect(battery.receipt.lineage).toEqual([`constructed:${DATA_OPS_GENERATOR_V2_ID}`]);
+    expect(acceptedGeneratorReceipt(DATA_OPS_GENERATOR_V2_ID).lineage).toEqual(
+      battery.receipt.lineage,
     );
+    // The grading survives makeBattery's freeze, which is what makes the
+    // partial credit actually reach a real run.
+    expect(battery.tasks[0]!.grading).toHaveLength(1);
   });
 });

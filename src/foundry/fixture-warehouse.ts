@@ -57,11 +57,12 @@ export const DATA_OPS_GENERATOR_ID = "data-ops-fixture-warehouse-generator-v1";
  * which is precisely the substitution `requireGeneratorRooted`'s
  * reference-identity step exists to refuse one level down.
  *
- * **It is deliberately absent from `ACCEPTED_GENERATORS`.** Until a human adds
- * it, `acceptedGeneratorReceipt(DATA_OPS_GENERATOR_V2_ID)` throws and no v2
- * battery can be constructed. That is the designed blocking checkpoint, not an
- * oversight — an agent adding its own generator to the accepted table would
- * make the acceptance event self-issued and worthless.
+ * Accepted by Dr. Robert Li on 2026-07-31 (see `ACCEPTED_GENERATORS`). It was
+ * held unaccepted until then by design: an agent adding its own generator to
+ * the accepted table would make the acceptance event self-issued and
+ * worthless, so the entry had to come from the human. The refusal path itself
+ * is still proven — by an id that is not in the table — in
+ * `test/foundry-graded-battery.test.ts`.
  */
 export const DATA_OPS_GENERATOR_V2_ID = "data-ops-fixture-warehouse-generator-v2";
 
@@ -70,7 +71,15 @@ export const DATA_OPS_GENERATOR_V2_ID = "data-ops-fixture-warehouse-generator-v2
  *  phase's blocking checkpoint is where a human actually performs one for a
  *  NEW generator id (Plan 01-05). */
 export const ACCEPTED_GENERATORS: ReadonlyMap<string, string> = sealTable(
-  new Map([[DATA_OPS_GENERATOR_ID, "Dr. Robert Li"]]),
+  new Map([
+    [DATA_OPS_GENERATOR_ID, "Dr. Robert Li"],
+    // Accepted 2026-07-31 by Dr. Robert Li, in session, after being shown what
+    // v2 changes relative to the accepted v1: a non-prescriptive task prompt
+    // and partial credit on `revenueCents`. Recorded as a separate entry
+    // rather than by editing v1's, so the v1 acceptance remains exactly what
+    // it was.
+    [DATA_OPS_GENERATOR_V2_ID, "Dr. Robert Li"],
+  ]),
   "the accepted-generator table",
 );
 

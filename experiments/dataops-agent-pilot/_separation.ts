@@ -9,7 +9,7 @@
  *
  * Touches no blind data. Reports whatever it finds.
  */
-import { generateFixtureBattery } from "../../src/foundry/fixture-warehouse.js";
+import { generateFixtureBattery, generateFixtureBatteryV2 } from "../../src/foundry/fixture-warehouse.js";
 import { runAgentBattery } from "../../src/foundry/agent-runner.js";
 import { ARMS } from "./_arms.js";
 
@@ -25,6 +25,13 @@ const SEEDS = (process.env.SEPGATE_SEEDS ?? "7,42,1234").split(",").map((s) => N
 const TIMEOUT_MS = Number(process.env.SEPGATE_TIMEOUT_MS ?? 240_000);
 const CONCURRENCY = Number(process.env.SEPGATE_CONCURRENCY ?? 2);
 // Re-measure a single contaminated cell without re-running the clean ones.
+// v1 = the accepted original battery (prescriptive prompt, exact-match only).
+// v2 = the phase-3 revision (non-prescriptive prompt, graded revenueCents).
+const GENERATOR = process.env.SEPGATE_GENERATOR ?? "v1";
+if (GENERATOR !== "v1" && GENERATOR !== "v2") {
+  throw new Error(`SEPGATE_GENERATOR must be "v1" or "v2", got ${JSON.stringify(GENERATOR)}`);
+}
+const buildBattery = GENERATOR === "v2" ? generateFixtureBatteryV2 : generateFixtureBattery;
 const ARM_FILTER = process.env.SEPGATE_ARMS?.split(",").map((s) => s.trim());
 const RUN_ARMS = ARM_FILTER ? ARMS.filter((a) => ARM_FILTER.includes(a.id)) : ARMS;
 if (RUN_ARMS.length === 0) throw new Error(`SEPGATE_ARMS matched no arm: ${process.env.SEPGATE_ARMS}`);
@@ -32,7 +39,7 @@ if (RUN_ARMS.length === 0) throw new Error(`SEPGATE_ARMS matched no arm: ${proce
 const main = async () => {
   console.log("# Separation gate — data-ops battery vs system-prompt quality");
   console.log(
-    `model: ${MODEL} (local Ollama) · seeds: ${SEEDS.join(", ")} · ` +
+    `model: ${MODEL} (local Ollama) · generator: ${GENERATOR} · seeds: ${SEEDS.join(", ")} · ` +
       `taskTimeoutMs: ${TIMEOUT_MS} · concurrency: ${CONCURRENCY}\n`,
   );
   const table: string[] = ["| arm | seed | tasks | passed | testPassRate |", "|---|---|---|---|---|"];
@@ -41,7 +48,7 @@ const main = async () => {
 
   for (const arm of RUN_ARMS) {
     for (const seed of SEEDS) {
-      const battery = generateFixtureBattery(seed, `sepgate-${seed}`);
+      const battery = buildBattery(seed, `sepgate-${GENERATOR}-${seed}`);
       const run = await runAgentBattery(
         { id: arm.id as never, systemPrompt: arm.systemPrompt },
         battery,
@@ -76,7 +83,13 @@ const main = async () => {
       const acc = byArm.get(arm.id) ?? [];
       acc.push(rate);
       byArm.set(arm.id, acc);
-      console.log(`  ${arm.id} seed ${seed}: ${passed}/${run.tasks.length} (rate ${rate.toFixed(3)})`);
+      // Under v2 `rate` is the mean GRADED score, so it and the exact-pass
+      // count diverge — printing both is what makes the partial credit
+      // visible instead of hidden inside one number.
+      console.log(
+        `  ${arm.id} seed ${seed}: ${passed}/${run.tasks.length} exact (rate ${rate.toFixed(3)}) ` +
+          `scores [${run.tasks.map((t) => t.score.toFixed(2)).join(" ")}]`,
+      );
     }
   }
 
