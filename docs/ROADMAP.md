@@ -1165,7 +1165,15 @@ tournament-archive entries deterministically, and an emitted harness now
 round-trips through the real installer — but no tournament has yet been
 run against that battery, so every component `emit` has materialized so far
 is one a test or an operator wrote by hand, and no vertical-tuned harness
-has been produced end to end from a real tournament's winners. Full design:
+has been produced end to end from a real tournament's winners. The
+pre-registered **separation gate has now been run to completion** and phase 5
+stays gated on its result: `qwen3.6:latest` lands inside the discriminating
+band, but three system prompts of deliberately different quality score
+indistinguishably (spread 0.111, within one standard error at n=18/arm) and
+their rank order **reverses between seeds**, so a tournament would select on
+noise. The actionable finding is a **phase-3 battery revision** (graded /
+partial-credit checks, less prescriptive task prompts) rather than a phase-5
+build — see `experiments/dataops-agent-pilot/PILOT-RESULTS.md`. Full design:
 `docs/development/harness-factory.md`. The abstraction ladder: STZ makes code →
 the same tournament machinery can make *agents* (specimens write `agents/*.md`
 instead of implementations) → the factory assembles tournament-won components

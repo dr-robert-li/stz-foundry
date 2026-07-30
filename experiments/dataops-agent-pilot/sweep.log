@@ -1,0 +1,4 @@
+EXPECT: {"-order-count":"15","evenue-cents":"744035"}
+granite4.1:30b       10s  orderCount=14 revenueCents=1445438
+nemotron3:33b      3220s  unparseable
+qwen3.6:latest      541s  orderCount=15 revenueCents=744035

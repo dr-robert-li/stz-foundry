@@ -1,0 +1,21 @@
+# Separation gate — data-ops battery vs system-prompt quality
+model: qwen3.6:latest (local Ollama) · seeds: 7 · taskTimeoutMs: 1200000 · concurrency: 1
+
+  s0-minimal seed 7: 6/6 (rate 1.000)
+  s1-plausible seed 7: 4/6 (rate 0.667)
+  s2-strong seed 7: 3/6 (rate 0.500)
+
+| arm | seed | tasks | passed | testPassRate |
+|---|---|---|---|---|
+| s0-minimal | 7 | 6 | 6 | 1.000 |
+| s1-plausible | 7 | 6 | 4 | 0.667 |
+| s2-strong | 7 | 6 | 3 | 0.500 |
+
+## Means across seeds
+
+  s0-minimal     mean=1.000  (minimal (no domain guidance at all))
+  s1-plausible   mean=0.667  (plausible generic analyst framing)
+  s2-strong      mean=0.500  (strong, methodology made explicit)
+
+  SPREAD (max-min of arm means) = 0.500
+  => SEPARATION EXISTS. A prompt tournament has something to select on.

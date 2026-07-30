@@ -1,0 +1,18 @@
+# Separation gate — data-ops battery vs system-prompt quality
+model: qwen3.6:latest (local Ollama) · seeds: 42, 1234 · taskTimeoutMs: 3600000 · concurrency: 1
+
+    !! 2/6 tasks produced NO artifact (formatting, not arithmetic)
+  s0-minimal seed 42: 4/6 (rate 0.667)
+  s0-minimal seed 1234: 4/6 (rate 0.667)
+
+| arm | seed | tasks | passed | testPassRate |
+|---|---|---|---|---|
+| s0-minimal | 42 | 6 | 4 | 0.667 |
+| s0-minimal | 1234 | 6 | 4 | 0.667 |
+
+## Means across seeds
+
+  s0-minimal     mean=0.667  (minimal (no domain guidance at all))
+
+  SPREAD (max-min of arm means) = 0.000
+  => SATURATED / NO SEPARATION. A prompt tournament cannot measure anything here.

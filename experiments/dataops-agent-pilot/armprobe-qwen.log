@@ -1,0 +1,22 @@
+# Arm probe — arm=s2-strong model=qwen3.6:latest seed=7 tasks=6
+  cust-1105__2026-09   181s  PASS got[count=15 revenueCents=744035]  want[count=15 cents=744035]
+  cust-1105__2026-07   208s  WRONG got[count=16 revenueCents=1010950]  want[count=17 cents=1094168]
+  cust-1557__2026-09   253s  WRONG got[count=16 revenueCents=1036013]  want[count=18 cents=1218984]
+  cust-1557__2026-07   200s  PASS got[count=11 revenueCents=601294]  want[count=11 cents=601294]
+  cust-9792__2026-09   254s  PASS got[count=20 revenueCents=1195847]  want[count=20 cents=1195847]
+  cust-9792__2026-07   210s  PASS got[count=15 revenueCents=976350]  want[count=15 cents=976350]
+
+  correct=4  wrong-values=2  no-fence=0  (of 6)
+  => every response was parseable. Failures here are genuine arithmetic errors.
+
+# Arm probe — arm=s1-plausible model=qwen3.6:latest seed=7 tasks=6
+  cust-1105__2026-09   166s  PASS got[count=15 revenueCents=744035]  want[count=15 cents=744035]
+  cust-1105__2026-07   170s  PASS got[count=17 revenueCents=1094168]  want[count=17 cents=1094168]
+  cust-1557__2026-09   214s  PASS got[count=18 revenueCents=1218984]  want[count=18 cents=1218984]
+  cust-1557__2026-07   208s  PASS got[count=11 revenueCents=601294]  want[count=11 cents=601294]
+  cust-9792__2026-09   198s  WRONG got[count=19 revenueCents=1159391]  want[count=20 cents=1195847]
+  cust-9792__2026-07   223s  PASS got[count=15 revenueCents=976350]  want[count=15 cents=976350]
+
+  correct=5  wrong-values=1  no-fence=0  (of 6)
+  => every response was parseable. Failures here are genuine arithmetic errors.
+
