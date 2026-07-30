@@ -100,6 +100,7 @@ describe("buildReflectionTrace — task-level failure and empty-of-failures", ()
       {
         taskId: "t-timeout",
         pass: false,
+        score: 0,
         checks: [],
         vacuous: true,
         artifactPaths: [],
@@ -118,6 +119,7 @@ describe("buildReflectionTrace — task-level failure and empty-of-failures", ()
       {
         taskId: "t-all-pass",
         pass: true,
+        score: 1,
         checks: [{ checkId: "c1", pass: true, expected: "ok", actual: "ok", description: "d" }],
         vacuous: false,
         artifactPaths: ["out.txt"],
@@ -135,6 +137,7 @@ describe("buildReflectionTrace — task-level failure and empty-of-failures", ()
       {
         taskId: "t-huge",
         pass: false,
+        score: 0,
         checks: [{ checkId: "c-huge", pass: false, expected: "small", actual: hugeActual, description: "d" }],
         vacuous: false,
         artifactPaths: ["out.txt"],

@@ -23,6 +23,7 @@ import { createProvider, type Provider, type ProviderKind } from "./provider.js"
 import { evaluateChecks, type CheckResult, type Observations } from "../contract/predicate-eval.js";
 import type { PredicateCheck } from "../contract/contract-types.js";
 import { validateReceipt, type AgentBattery, type OracleReceipt } from "./battery-types.js";
+import { gradeTask } from "./grade.js";
 import { resolveContained, writeSpecimenFiles } from "../write-guard.js";
 import { FoundryCostMeter, type CostTotals } from "./cost.js";
 
@@ -43,6 +44,9 @@ export interface ProviderSelection {
 export interface BatteryTaskResult {
   taskId: string;
   pass: boolean;
+  /** Continuous fitness in `[0, 1]` from `gradeTask`. Equals `pass ? 1 : 0`
+   *  for any task without `grading` — i.e. every v1 battery. */
+  score: number;
   checks: CheckResult[];
   vacuous: boolean;
   artifactPaths: string[];
@@ -418,6 +422,9 @@ export async function runAgentBattery(
       return {
         taskId: task.id,
         pass: false,
+        // A killed or errored task produced no answer at all — never a
+        // near-miss. Grading must not turn a timeout into partial credit.
+        score: 0,
         checks: [],
         vacuous: true,
         artifactPaths: [],
@@ -434,6 +441,7 @@ export async function runAgentBattery(
     return {
       taskId: task.id,
       pass: scored.pass,
+      score: gradeTask(scored.checks, task.grading),
       checks: scored.checks,
       vacuous: scored.vacuous,
       artifactPaths: Object.keys(files),
@@ -443,13 +451,19 @@ export async function runAgentBattery(
     };
   });
 
-  const passedTasks = taskResults.filter((t) => t.pass).length;
   // Denominator is battery.tasks.length — NEVER the count of surviving
-  // records or successful outputs. A task whose record is not `ok` is
-  // `pass: false` and still occupies a slot here (criterion 6's "never a
-  // silently missing result", expressed as arithmetic); makeBattery already
-  // guarantees battery.tasks.length > 0.
-  const testPassRate = passedTasks / battery.tasks.length;
+  // records or successful outputs. A task whose record is not `ok` scores 0
+  // and still occupies a slot here (criterion 6's "never a silently missing
+  // result", expressed as arithmetic); makeBattery already guarantees
+  // battery.tasks.length > 0.
+  //
+  // Summing `score` rather than counting `pass` is what makes partial credit
+  // reach the selection signal. It is byte-identical to the old
+  // `passedTasks / battery.tasks.length` for any battery whose tasks carry no
+  // `grading` (gradeTask returns exactly `pass ? 1 : 0` there), so every v1
+  // battery's fitness is unchanged.
+  const testPassRate =
+    taskResults.reduce((sum, t) => sum + t.score, 0) / battery.tasks.length;
   // Deliberate scope limit (RESEARCH assumption A4): `detectHacks` matches
   // source-code shapes, which agent artifacts need not be.
   const hackFindings: HackFinding[] = [];

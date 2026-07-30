@@ -205,6 +205,38 @@ Per `HANDOFF.md` §6's null branch, now with evidence for each item:
 Only after a revised battery shows a **stable, sign-consistent** gradient across
 seeds should a tournament be scheduled.
 
+### Status of the revision (built, and where it is blocked)
+
+Items 1 and 2 are implemented; 4 is implemented; 3 follows from 1.
+
+- `src/foundry/grade.ts` — `GradedSpec` / `gradeTask`, partial credit as a
+  **selection** signal. Deliberately not in `predicate-eval.ts`: contract
+  pass/fail is a trust boundary and stays exact, and `passedGate` still requires
+  every check exact. A task with no `grading` scores `pass ? 1 : 0`, so every v1
+  battery's `testPassRate` is byte-identical.
+- `buildTasksV2` — states the goal and that the extract is messy, and stops
+  there. The v1 methodology dump is gone. The `path=answer.json` fence stays: it
+  is a parsing contract with `observeCheck`, not a task hint.
+- `REVENUE_ZERO_AT = 0.10` — credit decays to 0 at 10% relative error. Chosen
+  from the measured failure distribution in `armprobe-qwen.log` (wrong answers
+  at ~3%, ~7.6%, ~15% out; the granite floor ~87% out), so the tolerance
+  separates "did the transformation, slipped on some rows" from "did not do the
+  transformation".
+
+**Blocked on a human acceptance event.** `DATA_OPS_GENERATOR_V2_ID` is a new
+generator id and is deliberately **absent** from `ACCEPTED_GENERATORS`, so
+`generateFixtureBatteryV2` throws and no v2 battery can be constructed yet.
+Revising the prompt and the scoring under the v1 id would silently redefine what
+a human accepted — exactly the substitution `requireGeneratorRooted`'s
+reference-identity step refuses one level down — and an agent adding its own
+generator to the accepted table would make the acceptance self-issued and
+worthless. A human adds one entry to `ACCEPTED_GENERATORS` to unblock it.
+
+Re-running the separation gate on v2 is what tests whether the revision actually
+buys a stable gradient. **That is an open empirical question, not a claim** —
+partial credit removes the 0.167 quantum by construction, but whether prompt
+quality then separates sign-consistently across seeds can only be measured.
+
 ## Prior arms
 
 This is consistent with `../EXPERIMENT-SUMMARY.md`: six arms, five substrates,

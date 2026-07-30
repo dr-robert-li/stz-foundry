@@ -29,6 +29,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import type { BatteryRun, BatteryTaskResult } from "./agent-runner.js";
 import type { OracleReceipt } from "./battery-types.js";
+import { gradeTask } from "./grade.js";
 import { evaluateChecks, type CheckResult } from "../contract/predicate-eval.js";
 
 /** One external-process verdict bound to one battery task. */
@@ -122,6 +123,8 @@ function attributableFailure(taskId: string, failureReason: string, receipt: Ora
   return {
     taskId,
     pass: false,
+    // An unreached oracle produced no answer — never a near miss.
+    score: 0,
     checks: [],
     vacuous: true,
     artifactPaths: [],
@@ -208,6 +211,10 @@ export function runExecutionOracle(
     results.push({
       taskId: spec.taskId,
       pass: scored.pass,
+      // An `ExecutionOracleSpec` carries no grading — a tool's verdict is
+      // binary by nature, so this is exactly `pass ? 1 : 0`. Routed through
+      // `gradeTask` anyway so there is one scoring rule in the repo, not two.
+      score: gradeTask(scored.checks, undefined),
       checks: scored.checks,
       vacuous: scored.vacuous,
       artifactPaths: [],
@@ -260,9 +267,18 @@ export function mergeOracleVerdicts(run: BatteryRun, outcome: ExecutionOracleOut
     const status = agentResult.status !== "ok" ? agentResult.status : oracleResult.status;
     const failureReason = agentResult.failureReason !== null ? agentResult.failureReason : oracleResult.failureReason;
 
+    // The oracle is a HARD gate over the agent's graded score, not another
+    // term to average with it: a tool that says the work is wrong makes the
+    // task worth 0, however close the agent's arithmetic was. Averaging here
+    // would let partial credit survive a failed oracle, which is exactly the
+    // "absence reported but the task still scores" vacuity this merge exists
+    // to close.
+    const score = oracleResult.pass ? agentResult.score : 0;
+
     return {
       taskId: agentResult.taskId,
       pass,
+      score,
       checks,
       vacuous,
       artifactPaths: agentResult.artifactPaths,
@@ -274,11 +290,11 @@ export function mergeOracleVerdicts(run: BatteryRun, outcome: ExecutionOracleOut
     };
   });
 
-  const passedTasks = mergedTasks.filter((t) => t.pass).length;
   // Denominator: run.tasks.length — the battery's task count, never the
-  // surviving-record count. Same rule as agent-runner.ts:446-452, one
-  // altitude up.
-  const mergedPassRate = passedTasks / run.tasks.length;
+  // surviving-record count. Same rule as agent-runner.ts, one altitude up.
+  // Sums `score` for the same reason agent-runner does: summing `pass` here
+  // would silently discard the partial credit the runner just computed.
+  const mergedPassRate = mergedTasks.reduce((sum, t) => sum + t.score, 0) / run.tasks.length;
   // Deliberately a two-term conjunction over the value runAgentBattery
   // ALREADY computed, so the artifact-vacuity guard (noArtifacts) and the
   // hack-findings term already folded into run.result.passedGate are

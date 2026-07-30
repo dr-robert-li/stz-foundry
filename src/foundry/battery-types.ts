@@ -42,11 +42,42 @@ export interface OracleReceipt {
   lineage: string[];
 }
 
+/**
+ * Optional PARTIAL CREDIT for one check, consumed by `gradeTask`
+ * (`src/foundry/grade.ts`) — never by `evalCheck`.
+ *
+ * The separation gate (`experiments/dataops-agent-pilot/PILOT-RESULTS.md`)
+ * measured why this exists: with exact-integer equality on a 6-digit
+ * `revenueCents` and 6 binary tasks, `testPassRate` is quantized to 0.167 and
+ * a near-miss scores identically to a wild miss. The entire measured spread
+ * between a minimal and a strong system prompt (0.111) was smaller than one
+ * scale point, so there was no gradient for a tournament to climb.
+ *
+ * This is deliberately NOT a change to `PredicateCheck`/`evalCheck`. Contract
+ * pass/fail is a trust boundary — a predicate either holds or it does not, and
+ * a "78% satisfied" contract is not a contract. Grading is a SELECTION signal
+ * at the foundry altitude only: `pass` stays exact, and `passedGate` still
+ * requires every check exact.
+ */
+export interface GradedSpec {
+  /** Must name a check in the same task's `checks` — enforced by `makeBattery`. */
+  checkId: string;
+  /** Relative error, the only kind so far. ponytail: one kind, one branch.
+   *  Upgrade trigger: a battery whose answer is not a scalar number. */
+  kind: "relative-error";
+  /** Credit decays linearly from 1 at exact to 0 at this relative error.
+   *  Must be > 0 — enforced by `makeBattery`. */
+  zeroAt: number;
+}
+
 export interface BatteryTask {
   id: string;
   /** What the candidate agent is asked to do (system+user prompt content). */
   prompt: string;
   checks: PredicateCheck[];
+  /** Absent (the default, and every v1 task) => the task scores binary, exactly
+   *  as before. Present => `gradeTask` scores it continuously. */
+  grading?: GradedSpec[];
 }
 
 /** Type-only nominal brand. It has no runtime representation, so it costs
@@ -246,11 +277,42 @@ export function makeBattery(draft: {
       }
       checkIds.add(check.checkId);
     }
+    // Grading shape guards, each its own named `if`. A spec naming a check
+    // that does not exist would silently never fire — the task would look
+    // graded and score binary, which is the quiet-wrong-answer shape this
+    // repo's guards exist to refuse. A non-positive `zeroAt` would divide
+    // credit by zero and hand out `Infinity`/`NaN` as fitness.
+    const gradedIds = new Set<string>();
+    for (const spec of task.grading ?? []) {
+      if (!checkIds.has(spec.checkId)) {
+        throw new BatteryShapeError(
+          `battery "${id}" task "${taskId}" grades unknown checkId "${spec.checkId}" — a grading ` +
+            `spec naming no check would silently never fire (known: ${[...checkIds].join(", ")})`,
+        );
+      }
+      if (gradedIds.has(spec.checkId)) {
+        throw new BatteryShapeError(
+          `battery "${id}" task "${taskId}" has duplicate grading spec for checkId ` +
+            `"${spec.checkId}" — two credits for one check`,
+        );
+      }
+      gradedIds.add(spec.checkId);
+      if (!(spec.zeroAt > 0) || !Number.isFinite(spec.zeroAt)) {
+        throw new BatteryShapeError(
+          `battery "${id}" task "${taskId}" grading for "${spec.checkId}" has zeroAt ` +
+            `${spec.zeroAt} — must be a finite number > 0`,
+        );
+      }
+    }
     frozenTasks.push(
       Object.freeze({
         id: taskId,
         prompt: task.prompt,
         checks: Object.freeze([...task.checks]) as PredicateCheck[],
+        // Absent stays absent — a task without grading must remain binary,
+        // never silently acquire an empty grading array that a later reader
+        // would mistake for "graded, but nothing graded".
+        ...(task.grading ? { grading: Object.freeze(task.grading.map((s) => Object.freeze({ ...s }))) as GradedSpec[] } : {}),
       }),
     );
   }

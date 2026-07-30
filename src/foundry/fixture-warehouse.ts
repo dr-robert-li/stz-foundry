@@ -45,6 +45,26 @@ import type { PredicateCheck } from "../contract/contract-types.js";
  *  note, 01-01-PLAN.md task 1). */
 export const DATA_OPS_GENERATOR_ID = "data-ops-fixture-warehouse-generator-v1";
 
+/**
+ * The phase-3 battery revision (`experiments/dataops-agent-pilot/PILOT-RESULTS.md`).
+ * Same warehouse generator, two changes to how candidates are asked and scored:
+ * a non-prescriptive task prompt (`buildTasksV2`) and partial credit on
+ * `revenueCents` (`GradedSpec`).
+ *
+ * It is a SEPARATE id on purpose. `ACCEPTED_GENERATORS` records a human
+ * accepting a specific generator's behaviour; revising the prompt and the
+ * scoring under the v1 id would silently redefine what that human accepted,
+ * which is precisely the substitution `requireGeneratorRooted`'s
+ * reference-identity step exists to refuse one level down.
+ *
+ * **It is deliberately absent from `ACCEPTED_GENERATORS`.** Until a human adds
+ * it, `acceptedGeneratorReceipt(DATA_OPS_GENERATOR_V2_ID)` throws and no v2
+ * battery can be constructed. That is the designed blocking checkpoint, not an
+ * oversight — an agent adding its own generator to the accepted table would
+ * make the acceptance event self-issued and worthless.
+ */
+export const DATA_OPS_GENERATOR_V2_ID = "data-ops-fixture-warehouse-generator-v2";
+
 /** The encoded human-acceptance event: generator id -> the human identity who
  *  accepted it. This map IS the acceptance event for this phase; a later
  *  phase's blocking checkpoint is where a human actually performs one for a
@@ -417,6 +437,96 @@ export function buildTasks(warehouse: FixtureWarehouse, taskIdPrefix: string = "
 }
 
 /**
+ * Credit for `revenueCents` decays to 0 at 10% relative error.
+ *
+ * Chosen from the measured failure distribution, not picked for roundness: the
+ * observed wrong answers in the completed separation gate sat at roughly 7.6%,
+ * 15% and 18% below truth (`armprobe-qwen.log`), and the granite floor was
+ * ~87% out. 10% therefore separates "did the transformation, slipped on a few
+ * rows" from "did not do the transformation" — the distinction a search needs
+ * and exact equality destroys. A candidate 87% out still scores 0.
+ *
+ * ponytail: one tolerance for the one graded quantity. Upgrade trigger: a
+ * second graded field whose natural error scale differs.
+ */
+export const REVENUE_ZERO_AT = 0.10;
+
+/**
+ * The v2 task builder — same facts and same required artifact, two changes.
+ *
+ * 1. **The prompt no longer carries the methodology.** `buildTasks` (v1) spells
+ *    out deduplication, all three amount formats, the backup column, all three
+ *    date formats and the customer/month filter. The completed separation gate
+ *    showed what that costs: "You are a helpful assistant" scored 0.778 against
+ *    an explicit 5-step methodology's 0.833, because the task prompt had
+ *    already said everything the system prompt could have added. A search over
+ *    system-prompt text has no headroom when the task text is the answer key to
+ *    the method. v2 states the GOAL and that the extract is messy, and leaves
+ *    discovering the messiness to the candidate — which is the competence the
+ *    battery is supposed to measure.
+ * 2. **`revenueCents` carries partial credit** (`REVENUE_ZERO_AT`), so a
+ *    near-miss outranks a wild miss and `testPassRate` stops being quantized to
+ *    1/6. `orderCount` stays exact — it is a small integer where "close" is not
+ *    a meaningful notion.
+ *
+ * The artifact shape is deliberately UNCHANGED and still spelled out, because
+ * it is a parsing contract with `observeCheck`, not a hint about the task. The
+ * gate measured that too: the minimal prompt's failures included dropped
+ * fences, which is a formatting artifact, not a data-ops result.
+ */
+export function buildTasksV2(warehouse: FixtureWarehouse, taskIdPrefix: string = ""): BatteryTask[] {
+  const tasks: BatteryTask[] = [];
+  for (const fact of warehouse.facts) {
+    const groupKey = `${fact.customerId}__${fact.month}`;
+    const taskId = `${taskIdPrefix}data-ops-fact-recovery-${groupKey}`;
+    const prompt = [
+      `The CSV below is a raw extract from a data warehouse. It was assembled`,
+      `from several upstream systems that did not agree on formats, and it`,
+      `covers many customers and months.`,
+      ``,
+      `CSV:`,
+      "```csv",
+      warehouse.csv,
+      "```",
+      ``,
+      `For customer ${fact.customerId} in month ${fact.month}, recover the`,
+      `DISTINCT order count and the total revenue in integer cents.`,
+      ``,
+      `Respond with exactly one fenced code block:`,
+      "```path=answer.json",
+      `{"totals": {"${groupKey}": {"orderCount": <n>, "revenueCents": <n>}}}`,
+      "```",
+    ].join("\n");
+
+    const revenueCheckId = `${taskId}-revenue-cents`;
+    const checks: PredicateCheck[] = [
+      {
+        checkId: `${taskId}-order-count`,
+        kind: "json-invariant",
+        input: `answer.json#totals.${groupKey}.orderCount`,
+        expect: JSON.stringify(fact.orderCount),
+        description: `recovered orderCount for ${groupKey} matches the precomputed fact`,
+      },
+      {
+        checkId: revenueCheckId,
+        kind: "json-invariant",
+        input: `answer.json#totals.${groupKey}.revenueCents`,
+        expect: JSON.stringify(fact.revenueCents),
+        description: `recovered revenueCents for ${groupKey} matches the precomputed fact`,
+      },
+    ];
+
+    tasks.push({
+      id: taskId,
+      prompt,
+      checks,
+      grading: [{ checkId: revenueCheckId, kind: "relative-error", zeroAt: REVENUE_ZERO_AT }],
+    });
+  }
+  return tasks;
+}
+
+/**
  * `generateWarehouse` -> `buildTasks` -> draft with the accepted generator's
  * memoized receipt -> `requireGeneratorRooted` (REQ-23) -> `admitVerticalBattery`
  * (REQ-27) -> `makeBattery`. There is no other route from this module to
@@ -428,6 +538,21 @@ export function generateFixtureBattery(seed: number, batteryId: string): AgentBa
   const tasks = buildTasks(warehouse);
   const receipt = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_ID);
   requireGeneratorRooted(receipt, DATA_OPS_GENERATOR_ID);
+  const draft = { id: batteryId, tasks, receipt };
+  return admitVerticalBattery("data-ops", draft);
+}
+
+/**
+ * The v2 construction path — identical to `generateFixtureBattery` except for
+ * the generator id and `buildTasksV2`. Throws until a human adds
+ * `DATA_OPS_GENERATOR_V2_ID` to `ACCEPTED_GENERATORS`; see that constant's doc
+ * comment for why that is the design and not a gap.
+ */
+export function generateFixtureBatteryV2(seed: number, batteryId: string): AgentBattery {
+  const warehouse = generateWarehouse(seed);
+  const tasks = buildTasksV2(warehouse);
+  const receipt = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_V2_ID);
+  requireGeneratorRooted(receipt, DATA_OPS_GENERATOR_V2_ID);
   const draft = { id: batteryId, tasks, receipt };
   return admitVerticalBattery("data-ops", draft);
 }
