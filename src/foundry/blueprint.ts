@@ -330,9 +330,24 @@ export function assemble(blueprint: HarnessBlueprint, opts: AssemblyOptions): As
       );
     }
   }
-  const ops: FileOp[] = resolved.map((r) => ({
-    from: r.from,
-    to: join(opts.targetDir, r.ref.slot, basename(r.from)),
-  }));
+  // R-h — two refs resolving to the same destination path would silently
+  // overwrite one another at phase 4's emit. Tracked inside this loop, on
+  // every op as it is built, so the collision throws before `ops` is ever
+  // returned — never discovered after the fact by a second pass.
+  const seenDestinations = new Map<string, string>();
+  const ops: FileOp[] = [];
+  for (const r of resolved) {
+    const to = join(opts.targetDir, r.ref.slot, basename(r.from));
+    const priorFrom = seenDestinations.get(to);
+    if (priorFrom !== undefined) {
+      throw new BlueprintError(
+        `blueprint "${blueprint.id}" has two ComponentRefs resolving to the same destination ` +
+          `${JSON.stringify(to)} — sourcePaths ${JSON.stringify(priorFrom)} and ` +
+          `${JSON.stringify(r.from)} would silently overwrite one another`,
+      );
+    }
+    seenDestinations.set(to, r.from);
+    ops.push({ from: r.from, to });
+  }
   return { blueprint, resolved, ops };
 }
