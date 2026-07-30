@@ -254,8 +254,12 @@ literature shapes the guardrails:
    02-03). The human generator-acceptance checkpoint (Plan 01-05) resolved
    2026-07-29 — the battery is legally exogenous. See "Phase 3, as shipped"
    below.
-4. **Emit / packaging — NOT built.** `src/foundry/emit.ts`, plugin.json/marketplace.json
-   generation, docs via documenter/summarizer, fix the installer skills gap.
+4. **Emit / packaging — shipped (v1.20.0), partially.** `src/foundry/emit.ts`
+   (stage-then-rename atomicity), deterministic `plugin.json`/
+   `marketplace.json` generation, and the installer `skills/` gap fix all
+   shipped. Docs generation via the `stz-documenter`/`stz-summarizer` agents
+   did NOT ship — it was fenced out of scope as agent-side rather than
+   deterministic TypeScript. See "Phase 4, as shipped" below.
 5. **Harness-level evolve — NOT built.** Parameterize `src/harness.ts` substrates; gated
    on phases 1–4 showing gains; the evolve discipline verbatim (held-out,
    recall-free, 3-seed minimum, variance floor, replay from MANIFEST).
@@ -1171,15 +1175,18 @@ divergent choice, above.
    there, and this phase's tests use fixture files. Upgrade trigger: phase
    4's `emit.ts` writes winners, at which point resolution can address
    emitted artifacts directly.
-5. **`skills/` does not exist as a directory in this repo, and
-   `RuntimeDescriptor` has no `skillsSubdir`.** `skills` is an OPTIONAL slot
-   with no source directory to populate it from — the installer's
-   pre-existing `skills/` gap (this document's own "Packaging" section,
-   above) is phase 4's to fix; the blueprint deliberately does not encode
-   that gap as correct.
-6. **The blueprint is not serialized to disk by anything this phase ships.**
-   No on-disk manifest format is locked in yet — `assemble()` returns an
-   in-memory `AssemblyResult`, never writes.
+5. **`skills/` did not exist as a directory in this repo, and
+   `RuntimeDescriptor` had no `skillsSubdir`, when this phase shipped.**
+   Phase 4 closed this gap — `RuntimeDescriptor.skillsSubdir` and
+   `planInstall`'s skills loop now exist — but only for the FLAT `<name>.md`
+   shape; see "Phase 4, as shipped" § "The skills ceiling" below for what
+   that does and does not mean. The blueprint's `skills` slot itself was, and
+   remains, correctly OPTIONAL.
+6. **The blueprint was not serialized to disk by anything Phase 3 shipped.**
+   Phase 4 closed this too: `emit()` writes `assemble()`'s `FileOp[]` plus
+   generated `plugin.json`/`marketplace.json` to a real directory — see
+   "Phase 4, as shipped" below for the mechanism and its own three
+   atomicity ceilings.
 
 ### Mutation checks
 
@@ -1220,19 +1227,143 @@ M0–M3 sequence above:
 
 No mutation across any of these seven left the full suite green either.
 
+Plans 03-01 through 03-03 (emit-packaging, 1.20.0) added five more, restarting
+the M-numbering a second time — transcribed verbatim from their own plan
+summaries:
+
+| Plan | Mutation | What was disabled | Observed failing test(s) |
+|---|---|---|---|
+| 03-01 M1 | Deleted the `existsSync(targetDir)` refusal from `emit` | Pre-existing-target refusal (D3) | `emit Class C — refuses a pre-existing targetDir before writing anything > throws EmitError naming the path and leaves the pre-existing directory's contents byte-unchanged`; `emit Class C — refuses a pre-existing targetDir before writing anything > refuses the live repository root as targetDir, leaving the repo's own plugin.json byte-unchanged` (2 red / 5 green) |
+| 03-01 M2 | Replaced `stagedDestination`'s `resolveContained(stagingDir, rel)` with a bare `join(stagingDir, rel)` | Containment guard (D4) | `emit Class D — stagedDestination is mechanism, not convention > throws resolveContained's own path-traversal message for a relative escape`; `emit Class D — stagedDestination is mechanism, not convention > throws for an absolute opTo outside targetDir` (2 red / 5 green) |
+| 03-01 M3 | Deleted `rmSync(stagingDir, ...)` from `emit`'s `catch` block | Rollback on mid-write failure (D3) | `emit Class B — emit's OWN rollback: a valid blueprint, an injected mid-write copyFn failure > cleans up the staging directory and leaves no targetDir when the second of three ops fails` (1 red / 6 green) |
+| 03-02 M4 | Deleted the `if (rt.skillsSubdir) { ... }` skills loop from `planInstall` | Skills copy loop (D6) — run twice, once isolated and once corroborating | Task 1 run (`test/installer.test.ts` only): `installer skills — REQ-36 (RuntimeDescriptor.skillsSubdir + planInstall's skills loop) planInstall copies .md skills for claude-code, landing under configDir/skillsSubdir, non-.md skipped`; `installer skills — REQ-36 (RuntimeDescriptor.skillsSubdir + planInstall's skills loop) applyInstall then uninstall round-trips the skills files: written, manifested, removed` (2 red / 13 green). Task 2 corroboration (`test/foundry-emit.test.ts`): `emit -> planInstall round-trip (REQ-37) — content-hash symmetry, not a self-comparison a five-slot blueprint emits, and the REAL planInstall names exactly the four distributable slots, matching the blueprint's declared hashes byte-for-byte` (expected 4 ops, observed 3) (1 red / 7 green) |
+| 03-03 M5 | Added a `process.hrtime.bigint()`-derived value to `pluginManifest`'s `description` field | Manifest determinism (D5) | `emit determinism (D5) — pluginManifest/marketplaceManifest emits the SAME blueprint into two DIFFERENT target directories with byte-identical manifests — the discriminating proof, NOT the in-process rerun below`; `emit determinism (D5) — pluginManifest/marketplaceManifest is byte-identical for a blueprint drafted with its object-literal keys in the opposite order` (2 red / 743 green) |
+
+No mutation across any of these five left the full suite green either.
+
+## Phase 4, as shipped (emit / packaging)
+
+Phase 4 built `src/foundry/emit.ts` — the inverse of `planInstall`, closing
+the gap the "Packaging" section above scoped: assembly decides, emit
+performs.
+
+### The emit mechanism
+
+`emit(blueprint, targetDir, opts)` calls `assemble()` first and writes
+nothing when it throws (D1/D3) — a refusal here means zero bytes land on
+disk. `assemble()`'s own `op.to` is already `join(targetDir, slot,
+basename(from))`, i.e. plugin-directory-shaped, so `emit` adds NO mapping
+step; a future reader must not add one, since that would be a second
+decision site and a D1 violation. Every destination — component copies and
+both generated manifests alike — goes through `stagedDestination` →
+`resolveContained` at write time: an invariant on the write itself, not
+trust in `assemble()`'s current, today-safe construction of `op.to`.
+Staging is `mkdtempSync(join(dirname(targetDir), ".stz-emit-"))` — a SIBLING
+of `targetDir`, same parent hence same filesystem — so the single publish
+`renameSync(stagingDir, targetDir)` is atomic.
+
+### The three atomicity ceilings, named plainly
+
+1. **`EXDEV` surfaces, never falls back to a copy.** A cross-device rename
+   throws and is rethrown unwrapped out of `emit`'s `catch` block — never
+   caught and downgraded to a copy loop, because a copy fallback would
+   silently reintroduce the partial-write hazard D3 forbids.
+2. **A pre-existing `targetDir` is a stated precondition, not a discovered
+   error.** `emit` refuses before `mkdtempSync` runs rather than letting a
+   pre-existing directory's `ENOTEMPTY`/`EEXIST` surface later out of
+   `renameSync`. As a side effect this structurally protects the repo's own
+   always-present `.claude-plugin/` directory from a caller error that
+   resolves `targetDir` to the repo root — tested directly against the live
+   `repoRoot`.
+3. **An empty parent directory may survive a failure.** `mkdirSync(dirname(targetDir),
+   { recursive: true })` runs before staging even begins; if everything
+   after that fails, the newly-created parent can be left behind, empty.
+   `targetDir` itself is still never half-populated — that is the property
+   D3 actually states — but the empty-parent case is a real, named ceiling,
+   not zero-defect. Upgrade trigger: a caller that cares about parent-
+   directory creation as a side effect.
+
+### The skills ceiling, prominently
+
+A real Claude Code skill is a DIRECTORY — `skills/<name>/SKILL.md` plus
+sidecars, confirmed live at `.claude/skills/humanizer/` in this repo.
+`ComponentRef` is single-file BY CONSTRUCTION, because `resolveComponentRef`
+content-hashes exactly one file. What shipped this phase is the flat
+`skills/<name>.md` shape: symmetric between `emit` and `planInstall`, and
+round-trip-proven (REQ-37, below) — but **not a real installable skill
+directory**, and Claude Code's own runtime does NOT auto-discover it. No
+sentence in this document reads "skills are supported" without this caveat
+in the same paragraph. Upgrade trigger: a component tournament producing
+directory-shaped artifacts, at which point `ComponentRef` itself would need
+to widen — explicitly out of this phase's scope fence, not an oversight.
+
+### Manifest field mapping (RESEARCH Open Question 1, resolved)
+
+`plugin.json`'s `name`, `version` and `description` are blueprint-derived
+(`blueprint.id`, `blueprint.version`, and a deterministic
+`harnessDescription()` composed from `blueprint.vertical`/`.id`/`.version`/
+`.battery.id` — no wall clock, no staging-path leakage). Everything else —
+`author`, `homepage`, `license`, `keywords` — comes verbatim from
+`PLUGIN_MANIFEST_DEFAULTS`, itself copied verbatim from this repo's own
+`.claude-plugin/plugin.json` at authoring time (D2's "literal template"),
+never read from disk at runtime (a runtime read would make generation
+impure and location-dependent, which D5 forbids). Kept honest by a
+drift-guard test in the same posture as `test/version.test.ts`, rather than
+by a runtime file read.
+
+`marketplace.json` follows the same split: `name` (`${blueprint.id}-marketplace`),
+`owner` and `plugins[0].category`/`.strict` from `PLUGIN_MANIFEST_DEFAULTS`;
+`metadata.description`/`.version` and `plugins[0].name`/`.description`/
+`.version` from the blueprint; `plugins[0].source` is the literal `"./"`.
+
+RESEARCH Open Question 2 — what "the component set that arrives matches what
+the blueprint declared" (REQ-37) means — was resolved as a decision in
+03-02, not left open: CONTENT-HASH equality (`componentVariantId` re-hash of
+every install op's source file, compared as a `Set` against the blueprint's
+own `ComponentRef.winnerVariantId` values), never filename-set equality. A
+corrupted or truncated copy would still pass a filename comparison but must
+fail this one.
+
+### Determinism evidence
+
+Two different proofs, not one, per RESEARCH Pitfall 5 — an in-process
+re-invocation only proves purity within one V8 instance:
+
+- **Two different target directories, in-process.** The same blueprint
+  emitted into two separate `targetDir` paths produces byte-identical
+  `plugin.json`/`marketplace.json` — the discriminating test.
+- **Two separate OS processes.** A fixed fixture blueprint, `pluginManifest`/
+  `marketplaceManifest` invoked from two SEPARATE `npx tsx` process
+  invocations (the `02-VERIFICATION.md` technique, reused rather than
+  weakened), each piped to stdout and hashed: `md5sum` on both runs —
+  `e1ed01b8258c1dd58b61ab039e643cac` — identical.
+
+Also proven: byte-identical output for a blueprint drafted with its
+object-literal keys in the opposite order (the same input-order dimension
+phase 2 proved for `assemble()` itself), and neither generated manifest
+carries a `dependencies` key.
+
 ## What is still not built
 
-None of the following exist in `src/` after Phase 3, and none may be read
+None of the following exist in `src/` after Phase 4, and none may be read
 as delivered by anything above:
 
-- **`src/foundry/emit.ts`** — does not exist. No `emit(blueprint, targetDir)`
-  function, no `plugin.json`/`marketplace.json` generation from a blueprint.
-- **Plugin/marketplace generation** from a tournament-won component set —
-  not built.
-- **The installer `skills/` gap** — `planInstall` (`src/installer.ts`) still
-  copies `commands/` + `agents/` + `hooks/` but not `skills/`; this
-  pre-existing asymmetry (noted in this document's own "Packaging" section
-  above) was not touched by phases 1, 2, or 3.
+- **Docs generation via the `stz-documenter`/`stz-summarizer` agents.**
+  `emit()` writes files a human or tool placed at a `ComponentRef.sourcePath`
+  — it does not invoke either agent, and no code path in this phase generates
+  a harness's own docs from its winning components. Fenced out of scope as
+  agent-side rather than deterministic TypeScript (this document's own
+  Architecture rule).
+- **A real, directory-shaped installable skill.** Phase 4's `skills/<name>.md`
+  shape is round-trip-proven but flat — see "Phase 4, as shipped" § "The
+  skills ceiling" above. `ComponentRef` remains single-file by construction;
+  widening it to the real `skills/<name>/SKILL.md` shape is future work,
+  gated on a component tournament producing directory-shaped artifacts.
+- **Plugin/marketplace generation from a REAL tournament-won component
+  set.** `emit()`'s manifest generation is built and mutation-checked, but
+  every `ComponentRef` this phase's tests resolve is one a test or an
+  operator wrote by hand — see the "no tournament has been run" bullet
+  below, which this phase does not change.
 - **Harness-level evolve over domain substrates** — `src/harness.ts` still
   points at the code pilots (cron/hexcolor/ipv4); nothing repoints it at a
   domain battery. Explicitly gated on phases 1–4 showing gains, per this
