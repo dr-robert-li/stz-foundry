@@ -4,10 +4,20 @@
  * (`mkdtempSync`), no fs mock, no network, no daemon.
  */
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
+import {
+  mkdtempSync,
+  rmSync,
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  readdirSync,
+  copyFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { emit, type EmitOptions } from "../src/foundry/emit.js";
+import { fileURLToPath } from "node:url";
+import { join, dirname } from "node:path";
+import { emit, EmitError, stagedDestination, type EmitOptions } from "../src/foundry/emit.js";
 import {
   makeHarnessBlueprint,
   assemble,
@@ -29,6 +39,8 @@ function tmpRoot(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix));
 }
 
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+
 /** Mirrors `test/foundry-blueprint.test.ts`'s `sevenGates` verbatim. */
 function sevenGates(overrides?: Partial<PromotionInputs>): PromotionInputs {
   return {
@@ -44,6 +56,7 @@ function sevenGates(overrides?: Partial<PromotionInputs>): PromotionInputs {
 }
 
 const AGENTS_DEF = "---\nname: stz-data-ops-planner\ntools: Read, Write\n---\nData-ops planner agent body.";
+const AGENTS_DEF_2 = "---\nname: stz-data-ops-planner-two\ntools: Read, Write\n---\nData-ops planner agent body two.";
 const COMMANDS_DEF = "---\nname: data-ops-audit\n---\nData-ops audit command body.";
 
 interface ComponentFixture {
@@ -169,6 +182,139 @@ describe("emit tracer — a blueprint becomes an installable plugin directory, t
       cleanupEnv(env);
       rmSync(targetParent, { recursive: true, force: true });
       rmSync(configDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("emit Class A — pass-through only when assembly itself refuses (this is NOT the atomicity proof)", () => {
+  it("propagates assemble()'s own refusal for a drifted winnerVariantId, and creates no targetDir", () => {
+    const env = buildFixtureEnv("classA", [
+      { slot: "agents", name: "stz-data-ops-planner", text: AGENTS_DEF },
+      { slot: "commands", name: "data-ops-audit", text: COMMANDS_DEF },
+    ]);
+    // Drift the on-disk agent file after blueprint construction so
+    // resolveComponentRef's own hash check refuses inside assemble() —
+    // emit's write loop never runs a single line.
+    writeFileSync(join(env.assetRoot, "agents", "stz-data-ops-planner.md"), AGENTS_DEF + "\nDRIFTED", "utf8");
+
+    const targetParent = tmpRoot("stz-emit-classA-target-");
+    const targetDir = join(targetParent, "target");
+    try {
+      expect(() => emit(env.blueprint, targetDir, opts(env))).toThrow(/drifted/);
+      expect(existsSync(targetDir)).toBe(false);
+    } finally {
+      cleanupEnv(env);
+      rmSync(targetParent, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("emit Class B — emit's OWN rollback: a valid blueprint, an injected mid-write copyFn failure", () => {
+  it("cleans up the staging directory and leaves no targetDir when the second of three ops fails", () => {
+    const env = buildFixtureEnv("classB", [
+      { slot: "agents", name: "agent-one", text: AGENTS_DEF },
+      { slot: "agents", name: "agent-two", text: AGENTS_DEF_2 },
+      { slot: "commands", name: "data-ops-audit", text: COMMANDS_DEF },
+    ]);
+    const targetParent = tmpRoot("stz-emit-classB-target-");
+    const targetDir = join(targetParent, "target");
+    try {
+      let calls = 0;
+      const injectedError = new Error("injected copy failure on invocation 2");
+      const copyFn = (from: string, to: string): void => {
+        calls += 1;
+        if (calls === 2) throw injectedError;
+        copyFileSync(from, to);
+      };
+
+      let thrown: unknown;
+      try {
+        emit(env.blueprint, targetDir, opts(env, copyFn));
+      } catch (e) {
+        thrown = e;
+      }
+
+      // The injected error surfaces unwrapped (Task 1 step 8) — not caught
+      // and rethrown as a different error.
+      expect(thrown).toBe(injectedError);
+      // op 3 (the third component) and both manifests were never reached.
+      expect(calls).toBe(2);
+
+      expect(existsSync(targetDir)).toBe(false);
+      const siblings = readdirSync(dirname(targetDir));
+      expect(siblings.some((n) => n.startsWith(".stz-emit-"))).toBe(false);
+    } finally {
+      cleanupEnv(env);
+      rmSync(targetParent, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("emit Class C — refuses a pre-existing targetDir before writing anything", () => {
+  it("throws EmitError naming the path and leaves the pre-existing directory's contents byte-unchanged", () => {
+    const env = buildFixtureEnv("classC", [
+      { slot: "agents", name: "stz-data-ops-planner", text: AGENTS_DEF },
+      { slot: "commands", name: "data-ops-audit", text: COMMANDS_DEF },
+    ]);
+    const targetParent = tmpRoot("stz-emit-classC-target-");
+    const targetDir = join(targetParent, "target");
+    mkdirSync(targetDir, { recursive: true });
+    writeFileSync(join(targetDir, "sentinel.txt"), "pre-existing", "utf8");
+    try {
+      expect(() => emit(env.blueprint, targetDir, opts(env))).toThrow(EmitError);
+      expect(readFileSync(join(targetDir, "sentinel.txt"), "utf8")).toBe("pre-existing");
+      expect(readdirSync(targetDir)).toEqual(["sentinel.txt"]);
+    } finally {
+      cleanupEnv(env);
+      rmSync(targetParent, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses the live repository root as targetDir, leaving the repo's own plugin.json byte-unchanged", () => {
+    const env = buildFixtureEnv("classC-repo", [
+      { slot: "agents", name: "stz-data-ops-planner", text: AGENTS_DEF },
+      { slot: "commands", name: "data-ops-audit", text: COMMANDS_DEF },
+    ]);
+    const before = readFileSync(join(repoRoot, ".claude-plugin", "plugin.json"), "utf8");
+    try {
+      expect(() => emit(env.blueprint, repoRoot, opts(env))).toThrow(EmitError);
+      expect(readFileSync(join(repoRoot, ".claude-plugin", "plugin.json"), "utf8")).toBe(before);
+    } finally {
+      cleanupEnv(env);
+    }
+  });
+});
+
+describe("emit Class D — stagedDestination is mechanism, not convention", () => {
+  it("throws resolveContained's own path-traversal message for a relative escape", () => {
+    const stageParent = tmpRoot("stz-emit-classD-stage-");
+    const targetParent = tmpRoot("stz-emit-classD-target-");
+    const stagingDir = mkdtempSync(join(stageParent, "stage-"));
+    const targetDir = join(targetParent, "target");
+    try {
+      expect(() => stagedDestination(stagingDir, targetDir, join(targetDir, "..", "escape.md"))).toThrow(
+        /path-traversal guard/,
+      );
+    } finally {
+      rmSync(stageParent, { recursive: true, force: true });
+      rmSync(targetParent, { recursive: true, force: true });
+    }
+  });
+
+  it("throws for an absolute opTo outside targetDir", () => {
+    const stageParent = tmpRoot("stz-emit-classD-stage2-");
+    const targetParent = tmpRoot("stz-emit-classD-target2-");
+    const outsideDir = tmpRoot("stz-emit-classD-outside-");
+    const stagingDir = mkdtempSync(join(stageParent, "stage-"));
+    const targetDir = join(targetParent, "target");
+    try {
+      expect(() => stagedDestination(stagingDir, targetDir, join(outsideDir, "escape.md"))).toThrow(
+        /path-traversal guard/,
+      );
+    } finally {
+      rmSync(stageParent, { recursive: true, force: true });
+      rmSync(targetParent, { recursive: true, force: true });
+      rmSync(outsideDir, { recursive: true, force: true });
     }
   });
 });
