@@ -17,7 +17,15 @@ import {
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
-import { emit, EmitError, stagedDestination, type EmitOptions } from "../src/foundry/emit.js";
+import {
+  emit,
+  EmitError,
+  stagedDestination,
+  pluginManifest,
+  marketplaceManifest,
+  PLUGIN_MANIFEST_DEFAULTS,
+  type EmitOptions,
+} from "../src/foundry/emit.js";
 import {
   makeHarnessBlueprint,
   assemble,
@@ -395,5 +403,133 @@ describe("emit -> planInstall round-trip (REQ-37) — content-hash symmetry, not
       rmSync(targetParent, { recursive: true, force: true });
       rmSync(configDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("emit determinism (D5) — pluginManifest/marketplaceManifest", () => {
+  it("returns strings ending in a newline that parse as JSON with stable top-level key order", () => {
+    const env = buildFixtureEnv("det-shape", [
+      { slot: "agents", name: "stz-data-ops-planner", text: AGENTS_DEF },
+      { slot: "commands", name: "data-ops-audit", text: COMMANDS_DEF },
+    ]);
+    try {
+      const plugin = pluginManifest(env.blueprint);
+      const marketplace = marketplaceManifest(env.blueprint);
+      expect(plugin.endsWith("\n")).toBe(true);
+      expect(marketplace.endsWith("\n")).toBe(true);
+      expect(Object.keys(JSON.parse(plugin))).toEqual([
+        "name",
+        "version",
+        "description",
+        "author",
+        "homepage",
+        "license",
+        "keywords",
+      ]);
+      expect(Object.keys(JSON.parse(marketplace))).toEqual(["name", "owner", "metadata", "plugins"]);
+    } finally {
+      cleanupEnv(env);
+    }
+  });
+
+  it("emits the SAME blueprint into two DIFFERENT target directories with byte-identical manifests — the discriminating proof, NOT the in-process rerun below", () => {
+    const env = buildFixtureEnv("det-target", [
+      { slot: "agents", name: "stz-data-ops-planner", text: AGENTS_DEF },
+      { slot: "commands", name: "data-ops-audit", text: COMMANDS_DEF },
+    ]);
+    const parentA = tmpRoot("stz-emit-detA-");
+    const parentB = tmpRoot("stz-emit-detB-");
+    const targetA = join(parentA, "target");
+    const targetB = join(parentB, "target");
+    try {
+      emit(env.blueprint, targetA, opts(env));
+      emit(env.blueprint, targetB, opts(env));
+
+      const pluginA = readFileSync(join(targetA, ".claude-plugin", "plugin.json"), "utf8");
+      const pluginB = readFileSync(join(targetB, ".claude-plugin", "plugin.json"), "utf8");
+      expect(pluginA).toBe(pluginB);
+
+      const marketA = readFileSync(join(targetA, ".claude-plugin", "marketplace.json"), "utf8");
+      const marketB = readFileSync(join(targetB, ".claude-plugin", "marketplace.json"), "utf8");
+      expect(marketA).toBe(marketB);
+
+      // A cheap in-process double call is fine as an EXTRA assertion, but it
+      // is explicitly NOT the determinism proof (Pitfall 5) — it proves the
+      // function is pure within one V8 instance and nothing more. The two
+      // different-target-directories comparison above is the real evidence;
+      // do not delete it as "redundant" with this line.
+      expect(pluginManifest(env.blueprint)).toBe(pluginManifest(env.blueprint));
+    } finally {
+      cleanupEnv(env);
+      rmSync(parentA, { recursive: true, force: true });
+      rmSync(parentB, { recursive: true, force: true });
+    }
+  });
+
+  it("is byte-identical for a blueprint drafted with its object-literal keys in the opposite order", () => {
+    const env = buildFixtureEnv("det-keyorder", [
+      { slot: "agents", name: "stz-data-ops-planner", text: AGENTS_DEF },
+      { slot: "commands", name: "data-ops-audit", text: COMMANDS_DEF },
+    ]);
+    try {
+      // Same field VALUES, opposite object-literal key ORDER — the same
+      // input-order dimension phase 2 proved for assemble() itself
+      // (harness-factory.md's "Determinism" section).
+      const reordered = makeHarnessBlueprint({
+        oracle: env.blueprint.oracle,
+        battery: env.blueprint.battery,
+        bridgeConfig: env.blueprint.bridgeConfig,
+        docs: env.blueprint.docs,
+        hooks: env.blueprint.hooks,
+        skills: env.blueprint.skills,
+        commands: env.blueprint.commands,
+        agents: env.blueprint.agents,
+        version: env.blueprint.version,
+        vertical: env.blueprint.vertical,
+        id: env.blueprint.id,
+        schemaVersion: env.blueprint.schemaVersion,
+      });
+      expect(pluginManifest(reordered)).toBe(pluginManifest(env.blueprint));
+      expect(marketplaceManifest(reordered)).toBe(marketplaceManifest(env.blueprint));
+    } finally {
+      cleanupEnv(env);
+    }
+  });
+
+  it("neither generated manifest carries a dependencies key", () => {
+    const env = buildFixtureEnv("det-nodeps", [
+      { slot: "agents", name: "stz-data-ops-planner", text: AGENTS_DEF },
+      { slot: "commands", name: "data-ops-audit", text: COMMANDS_DEF },
+    ]);
+    try {
+      expect(JSON.parse(pluginManifest(env.blueprint))).not.toHaveProperty("dependencies");
+      expect(JSON.parse(marketplaceManifest(env.blueprint))).not.toHaveProperty("dependencies");
+    } finally {
+      cleanupEnv(env);
+    }
+  });
+});
+
+describe("PLUGIN_MANIFEST_DEFAULTS drift guard — the live .claude-plugin/*.json is the template (D2, T-03-10)", () => {
+  it("author/homepage/license/keywords match the live plugin.json, and owner/category/strict match the live marketplace.json — version/name/description excluded by design", () => {
+    const plugin = JSON.parse(readFileSync(join(repoRoot, ".claude-plugin", "plugin.json"), "utf8")) as {
+      author: { name: string; email: string };
+      homepage: string;
+      license: string;
+      keywords: string[];
+    };
+    const marketplace = JSON.parse(readFileSync(join(repoRoot, ".claude-plugin", "marketplace.json"), "utf8")) as {
+      owner: { name: string; email: string };
+      plugins: Array<{ name: string; category: string; strict: boolean }>;
+    };
+    const stzEntry = marketplace.plugins.find((p) => p.name === "stz-f")!;
+
+    expect(PLUGIN_MANIFEST_DEFAULTS.author).toEqual(plugin.author);
+    expect(PLUGIN_MANIFEST_DEFAULTS.homepage).toBe(plugin.homepage);
+    expect(PLUGIN_MANIFEST_DEFAULTS.license).toBe(plugin.license);
+    expect(PLUGIN_MANIFEST_DEFAULTS.keywords).toEqual(plugin.keywords);
+    expect(PLUGIN_MANIFEST_DEFAULTS.author).toEqual(marketplace.owner);
+    expect(PLUGIN_MANIFEST_DEFAULTS.category).toBe(stzEntry.category);
+    expect(PLUGIN_MANIFEST_DEFAULTS.strict).toBe(stzEntry.strict);
   });
 });
