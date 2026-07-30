@@ -58,11 +58,16 @@ function sevenGates(overrides?: Partial<PromotionInputs>): PromotionInputs {
 const AGENTS_DEF = "---\nname: stz-data-ops-planner\ntools: Read, Write\n---\nData-ops planner agent body.";
 const AGENTS_DEF_2 = "---\nname: stz-data-ops-planner-two\ntools: Read, Write\n---\nData-ops planner agent body two.";
 const COMMANDS_DEF = "---\nname: data-ops-audit\n---\nData-ops audit command body.";
+const SKILLS_DEF = "---\nname: data-ops-skill\n---\nData-ops skill body — flat-file shape (REQ-36's named ceiling).";
+const HOOK_DEF = "#!/bin/bash\necho data-ops-hook\n";
+const DOCS_DEF = "# Data-ops notes\n\nDocs body — emitted, but never an install target.";
 
 interface ComponentFixture {
   slot: ComponentSlot;
   name: string;
   text: string;
+  /** File extension, no dot. Defaults to "md" — every 03-01 caller's shape. */
+  ext?: string;
 }
 
 /**
@@ -70,19 +75,22 @@ interface ComponentFixture {
  * valid `HarnessBlueprint` referencing all of them — the same tracer
  * convention `test/foundry-blueprint.test.ts` (lines 60-148) uses,
  * generalized to accept an arbitrary fixture list so Task 2's Class B can
- * build a 3-ref blueprint.
+ * build a 3-ref blueprint, and (Task 2, REQ-37) an arbitrary SLOT + EXTENSION
+ * per fixture so a five-slot round-trip blueprint (including a `hooks`
+ * script and a `docs` file) can reuse this same helper.
  */
 function buildFixtureEnv(idSuffix: string, fixtures: ComponentFixture[]) {
   const archiveRoot = tmpRoot(`stz-emit-archive-${idSuffix}-`);
   const assetRoot = tmpRoot(`stz-emit-assets-${idSuffix}-`);
   mkdirSync(join(assetRoot, "agents"), { recursive: true });
   mkdirSync(join(assetRoot, "commands"), { recursive: true });
+  for (const fx of fixtures) mkdirSync(join(assetRoot, fx.slot), { recursive: true });
 
   const battery = generateFixtureBattery(9001, `data-ops-emit-${idSuffix}`);
 
   const refs: ComponentRef[] = [];
   for (const fx of fixtures) {
-    const relPath = join(fx.slot, `${fx.name}.md`);
+    const relPath = join(fx.slot, `${fx.name}.${fx.ext ?? "md"}`);
     writeFileSync(join(assetRoot, relPath), fx.text, "utf8");
     appendComponentArchiveEntry(
       archiveRoot,
@@ -113,9 +121,9 @@ function buildFixtureEnv(idSuffix: string, fixtures: ComponentFixture[]) {
     version: "0.1.0",
     agents: refs.filter((r) => r.slot === "agents"),
     commands: refs.filter((r) => r.slot === "commands"),
-    skills: [],
-    hooks: [],
-    docs: [],
+    skills: refs.filter((r) => r.slot === "skills"),
+    hooks: refs.filter((r) => r.slot === "hooks"),
+    docs: refs.filter((r) => r.slot === "docs"),
     bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
     battery: batteryRef(battery),
     oracle: battery.receipt,
@@ -315,6 +323,77 @@ describe("emit Class D — stagedDestination is mechanism, not convention", () =
       rmSync(stageParent, { recursive: true, force: true });
       rmSync(targetParent, { recursive: true, force: true });
       rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("emit -> planInstall round-trip (REQ-37) — content-hash symmetry, not a self-comparison", () => {
+  it("a five-slot blueprint emits, and the REAL planInstall names exactly the four distributable slots, matching the blueprint's declared hashes byte-for-byte", () => {
+    // Five refs — one per ComponentSlot, including a real `skills` ref
+    // (RESEARCH Pitfall 2: a blueprint that leaves `skills: []` never
+    // exercises the copy loop) and a `.sh` `hooks` fixture so
+    // `listHookScripts` accepts it.
+    const env = buildFixtureEnv("roundtrip", [
+      { slot: "agents", name: "stz-data-ops-planner", text: AGENTS_DEF },
+      { slot: "commands", name: "data-ops-audit", text: COMMANDS_DEF },
+      { slot: "skills", name: "data-ops-skill", text: SKILLS_DEF },
+      { slot: "hooks", name: "data-ops-hook", text: HOOK_DEF, ext: "sh" },
+      { slot: "docs", name: "data-ops-notes", text: DOCS_DEF },
+    ]);
+    expect(env.blueprint.skills.length).toBe(1); // the skills loop is load-bearing here, not dead code
+
+    const targetParent = tmpRoot("stz-emit-roundtrip-target-");
+    const targetDir = join(targetParent, "target");
+    const configDir = tmpRoot("stz-emit-roundtrip-config-");
+    try {
+      emit(env.blueprint, targetDir, opts(env));
+
+      // All five fixtures land on disk, including docs (emitted, but — see
+      // below — never an install target).
+      const docsPath = join(targetDir, "docs", "data-ops-notes.md");
+      expect(existsSync(docsPath)).toBe(true);
+
+      // THE round-trip: the REAL planInstall, pointed at the emitted
+      // targetDir as the literal assetRoot. A hand-rolled directory walk, or
+      // any comparison of emit's output against emit's own input, would not
+      // satisfy REQ-37 — this must cross into src/installer.ts's own code.
+      const rt = runtimeByName("claude-code")!;
+      const plan = planInstall(rt, configDir, targetDir);
+
+      // Exactly the four distributable slots — agents, commands, skills,
+      // hooks. docs has no installer target.
+      expect(plan.ops.length).toBe(4);
+
+      // "matches" means CONTENT-HASH equality, not filename-set equality
+      // (RESEARCH Open Question 2, resolved as a decision here): a
+      // corrupted or truncated copy would still pass a filename-set
+      // comparison but must fail this one. Re-hash every op.from with the
+      // SAME componentVariantId function resolveComponentRef itself uses,
+      // and compare against the ComponentRef.winnerVariantId values the
+      // blueprint declared for the four in-scope slots.
+      const declaredHashes = new Set([
+        ...env.blueprint.agents.map((r) => r.winnerVariantId),
+        ...env.blueprint.commands.map((r) => r.winnerVariantId),
+        ...env.blueprint.skills.map((r) => r.winnerVariantId),
+        ...env.blueprint.hooks.map((r) => r.winnerVariantId),
+      ]);
+      const arrivingHashes = new Set(plan.ops.map((o) => componentVariantId(readFileSync(o.from, "utf8"))));
+      expect(arrivingHashes).toEqual(declaredHashes);
+
+      // The two negative controls, asserted explicitly rather than glossed
+      // over: docs/ and the generated manifests are emitted but name no
+      // install op. True today by construction; asserting it turns "the
+      // installer happens not to pick these up" into a stated,
+      // regression-guarded property.
+      const pluginPath = join(targetDir, ".claude-plugin", "plugin.json");
+      const marketplacePath = join(targetDir, ".claude-plugin", "marketplace.json");
+      expect(plan.ops.some((o) => o.from === docsPath)).toBe(false);
+      expect(plan.ops.some((o) => o.from === pluginPath)).toBe(false);
+      expect(plan.ops.some((o) => o.from === marketplacePath)).toBe(false);
+    } finally {
+      cleanupEnv(env);
+      rmSync(targetParent, { recursive: true, force: true });
+      rmSync(configDir, { recursive: true, force: true });
     }
   });
 });
