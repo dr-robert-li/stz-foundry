@@ -5,6 +5,28 @@ Everything needed is here or pointed at from here.
 
 ---
 
+## ✅ SUPERSEDED — the gate was run, 2026-07-31. Read `PILOT-RESULTS.md` first.
+
+The §5 action below was executed, then extended to the full pre-registered seed
+list. **Outcome: GATE NOT MET.** `qwen3.6` lands in the band, but the three arms
+are statistically indistinguishable (spread 0.111 vs SE 0.137) and their rank
+order reverses between seeds. **No tournament was run**; phase 5 stays gated and
+the actionable work is a phase-3 battery revision.
+
+Two things below are now known to be wrong, kept visible because they misled:
+
+- **§5's `~2.7h` and its implied single-seed read.** One seed is not enough —
+  seed 7 alone showed spread 0.500 with the gradient *inverted*, and seeds
+  42+1234 showed 0.417 with it correct. Both were noise. Only the pooled figure
+  is interpretable.
+- **§5 step 4's timeout.** The `taskTimeoutMs` used must be ≥ 3600000 for
+  `qwen3.6`. A 1200000 cap silently kills `s0-minimal` tasks and reports the
+  kills as a capability floor (`PILOT-RESULTS.md`, defect 1).
+
+The rest of this file stands as the record of why the ordering mattered.
+
+---
+
 ## ⛔ READ THIS FIRST — do NOT start the tournament
 
 The instruction that produced this handoff was *"kick off the tournament."*
