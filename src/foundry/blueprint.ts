@@ -312,21 +312,27 @@ export function assemble(blueprint: HarnessBlueprint, opts: AssemblyOptions): As
   // `runAgentBattery`'s own revalidation posture).
   requireBlueprintIntegrity(blueprint);
 
+  // Resolve every ref FIRST — `ops` is only built once every ref across
+  // every slot has resolved cleanly, so a refusal anywhere throws before any
+  // `FileOp` is returned, never a partial list (D5).
   const resolved: ResolvedComponent[] = [];
-  const ops: FileOp[] = [];
   for (const slot of SLOT_ORDER) {
     const refs = [...blueprint[slot]].sort((a, b) =>
       a.sourcePath < b.sourcePath ? -1 : a.sourcePath > b.sourcePath ? 1 : 0,
     );
     for (const ref of refs) {
-      const r = resolveComponentRef(ref, {
-        archiveRoot: opts.archiveRoot,
-        assetRoot: opts.assetRoot,
-        batteryId: blueprint.battery.id,
-      });
-      resolved.push(r);
-      ops.push({ from: r.from, to: join(opts.targetDir, ref.slot, basename(r.from)) });
+      resolved.push(
+        resolveComponentRef(ref, {
+          archiveRoot: opts.archiveRoot,
+          assetRoot: opts.assetRoot,
+          batteryId: blueprint.battery.id,
+        }),
+      );
     }
   }
+  const ops: FileOp[] = resolved.map((r) => ({
+    from: r.from,
+    to: join(opts.targetDir, r.ref.slot, basename(r.from)),
+  }));
   return { blueprint, resolved, ops };
 }
