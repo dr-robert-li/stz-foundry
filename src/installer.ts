@@ -39,6 +39,23 @@ export interface RuntimeDescriptor {
    * Absent ⇒ the runtime has no hook adapter and hooks are skipped.
    */
   hooksSubdir?: string;
+  /**
+   * Where STZ skill files land, for runtimes that support skill discovery.
+   * Absent ⇒ the runtime has no skills adapter and the slot is skipped,
+   * exactly as `hooksSubdir` behaves.
+   *
+   * ponytail: this copies flat `<name>.md` files, mirroring
+   * `commandsSubdir`/`agentsSubdir` — enough to satisfy the emit/install
+   * round-trip and this field's own `RuntimeDescriptor` symmetry (REQ-36),
+   * but it does NOT produce the multi-file `skills/<name>/SKILL.md`
+   * directory Claude Code's own runtime auto-discovers (confirmed live at
+   * `.claude/skills/humanizer/`), because `ComponentRef`
+   * (`src/foundry/blueprint.ts`) is single-file by construction —
+   * `resolveComponentRef` hashes one file's content, and widening that is
+   * outside this phase's scope fence. Upgrade trigger: a component
+   * tournament that produces directory-shaped artifacts.
+   */
+  skillsSubdir?: string;
   /** The runtime's settings file (relative to the config dir) hooks register in. */
   settingsFile?: string;
   /** true = assets are applied; false = detected + reported, adapter pending. */
@@ -56,6 +73,7 @@ export const RUNTIMES: RuntimeDescriptor[] = [
     commandsSubdir: join("commands", "stz-f"),
     agentsSubdir: "agents",
     hooksSubdir: join("hooks", "stz-f"),
+    skillsSubdir: "skills",
     settingsFile: "settings.json",
     supported: true,
   },
@@ -151,6 +169,10 @@ export function planInstall(rt: RuntimeDescriptor, configDir: string, assetRoot:
   for (const f of listMd(cmdSrc)) ops.push({ from: join(cmdSrc, f), to: join(configDir, rt.commandsSubdir, f) });
   const agentSrc = join(assetRoot, "agents");
   for (const f of listMd(agentSrc)) ops.push({ from: join(agentSrc, f), to: join(configDir, rt.agentsSubdir, f) });
+  if (rt.skillsSubdir) {
+    const skillSrc = join(assetRoot, "skills");
+    for (const f of listMd(skillSrc)) ops.push({ from: join(skillSrc, f), to: join(configDir, rt.skillsSubdir, f) });
+  }
   let settingsPath: string | undefined;
   let hooksDir: string | undefined;
   if (rt.hooksSubdir && rt.settingsFile) {

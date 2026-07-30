@@ -181,3 +181,71 @@ describe("installer functional — plan/apply/uninstall", () => {
     expect(uninstall(dir).removed).toEqual([]);
   });
 });
+
+describe("installer skills — REQ-36 (RuntimeDescriptor.skillsSubdir + planInstall's skills loop)", () => {
+  it("skillsSubdir is defined only for claude-code — mirrors hooksSubdir's absent-means-skipped posture", () => {
+    expect(runtimeByName("claude-code")!.skillsSubdir).toBe("skills");
+    expect(runtimeByName("codex")!.skillsSubdir).toBeUndefined();
+    expect(runtimeByName("opencode")!.skillsSubdir).toBeUndefined();
+    expect(runtimeByName("pi")!.skillsSubdir).toBeUndefined();
+  });
+
+  let skillsAssetRoot: string;
+  let skillsHome: string;
+  beforeEach(() => {
+    skillsAssetRoot = mkdtempSync(join(tmpdir(), "stz-skills-asset-"));
+    mkdirSync(join(skillsAssetRoot, "skills"), { recursive: true });
+    writeFileSync(join(skillsAssetRoot, "skills", "stz-planner.md"), "# planner skill\n");
+    writeFileSync(join(skillsAssetRoot, "skills", "stz-reviewer.md"), "# reviewer skill\n");
+    writeFileSync(join(skillsAssetRoot, "skills", "notes.txt"), "not a skill — must be filtered\n");
+    skillsHome = mkdtempSync(join(tmpdir(), "stz-skills-home-"));
+  });
+  afterEach(() => {
+    rmSync(skillsAssetRoot, { recursive: true, force: true });
+    rmSync(skillsHome, { recursive: true, force: true });
+  });
+
+  it("planInstall copies .md skills for claude-code, landing under configDir/skillsSubdir, non-.md skipped", () => {
+    const dir = join(skillsHome, ".claude");
+    const plan = planInstall(CC, dir, skillsAssetRoot);
+    const tos = plan.ops.map((o) => o.to);
+    expect(tos).toContain(join(dir, "skills", "stz-planner.md"));
+    expect(tos).toContain(join(dir, "skills", "stz-reviewer.md"));
+    expect(tos.some((t) => t.includes("notes.txt"))).toBe(false);
+  });
+
+  it("planInstall yields zero skills ops for a runtime with no skillsSubdir, even with a populated skills/ dir", () => {
+    const dir = join(skillsHome, ".codex");
+    const plan = planInstall(runtimeByName("codex")!, dir, skillsAssetRoot);
+    // skillsAssetRoot only carries a skills/ dir (no commands/agents/hooks),
+    // so an empty plan proves the gate — not merely an absent source dir.
+    expect(plan.ops).toEqual([]);
+  });
+
+  it("planInstall produces no skills ops when assetRoot has no skills/ directory — pre-existing behavior unaffected", () => {
+    const bareAssetRoot = mkdtempSync(join(tmpdir(), "stz-skills-bare-"));
+    try {
+      const dir = join(skillsHome, ".claude");
+      const plan = planInstall(CC, dir, bareAssetRoot);
+      expect(plan.ops).toEqual([]);
+    } finally {
+      rmSync(bareAssetRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("applyInstall then uninstall round-trips the skills files: written, manifested, removed", () => {
+    const dir = join(skillsHome, ".claude");
+    const plan = planInstall(CC, dir, skillsAssetRoot);
+    applyInstall(plan);
+    expect(existsSync(join(dir, "skills", "stz-planner.md"))).toBe(true);
+    expect(existsSync(join(dir, "skills", "stz-reviewer.md"))).toBe(true);
+    const manifest = JSON.parse(readFileSync(plan.manifestPath, "utf8"));
+    expect(manifest.files).toContain(join(dir, "skills", "stz-planner.md"));
+    expect(manifest.files).toContain(join(dir, "skills", "stz-reviewer.md"));
+
+    const res = uninstall(dir);
+    expect(res.removed).toContain(join(dir, "skills", "stz-planner.md"));
+    expect(res.removed).toContain(join(dir, "skills", "stz-reviewer.md"));
+    expect(existsSync(join(dir, "skills", "stz-planner.md"))).toBe(false);
+  });
+});
