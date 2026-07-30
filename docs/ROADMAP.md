@@ -1150,15 +1150,22 @@ and adding a new harness is a new adapter + an `install` case, not a new
 distribution channel. The prebuilt `dist/` that makes a fresh install need no
 network on first run shipped alongside it in 1.17.0.
 
-### 8. Harness factory — specialized harnesses as the output artifact — ⚠️ PARTIALLY BUILT (phases 1–2, 1.18.0); phases 3–5 not built
+### 8. Harness factory — specialized harnesses as the output artifact — ⚠️ PARTIALLY BUILT (phases 1–4, 1.20.0); phase 5 not built
 
 **Design locked (2026-07-10).** Phases 1 (agentic eval seam) and 2 (component
-tournaments) shipped in 1.18.0 — see `docs/development/harness-factory.md`
-§§ "Phase 1, as shipped" / "Phase 2, as shipped" for the mechanism and design
-findings. Phases 3–5 (`HarnessBlueprint`, deterministic assembly, the
-data-ops pilot battery, `emit.ts`/packaging, harness-level evolve) remain
-**not built** — no vertical has been admitted and no real domain battery
-exists yet; what shipped is the machinery, not a tuned harness. Full design:
+tournaments) shipped in 1.18.0; phase 3 (`HarnessBlueprint`, deterministic
+assembly, the data-ops pilot battery) shipped in 1.19.0; phase 4
+(`emit.ts`/packaging) shipped in 1.20.0 — see
+`docs/development/harness-factory.md` §§ "Phase 1, as shipped" / "Phase 2, as
+shipped" / "Phase 3, as shipped" / "Phase 4, as shipped" for the mechanism and
+design findings. Phase 5 (harness-level evolve) remains **not built** —
+a vertical (data-ops) has been admitted and a real, human-accepted exogenous
+battery exists, the blueprint/assembly machinery resolves real
+tournament-archive entries deterministically, and an emitted harness now
+round-trips through the real installer — but no tournament has yet been
+run against that battery, so every component `emit` has materialized so far
+is one a test or an operator wrote by hand, and no vertical-tuned harness
+has been produced end to end from a real tournament's winners. Full design:
 `docs/development/harness-factory.md`. The abstraction ladder: STZ makes code →
 the same tournament machinery can make *agents* (specimens write `agents/*.md`
 instead of implementations) → the factory assembles tournament-won components
@@ -1199,12 +1206,16 @@ Phases, each independently valuable:
    machinery; GEPA-style reflective prompt mutation (bounded budget);
    search-set/promotion-set battery split (Goodhart bound); seventh
    promotion gate.
-3. **Not built.** `HarnessBlueprint` + deterministic best-per-slot assembly +
-   data-ops pilot battery (fixture-warehouse generator + dbt/data-diff
-   oracle).
-4. **Not built.** Emit/packaging — `src/foundry/emit.ts` (inverse of
-   `planInstall`), plugin.json/marketplace.json generation, docs via
-   documenter/summarizer, fix the pre-existing installer `skills/` gap.
+3. **Built (1.19.0).** `HarnessBlueprint` + deterministic best-per-slot
+   assembly + the data-ops pilot battery (fixture-warehouse generator +
+   dbt/data-diff execution-oracle seam) — no tournament run against it yet,
+   nothing materialized to disk.
+4. **Built (1.20.0), partially.** Emit/packaging — `src/foundry/emit.ts`
+   (inverse of `planInstall`, stage-then-rename atomicity), deterministic
+   plugin.json/marketplace.json generation, and the pre-existing installer
+   `skills/` gap fixed (flat-file shape — see harness-factory.md's "The
+   skills ceiling"). Docs via documenter/summarizer did NOT ship — fenced
+   out of scope as agent-side, not deterministic TypeScript.
 5. **Not built.** Harness-level evolve — parameterize `src/harness.ts`
    substrates from code pilots to domain batteries; gated on phases 1–4
    showing gains; evolve discipline verbatim (held-out, recall-free, 3-seed,

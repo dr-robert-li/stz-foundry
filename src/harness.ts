@@ -155,8 +155,14 @@ export function incumbent(root: string): ArchiveEntry | null {
 
 // ── deterministic parent-sampling (DGM diversity rule) ──────────────────────
 
-/** mulberry32 — a tiny deterministic PRNG seeded from an integer. */
-function mulberry32(seed: number): () => number {
+/** mulberry32 — a tiny deterministic PRNG seeded from an integer. Exported
+ *  (Phase 1, Plan 01-01) so `src/foundry/fixture-warehouse.ts` reuses the
+ *  ONE PRNG implementation in the repo instead of duplicating it —
+ *  `component-tournament.ts:44` already imports from this module, so the
+ *  foundry->harness direction is precedented, and this module's own value
+ *  imports (node:fs/node:path/node:crypto/taxonomy.js/harness-hash.js) never
+ *  reach the provider layer, so no import cycle is introduced. */
+export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a |= 0;
