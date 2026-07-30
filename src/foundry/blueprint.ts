@@ -141,8 +141,57 @@ type BlueprintDraft = Omit<HarnessBlueprint, typeof VALIDATED_BLUEPRINT>;
  * The I/O-free construction gate. Separately named sequential `const`s/`if`s
  * — never one compound boolean (the `component-tournament.ts:150-158`
  * idiom).
+ *
+ * Non-tautology statement (the three catches this gate provides, stated in
+ * the terms the tests in Task 2 prove — `test/foundry-blueprint.test.ts`
+ * "the receipt gate" describes):
+ *
+ * 1. `validateReceipt` (step 1) is reachable and load-bearing — NOT a
+ *    redundant re-check of a receipt already proven exogenous — because
+ *    `BatteryRef` is deliberately UNBRANDED (see its own doc comment above).
+ *    A hand-built `BatteryRef` carries whatever receipt its author supplies;
+ *    nothing upstream of this gate has already validated it, unlike a real
+ *    `AgentBattery`'s receipt (which `makeBattery` already gates).
+ * 2. `Object.is(draft.oracle, draft.battery.receipt)` (step 2) catches what
+ *    step 1 structurally cannot: a SUBSTITUTED receipt that is independently
+ *    exogenous (e.g. a different battery's own accepted receipt, or a
+ *    generator's memoized receipt that is field-identical to but not the
+ *    same object as this battery's frozen copy — see `makeBattery`'s
+ *    defensive-copy comment, `battery-types.ts:264-267`). `validateReceipt`
+ *    alone would pass it; only reference identity tells the two apart.
+ * 3. The call site inside `assemble()` (below) is reachable, not dead code,
+ *    because a `HarnessBlueprint` is DESIGNED to be serialized and replayed
+ *    — `JSON.parse(...) as HarnessBlueprint` is an EXPECTED input shape at
+ *    that call site, not a hypothetical one. This is exactly what
+ *    distinguishes this posture from `docs/development/harness-factory.md`
+ *    § "The seventh gate": that gate's only input was an unforgeable
+ *    branded `AgentBattery`, so a redundant re-check there would have been
+ *    provably dead code. Do not "fix" this module by deleting the
+ *    `assemble()` call under the mistaken belief it repeats that trap —
+ *    mutation check M6 (test file) is the proof it does not.
  */
 export function requireBlueprintIntegrity(draft: BlueprintDraft): void {
+  // Step 0 — shape gate: an absent or non-object `battery`/`oracle`, or a
+  // `battery.id` that is not a non-empty string, is refused with a stated
+  // reason naming the missing field — never a `TypeError` from reading a
+  // property of `undefined`. A forged/replayed blueprint (`JSON.parse(...)
+  // as HarnessBlueprint`) can carry any of these shapes.
+  if (draft.battery === null || draft.battery === undefined || typeof draft.battery !== "object") {
+    throw new BlueprintError(
+      `blueprint "${draft.id}" has no "battery" field (or it is not an object) — a missing ` +
+        `battery is refused, never a TypeError`,
+    );
+  }
+  if (draft.oracle === null || draft.oracle === undefined || typeof draft.oracle !== "object") {
+    throw new BlueprintError(
+      `blueprint "${draft.id}" has no "oracle" field (or it is not an object) — a missing ` +
+        `oracle is refused, never a TypeError`,
+    );
+  }
+  if (typeof draft.battery.id !== "string" || draft.battery.id.trim() === "") {
+    throw new BlueprintError(`blueprint "${draft.id}" battery.id is missing or not a non-empty string`);
+  }
+
   // Step 1 — receipt exogeneity. Imported, never re-derived from
   // `resolveRootKind`/`EXOGENOUS_ROOT_KINDS` (D3).
   validateReceipt(draft.oracle, draft.battery.id);

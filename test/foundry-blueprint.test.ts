@@ -26,7 +26,9 @@ import {
   type PromotionInputs,
 } from "../src/harness.js";
 import { generateFixtureBattery, acceptedGeneratorReceipt, DATA_OPS_GENERATOR_ID } from "../src/foundry/fixture-warehouse.js";
+import { validateReceipt, type OracleReceipt } from "../src/foundry/battery-types.js";
 import { FOUNDRY_CONFIG_TEMPLATE } from "../src/foundry/runner.js";
+import type { BatteryRef, HarnessBlueprint } from "../src/foundry/blueprint.js";
 
 function tmpRoot(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -871,6 +873,269 @@ describe("R-h — two ComponentRefs resolve to the same destination path", () =>
     } finally {
       rmSync(archiveRoot, { recursive: true, force: true });
       rmSync(assetRoot, { recursive: true, force: true });
+      rmSync(targetParent, { recursive: true, force: true });
+    }
+  });
+});
+
+// ── Plan 02-02, Task 2: the receipt gate is not tautological ───────────────
+//
+// Three distinct catches, three negative controls (each with its own "and
+// this receipt passes validateReceipt/is independently exogenous on its own"
+// assertion, so the test can't be satisfied by accident), plus catch 0 (an
+// absent battery/oracle refused with a stated reason, not a TypeError).
+
+describe("the receipt gate — catch 1: validateReceipt catches what nothing else does (BatteryRef is deliberately unbranded)", () => {
+  it("a hand-built BatteryRef carrying a non-exogenous (anchored-judge) receipt is refused via validateReceipt's own message, even though provenance (Object.is) passes", () => {
+    const nonExogenousReceipt: OracleReceipt = Object.freeze({
+      kind: "anchored-judge",
+      acceptedBy: "Dr. Robert Li",
+      lineage: Object.freeze(["anchored-judge:j1"]) as string[],
+    });
+    const handBuiltBattery: BatteryRef = Object.freeze({ id: "data-ops-hand-built", receipt: nonExogenousReceipt });
+
+    expect(() =>
+      makeHarnessBlueprint({
+        schemaVersion: 1,
+        id: "matrix-catch1-nonexo",
+        vertical: "data-ops",
+        version: "0.1.0",
+        agents: [],
+        commands: [],
+        skills: [],
+        hooks: [],
+        docs: [],
+        bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+        battery: handBuiltBattery,
+        // Deliberately the SAME object as battery.receipt — provenance
+        // (step 2) passes; only validateReceipt's own exogeneity check can
+        // catch this receipt.
+        oracle: nonExogenousReceipt,
+      }),
+    ).toThrow(/is an amortizer and can never be the sole exogenous root/);
+  });
+
+  it("companion: an acceptedBy naming an agent role throws with validateReceipt's own agent-role message", () => {
+    const agentRoleReceipt: OracleReceipt = Object.freeze({
+      kind: "execution",
+      acceptedBy: "specimen",
+      lineage: Object.freeze([] as string[]) as string[],
+    });
+    const handBuiltBattery: BatteryRef = Object.freeze({ id: "data-ops-hand-built-2", receipt: agentRoleReceipt });
+
+    expect(() =>
+      makeHarnessBlueprint({
+        schemaVersion: 1,
+        id: "matrix-catch1-agentrole",
+        vertical: "data-ops",
+        version: "0.1.0",
+        agents: [],
+        commands: [],
+        skills: [],
+        hooks: [],
+        docs: [],
+        bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+        battery: handBuiltBattery,
+        oracle: agentRoleReceipt,
+      }),
+    ).toThrow(/is an agent role — only a human may accept/);
+  });
+});
+
+describe("the receipt gate — catch 2: Object.is catches what validateReceipt cannot (a substituted-but-exogenous receipt)", () => {
+  it("refuses when oracle is the generator's OWN accepted receipt while battery is a real, distinct battery — field-identical, independently exogenous, still wrong provenance", () => {
+    const battery = generateFixtureBattery(5101, "data-ops-blueprint-catch2-generator");
+    const generatorReceipt = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_ID);
+
+    // The generator's own receipt independently passes validateReceipt on
+    // its own — this is what makes the provenance check non-redundant, not
+    // a second check of exogeneity. And it is field-identical but reference-
+    // distinct from battery.receipt (makeBattery freezes a defensive copy).
+    expect(() => validateReceipt(generatorReceipt, battery.id)).not.toThrow();
+    expect(Object.is(generatorReceipt, battery.receipt)).toBe(false);
+
+    expect(() =>
+      makeHarnessBlueprint({
+        schemaVersion: 1,
+        id: "matrix-catch2-generator",
+        vertical: "data-ops",
+        version: "0.1.0",
+        agents: [],
+        commands: [],
+        skills: [],
+        hooks: [],
+        docs: [],
+        bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+        battery: batteryRef(battery),
+        oracle: generatorReceipt,
+      }),
+    ).toThrow(/is not the SAME object as battery/);
+  });
+
+  it("refuses when oracle is a DIFFERENT real battery's own receipt — field-identical, independently exogenous, still wrong provenance", () => {
+    const batteryA = generateFixtureBattery(5102, "data-ops-blueprint-catch2-a");
+    const batteryB = generateFixtureBattery(5103, "data-ops-blueprint-catch2-b");
+
+    // batteryB's receipt independently passes validateReceipt against
+    // batteryA's id — it is a real, exogenous receipt, just the WRONG one.
+    expect(() => validateReceipt(batteryB.receipt, batteryA.id)).not.toThrow();
+    expect(Object.is(batteryB.receipt, batteryA.receipt)).toBe(false);
+
+    expect(() =>
+      makeHarnessBlueprint({
+        schemaVersion: 1,
+        id: "matrix-catch2-crossbattery",
+        vertical: "data-ops",
+        version: "0.1.0",
+        agents: [],
+        commands: [],
+        skills: [],
+        hooks: [],
+        docs: [],
+        bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+        battery: batteryRef(batteryA),
+        oracle: batteryB.receipt,
+      }),
+    ).toThrow(/is not the SAME object as battery/);
+  });
+});
+
+describe("the receipt gate — catch 3: assemble()'s call site catches what construction cannot (forged/replayed blueprint)", () => {
+  it("refuses a JSON.parse(JSON.stringify(bp))-round-tripped blueprint — the replay path never passed through makeHarnessBlueprint", () => {
+    const f = setupValidBlueprintFixture(5104, "catch3-replay");
+    const targetParent = tmpRoot("stz-blueprint-catch3-replay-target-");
+    try {
+      const bp = makeHarnessBlueprint({
+        schemaVersion: 1,
+        id: "matrix-catch3-replay",
+        vertical: "data-ops",
+        version: "0.1.0",
+        agents: [f.agentsRef],
+        commands: [f.commandsRef],
+        skills: [],
+        hooks: [],
+        docs: [],
+        bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+        battery: batteryRef(f.battery),
+        oracle: f.battery.receipt,
+      });
+
+      const replayed = JSON.parse(JSON.stringify(bp)) as HarnessBlueprint;
+      // The round trip broke object identity — proven directly, not assumed.
+      expect(Object.is(replayed.oracle, replayed.battery.receipt)).toBe(false);
+
+      const targetDir = join(targetParent, "target");
+      expect(() =>
+        assemble(replayed, { archiveRoot: f.archiveRoot, assetRoot: f.assetRoot, targetDir }),
+      ).toThrow(/is not the SAME object as battery/);
+    } finally {
+      cleanupFixture(f);
+      rmSync(targetParent, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a forged object literal cast through 'as unknown as HarnessBlueprint' carrying a non-exogenous receipt — validateReceipt's own message, never having passed through makeHarnessBlueprint", () => {
+    const nonExogenousReceipt: OracleReceipt = Object.freeze({
+      kind: "anchored-judge",
+      acceptedBy: "Dr. Robert Li",
+      lineage: Object.freeze(["anchored-judge:j1"]) as string[],
+    });
+    const forged = {
+      schemaVersion: 1,
+      id: "matrix-catch3-forged",
+      vertical: "data-ops",
+      version: "0.1.0",
+      agents: [],
+      commands: [],
+      skills: [],
+      hooks: [],
+      docs: [],
+      bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+      battery: { id: "forged-battery", receipt: nonExogenousReceipt },
+      oracle: nonExogenousReceipt,
+    } as unknown as HarnessBlueprint;
+
+    const targetParent = tmpRoot("stz-blueprint-catch3-forged-target-");
+    try {
+      expect(() =>
+        assemble(forged, {
+          archiveRoot: targetParent,
+          assetRoot: targetParent,
+          targetDir: join(targetParent, "target"),
+        }),
+      ).toThrow(/is an amortizer and can never be the sole exogenous root/);
+    } finally {
+      rmSync(targetParent, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("the receipt gate — catch 0: an absent battery/oracle is refused with a stated reason, not a TypeError", () => {
+  it("refuses a forged blueprint with oracle undefined, naming the missing field", () => {
+    const battery = generateFixtureBattery(5105, "data-ops-blueprint-catch0-oracle");
+    const forged = {
+      schemaVersion: 1,
+      id: "matrix-catch0-oracle",
+      vertical: "data-ops",
+      version: "0.1.0",
+      agents: [],
+      commands: [],
+      skills: [],
+      hooks: [],
+      docs: [],
+      bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+      battery: batteryRef(battery),
+      oracle: undefined,
+    } as unknown as HarnessBlueprint;
+
+    const targetParent = tmpRoot("stz-blueprint-catch0-oracle-target-");
+    try {
+      expect(() =>
+        assemble(forged, {
+          archiveRoot: targetParent,
+          assetRoot: targetParent,
+          targetDir: join(targetParent, "target"),
+        }),
+      ).toThrow(/no "oracle" field/);
+      expect(() =>
+        assemble(forged, {
+          archiveRoot: targetParent,
+          assetRoot: targetParent,
+          targetDir: join(targetParent, "target"),
+        }),
+      ).not.toThrow(TypeError);
+    } finally {
+      rmSync(targetParent, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a forged blueprint with battery undefined, naming the missing field", () => {
+    const battery = generateFixtureBattery(5106, "data-ops-blueprint-catch0-battery");
+    const forged = {
+      schemaVersion: 1,
+      id: "matrix-catch0-battery",
+      vertical: "data-ops",
+      version: "0.1.0",
+      agents: [],
+      commands: [],
+      skills: [],
+      hooks: [],
+      docs: [],
+      bridgeConfig: FOUNDRY_CONFIG_TEMPLATE,
+      battery: undefined,
+      oracle: battery.receipt,
+    } as unknown as HarnessBlueprint;
+
+    const targetParent = tmpRoot("stz-blueprint-catch0-battery-target-");
+    try {
+      expect(() =>
+        assemble(forged, {
+          archiveRoot: targetParent,
+          assetRoot: targetParent,
+          targetDir: join(targetParent, "target"),
+        }),
+      ).toThrow(/no "battery" field/);
+    } finally {
       rmSync(targetParent, { recursive: true, force: true });
     }
   });
