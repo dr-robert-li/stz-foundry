@@ -1150,15 +1150,19 @@ and adding a new harness is a new adapter + an `install` case, not a new
 distribution channel. The prebuilt `dist/` that makes a fresh install need no
 network on first run shipped alongside it in 1.17.0.
 
-### 8. Harness factory — specialized harnesses as the output artifact — ⚠️ PARTIALLY BUILT (phases 1–2, 1.18.0); phases 3–5 not built
+### 8. Harness factory — specialized harnesses as the output artifact — ⚠️ PARTIALLY BUILT (phases 1–3, 1.19.0); phases 4–5 not built
 
 **Design locked (2026-07-10).** Phases 1 (agentic eval seam) and 2 (component
-tournaments) shipped in 1.18.0 — see `docs/development/harness-factory.md`
-§§ "Phase 1, as shipped" / "Phase 2, as shipped" for the mechanism and design
-findings. Phases 3–5 (`HarnessBlueprint`, deterministic assembly, the
-data-ops pilot battery, `emit.ts`/packaging, harness-level evolve) remain
-**not built** — no vertical has been admitted and no real domain battery
-exists yet; what shipped is the machinery, not a tuned harness. Full design:
+tournaments) shipped in 1.18.0; phase 3 (`HarnessBlueprint`, deterministic
+assembly, the data-ops pilot battery) shipped in 1.19.0 — see
+`docs/development/harness-factory.md` §§ "Phase 1, as shipped" / "Phase 2, as
+shipped" / "Phase 3, as shipped" for the mechanism and design findings.
+Phases 4–5 (`emit.ts`/packaging, harness-level evolve) remain **not built** —
+a vertical (data-ops) has been admitted and a real, human-accepted exogenous
+battery exists, and the blueprint/assembly machinery resolves real
+tournament-archive entries deterministically, but no tournament has yet been
+run against that battery, nothing is materialized to disk, and no
+vertical-tuned harness has been produced end to end. Full design:
 `docs/development/harness-factory.md`. The abstraction ladder: STZ makes code →
 the same tournament machinery can make *agents* (specimens write `agents/*.md`
 instead of implementations) → the factory assembles tournament-won components
@@ -1199,9 +1203,10 @@ Phases, each independently valuable:
    machinery; GEPA-style reflective prompt mutation (bounded budget);
    search-set/promotion-set battery split (Goodhart bound); seventh
    promotion gate.
-3. **Not built.** `HarnessBlueprint` + deterministic best-per-slot assembly +
-   data-ops pilot battery (fixture-warehouse generator + dbt/data-diff
-   oracle).
+3. **Built (1.19.0).** `HarnessBlueprint` + deterministic best-per-slot
+   assembly + the data-ops pilot battery (fixture-warehouse generator +
+   dbt/data-diff execution-oracle seam) — no tournament run against it yet,
+   nothing materialized to disk.
 4. **Not built.** Emit/packaging — `src/foundry/emit.ts` (inverse of
    `planInstall`), plugin.json/marketplace.json generation, docs via
    documenter/summarizer, fix the pre-existing installer `skills/` gap.

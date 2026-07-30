@@ -246,14 +246,14 @@ literature shapes the guardrails:
 2. **Component tournaments — shipped (v1.18.0).** The seam swapped into the
    slice machinery; GEPA-style mutation; split-battery Goodhart bound;
    seventh promotion gate. See "Phase 2, as shipped" below.
-3. **Blueprint + deterministic assembly + data-ops pilot — the data-ops pilot
-   battery half is shipped (v1.19.0 Phase 1); `HarnessBlueprint` and
-   deterministic assembly are NOT built.** The fixture-warehouse generator,
-   the vertical-admission table, and the dbt/data-diff execution-oracle seam
-   exist and are mutation-checked. See "Phase 3, as shipped" below. Pending
-   the human generator-acceptance checkpoint (Plan 01-05) at the time this
-   section was written — treat the battery as not-yet-legally-exogenous until
-   that acceptance is recorded.
+3. **Blueprint + deterministic assembly + data-ops pilot — shipped
+   (v1.19.0).** The fixture-warehouse generator, the vertical-admission
+   table, and the dbt/data-diff execution-oracle seam (v1.19.0 Plans 01-01
+   through 01-05); `HarnessBlueprint`, `ComponentRef` resolution, and
+   deterministic best-per-slot `assemble()` (v1.19.0 Plans 02-01 through
+   02-03). The human generator-acceptance checkpoint (Plan 01-05) resolved
+   2026-07-29 — the battery is legally exogenous. See "Phase 3, as shipped"
+   below.
 4. **Emit / packaging — NOT built.** `src/foundry/emit.ts`, plugin.json/marketplace.json
    generation, docs via documenter/summarizer, fix the installer skills gap.
 5. **Harness-level evolve — NOT built.** Parameterize `src/harness.ts` substrates; gated
@@ -747,12 +747,25 @@ meaningless at the component altitude (an agent-definition promotion cannot
 change `BRIDGE_COMMANDS`, so there is nothing for that specific check to
 diff), and a CLI entry point with no caller is unearned — nothing in this
 milestone invokes `runComponentTournament` from a markdown command yet.
-**Upgrade trigger:** phase 3's assembly step (`HarnessBlueprint`
-construction) is the first real caller that would need a CLI or
-programmatic entry point into a component tournament; that is the point at
-which a bridge verb becomes earned, not before.
+**Upgrade trigger (as originally written):** phase 3's assembly step
+(`HarnessBlueprint` construction) is the first real caller that would need a
+CLI or programmatic entry point into a component tournament; that is the
+point at which a bridge verb becomes earned, not before.
 
-## Phase 3, as shipped (data-ops pilot battery)
+**Correction (phase 3, as shipped) — the named trigger has now shipped, and
+it did NOT earn a bridge verb.** `HarnessBlueprint` construction and
+`assemble()` shipped as a library API with real callers (this document's own
+"Phase 3, as shipped" §§ below, and their tests) — exactly the same posture
+as `runComponentTournament` above: real callers, but nothing yet
+MATERIALIZES anything a user would invoke a bridge command to trigger. The
+trigger named above was wrong to single out assembly as the first earned
+caller; restate it truthfully: **phase 4's `emit.ts`** is the first entry
+point that produces a real artifact (files on disk, a packaged plugin), and
+is therefore the first point at which a bridge verb becomes earned. This
+section is corrected rather than deleted so a reader can see the trigger
+moved, and why.
+
+## Phase 3, as shipped (data-ops pilot battery + blueprint & deterministic assembly)
 
 Phase 3 admitted the first vertical and built the first real exogenous
 battery this factory has ever scored anything against — data-ops, chosen
@@ -772,6 +785,14 @@ a map, this battery's `constructed` receipt has not yet harvested the α it
 claims to carry. A reader landing on this section after that checkpoint
 should confirm the acceptance happened; a reader landing before it must not
 treat the battery as already legally exogenous.
+
+**Update, 2026-07-29 — the checkpoint resolved.** Dr. Robert Li accepted
+`data-ops-fixture-warehouse-generator-v1` (01-05-SUMMARY.md, signal:
+`accept`, presented against seed 7's real generated instance). The battery's
+`constructed` receipt has harvested its α. Every real battery this document's
+own "Blueprint" sections below reference, and every `HarnessBlueprint`
+02-01/02-02/02-03's tests construct against `generateFixtureBattery`, is
+legally exogenous — not provisionally so.
 
 ### The generator, answer-first
 
@@ -951,6 +972,159 @@ it would not across two warehouses generated from independent seeds. Two
 independent warehouses buy the stronger Goodhart bound (arXiv:2606.11045)
 for the cost of one extra `sha256` call.
 
+### The blueprint, and what makes it refusable
+
+`HarnessBlueprint` (`src/foundry/blueprint.ts`) is the harness-altitude
+PRODUCT manifest — sibling of `HarnessGenome` (`src/types.ts:421`), which
+stays the factory's own search config. A genome describes how the harness
+searches; a blueprint describes what a harness ships:
+
+```ts
+interface HarnessBlueprint {
+  schemaVersion: 1;
+  id: string;
+  vertical: string;
+  version: string;
+  agents: ComponentRef[];
+  commands: ComponentRef[];
+  skills: ComponentRef[];
+  hooks: ComponentRef[];
+  docs: ComponentRef[];
+  bridgeConfig: FoundryConfig;   // foundry.json shape, verbatim — never a parallel type
+  battery: BatteryRef;
+  oracle: OracleReceipt;
+  readonly [VALIDATED_BLUEPRINT]: true;  // brand, never present at runtime
+}
+```
+
+`agents` and `commands` are required (`SLOT_REQUIREMENT`, sealed via
+`sealTable`); `skills`, `hooks`, `docs` are optional — grounded in this
+repo's real plugin shape (`.claude-plugin/` + `commands/` + `agents/` always
+non-empty; `skills/` does not exist as a directory in this repo at all).
+`HarnessBlueprint` is branded via a `unique symbol` (`VALIDATED_BLUEPRINT`),
+copying `AgentBattery`'s `VALIDATED_BATTERY` idiom verbatim —
+`makeHarnessBlueprint`, which runs the integrity gate first, is the ONLY
+function that can mint the branded value.
+
+**The deliberate asymmetry that gives the receipt gate something real to
+catch:** `BatteryRef` is NOT branded. Branding it would make
+`requireBlueprintIntegrity`'s receipt gate tautological — every `BatteryRef`
+reaching it would already be provably exogenous, and the gate would be dead
+code. Leaving it unbranded means a hand-built `BatteryRef` can carry whatever
+receipt its author supplies, and the gate has three DISTINCT, independently
+mutation-proven catches (the non-tautology statement lives as a doc comment
+on `requireBlueprintIntegrity` itself):
+
+1. `validateReceipt` (step 1) — reachable because `BatteryRef` is unbranded;
+   nothing upstream has already validated a hand-built one. Mutation-proven:
+   M4 (deleting the call) reddened exactly the catch-1 controls and left
+   catch-2 green.
+2. `Object.is(draft.oracle, draft.battery.receipt)` (step 2) — catches a
+   SUBSTITUTED receipt that is independently exogenous (a different
+   battery's own receipt, or the generator's own memoized receipt —
+   field-identical to, but not the same object as, `battery.receipt`,
+   because `makeBattery` freezes a defensive copy). Mutation-proven: M5
+   (replacing the check with `true`) reddened exactly the catch-2 controls
+   and left catch-1 green.
+3. `assemble()`'s own revalidation call — reachable, not dead code, because a
+   `HarnessBlueprint` is DESIGNED to be serialized and replayed
+   (`JSON.parse(...) as HarnessBlueprint` is an expected input shape at that
+   call site, unlike the v1.18.0 seventh gate's only-ever-unforgeable
+   `AgentBattery` input). Mutation-proven: M6 (deleting the call from
+   `assemble()`) reddened exactly the forged/replayed-blueprint tests and
+   left every construction-time test green.
+
+A step-0 shape gate (an absent/non-object `battery`/`oracle`, or a
+non-string/empty `battery.id`) runs BEFORE these three catches, refusing with
+a stated reason rather than surfacing a `TypeError` from reading a property
+of `undefined` — the exact shape a forged/replayed blueprint can carry.
+Refusal is total (D5): an unfilled required slot, an inconsistent `ref.slot`,
+and — added this phase beyond REQ-32's four named gaps — a destination-path
+collision between two `ComponentRef`s, are all refused with a stated reason
+naming the offending slot/path/hash/id, never assembled partially.
+
+### `ComponentRef` resolution and the refused-winner trap
+
+`resolveComponentRef(ref, ctx)` resolves one `ComponentRef` against the live
+filesystem and the component archive through seven separately-named
+sequential steps, never one compound boolean:
+
+(a) `sourcePath` is caller-influenced data — resolved through
+`resolveContained` (`src/write-guard.ts`), the repo's ONE path-containment
+guard, never a bespoke regex. (b) the file must exist. (c) the live file is
+hashed with the archive's OWN hashing function (`componentVariantId`),
+reused, so the two schemes cannot desync. (d) the live hash must match the
+ref's claimed `winnerVariantId` — drift detection. (e) `ref.batteryId` must
+match the blueprint's own `battery.id` (the `batteryId` design finding,
+below). (f) the hash must match a real archive entry. (g) — **the trap this
+phase exists to close** — the matching archive entries are filtered on
+`promotionGate(entry.gates).promote === true` before any is returned as a
+winner.
+
+**`componentIncumbent` (`src/harness.ts:406-412`) picks the highest-`fitness`
+archived entry with NO promotion-gate filter, over an archive that appends
+entries on BOTH verdicts** (`component-tournament.ts:391-395`) — copying that
+shape into `resolveComponentRef` would let a REFUSED specimen resolve as a
+winner. The resolver deliberately does not call or mirror
+`componentIncumbent`; step (g) filters on `promotionGate` explicitly instead.
+This divergence is the negative control this section names: a
+higher-fitness REFUSED entry (`hackClean: false`) beside a lower-fitness
+PROMOTED entry — `componentIncumbent` picks the refused one;
+`resolveComponentRef` refuses it and resolves the promoted one.
+Mutation-proven: M1 (deleting the `promotionGate` filter) reddened exactly
+the refused-winner-trap test and the assemble-refuses-whole test, and left
+the tracer and the sealed-table test green.
+
+The same divergence, restated for the NO-SEARCH claim (D2): a SECOND
+promoted entry at the same slot, with strictly higher fitness than the ref's
+own entry, changes nothing about what `assemble()` emits — `componentIncumbent`
+would pick the higher-fitness entry; the resolver still resolves exactly
+what the `ComponentRef` names. Assembly resolves; it does not choose.
+
+### The `batteryId` design finding
+
+`ComponentArchiveEntry` (`src/types.ts:534-568`) stores no `batteryId` field
+anywhere — its `artifact` block is `{slot, specimenId, definitionHash}`, and
+it never stored a `sourcePath` either. REQ-29's literal
+`ComponentRef.batteryId` therefore cannot be checked against a
+per-archive-entry field that does not exist. **This phase did NOT widen
+`ComponentArchiveEntry`** — it is already-shipped, mutation-proven code from
+a different phase's scope, and widening a type to answer a downstream
+question is exactly the kind of quiet-widening this design's own research
+warns against.
+
+`batteryId` is instead a SAME-BATTERY-FAMILY consistency check: every
+`ComponentRef` names the blueprint's own `battery: BatteryRef` id, checked
+in `resolveComponentRef` step (e), never against the archive. Widening
+`ComponentArchiveEntry` to carry a real `batteryId` remains a legitimate
+future option — named here explicitly so a later reader does not mistake the
+current shape for an oversight.
+
+### Determinism
+
+`SLOT_ORDER` is a frozen, explicitly `.sort()`ed array of `SLOT_REQUIREMENT`'s
+own keys — never `Object.keys(blueprint)` or filesystem iteration order (the
+same determinism-bug shape phase 3's own `generateWarehouse` interleave step
+names). Inside each slot, `assemble()` sorts the slot's `ComponentRef[]` by
+`sourcePath`, lexicographically, mirroring `listMd`'s own explicit-sort
+discipline (`src/installer.ts:136-141`). Proven against three independent
+input-order dimensions: the same refs supplied in reverse array order, the
+same blueprint drafted with its object-literal keys in the opposite order,
+and repeated calls on the same blueprint object — all three produce
+`JSON.stringify`-identical `ops`. Mutation-proven: M7 (deleting the per-slot
+sort) reddened exactly the reverse-ref-order test and left every other test
+green — the control discriminates because that test supplies refs in
+reverse order, not pre-sorted order. A hand-run two-process check (two
+separate `tsx` invocations over a fixed fixture path, the
+`01-VERIFICATION.md` technique) confirmed byte-identical output beyond what
+an in-process rerun can prove — matching `md5sum` digests
+(`dd41e7165976922a74e048beceb3c9ea`), both runs.
+
+`assemble` resolves what the blueprint names; it does not choose among
+candidates (D2). A higher-fitness promoted entry at the same slot does not
+change the output — proven directly against `componentIncumbent`'s own
+divergent choice, above.
+
 ### Ceilings, named plainly
 
 1. **The warehouse is toy-scale and embedded verbatim in the task prompt.**
@@ -985,8 +1159,27 @@ for the cost of one extra `sha256` call.
    `warehouse.facts` — it is a positive control proving the battery's
    checks are passable at all, not evidence that a real candidate agent,
    reasoning only from the messy CSV, can recover the facts. No real agent
-   has been run against this battery yet; that is Phase 2's (blueprint
-   assembly's) work, not this phase's.
+   has been run against this battery yet — and, as the "What is still not
+   built" bullet below states plainly, no tournament has been run against it
+   either; the blueprint/assembly mechanism this same phase shipped (below)
+   resolves `ComponentRef`s against whatever a test or operator put in the
+   component archive, not against a real data-ops tournament's own winners.
+4. **No shipped code path has ever materialized a tournament winner's
+   agent-definition text to disk.** Winners live only as
+   `winnerCandidate.systemPrompt` in memory (`component-tournament.ts`);
+   `ComponentRef.sourcePath` today points at a file a human or tool placed
+   there, and this phase's tests use fixture files. Upgrade trigger: phase
+   4's `emit.ts` writes winners, at which point resolution can address
+   emitted artifacts directly.
+5. **`skills/` does not exist as a directory in this repo, and
+   `RuntimeDescriptor` has no `skillsSubdir`.** `skills` is an OPTIONAL slot
+   with no source directory to populate it from — the installer's
+   pre-existing `skills/` gap (this document's own "Packaging" section,
+   above) is phase 4's to fix; the blueprint deliberately does not encode
+   that gap as correct.
+6. **The blueprint is not serialized to disk by anything this phase ships.**
+   No on-disk manifest format is locked in yet — `assemble()` returns an
+   in-memory `AssemblyResult`, never writes.
 
 ### Mutation checks
 
@@ -1010,16 +1203,28 @@ project's own D8 discipline (never an *expected* name):
 
 No mutation across any of the four plans left the full suite green.
 
+Plans 02-01 through 02-03 (harness-blueprint-assembly, 1.19.0) added seven
+more, transcribed verbatim from their own plan summaries — a fresh M1–M7
+numbering restarting at this milestone's second phase, distinct from the
+M0–M3 sequence above:
+
+| Plan | Mutation | What was disabled | Observed failing test(s) |
+|---|---|---|---|
+| 02-01 M1 | Deleted the `promotionGate(entry.gates).promote` filter (step (g)) from `resolveComponentRef` | The refused-winner trap | `ComponentRef resolution refuses a REFUSED archive entry even when it is the slot's highest-fitness incumbent > the divergence from componentIncumbent is real, not hypothetical, and the resolver refuses the refused entry while resolving the promoted one`; `assemble refuses whole, never partially, when one ref among several is refused > throws rather than returning a partial ops array` (2 red, 2 green) |
+| 02-02 M2 | `resolveComponentRef` step (d)'s hash comparison replaced with `if (false)` (accept any hash) | Drift detection | `R-d — drifted content hash, naming both hashes > refuses when winnerVariantId no longer matches the live file's hash`; `drift is detected by RE-HASHING at assembly — the SAME blueprint object, twice > assembles clean, then refuses after the live component file is edited between two assemble() calls on the SAME object` (2 red, 15 green) |
+| 02-02 M3 | `requireBlueprintIntegrity` step 3 (the required-slot loop) deleted | Required-slot refusal | `R-a — required slot unfilled > refuses agents: [], naming 'agents'`; `R-a — required slot unfilled > refuses commands: [], naming 'commands'` (2 red, 15 green) |
+| 02-02 M4 | The `validateReceipt(...)` call (step 1) deleted | Receipt gate catch 1 | both catch-1 tests, plus catch-3's forged-object-literal test (honestly coupled — that test's forged receipt is also non-exogenous by construction); both catch-2 tests stayed green (3 red, 22 green) |
+| 02-02 M5 | Step 2's `Object.is(...)` replaced with `const provenanceOk = true` | Receipt gate catch 2 | both catch-2 tests, plus catch-3's JSON round-trip test (honestly coupled — that test's refusal mechanism IS the provenance check); both catch-1 tests stayed green (3 red, 22 green) |
+| 02-02 M6 | `requireBlueprintIntegrity(blueprint)` deleted from the top of `assemble()` | Receipt gate catch 3 (the reachable-not-dead-code call site) | both catch-3 tests and both catch-0 tests; every construction-time test (catch-1, catch-2, R-a..R-h) stayed green (4 red, 21 green) |
+| 02-03 M7 | The per-slot `sourcePath` sort deleted from `assemble()` | Explicit ordering (SC4/REQ-31) | `assemble is byte-identical when the same refs are supplied in reverse order > agents: [ref1, ref2] and agents: [ref2, ref1] produce JSON.stringify-identical ops` (1 red, 30 green) |
+
+No mutation across any of these seven left the full suite green either.
+
 ## What is still not built
 
 None of the following exist in `src/` after Phase 3, and none may be read
 as delivered by anything above:
 
-- **`HarnessBlueprint`** — the manifest type for an assembled harness (agents
-  + commands + skills + hooks + docs + battery + oracle receipt). Not
-  defined anywhere in `src/types.ts` or elsewhere.
-- **Deterministic assembly** — "pick the winning component per slot" with no
-  search. No assembly function exists.
 - **`src/foundry/emit.ts`** — does not exist. No `emit(blueprint, targetDir)`
   function, no `plugin.json`/`marketplace.json` generation from a blueprint.
 - **Plugin/marketplace generation** from a tournament-won component set —
@@ -1046,14 +1251,17 @@ as delivered by anything above:
   The four non-triviality controls (echo/empty/raw-sum/oracle) are
   hand-rolled offline `Provider` doubles, not a live LLM. Whether a real
   agent can recover the facts from the messy CSV is untested.
-- **No tournament has selected anything against this battery.** Phase 3
-  built the battery and its admission/receipt/oracle machinery; wiring
-  `generateFixtureBattery`/`generateFixtureSplitBattery` into
-  `runComponentTournament` is Phase 2 (blueprint assembly)'s work, not
-  started here.
-- **The generator's human acceptance may still be open.** `ACCEPTED_GENERATORS`
-  encodes the acceptance event; whether a human has actually performed it
-  (Plan 01-05's blocking checkpoint) is the one fact this document cannot
-  assert on the code's behalf — check the plan's own SUMMARY for the
-  recorded verbatim signal before treating this battery as legally
-  exogenous.
+- **No tournament has been run against the data-ops battery.** State the
+  truth plainly, now that the blueprint and assembly HAVE shipped: they
+  resolve `ComponentRef`s against real `ComponentArchiveEntry` records, using
+  the real `promotionGate`/`componentIncumbent` machinery — but no
+  `runComponentTournament` call has ever taken `generateFixtureBattery` or
+  `generateFixtureSplitBattery` as its search/promotion battery. Every
+  archive entry a blueprint resolves against today (this phase's own tests
+  included) is one a test or an operator wrote by hand, not one a data-ops
+  tournament actually produced. Wiring the two together remains future work.
+- **The generator's human acceptance is resolved, not open.**
+  `ACCEPTED_GENERATORS` encoded the acceptance event; Dr. Robert Li performed
+  it on 2026-07-29 (01-05-SUMMARY.md, signal: `accept`). Recorded here so a
+  reader does not need to chase the plan summary to confirm what earlier
+  drafts of this document called an open question.
