@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-07-31T22:24:59.737Z",
+  "config": {
+    "model": "qwen3.6:latest",
+    "seeds": [
+      7,
+      42,
+      1234
+    ],
+    "maxGenerations": 2,
+    "timeoutMs": 3600000
+  },
+  "units": {
+    "s7-baseline-search": {
+      "unit": "s7-baseline-search",
+      "finishedAt": "2026-07-31T22:45:06.980Z",
+      "elapsedMs": 1207241,
+      "data": {
+        "reward": 0.9249999999999999,
+        "testPassRate": 0.8333333333333334,
+        "passedGate": false,
+        "tasks": [
+          {
+            "taskId": "data-ops-v2-search-7::data-ops-fact-recovery-cust-1105__2026-09",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-search-7::data-ops-fact-recovery-cust-1105__2026-07",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-search-7::data-ops-fact-recovery-cust-1557__2026-09",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-search-7::data-ops-fact-recovery-cust-1557__2026-07",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-search-7::data-ops-fact-recovery-cust-9792__2026-09",
+            "pass": false,
+            "score": 0,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-search-7::data-ops-fact-recovery-cust-9792__2026-07",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          }
+        ]
+      }
+    }
+  }
+}
