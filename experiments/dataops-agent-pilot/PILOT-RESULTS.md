@@ -608,3 +608,76 @@ Use a timeout ≥ 3600000 ms for `qwen3.6`. A 1200000 ms cap silently kills
 Logs: `sepgate-qwen.log` (seed 7), `sepgate-qwen-s42-1234.log` (seeds 42/1234,
 contains the timeout contamination), `sepgate-qwen-s0-uncapped.log` (clean s0),
 `armprobe-qwen.log` (failure classification), `sweep.log` (model sweep).
+
+---
+
+# JUDGE CALIBRATION — and a VOIDED first attempt
+
+## The gate that had never been observed to pass
+
+`calibrationGate` is fail-closed on `blindAccuracyBucket`, and that battery had
+never been authored — so `rubricCalibrated` refused every promotion in both
+tournament rounds. One of the seven gates had never once returned true, which
+means it was untested in the affirmative: a gate that can only refuse is not
+evidence of anything.
+
+`src/judge-calibration.ts` supplies the missing input. Ground truth is the
+**constructed exogenous oracle**, not model agreement: pairs are drawn from
+recorded round-1 runs where each candidate's fitness was measured against
+answer-first facts computed before any candidate existed. The judge sees two
+agent definitions and never the scores. Battery frozen at 19 discriminable
+pairs, hash `3a0b56d6…`, committed before any judge saw it.
+
+## VOID: the first run used a domain-finetuned model
+
+The first calibration ran against `wp-judge-v4`. **That model is finetuned for
+WordPress**, an unrelated domain — its name reads like a general judge and it is
+not one. **Its scores are void as a judge assessment and are not reported as a
+result.** `wp-judge` is now excluded in code (`EXCLUDED_JUDGE_MODELS` in
+`_calibrate-judge.ts`, which throws rather than running), so the mistake cannot
+recur. The raw log is retained as `judge-calibration-VOID-wp-judge.log`.
+
+A correction to the record while we are here: `PREREG.md` §2 excluded
+`wp-judge-v4` from the CANDIDATE list on the grounds that "it is a judge model,
+and using a judge as a candidate would confuse the altitudes." That reasoning
+was based on a mistaken premise about what the model is. The exclusion was
+right; the stated reason was not. `PREREG.md` is not edited — the correction
+lives here.
+
+## What the void run still bought: two generic guards
+
+Both failure modes it exposed are real, generic, and now permanently guarded.
+A domain-mismatched model simply fails them loudly, which is why running it
+was useful even though its scores are worthless.
+
+**1. Base-rate exploitation.** It scored 13/18 = 0.722 overall — "medium",
+enough to unblock the promotion gate. Decomposed: 10/11 (0.909) on pairs where
+one particular candidate was the oracle winner, and 3/7 (0.429), *below chance*,
+everywhere else. It was not ranking; it was applying a fixed prior that
+correlated because that candidate won 11 of 18 pairs. A judge that reads
+nothing and always prefers that candidate scores **0.806** on the same battery —
+so it was worse than reading nothing. Guard: `trivialPreferenceBaseline`, the
+standard beat-the-majority-classifier bar. Failing it forces `low`.
+
+**2. Selective abstention.** Two runs over the same frozen battery produced 1
+and 4 unparseable verdicts — and **three of those four were pairs the model had
+answered wrong on the other run**. Accuracy climbed 0.722 → 0.933 and the bucket
+jumped `medium` → `high`, with no improvement in judging. A verifier that
+declines exactly the questions it would fail looks calibrated and is not. Guard:
+abstentions are scored as **incorrect**, never excluded — and for a promotion
+gate that is also correct on the merits, since a judge that cannot emit a
+verdict cannot steer.
+
+Neither hole was visible in fixtures I wrote myself. Both came from the
+instrument meeting a real model, which is the argument for running it.
+
+## Re-run on a generalist model
+
+Re-running against `qwen3.6:latest` on the identical frozen battery (same hash,
+verified before each call). One property to state in advance: qwen3.6 is also
+the CANDIDATE model. That is not self-preference in the usual sense — it ranks
+prompt TEXT while the exogenous oracle scores execution — and a judge calibrated
+on "which definition makes qwen3.6 perform better" is precisely the right judge
+for a tournament whose candidates run on qwen3.6. The three guards
+(trivial-preference baseline, abstention-as-incorrect, order-consistency) apply
+unchanged.

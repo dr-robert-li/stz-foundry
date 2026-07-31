@@ -59,6 +59,54 @@
           }
         ]
       }
+    },
+    "s7-baseline-promotion": {
+      "unit": "s7-baseline-promotion",
+      "finishedAt": "2026-07-31T23:11:57.959Z",
+      "elapsedMs": 1610969,
+      "data": {
+        "reward": 0.9410684944283411,
+        "testPassRate": 0.8690410987296469,
+        "passedGate": false,
+        "tasks": [
+          {
+            "taskId": "data-ops-v2-promotion-7::data-ops-fact-recovery-cust-3587__2026-04",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-promotion-7::data-ops-fact-recovery-cust-3587__2026-12",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-promotion-7::data-ops-fact-recovery-cust-5050__2026-04",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-promotion-7::data-ops-fact-recovery-cust-5050__2026-12",
+            "pass": false,
+            "score": 0.21424659237788063,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-promotion-7::data-ops-fact-recovery-cust-8281__2026-04",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-promotion-7::data-ops-fact-recovery-cust-8281__2026-12",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          }
+        ]
+      }
     }
   }
 }

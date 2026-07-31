@@ -13,6 +13,7 @@ import {
   CalibrationBatteryError,
   MIN_BATTERY_SIZE,
   MIN_DISCRIMINABLE_GAP,
+  trivialPreferenceBaseline,
   type BlindPair,
 } from "../src/judge-calibration.js";
 import { calibrationGate } from "../src/judge-reliability.js";
@@ -146,7 +147,7 @@ describe("the gate this feeds — end to end", () => {
     // After: a real scored battery produces an entry the gate accepts.
     const scored = scoreCalibrationBattery(
       "component",
-      pairs(20, 19).map((p) => ({ ...p, judgeVerdictSwapped: p.judgeVerdict })),
+      pairs(20, 19).map((p) => ({ ...p, judgeVerdictSwapped: p.judgeVerdict! })),
     );
     const profile = { schemaVersion: 1 as const, perSliceType: [scored.entry] };
     expect(calibrationGate(profile, "component").calibrated).toBe(true);
@@ -155,7 +156,7 @@ describe("the gate this feeds — end to end", () => {
   it("a LOW-accuracy judge is still refused — calibration is not a rubber stamp", () => {
     const scored = scoreCalibrationBattery(
       "component",
-      pairs(20, 10).map((p) => ({ ...p, judgeVerdictSwapped: p.judgeVerdict })),
+      pairs(20, 10).map((p) => ({ ...p, judgeVerdictSwapped: p.judgeVerdict! })),
     );
     const profile = { schemaVersion: 1 as const, perSliceType: [scored.entry] };
     expect(scored.bucket).toBe("low");
@@ -169,7 +170,7 @@ describe("the gate this feeds — end to end", () => {
       "component",
       pairs(20, 19).map((p, i) => ({
         ...p,
-        judgeVerdictSwapped: i < 10 ? p.oracleLoser : p.judgeVerdict,
+        judgeVerdictSwapped: i < 10 ? p.oracleLoser : p.judgeVerdict!,
       })),
     );
     expect(scored.bucket).toBe("high");
@@ -177,5 +178,119 @@ describe("the gate this feeds — end to end", () => {
     const profile = { schemaVersion: 1 as const, perSliceType: [scored.entry] };
     expect(calibrationGate(profile, "component").calibrated).toBe(false);
     expect(calibrationGate(profile, "component").reason).toContain("consistency");
+  });
+});
+
+describe("trivialPreferenceBaseline — catches a judge exploiting class imbalance", () => {
+  /** The real shape found on the first battery run: one candidate wins most
+   *  pairs and never loses, so "always prefer it" scores well without reading
+   *  anything. */
+  const imbalanced = (): BlindPair[] => [
+    ...Array.from({ length: 11 }, (_, i) => ({
+      pairId: `fav${i}`,
+      oracleWinner: "favourite",
+      oracleLoser: `other-${i}`,
+      gap: 0.4,
+      // Mirrors the shape of the first real battery run: 10/11 here…
+      judgeVerdict: i < 10 ? "favourite" : `other-${i}`,
+    })),
+    ...Array.from({ length: 7 }, (_, i) => ({
+      pairId: `rest${i}`,
+      oracleWinner: `x-${i}`,
+      oracleLoser: `y-${i}`,
+      gap: 0.4,
+      judgeVerdict: i < 3 ? `x-${i}` : `y-${i}`, // …and 3/7 here, below chance
+    })),
+  ];
+
+  it("computes what a judge that never reads the pair would score", () => {
+    const b = trivialPreferenceBaseline(imbalanced());
+    expect(b.candidate).toBe("favourite");
+    // 11 pairs it wins + 7 coin flips = 14.5 / 18.
+    expect(b.accuracy).toBeCloseTo(14.5 / 18, 10);
+  });
+
+  it("forces LOW when the judge cannot beat that baseline, however good the aggregate looks", () => {
+    const result = scoreCalibrationBattery("component", imbalanced());
+    // 13/18 = 0.722 buckets "medium" on aggregate alone — the shape that would
+    // have unblocked the promotion gate on aggregate evidence.
+    expect(result.accuracy).toBeCloseTo(13 / 18, 10);
+    expect(result.baselineAccuracy).toBeGreaterThan(result.accuracy);
+    expect(result.bucket).toBe("low");
+    expect(result.notes.join(" ")).toContain("exploiting class imbalance");
+
+    // And the gate therefore refuses it.
+    const profile = { schemaVersion: 1 as const, perSliceType: [result.entry] };
+    expect(calibrationGate(profile, "component").calibrated).toBe(false);
+  });
+
+  it("a judge that genuinely discriminates still passes", () => {
+    // Same imbalanced battery, but the judge is right on the hard pairs too.
+    const discriminating = imbalanced().map((p) => ({ ...p, judgeVerdict: p.oracleWinner }));
+    const result = scoreCalibrationBattery("component", discriminating);
+    expect(result.accuracy).toBe(1);
+    expect(result.accuracy).toBeGreaterThan(result.baselineAccuracy);
+    expect(result.bucket).toBe("high");
+  });
+
+  it("a BALANCED battery is unaffected — the guard only bites on imbalance", () => {
+    // Every candidate wins as often as it loses, so no fixed preference helps.
+    const balanced: BlindPair[] = Array.from({ length: 16 }, (_, i) => ({
+      pairId: `p${i}`,
+      oracleWinner: i % 2 === 0 ? "alpha" : "beta",
+      oracleLoser: i % 2 === 0 ? "beta" : "alpha",
+      gap: 0.4,
+      judgeVerdict: i < 13 ? (i % 2 === 0 ? "alpha" : "beta") : i % 2 === 0 ? "beta" : "alpha",
+    }));
+    const b = trivialPreferenceBaseline(balanced);
+    expect(b.accuracy).toBeCloseTo(0.5, 10);
+    const result = scoreCalibrationBattery("component", balanced);
+    expect(result.bucket).toBe("medium");
+  });
+});
+
+describe("abstentions count as incorrect — a judge cannot duck the hard pairs", () => {
+  /** The measured shape: the judge answers the pairs it gets right and emits
+   *  no parseable verdict on ones it would fail. */
+  const ducking = (): BlindPair[] => [
+    ...Array.from({ length: 14 }, (_, i) => ({
+      pairId: `easy${i}`,
+      oracleWinner: `w-${i}`,
+      oracleLoser: `l-${i}`,
+      gap: 0.4,
+      judgeVerdict: `w-${i}`,
+    })),
+    ...Array.from({ length: 5 }, (_, i) => ({
+      pairId: `hard${i}`,
+      oracleWinner: `hw-${i}`,
+      oracleLoser: `hl-${i}`,
+      gap: 0.4,
+      judgeVerdict: null, // unparseable
+    })),
+  ];
+
+  it("scores abstentions as wrong rather than dropping them from the denominator", () => {
+    const result = scoreCalibrationBattery("component", ducking());
+    // Dropped, this would read 14/14 = 1.000 "high". Counted, it is 14/19.
+    expect(result.scored).toBe(19);
+    expect(result.abstained).toBe(5);
+    expect(result.accuracy).toBeCloseTo(14 / 19, 10);
+    expect(result.notes.join(" ")).toContain("counted as INCORRECT");
+  });
+
+  it("still refuses a verdict that names neither side — abstention is not a licence for garbage", () => {
+    const bad = ducking();
+    bad[0]!.judgeVerdict = "unrelated-id";
+    expect(() => scoreCalibrationBattery("component", bad)).toThrow(/names\s+neither side/);
+  });
+
+  it("an abstained pair contributes no consistency sample", () => {
+    const withSwaps = ducking().map((p) => ({
+      ...p,
+      judgeVerdictSwapped: p.judgeVerdict ?? undefined,
+    }));
+    const result = scoreCalibrationBattery("component", withSwaps);
+    // 14 real verdicts, 5 abstentions -> consistency measured on 14 only.
+    expect(result.notes.join(" ")).toContain("14/19");
   });
 });

@@ -40,7 +40,29 @@ const ROUND1_STATE = join(HERE, "tournament-state.json");
 const BATTERY_PATH = join(HERE, "judge-calibration-battery.json");
 const RESULT_PATH = join(HERE, "judge-calibration-result.json");
 
-const MODEL = process.env.CALIB_MODEL ?? "wp-judge-v4:latest";
+/**
+ * EXCLUDED MODELS — encoded so the exclusion cannot be quietly forgotten
+ * (same posture as `NAIVE_ENSEMBLE_FORBIDDEN` in judge-reliability.ts).
+ *
+ * `wp-judge-v4` is finetuned for an unrelated domain (WordPress). Its name
+ * reads like a general judge and it is not one. A first calibration run
+ * against it produced exactly the artifacts a domain-mismatched model
+ * produces — a fixed prior standing in for ranking, and a high rate of
+ * unparseable verdicts concentrated on the pairs it got wrong — and those
+ * scores are VOID as a judge assessment. Use a generalist model.
+ */
+const EXCLUDED_JUDGE_MODELS = ["wp-judge"];
+
+const MODEL = process.env.CALIB_MODEL ?? "qwen3.6:latest";
+for (const banned of EXCLUDED_JUDGE_MODELS) {
+  if (MODEL.includes(banned)) {
+    throw new Error(
+      `[calibrate-judge] model ${JSON.stringify(MODEL)} is excluded: ${banned} is finetuned for an ` +
+        `unrelated domain and cannot serve as a general judge. Use a generalist model ` +
+        `(e.g. qwen3.6:latest).`,
+    );
+  }
+}
 const BASE_URL = process.env.CALIB_BASE_URL ?? "http://localhost:11434/v1";
 const MIN_GAP = Number(process.env.CALIB_MIN_GAP ?? MIN_DISCRIMINABLE_GAP);
 
@@ -190,22 +212,23 @@ const main = async () => {
     const t0 = Date.now();
     const direct = await askJudge(provider, p.winnerPrompt, p.loserPrompt, false);
     const swapped = await askJudge(provider, p.winnerPrompt, p.loserPrompt, true);
-    if (direct === null) {
-      console.log(`  [${i + 1}/${battery.pairs.length}] ${p.pairId}: UNPARSEABLE — excluded`);
-      continue;
-    }
+    // An unparseable verdict is PASSED THROUGH as null, never dropped. Two
+    // runs over this same frozen battery abstained on 1 and 4 pairs, and three
+    // of those four were pairs the judge had answered wrong on the other run —
+    // excluding them lifted accuracy 0.722 -> 0.933 with no improvement in
+    // judging. The scorer counts null as incorrect.
     scored.push({
       pairId: p.pairId,
       oracleWinner: p.oracleWinner,
       oracleLoser: p.oracleLoser,
       gap: p.gap,
-      judgeVerdict: direct === "winner" ? p.oracleWinner : p.oracleLoser,
+      judgeVerdict: direct === null ? null : direct === "winner" ? p.oracleWinner : p.oracleLoser,
       ...(swapped !== null
         ? { judgeVerdictSwapped: swapped === "winner" ? p.oracleWinner : p.oracleLoser }
         : {}),
     });
     console.log(
-      `  [${i + 1}/${battery.pairs.length}] ${p.pairId}: judge=${direct} ` +
+      `  [${i + 1}/${battery.pairs.length}] ${p.pairId}: judge=${direct ?? "ABSTAINED"} ` +
         `swapped=${swapped ?? "unparseable"} (${((Date.now() - t0) / 1000).toFixed(0)}s)`,
     );
   }
@@ -217,7 +240,10 @@ const main = async () => {
 
   console.log(`\n## Result — judge "${MODEL}" on sliceType "${result.sliceType}"`);
   console.log(`  scored ${result.scored} pairs (${result.dropped} dropped as indiscriminable)`);
-  console.log(`  accuracy    ${result.correct}/${result.scored} = ${result.accuracy.toFixed(3)} -> ${result.bucket}`);
+  console.log(
+    `  accuracy    ${result.correct}/${result.scored} = ${result.accuracy.toFixed(3)} -> ${result.bucket} ` +
+      `(trivial-preference baseline ${result.baselineAccuracy.toFixed(3)}, abstentions ${result.abstained})`,
+  );
   console.log(`  consistency ${result.consistency.toFixed(3)}`);
   for (const n of result.notes) console.log(`  note: ${n}`);
   console.log(`\n  profile entry: ${JSON.stringify(result.entry)}`);

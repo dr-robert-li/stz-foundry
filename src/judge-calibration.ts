@@ -50,8 +50,10 @@ export interface BlindPair {
   oracleLoser: string;
   /** |fitness(winner) − fitness(loser)| from the recorded runs. */
   gap: number;
-  /** Which id the judge picked, presented in one order. */
-  judgeVerdict: string;
+  /** Which id the judge picked, presented in one order. `null` means the
+   *  judge ABSTAINED — it produced no parseable verdict. That counts as
+   *  incorrect, never as a missing data point: see `scoreCalibrationBattery`. */
+  judgeVerdict: string | null;
   /** Which id the judge picked with the presentation order swapped. Optional:
    *  absent means the consistency perturbation was not run for this pair. */
   judgeVerdictSwapped?: string;
@@ -64,7 +66,15 @@ export interface CalibrationResult {
   /** Pairs dropped as indiscriminable — reported, never silently omitted. */
   dropped: number;
   correct: number;
+  /** Pairs where the judge produced no parseable verdict. Scored as incorrect
+   *  and reported separately — excluding them biases accuracy upward whenever
+   *  abstention correlates with difficulty, which it measurably does. */
+  abstained: number;
   accuracy: number;
+  /** What a judge that never reads the pair would score — see
+   *  `trivialPreferenceBaseline`. Accuracy at or below this is not evidence
+   *  of ranking ability. */
+  baselineAccuracy: number;
   consistency: number;
   bucket: ReliabilityBucket;
   /** sha256 over the battery's identity + ground truth. Recording this BEFORE
@@ -98,6 +108,47 @@ export const MIN_DISCRIMINABLE_GAP = 0.115;
  * calibration that cannot discriminate must not unblock a promotion gate.
  */
 export const MIN_BATTERY_SIZE = 12;
+
+/**
+ * The best accuracy obtainable by a judge that does not read the pair at all —
+ * it just always prefers one fixed candidate whenever that candidate is
+ * present, and coin-flips otherwise.
+ *
+ * This guard exists because the first real battery run needed it. The model
+ * used for that run turned out to be domain-finetuned for an unrelated domain,
+ * so its scores are VOID as a judge assessment (see PILOT-RESULTS.md) — but the
+ * failure SHAPE it exposed is generic and worth guarding permanently: it scored
+ * 13/18 = 0.722 overall, bucketing "medium" and unblocking the promotion gate,
+ * while decomposing to 10/11 (0.909) on pairs where one particular candidate
+ * was the oracle winner and 3/7 (0.429) — below chance — everywhere else. It
+ * was not ranking; it was applying a fixed prior that happened to correlate,
+ * because that candidate won 11 of 18 pairs. The trivial "always prefer it"
+ * strategy scores 0.806 on the same battery, so it was WORSE than reading
+ * nothing. Any judge can fail this way; a domain-mismatched one just fails
+ * it loudly.
+ *
+ * That is exactly 2606.14629's confident-but-wrong verifier, and an aggregate
+ * accuracy number cannot see it. Beating this baseline is the minimum evidence
+ * that a judge is discriminating rather than exploiting the battery's own class
+ * imbalance — the standard "beat the majority classifier" bar.
+ */
+export function trivialPreferenceBaseline(
+  pairs: Pick<BlindPair, "oracleWinner" | "oracleLoser">[],
+): { accuracy: number; candidate: string } {
+  const candidates = new Set(pairs.flatMap((p) => [p.oracleWinner, p.oracleLoser]));
+  let best = { accuracy: 0, candidate: "" };
+  for (const c of candidates) {
+    let score = 0;
+    for (const p of pairs) {
+      if (p.oracleWinner === c) score += 1; // always-prefer-c is right here
+      else if (p.oracleLoser === c) score += 0; // and wrong here
+      else score += 0.5; // c absent: coin flip
+    }
+    const accuracy = score / pairs.length;
+    if (accuracy > best.accuracy) best = { accuracy, candidate: c };
+  }
+  return best;
+}
 
 export class CalibrationBatteryError extends Error {
   constructor(message: string) {
@@ -153,9 +204,10 @@ export function scoreCalibrationBattery(
         `pair ${JSON.stringify(p.pairId)} has a non-finite or negative gap (${p.gap})`,
       );
     }
-    // A verdict naming neither side is a wiring bug, not a wrong answer, and
-    // must not be quietly scored as incorrect.
-    if (p.judgeVerdict !== p.oracleWinner && p.judgeVerdict !== p.oracleLoser) {
+    // A NON-NULL verdict naming neither side is a wiring bug, not a wrong
+    // answer, and must not be quietly scored as incorrect. An explicit null
+    // (abstention) is a different thing and is handled below.
+    if (p.judgeVerdict !== null && p.judgeVerdict !== p.oracleWinner && p.judgeVerdict !== p.oracleLoser) {
       throw new CalibrationBatteryError(
         `pair ${JSON.stringify(p.pairId)}: judge verdict ${JSON.stringify(p.judgeVerdict)} names ` +
           `neither side of the pair`,
@@ -182,14 +234,36 @@ export function scoreCalibrationBattery(
     );
   }
 
+  // Abstentions count as INCORRECT, not as excluded.
+  //
+  // Measured reason: two runs of one model over the same frozen pairs produced
+  // 1 and 4 unparseable verdicts respectively, and THREE of those four were
+  // pairs it had answered WRONG on the other run. Dropping them lifted accuracy
+  // from 0.722 to 0.933 and the bucket from "medium" to "high" with no
+  // improvement in judging. (That model was later found to be finetuned for an
+  // unrelated domain, so its scores are void as a judge assessment — but the
+  // selection effect is generic, and a high abstention rate is precisely what a
+  // mismatched or struggling judge produces.) A verifier that declines exactly
+  // the questions it would fail looks calibrated and is not — and for a
+  // promotion gate, a judge that cannot emit a verdict cannot steer, so
+  // fail-closed is also correct on the merits.
+  const abstained = scorable.filter((p) => p.judgeVerdict === null).length;
   const correct = scorable.filter((p) => p.judgeVerdict === p.oracleWinner).length;
   const accuracy = correct / scorable.length;
+  if (abstained > 0) {
+    notes.push(
+      `${abstained}/${scorable.length} verdict(s) unparseable — counted as INCORRECT, not ` +
+        `excluded: dropping them would bias accuracy upward whenever abstention tracks difficulty`,
+    );
+  }
 
   // Consistency reuses the existing scorer verbatim — the perturbation check
   // is order-invariance, and it needs no ground truth at all.
+  // Consistency needs two real verdicts; an abstention on either side has no
+  // invariance to measure.
   const perturbed: PerturbedJudgment[] = scorable
-    .filter((p) => p.judgeVerdictSwapped !== undefined)
-    .map((p) => ({ original: p.judgeVerdict, perturbed: p.judgeVerdictSwapped! }));
+    .filter((p) => p.judgeVerdict !== null && p.judgeVerdictSwapped !== undefined)
+    .map((p) => ({ original: p.judgeVerdict!, perturbed: p.judgeVerdictSwapped! }));
   const consistency = consistencyScore(perturbed);
   if (perturbed.length === 0) {
     notes.push("no order-swapped verdicts supplied — consistency defaults to 1 and is NOT measured");
@@ -197,16 +271,31 @@ export function scoreCalibrationBattery(
     notes.push(`consistency measured on ${perturbed.length}/${scorable.length} pairs only`);
   }
 
-  // The bucket is the ACCURACY bucket (that is what `blindAccuracyBucket`
-  // means); consistency travels separately in the same entry.
-  const bucket = bucketOf(accuracy);
+  // Base-rate guard, its own named step. A judge that cannot beat the trivial
+  // fixed-preference strategy is exploiting the battery's class imbalance, not
+  // ranking — and its aggregate accuracy is an artifact. Forced to "low" so
+  // `calibrationGate` refuses it, rather than throwing: this IS a valid,
+  // informative calibration result ("this judge does not discriminate"), and
+  // it should be recorded as one.
+  const baseline = trivialPreferenceBaseline(scorable);
+  const beatsBaseline = accuracy > baseline.accuracy;
+  const bucket = beatsBaseline ? bucketOf(accuracy) : "low";
+  if (!beatsBaseline) {
+    notes.push(
+      `accuracy ${accuracy.toFixed(3)} does NOT beat the trivial fixed-preference baseline ` +
+        `${baseline.accuracy.toFixed(3)} (always prefer ${JSON.stringify(baseline.candidate)}) — ` +
+        `the judge is exploiting class imbalance, not discriminating; bucket forced to "low"`,
+    );
+  }
 
   return {
     sliceType,
     scored: scorable.length,
     dropped,
     correct,
+    abstained,
     accuracy,
+    baselineAccuracy: baseline.accuracy,
     consistency: consistency.score,
     bucket,
     batteryHash: batteryHash(pairs),
