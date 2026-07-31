@@ -353,3 +353,79 @@ describe("the promotion set is never consulted during search (SC2/D-03/D-06)", (
     expect(sig![1]).not.toContain("SplitBattery");
   });
 });
+
+describe("beatsIncumbent noise margin — replicate evidence, never a caller number", () => {
+  // A replicate whose result carries a chosen reward: clone the real
+  // promotion run and override testPassRate, which is the only evalReward
+  // term that varies here. Receipt stays the battery's own object.
+  const replicateAt = (run: BatteryRun, testPassRate: number): BatteryRun => ({
+    ...run,
+    result: { ...run.result, testPassRate },
+  });
+
+  it("no replicates => margin 0 => exactly the pre-margin behaviour", async () => {
+    const b = await baseline();
+    const result = promoteComponentWinner(argsFor(b, { incumbentFitness: 0 }));
+    expect(result.noiseMargin).toBe(0);
+    expect(result.inputs.beatsIncumbent).toBe(true);
+  });
+
+  it("an epsilon win INSIDE the measured spread is refused", async () => {
+    const b = await baseline();
+    const promotionFitness = evalReward(b.promotionRun.result);
+    // Replicate scored lower: spread = promotionFitness - replicateReward.
+    const rep = replicateAt(b.promotionRun, b.promotionRun.result.testPassRate - 0.4);
+    const spread = promotionFitness - evalReward(rep.result);
+    expect(spread).toBeGreaterThan(0);
+    // Incumbent sits just under the winner — a bare `>` would promote.
+    const result = promoteComponentWinner(
+      argsFor(b, { incumbentFitness: promotionFitness - spread / 2, replicatePromotionRuns: [rep] }),
+    );
+    expect(result.noiseMargin).toBeCloseTo(spread, 10);
+    expect(result.inputs.beatsIncumbent).toBe(false);
+    expect(result.reasons.beatsIncumbent).toContain("not cleared");
+  });
+
+  it("a win larger than the measured spread still promotes", async () => {
+    const b = await baseline();
+    const promotionFitness = evalReward(b.promotionRun.result);
+    const rep = replicateAt(b.promotionRun, b.promotionRun.result.testPassRate - 0.1);
+    const spread = promotionFitness - evalReward(rep.result);
+    const result = promoteComponentWinner(
+      argsFor(b, { incumbentFitness: promotionFitness - spread * 3, replicatePromotionRuns: [rep] }),
+    );
+    expect(result.inputs.beatsIncumbent).toBe(true);
+    expect(result.reasons.beatsIncumbent).toContain("cleared");
+  });
+
+  it("CONTROL: a replicate carrying a foreign battery's receipt is refused outright", async () => {
+    const b = await baseline();
+    const foreign = makeBattery({
+      id: "noise-diluter",
+      tasks: [{ id: "n1", prompt: "unrelated", checks: [CHECK] }],
+      receipt: { kind: "execution", acceptedBy: "Dr. Robert Li", lineage: [] },
+    });
+    // Same shape, right fields, wrong receipt object — the dilution attack:
+    // pad the replicate set with runs of an easier battery to shrink the
+    // measured spread back toward the bare-`>` behaviour.
+    const diluter: BatteryRun = { ...b.promotionRun, receipt: foreign.receipt };
+    expect(() =>
+      promoteComponentWinner(argsFor(b, { replicatePromotionRuns: [diluter] })),
+    ).toThrowError(/not the promotion battery's own receipt/);
+  });
+
+  it("margin is max-minus-min across ALL scorings, not just adjacent pairs", async () => {
+    const b = await baseline();
+    const promotionFitness = evalReward(b.promotionRun.result);
+    const repLow = replicateAt(b.promotionRun, b.promotionRun.result.testPassRate - 0.5);
+    const repHigh = replicateAt(b.promotionRun, b.promotionRun.result.testPassRate - 0.05);
+    const expected = evalReward(repHigh.result) - evalReward(repLow.result);
+    const result = promoteComponentWinner(
+      argsFor(b, { replicatePromotionRuns: [repLow, repHigh], incumbentFitness: 0 }),
+    );
+    // Spread spans the full set {promotion, low, high}; promotion is the max
+    // here, so max-min = promotion - low.
+    expect(result.noiseMargin).toBeCloseTo(promotionFitness - evalReward(repLow.result), 10);
+    expect(result.noiseMargin).toBeGreaterThan(expected - 1e-9);
+  });
+});

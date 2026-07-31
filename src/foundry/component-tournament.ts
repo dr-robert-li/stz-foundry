@@ -101,6 +101,25 @@ export interface PromoteComponentWinnerArgs {
   diversityFloor: number;
   judgeProfile: JudgeReliabilityProfile;
   sliceType: string;
+  /**
+   * Optional REPLICATE scorings of the promotion battery — additional real
+   * `BatteryRun`s of the same battery, from which this gate computes the
+   * run-to-run noise margin ITSELF (the `calibrationGate` shape: evidence in,
+   * boolean out). Deliberately NOT a caller-supplied margin number — that
+   * would be the trusted-boolean hole inverted: whoever supplies the number
+   * can set it to 0. Absent/empty ⇒ margin 0 ⇒ the pre-margin behaviour,
+   * which is honest (no noise evidence, no margin), not a loophole.
+   *
+   * Why it exists, measured: the §3 pilot's identical-prompt replicates
+   * spread 0.000–0.115 across three seeds of one battery
+   * (experiments/dataops-agent-pilot/PILOT-RESULTS.md) — a bare `>` would
+   * have promoted a "win" that a replicate of the unchanged baseline then
+   * outscored. And because the winner becomes the next incumbent, bare-`>`
+   * noise wins ratchet (winner's curse). The spread also varied seed to
+   * seed, so any fixed constant would be wrong somewhere: measured
+   * per-context or not at all.
+   */
+  replicatePromotionRuns?: BatteryRun[];
 }
 
 export interface PromoteComponentWinnerResult {
@@ -109,6 +128,10 @@ export interface PromoteComponentWinnerResult {
   searchFitness: number;
   promotionFitness: number;
   searchPromotionGap: number;
+  /** The noise margin `beatsIncumbent` was held to: max−min `evalReward`
+   *  spread across `{promotionRun} ∪ replicatePromotionRuns`. 0 when no
+   *  replicates were supplied. */
+  noiseMargin: number;
   reasons: Record<string, string>;
 }
 
@@ -123,7 +146,34 @@ export function promoteComponentWinner(args: PromoteComponentWinnerArgs): Promot
   const searchFitness = evalReward(args.searchRun.result);
   const promotionFitness = evalReward(args.promotionRun.result);
 
-  const beatsIncumbent = promotionFitness > (args.incumbentFitness ?? -Infinity);
+  // Replicate provenance — every replicate must carry the promotion battery's
+  // OWN receipt object (Object.is, the seventh gate's idiom). Without this a
+  // caller could dilute the margin with runs of an easier, unrelated battery,
+  // shrinking the measured spread and re-opening the bare-`>` hole this
+  // parameter exists to close. A wrong-battery replicate is a wiring bug or a
+  // forgery; both throw rather than silently weakening the gate.
+  const replicates = args.replicatePromotionRuns ?? [];
+  for (const rep of replicates) {
+    if (!Object.is(rep.receipt, args.promotionBattery.receipt)) {
+      throw new Error(
+        `[foundry:component-tournament] replicate promotion run's receipt is not the promotion ` +
+          `battery's own receipt object — a replicate of a different battery cannot supply noise ` +
+          `evidence for this one`,
+      );
+    }
+  }
+
+  // Noise margin — its own named step, never folded into the comparison
+  // below (a mutation must be able to disable exactly one). The margin is
+  // the max−min evalReward spread across every scoring of the promotion
+  // battery this gate can see. No replicates ⇒ one sample ⇒ spread 0.
+  const promotionRewards = [promotionFitness, ...replicates.map((r) => evalReward(r.result))];
+  const noiseMargin = Math.max(...promotionRewards) - Math.min(...promotionRewards);
+
+  // The relative comparison, now held to the measured noise floor: a win
+  // narrower than the identical-battery run-to-run spread is the model
+  // having a good day, not a better component.
+  const beatsIncumbent = promotionFitness > (args.incumbentFitness ?? -Infinity) + noiseMargin;
   const hackClean = args.promotionRun.result.hackFindings.length === 0;
 
   // sealOk — held-out integrity re-checked AT the gate, not trusted from
@@ -167,6 +217,10 @@ export function promoteComponentWinner(args: PromoteComponentWinnerArgs): Promot
   const verdict = promotionGate(inputs);
 
   const reasons: Record<string, string> = {
+    beatsIncumbent:
+      `promotion=${promotionFitness.toFixed(4)} vs incumbent=${(args.incumbentFitness ?? -Infinity).toFixed(4)} ` +
+      `+ margin=${noiseMargin.toFixed(4)} (${replicates.length} replicate${replicates.length === 1 ? "" : "s"}) — ` +
+      (beatsIncumbent ? "cleared" : "not cleared"),
     interfaceParity: interfaceParity
       ? "agent-definition frontmatter unchanged from incumbent"
       : "agent-definition frontmatter diverged from incumbent",
@@ -186,7 +240,7 @@ export function promoteComponentWinner(args: PromoteComponentWinnerArgs): Promot
   // parameter a caller could hand-enter.
   const searchPromotionGap = searchFitness - promotionFitness;
 
-  return { inputs, verdict, searchFitness, promotionFitness, searchPromotionGap, reasons };
+  return { inputs, verdict, searchFitness, promotionFitness, searchPromotionGap, noiseMargin, reasons };
 }
 
 /** When present on `RunComponentTournamentArgs`, the tournament persists one
