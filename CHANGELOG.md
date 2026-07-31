@@ -9,6 +9,51 @@ preserved verbatim.
 
 ## [Unreleased]
 
+## [1.21.0] — graded battery scoring; the phase-5 gate decided (NOT MET)
+
+### Partial-credit battery scoring (`src/foundry/grade.ts`)
+
+- **`GradedSpec` on `BatteryTask`** — optional per-check partial credit
+  (`kind: "relative-error"`, credit decays linearly to 0 at `zeroAt`). An exact
+  pass always scores 1; grading can only soften a failure, never demote a pass.
+  A missing/non-numeric observation scores 0 — absence is not a near miss.
+- **Deliberately not in the contract plane.** `evalCheck` stays exact and
+  `passedGate` still requires every check exact; grading is a *selection*
+  signal only. A task with no `grading` scores `pass ? 1 : 0`, so every
+  existing battery's `testPassRate` is byte-identical (proven by test).
+- Both `BatteryTaskResult` producers updated: `runAgentBattery` sums graded
+  `score`; `mergeOracleVerdicts` does the same, with the execution oracle as a
+  hard gate over the graded score (a failed oracle zeroes the task).
+- `makeBattery` gains three grading shape guards: unknown `checkId`, duplicate
+  spec, non-positive/non-finite `zeroAt`.
+
+### The v2 data-ops battery
+
+- **`buildTasksV2`** — states the goal and that the extract is messy, and
+  stops; the v1 prompt's methodology dump (dedup, formats, backup column,
+  filter) is gone, restoring headroom for the system prompt to matter. The
+  `path=answer.json` fence stays: it is a parsing contract, not a hint.
+- `revenueCents` graded at `REVENUE_ZERO_AT = 0.10` (from the measured failure
+  distribution); `orderCount` stays exact. **`DATA_OPS_GENERATOR_V2_ID`** is a
+  separate, separately human-accepted generator id — v1's acceptance is
+  untouched. `generateFixtureSplitBatteryV2` gives the v2 search/promotion
+  split through the existing `makeSplitBattery` guarantees.
+
+### The phase-5 gate arm, run to completion (`experiments/dataops-agent-pilot/`)
+
+- v1 separation gate: **no reliable separation** (spread 0.111 ≈ noise, arm
+  ordering reversed between seeds). v2 separation gate: **passes** (spread
+  0.422 > 2 SE, ordering sign-consistent on all three seeds).
+- The pre-registered §3 tournament (3 seeds × 4 candidates × 2 reflective
+  generations, ~17h local, checkpointed + resumable): **GATE NOT MET** —
+  measured Goodharting (+0.21 search / +0.00 held-out on seed 7), 1/3 raw wins,
+  0/3 clearing the measured identical-prompt noise floor (0.115); the one raw
+  win dissolved when a baseline replicate outscored the tournament winner.
+  Diff-in-diff Goodhart excess positive on every seed. **Phase 5 stays gated.**
+- `_separation.ts` verdict now compares spread against the binomial SE instead
+  of a fixed 0.05 (which sat below the 6-task quantum); operative rule recorded:
+  sign-consistency across seeds, not any within-run statistic.
+
 ## [1.17.0] — per-specimen git worktrees + cross-slice semantic recall
 
 ### Distribution — prebuilt `dist/`, zero runtime dependencies
