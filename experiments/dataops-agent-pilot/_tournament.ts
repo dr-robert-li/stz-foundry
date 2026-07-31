@@ -40,7 +40,11 @@
  */
 import { readFileSync, writeFileSync, renameSync, existsSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
-import { generateFixtureSplitBatteryV2 } from "../../src/foundry/fixture-warehouse.js";
+import {
+  generateFixtureBatteryV2,
+  generateFixtureSplitBatteryV2,
+  deriveSearchSeed,
+} from "../../src/foundry/fixture-warehouse.js";
 import { runAgentBattery, type CandidateAgent } from "../../src/foundry/agent-runner.js";
 import {
   runSearchGeneration,
@@ -61,6 +65,9 @@ const LOG_PATH = join(HERE, process.env.TOURNEY_LOG ?? "tournament-progress.log"
 const MODEL = process.env.TOURNEY_MODEL ?? "qwen3.6:latest";
 const SEEDS = (process.env.TOURNEY_SEEDS ?? "7,42,1234").split(",").map((s) => Number(s.trim()));
 const MAX_GENERATIONS = Number(process.env.TOURNEY_GENERATIONS ?? 2);
+/** Independent search warehouses per seed; candidate search fitness is the MIN
+ *  across them (round-2 worst-case aggregation). 1 reproduces round 1. */
+const SEARCH_WAREHOUSES = Number(process.env.TOURNEY_SEARCH_WAREHOUSES ?? 2);
 const TIMEOUT_MS = Number(process.env.TOURNEY_TIMEOUT_MS ?? 3_600_000);
 const BASE_URL = process.env.TOURNEY_BASE_URL ?? "http://localhost:11434/v1";
 
@@ -170,15 +177,35 @@ async function once(
   return data;
 }
 
+/**
+ * Score one agent on one battery.
+ *
+ * `tasks` carries PER-TASK results, which round 1 dropped — and that omission
+ * cost a conclusion: seed 7's exact `W = B` tie could not be decomposed into
+ * "both failed the SAME task" (a hard/unsolvable task, i.e. a ceiling
+ * artifact) versus "failed DIFFERENT tasks" (real transfer failure). Those
+ * imply opposite readings and the aggregate cannot separate them.
+ */
 async function scoreOn(
   agent: CandidateAgent,
   battery: Parameters<typeof runAgentBattery>[1],
-): Promise<{ reward: number; testPassRate: number; passedGate: boolean }> {
+): Promise<{
+  reward: number;
+  testPassRate: number;
+  passedGate: boolean;
+  tasks: { taskId: string; pass: boolean; score: number; status: string }[];
+}> {
   const run = await runAgentBattery(agent, battery, runOpts);
   return {
     reward: evalReward(run.result),
     testPassRate: run.result.testPassRate,
     passedGate: run.result.passedGate,
+    tasks: run.tasks.map((t) => ({
+      taskId: t.taskId,
+      pass: t.pass,
+      score: t.score,
+      status: t.status,
+    })),
   };
 }
 
@@ -195,6 +222,37 @@ const main = async () => {
 
   for (const seed of SEEDS) {
     const split = generateFixtureSplitBatteryV2(seed);
+
+    // ── MULTI-WAREHOUSE SEARCH SET (round 2). Round 1 measured reflection
+    //    overfitting to the ONE warehouse it could see: diff-in-diff Goodhart
+    //    excess was positive on every seed, and seed 7 gained +0.21 on search
+    //    for +0.00 held out. Scoring each candidate on N independent search
+    //    warehouses and taking the MIN attacks exactly that — a prompt tuned
+    //    to one warehouse's quirks is punished by the other.
+    //
+    //    The extra warehouses come from `deriveSearchSeed`, whose label can
+    //    never collide with the promotion seed's, so the held-out half stays
+    //    held out. Promotion is untouched: still ONE warehouse, still scored
+    //    once plus replicates.
+    const searchBatteries = [
+      split.search,
+      ...Array.from({ length: SEARCH_WAREHOUSES - 1 }, (_, i) =>
+        generateFixtureBatteryV2(deriveSearchSeed(seed, i + 2), `data-ops-v2-search${i + 2}-${seed}`),
+      ),
+    ];
+    // Fail closed on the one wiring bug that would silently destroy the
+    // Goodhart bound: a search warehouse sharing a task id with the held-out
+    // half would make "held out" a lie.
+    const promotionTaskIds = new Set(split.promotion.tasks.map((t) => t.id));
+    for (const b of searchBatteries) {
+      for (const t of b.tasks) {
+        if (promotionTaskIds.has(t.id)) {
+          throw new Error(
+            `[tournament] search battery "${b.id}" shares task id "${t.id}" with the promotion half`,
+          );
+        }
+      }
+    }
 
     // ── Baseline B, on BOTH halves. B_promotion is what W must beat.
     const bSearch = await once(state, `s${seed}-baseline-search`, async () =>
@@ -228,28 +286,78 @@ const main = async () => {
     let bestSearchFitness = -Infinity;
     let best: { id: string; systemPrompt: string; reward: number } | null = null;
     let haltNote = "loop completed without a cap firing";
+    // Last generation's rewards — the variance-collapse floor's evidence.
+    let genRewardsLast: number[] | null = null;
 
     for (let gen = 0; gen < MAX_GENERATIONS; gen++) {
       // Candidate prompts are persisted so a resumed run continues the real
       // lineage instead of silently restarting from generation 0.
       const genData = await once(state, `s${seed}-gen${gen}`, async () => {
-        const result = await runSearchGeneration(candidates, split.search, runOpts);
-        const rewards = [...result.runs.entries()].map(([id, run]) => ({
-          id: String(id),
-          reward: evalReward(run.result),
-          testPassRate: run.result.testPassRate,
-        }));
+        // One generation per SEARCH WAREHOUSE; a candidate's search fitness is
+        // the MIN across them (worst-case aggregation).
+        const perWarehouse = [];
+        for (const battery of searchBatteries) {
+          perWarehouse.push({
+            batteryId: battery.id,
+            result: await runSearchGeneration(candidates, battery, runOpts),
+          });
+        }
+        const rewards = candidates.map((c) => {
+          const each = perWarehouse.map((w) => ({
+            batteryId: w.batteryId,
+            reward: evalReward(w.result.runs.get(c.id)!.result),
+            testPassRate: w.result.runs.get(c.id)!.result.testPassRate,
+          }));
+          return {
+            id: String(c.id),
+            // Worst-case: a prompt tuned to one warehouse's quirks is scored
+            // by the warehouse it did NOT get tuned to.
+            reward: Math.min(...each.map((e) => e.reward)),
+            testPassRate: Math.min(...each.map((e) => e.testPassRate)),
+            perWarehouse: each,
+          };
+        });
+        // Reflection trace comes from the WORST warehouse for that candidate —
+        // attack the weakest front, not whichever warehouse happens to be
+        // first. A trace from the easy warehouse would teach nothing about the
+        // failure that is actually capping the candidate's min score.
         const traces: Record<string, string> = {};
-        for (const [id, run] of result.runs) traces[String(id)] = buildReflectionTrace(run);
+        for (const c of candidates) {
+          let worst: { reward: number; trace: string } | null = null;
+          for (const w of perWarehouse) {
+            const run = w.result.runs.get(c.id)!;
+            const reward = evalReward(run.result);
+            if (worst === null || reward < worst.reward) {
+              worst = { reward, trace: buildReflectionTrace(run) };
+            }
+          }
+          traces[String(c.id)] = worst!.trace;
+        }
         return {
           rewards,
-          winner: result.judgment.winner === null ? null : String(result.judgment.winner),
+          // Winner from the FIRST warehouse's judgment, recorded for
+          // continuity with round 1; selection below uses the min-aggregated
+          // reward, which is the round-2 change under test.
+          winner:
+            perWarehouse[0]!.result.judgment.winner === null
+              ? null
+              : String(perWarehouse[0]!.result.judgment.winner),
+          gatePassers: perWarehouse.flatMap((w) =>
+            [...w.result.runs.entries()]
+              .filter(([, r]) => r.result.passedGate)
+              .map(([id]) => `${w.batteryId}:${String(id)}`),
+          ),
           prompts: Object.fromEntries(candidates.map((c) => [String(c.id), c.systemPrompt])),
           traces,
         };
       });
 
-      const rewards = genData.rewards as { id: string; reward: number; testPassRate: number }[];
+      const rewards = genData.rewards as {
+        id: string;
+        reward: number;
+        testPassRate: number;
+        perWarehouse: { batteryId: string; reward: number; testPassRate: number }[];
+      }[];
       const prompts = genData.prompts as Record<string, string>;
       const traces = genData.traces as Record<string, string>;
       for (const r of rewards) {
@@ -257,6 +365,7 @@ const main = async () => {
           best = { id: r.id, systemPrompt: prompts[r.id]!, reward: r.reward };
         }
       }
+      genRewardsLast = rewards.map((r) => r.reward);
       const bestThisGen = Math.max(...rewards.map((r) => r.reward));
       const advanced = onGeneration(meta, bestThisGen > bestSearchFitness);
       bestSearchFitness = Math.max(bestSearchFitness, bestThisGen);
@@ -318,6 +427,42 @@ const main = async () => {
     const bPromRepReward = bPromotionRep.reward as number;
     const noiseSample = Math.abs(bPromRepReward - bPromReward);
 
+    // ── The SHIPPED gate, run for real (round 2). Round 1 could not use it:
+    //    the stage-1 perfection bar deleted every population, so the driver
+    //    selected best-by-reward outside the real machinery. With
+    //    `gateThreshold` and the replicate margin landed, the shipped gate is
+    //    reachable, so round 2 exercises it and records its verdict ALONGSIDE
+    //    the §3 arithmetic — never conflated with it. `rubricCalibrated` is
+    //    still fail-closed (no calibrated judge profile for this slice type),
+    //    so a refusal here is expected and is not evidence about §3.
+    const shipped = await once(state, `s${seed}-shipped-gate`, async () => {
+      const searchRun = await runAgentBattery(winner, searchBatteries[0]!, runOpts);
+      const promotionRun = await runAgentBattery(winner, split.promotion, runOpts);
+      const replicateRun = await runAgentBattery(BASELINE, split.promotion, runOpts);
+      const verdictResult = promoteComponentWinner({
+        searchRun,
+        promotionRun,
+        searchBattery: searchBatteries[0]!,
+        promotionBattery: split.promotion,
+        winnerFrontmatter: winner.systemPrompt,
+        incumbentFrontmatter: BASELINE.systemPrompt,
+        incumbentFitness: bPromReward,
+        generationRewards: (genRewardsLast ?? []).slice(),
+        diversityFloor: 0.01,
+        judgeProfile,
+        sliceType: "component",
+        replicatePromotionRuns: [replicateRun],
+      });
+      return {
+        promote: verdictResult.verdict.promote,
+        failed: verdictResult.verdict.failed,
+        noiseMargin: verdictResult.noiseMargin,
+        beatsIncumbent: verdictResult.inputs.beatsIncumbent,
+        searchPromotionGap: verdictResult.searchPromotionGap,
+        reasons: verdictResult.reasons,
+      };
+    });
+
     perSeed[seed] = {
       winnerId: best.id,
       B_search: bSearch.reward,
@@ -328,6 +473,9 @@ const main = async () => {
       W_promotion: wPromReward,
       searchPromotionGap: gap,
       beatsBaseline,
+      shippedGate: shipped,
+      B_promotion_tasks: bPromotion.tasks,
+      W_promotion_tasks: wPromotion.tasks,
       haltNote,
       winnerPrompt: best.systemPrompt,
     };
@@ -384,6 +532,44 @@ const main = async () => {
       ((s.B_search as number) - (s.B_promotion as number)),
   );
   log(`Goodhart excess-gap vs baseline (diff-in-diff): [${dind.map((d) => d.toFixed(4)).join(" ")}]`);
+
+  // ── Per-task decomposition — the diagnostic round 1 could not produce.
+  //    A tie or a loss means opposite things depending on WHICH tasks failed:
+  //    the same task for both (a hard or unsolvable task — a ceiling
+  //    artifact) versus different tasks (real transfer failure). The
+  //    aggregate cannot tell them apart; this can.
+  log("\n## per-task promotion decomposition");
+  for (const s of summaries) {
+    const bTasks = (s.B_promotion_tasks ?? []) as { taskId: string; pass: boolean }[];
+    const wTasks = (s.W_promotion_tasks ?? []) as { taskId: string; pass: boolean }[];
+    if (bTasks.length === 0 || wTasks.length === 0) continue;
+    const wById = new Map(wTasks.map((t) => [t.taskId, t]));
+    const bFailed = bTasks.filter((t) => !t.pass).map((t) => t.taskId);
+    const wFailed = wTasks.filter((t) => !t.pass).map((t) => t.taskId);
+    const shared = bFailed.filter((id) => wById.get(id)?.pass === false);
+    log(
+      `  ${s.winnerId}: B failed [${bFailed.join(", ") || "none"}] · W failed ` +
+        `[${wFailed.join(", ") || "none"}] · shared-failure ${shared.length}/${Math.max(bFailed.length, wFailed.length) || 0}`,
+    );
+    if (bFailed.length > 0 && shared.length === bFailed.length && wFailed.length === bFailed.length) {
+      log("    => identical failure set: a CEILING artifact (same hard task), not failed transfer.");
+    } else if (shared.length === 0 && bFailed.length > 0 && wFailed.length > 0) {
+      log("    => disjoint failure sets: genuinely different competence, not a shared hard task.");
+    }
+  }
+
+  // The shipped gate's own verdict, reported ALONGSIDE §3, never merged into it.
+  log("\n## shipped promoteComponentWinner verdict (reported, not conflated with §3)");
+  for (const s of summaries) {
+    const g = s.shippedGate as
+      | { promote: boolean; failed: string[]; noiseMargin: number; beatsIncumbent: boolean }
+      | undefined;
+    if (!g) continue;
+    log(
+      `  ${s.winnerId}: promote=${g.promote} beatsIncumbent=${g.beatsIncumbent} ` +
+        `margin=${g.noiseMargin.toFixed(4)} failedGates=[${g.failed.join(", ")}]`,
+    );
+  }
 
   if (goodharting > 0) {
     log("GATE NOT MET — measured Goodharting: a win on search that vanished on promotion (§3).");

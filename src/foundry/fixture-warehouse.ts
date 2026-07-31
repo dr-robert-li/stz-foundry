@@ -582,6 +582,28 @@ export function derivePromotionSeed(seed: number): number {
 }
 
 /**
+ * The Nth ADDITIONAL search warehouse's seed — same sha256 idiom, a different
+ * fixed label per index, so a multi-warehouse search set is reproducible from
+ * one top-level seed (N6 replay).
+ *
+ * `n` starts at 2 (`n=1` IS the caller's own `seed`), and the label can never
+ * collide with `derivePromotionSeed`'s `"promotion"` — that would silently
+ * hand the held-out warehouse to the search, destroying the Goodhart bound.
+ * The guard is structural: the label is `search<n>` for `n >= 2`, and `n < 2`
+ * throws rather than falling back to something.
+ */
+export function deriveSearchSeed(seed: number, n: number): number {
+  if (!Number.isInteger(n) || n < 2) {
+    throw new Error(
+      `[foundry:fixture-warehouse] deriveSearchSeed n must be an integer >= 2 (n=1 is the caller's ` +
+        `own seed); got ${n}`,
+    );
+  }
+  const h = createHash("sha256").update(`${seed}|search${n}`).digest("hex");
+  return parseInt(h.slice(0, 8), 16);
+}
+
+/**
  * Two INDEPENDENTLY-seeded warehouses (see the module doc comment's
  * rationale) — `search` from `seed`, `promotion` from `derivePromotionSeed(seed)`
  * — each built through the SAME real construction path as

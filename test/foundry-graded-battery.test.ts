@@ -21,6 +21,8 @@ import {
   buildTasksV2,
   generateFixtureBatteryV2,
   generateFixtureSplitBatteryV2,
+  derivePromotionSeed,
+  deriveSearchSeed,
   generateWarehouse,
 } from "../src/foundry/fixture-warehouse.js";
 import type { CheckResult } from "../src/contract/predicate-eval.js";
@@ -460,5 +462,34 @@ describe("battery-declared gateThreshold — the stage-1 bar travels with the in
     );
     expect(run.result.passedGate).toBe(false);
     expect(run.result.gateBlockedReason).toContain("no battery task produced any artifact");
+  });
+});
+
+describe("deriveSearchSeed — extra search warehouses cannot collide with the held-out half", () => {
+  it("is deterministic, and distinct from both the caller's seed and the promotion seed", () => {
+    for (const seed of [7, 42, 1234]) {
+      const s2 = deriveSearchSeed(seed, 2);
+      expect(deriveSearchSeed(seed, 2)).toBe(s2); // reproducible from one top-level seed (N6)
+      expect(s2).not.toBe(seed);
+      // The bug this guards: a search warehouse that IS the promotion
+      // warehouse would make "held out" a lie while every id still looked
+      // disjoint.
+      expect(s2).not.toBe(derivePromotionSeed(seed));
+      expect(deriveSearchSeed(seed, 3)).not.toBe(s2);
+    }
+  });
+
+  it("refuses n < 2 rather than silently aliasing the caller's own seed", () => {
+    expect(() => deriveSearchSeed(7, 1)).toThrow(/must be an integer >= 2/);
+    expect(() => deriveSearchSeed(7, 0)).toThrow();
+    expect(() => deriveSearchSeed(7, 2.5)).toThrow();
+  });
+
+  it("extra search warehouses carry different FACTS, not just different ids", () => {
+    const a = generateFixtureBatteryV2(7, "search1");
+    const b = generateFixtureBatteryV2(deriveSearchSeed(7, 2), "search2");
+    expect(b.tasks.map((t) => t.checks[0]!.expect)).not.toEqual(
+      a.tasks.map((t) => t.checks[0]!.expect),
+    );
   });
 });
