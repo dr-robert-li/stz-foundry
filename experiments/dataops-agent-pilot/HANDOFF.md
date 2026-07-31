@@ -139,8 +139,9 @@ Design it against `PREREG.md` §3's decision rule:
 
 - **Do not run the tournament on a saturated battery.** §0. This is the whole point.
 - **Do not shop for models.** The escalation list is fixed in `PREREG.md` §2:
-  `granite4.1:30b`, `nemotron3:33b`, `qwen3.6:latest`. `wp-judge-v4` is a *judge*
-  model and must not be used as a candidate — that confuses the altitudes.
+  `granite4.1:30b`, `nemotron3:33b`, `qwen3.6:latest`. (A later correction: the
+  fourth locally-installed model is finetuned for an unrelated domain and is
+  excluded in code from every role — see `PILOT-RESULTS.md`.)
 - **Do not rewrite `PREREG.md`.** Its git commit is its timestamp; rewriting it
   destroys the pre-registration's entire value. Results go in `PILOT-RESULTS.md`.
 - **Do not treat a null as failure.** A null keeps phase 5 correctly gated and

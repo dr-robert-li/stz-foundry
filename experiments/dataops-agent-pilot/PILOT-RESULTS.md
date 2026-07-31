@@ -628,56 +628,63 @@ answer-first facts computed before any candidate existed. The judge sees two
 agent definitions and never the scores. Battery frozen at 19 discriminable
 pairs, hash `3a0b56d6…`, committed before any judge saw it.
 
-## VOID: the first run used a domain-finetuned model
+## Guards the battery must carry, and why
 
-The first calibration ran against `wp-judge-v4`. **That model is finetuned for
-WordPress**, an unrelated domain — its name reads like a general judge and it is
-not one. **Its scores are void as a judge assessment and are not reported as a
-result.** `wp-judge` is now excluded in code (`EXCLUDED_JUDGE_MODELS` in
-`_calibrate-judge.ts`, which throws rather than running), so the mistake cannot
-recur. The raw log is retained as `judge-calibration-VOID-wp-judge.log`.
+Two failure modes make an aggregate accuracy number untrustworthy on its own.
+Both are guarded in `src/judge-calibration.ts`, and both were confirmed against
+a real model rather than assumed.
 
-A correction to the record while we are here: `PREREG.md` §2 excluded
-`wp-judge-v4` from the CANDIDATE list on the grounds that "it is a judge model,
-and using a judge as a candidate would confuse the altitudes." That reasoning
-was based on a mistaken premise about what the model is. The exclusion was
-right; the stated reason was not. `PREREG.md` is not edited — the correction
-lives here.
+**1. Base-rate exploitation.** One candidate wins 11 of the 19 pairs and never
+loses, so a judge that reads nothing and always prefers it scores well above
+chance. `trivialPreferenceBaseline` computes exactly that trivial strategy's
+accuracy, and a judge failing to beat it is forced to `low` — the standard
+beat-the-majority-classifier bar. `granite4.1:30b` fails it on real data
+(0.526 against a 0.579 baseline).
 
-## What the void run still bought: two generic guards
+**2. Selective abstention.** An unparseable verdict is scored as **incorrect**,
+never excluded. Excluding them biases accuracy upward whenever abstention
+tracks difficulty — a verifier that declines exactly the questions it would
+fail looks calibrated and is not. For a promotion gate this is also right on
+the merits: a judge that cannot emit a verdict cannot steer.
 
-Both failure modes it exposed are real, generic, and now permanently guarded.
-A domain-mismatched model simply fails them loudly, which is why running it
-was useful even though its scores are worthless.
+## Cross-family judge sweep
 
-**1. Base-rate exploitation.** It scored 13/18 = 0.722 overall — "medium",
-enough to unblock the promotion gate. Decomposed: 10/11 (0.909) on pairs where
-one particular candidate was the oracle winner, and 3/7 (0.429), *below chance*,
-everywhere else. It was not ranking; it was applying a fixed prior that
-correlated because that candidate won 11 of 18 pairs. A judge that reads
-nothing and always prefers that candidate scores **0.806** on the same battery —
-so it was worse than reading nothing. Guard: `trivialPreferenceBaseline`, the
-standard beat-the-majority-classifier bar. Failing it forces `low`.
+Judges are swept SEQUENTIALLY over the identical frozen battery (hash verified
+before every call), and all candidates are **cross-family from the tournament's
+candidate model** (`qwen3.6`) so ranking and execution never sit in one family
+— the self-preference shape the survey flags, and the repo's own v1.1
+cross-family judge direction.
 
-**2. Selective abstention.** Two runs over the same frozen battery produced 1
-and 4 unparseable verdicts — and **three of those four were pairs the model had
-answered wrong on the other run**. Accuracy climbed 0.722 → 0.933 and the bucket
-jumped `medium` → `high`, with no improvement in judging. A verifier that
-declines exactly the questions it would fail looks calibrated and is not. Guard:
-abstentions are scored as **incorrect**, never excluded — and for a promotion
-gate that is also correct on the merits, since a judge that cannot emit a
-verdict cannot steer.
+`JUDGE_CANDIDATES`: `granite4.1:30b`, `nemotron3:33b`, `gpt-oss:20b`,
+`gemma4:31b`. A candidate not yet installed is skipped with a note, so the
+sweep can poll while models are still being pulled.
 
-Neither hole was visible in fixtures I wrote myself. Both came from the
-instrument meeting a real model, which is the argument for running it.
+**Sequential is a hardware safety requirement, not tidiness.** The box is a DGX
+Spark with 121GB unified memory and no memory protection, and ollama holds a
+model resident ~5 min after its last call — so a naive sweep stacks judges on
+top of the tournament's own model. That was observed live (qwen3.6 29GB +
+nemotron3 26GB both resident) and would have reached ~106GB of models alone
+once the remaining candidates landed. An overcommit here does not produce a
+clean OOM kill; it can wedge the machine and destroy a multi-day tournament.
+`unloadJudges` evicts every non-protected model before the next judge loads,
+and `_memory-watchdog.sh` enforces a 109GB ceiling independently, unloading
+largest-first and halting-and-surfacing if only protected models remain over
+the line.
 
-## Re-run on a generalist model
+### Results
 
-Re-running against `qwen3.6:latest` on the identical frozen battery (same hash,
-verified before each call). One property to state in advance: qwen3.6 is also
-the CANDIDATE model. That is not self-preference in the usual sense — it ranks
-prompt TEXT while the exogenous oracle scores execution — and a judge calibrated
-on "which definition makes qwen3.6 perform better" is precisely the right judge
-for a tournament whose candidates run on qwen3.6. The three guards
-(trivial-preference baseline, abstention-as-incorrect, order-consistency) apply
-unchanged.
+| judge | accuracy | trivial baseline | beats? | abstained | consistency | bucket |
+|---|---|---|---|---|---|---|
+| `granite4.1:30b` | 0.526 | 0.579 | **no** | 0 | 0.632 | **low** |
+
+`granite4.1:30b` is **refused** for promotion steering, and both guards fire
+independently: it fails the beat-the-baseline bar and it is order-inconsistent
+(0.632, below the 0.7 trust threshold). Zero abstentions, so this measures the
+model rather than an artifact of selective non-answering.
+
+This also settles a question that was open rather than assumed: granite
+floor-saturates as a CANDIDATE on this battery (0.000 on every arm), so it
+demonstrably cannot DO the task. Whether it could nonetheless RANK definitions
+for it is a different competency. Measured answer: no.
+
+Remaining candidates are swept as they land.

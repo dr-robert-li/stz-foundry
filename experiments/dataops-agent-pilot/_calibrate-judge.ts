@@ -44,12 +44,9 @@ const RESULT_PATH = join(HERE, "judge-calibration-result.json");
  * EXCLUDED MODELS — encoded so the exclusion cannot be quietly forgotten
  * (same posture as `NAIVE_ENSEMBLE_FORBIDDEN` in judge-reliability.ts).
  *
- * `wp-judge-v4` is finetuned for an unrelated domain (WordPress). Its name
- * reads like a general judge and it is not one. A first calibration run
- * against it produced exactly the artifacts a domain-mismatched model
- * produces — a fixed prior standing in for ranking, and a high rate of
- * unparseable verdicts concentrated on the pairs it got wrong — and those
- * scores are VOID as a judge assessment. Use a generalist model.
+ * `wp-judge` is finetuned for an unrelated domain (WordPress). Its name reads
+ * like a general judge and it is not one, so it can never serve as a judge
+ * here regardless of how it scores. Generalist models only.
  */
 const EXCLUDED_JUDGE_MODELS = ["wp-judge"];
 
@@ -214,6 +211,49 @@ async function askJudge(
   return swap ? (choseFirst ? "loser" : "winner") : choseFirst ? "winner" : "loser";
 }
 
+/**
+ * The tournament's candidate model, which must stay resident: unloading it
+ * would force a ~29GB reload on the running tournament's very next call.
+ * Everything else is fair game for eviction between judges.
+ */
+const PROTECTED_MODEL = process.env.CALIB_PROTECT ?? "qwen3.6:latest";
+
+/**
+ * Unload every resident model except the protected one.
+ *
+ * This is NOT an optimization. The box (DGX Spark, 121GB unified) has no
+ * memory protection, and ollama keeps a model resident ~5 min after its last
+ * call — so a naive sweep STACKS judges on top of the tournament's model. That
+ * was observed live: qwen3.6 (29GB) + nemotron3 (26GB) both resident, heading
+ * for ~106GB of models alone once the remaining two candidates land. An
+ * overcommit here does not produce a clean OOM kill; it can wedge the machine
+ * and destroy a 30-hour tournament. One judge at a time, always.
+ */
+async function unloadJudges(keep: string): Promise<void> {
+  const resident = await listResidentModels();
+  for (const m of resident) {
+    if (m === keep || m === PROTECTED_MODEL) continue;
+    await fetch(`${BASE_URL.replace(/\/v1$/, "")}/api/generate`, {
+      method: "POST",
+      // keep_alive 0 tells ollama to drop it immediately rather than after
+      // the default idle window.
+      body: JSON.stringify({ model: m, keep_alive: 0 }),
+    }).catch(() => undefined);
+  }
+  if (resident.length > 0) await new Promise((r) => setTimeout(r, 3000));
+}
+
+/** Models currently held in memory (not merely installed). */
+async function listResidentModels(): Promise<string[]> {
+  try {
+    const res = await fetch(`${BASE_URL.replace(/\/v1$/, "")}/api/ps`);
+    const body = (await res.json()) as { models?: { name: string }[] };
+    return (body.models ?? []).map((m) => m.name);
+  } catch {
+    return [];
+  }
+}
+
 /** Installed model tags, so an absent candidate is SKIPPED with a note rather
  *  than failing the sweep — the list can name models still being pulled. */
 async function listInstalledModels(): Promise<string[]> {
@@ -270,6 +310,9 @@ const main = async () => {
       console.log(`  SKIP ${model} — already scored (set CALIB_FORCE=1 to redo)`);
       continue;
     }
+    // SEQUENTIAL: evict any other judge before this one loads. See
+    // `unloadJudges` for why this is a safety requirement, not tidiness.
+    await unloadJudges(model);
     console.log(`\n## ${model}`);
     const scored: BlindPair[] = [];
     for (const [i, p] of battery.pairs.entries()) {
@@ -312,6 +355,9 @@ const main = async () => {
       writeFileSync(RESULT_PATH, JSON.stringify(all, null, 2));
     }
   }
+
+  // Leave the box as we found it: only the tournament's model resident.
+  await unloadJudges(PROTECTED_MODEL);
 
   console.log(`\n## Comparison — sliceType "${battery.sliceType}"`);
   console.log("| judge | accuracy | baseline | beats? | abstained | consistency | bucket |");
