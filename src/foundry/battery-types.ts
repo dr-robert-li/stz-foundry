@@ -96,6 +96,24 @@ export interface AgentBattery {
   id: string;
   tasks: BatteryTask[];
   receipt: OracleReceipt;
+  /**
+   * Optional stage-1 gate bar: `passedGate` requires
+   * `testPassRate >= (gateThreshold ?? 1)`. Absent ⇒ 1 — the existing
+   * perfection bar, byte-identical.
+   *
+   * Declared at CONSTRUCTION, validated by `makeBattery`, frozen after — it
+   * travels with the (human-accepted, receipt-rooted) instrument, never with
+   * whoever happens to be running a selection. The measured reason it exists
+   * (experiments/dataops-agent-pilot/PILOT-RESULTS.md): at the
+   * agent-definition altitude fitness is a graded competence score no model
+   * reaches 1.0 on, and the §3 run's perfection bar admitted a candidate
+   * exactly once — on the seed whose battery was saturated and carried zero
+   * selection signal. A perfection gate at that altitude selects FOR
+   * uninformative batteries. The bar stays 1 by default because at the code
+   * altitude it is correct: shipping code that fails its own tests is not
+   * acceptable.
+   */
+  gateThreshold?: number;
   /** Brand — see `VALIDATED_BATTERY`. Never present at runtime. */
   readonly [VALIDATED_BATTERY]: true;
 }
@@ -227,6 +245,7 @@ export function makeBattery(draft: {
   id: string;
   tasks: BatteryTask[];
   receipt: OracleReceipt;
+  gateThreshold?: number;
 }): AgentBattery {
   const id = draft.id.trim();
   if (id === "") {
@@ -234,6 +253,20 @@ export function makeBattery(draft: {
   }
 
   validateReceipt(draft.receipt, id);
+
+  // Gate-threshold shape guard. Out-of-range values are refused at
+  // construction, not clamped at use: a threshold of 0 (or below) makes
+  // `passedGate` vacuously true for any run — the α→0 shape — and one above
+  // 1 makes it vacuously false; NaN would poison the comparison silently.
+  if (draft.gateThreshold !== undefined) {
+    const t = draft.gateThreshold;
+    if (!Number.isFinite(t) || t <= 0 || t > 1) {
+      throw new BatteryShapeError(
+        `battery "${id}" gateThreshold ${t} is invalid — must be a finite number in (0, 1]; ` +
+          `0 would pass every run vacuously, >1 would fail every run vacuously`,
+      );
+    }
+  }
 
   // A battery with no tasks trivially passes every candidate agent — the
   // α→0 shape at the construction altitude. Mirrors predicate-eval.ts:55's
@@ -327,6 +360,10 @@ export function makeBattery(draft: {
       ...draft.receipt,
       lineage: Object.freeze([...draft.receipt.lineage]) as string[],
     }) as OracleReceipt,
+    // Absent stays absent — a battery without a declared threshold must not
+    // silently acquire an explicit 1, which a later reader would mistake for
+    // a deliberate declaration rather than the default.
+    ...(draft.gateThreshold !== undefined ? { gateThreshold: draft.gateThreshold } : {}),
   }) as AgentBattery;
 }
 

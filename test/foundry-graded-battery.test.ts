@@ -57,6 +57,36 @@ class FixedAnswerProvider implements Provider {
   }
 }
 
+/** Answers each successive task with the next body in the list, so a battery
+ *  can be driven to an exact k/n pass rate. */
+class PerTaskProvider implements Provider {
+  readonly kind = "openai" as const;
+  readonly baseUrl = "http://stub";
+  private i = 0;
+  constructor(private readonly totals: string[]) {}
+  async chat(_req: ChatRequest): Promise<ChatResponse> {
+    const total = this.totals[this.i++] ?? "0";
+    return {
+      model: "stub",
+      text: `\`\`\`path=answer.json\n{"total": ${total}}\n\`\`\``,
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 },
+    };
+  }
+}
+
+/** Replies with prose only — no fenced artifact block at all. */
+class NoArtifactProvider implements Provider {
+  readonly kind = "openai" as const;
+  readonly baseUrl = "http://stub";
+  async chat(_req: ChatRequest): Promise<ChatResponse> {
+    return {
+      model: "stub",
+      text: "I could not determine the total.",
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0 },
+    };
+  }
+}
+
 describe("gradeCheck — partial credit is credit for being CLOSE, never for being absent", () => {
   it("an exactly-passing check scores 1 whatever its grading says", () => {
     expect(gradeCheck(result({ pass: true, expected: "500", actual: "500" }), spec())).toBe(1);
@@ -339,5 +369,96 @@ describe("the v2 battery — less prescriptive prompt, graded revenue", () => {
     // The grading survives makeBattery's freeze, which is what makes the
     // partial credit actually reach a real run.
     expect(battery.tasks[0]!.grading).toHaveLength(1);
+  });
+});
+
+describe("battery-declared gateThreshold — the stage-1 bar travels with the instrument", () => {
+  const receipt = { kind: "execution" as const, acceptedBy: "Dr. Robert Li", lineage: [] };
+  const sixTasks = (expectCents: number) =>
+    Array.from({ length: 6 }, (_, i) => ({
+      id: `t${i}`,
+      prompt: "recover the total",
+      checks: [
+        {
+          checkId: `rev${i}`,
+          kind: "json-invariant" as const,
+          input: "answer.json#total",
+          expect: JSON.stringify(expectCents),
+          description: "total matches",
+        },
+      ],
+    }));
+
+  it("refuses a threshold outside (0, 1] at CONSTRUCTION, never clamping at use", () => {
+    // 0 would make passedGate vacuously true for any run (the α→0 shape);
+    // >1 vacuously false; NaN would poison the comparison silently.
+    for (const gateThreshold of [0, -0.5, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() =>
+        makeBattery({ id: "b", tasks: sixTasks(1000), receipt, gateThreshold }),
+      ).toThrow(BatteryShapeError);
+    }
+    expect(() =>
+      makeBattery({ id: "b", tasks: sixTasks(1000), receipt, gateThreshold: 1 }),
+    ).not.toThrow();
+  });
+
+  it("leaves gateThreshold ABSENT when undeclared, never an implicit 1", () => {
+    const b = makeBattery({ id: "b", tasks: sixTasks(1000), receipt });
+    expect("gateThreshold" in b).toBe(false);
+    expect(Object.isFrozen(b)).toBe(true);
+  });
+
+  it("an undeclared battery keeps the perfection bar byte-identically", async () => {
+    // 5/6 exact — under the default bar this must NOT pass the gate.
+    const battery = makeBattery({ id: "undeclared", tasks: sixTasks(1000), receipt });
+    const run = await runAgentBattery(
+      { id: "a" as never, systemPrompt: "s" },
+      battery,
+      { providerImpl: new PerTaskProvider(["1000", "1000", "1000", "1000", "1000", "999"]) },
+    );
+    expect(run.result.testPassRate).toBeCloseTo(5 / 6, 10);
+    expect(run.result.passedGate).toBe(false);
+  });
+
+  it("a declared 0.8 threshold admits 5/6 and still refuses 4/6", async () => {
+    const battery = makeBattery({
+      id: "declared",
+      tasks: sixTasks(1000),
+      receipt,
+      gateThreshold: 0.8,
+    });
+    const five = await runAgentBattery(
+      { id: "a" as never, systemPrompt: "s" },
+      battery,
+      { providerImpl: new PerTaskProvider(["1000", "1000", "1000", "1000", "1000", "999"]) },
+    );
+    expect(five.result.testPassRate).toBeCloseTo(5 / 6, 10);
+    expect(five.result.passedGate).toBe(true);
+
+    const four = await runAgentBattery(
+      { id: "a" as never, systemPrompt: "s" },
+      battery,
+      { providerImpl: new PerTaskProvider(["1000", "1000", "1000", "1000", "500", "500"]) },
+    );
+    expect(four.result.testPassRate).toBeCloseTo(4 / 6, 10);
+    expect(four.result.passedGate).toBe(false);
+  });
+
+  it("a threshold cannot rescue a run that produced NO artifacts", async () => {
+    // The artifact-vacuity guard is independent of the bar — a battery that
+    // declares 0.01 must still not pass an agent that produced nothing.
+    const battery = makeBattery({
+      id: "lax",
+      tasks: sixTasks(1000),
+      receipt,
+      gateThreshold: 0.01,
+    });
+    const run = await runAgentBattery(
+      { id: "a" as never, systemPrompt: "s" },
+      battery,
+      { providerImpl: new NoArtifactProvider() },
+    );
+    expect(run.result.passedGate).toBe(false);
+    expect(run.result.gateBlockedReason).toContain("no battery task produced any artifact");
   });
 });

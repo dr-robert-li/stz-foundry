@@ -480,7 +480,13 @@ export async function runAgentBattery(
     specimen: candidateAgent.id,
     // Identical threshold shape to bridge.ts:263, now with the same
     // artifact-vacuity term.
-    passedGate: !noArtifacts && testPassRate >= 1 && hackFindings.length === 0,
+    // The bar is the BATTERY's own declared threshold, defaulting to 1 — the
+    // perfection gate, unchanged for every battery that declares nothing.
+    // Declared at construction under the receipt/admission path, so it
+    // travels with the human-accepted instrument and cannot be tuned by
+    // whoever runs the selection (see `AgentBattery.gateThreshold`).
+    passedGate:
+      !noArtifacts && testPassRate >= (battery.gateThreshold ?? 1) && hackFindings.length === 0,
     ...(noArtifacts
       ? {
           gateBlockedReason:

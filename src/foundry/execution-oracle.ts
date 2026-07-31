@@ -28,7 +28,7 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import type { BatteryRun, BatteryTaskResult } from "./agent-runner.js";
-import type { OracleReceipt } from "./battery-types.js";
+import type { AgentBattery, OracleReceipt } from "./battery-types.js";
 import { gradeTask } from "./grade.js";
 import { evaluateChecks, type CheckResult } from "../contract/predicate-eval.js";
 
@@ -241,9 +241,27 @@ export function runExecutionOracle(
  * anything (the "absence reported but the task still passes" vacuity
  * RESEARCH names).
  */
-export function mergeOracleVerdicts(run: BatteryRun, outcome: ExecutionOracleOutcome): BatteryRun {
+export function mergeOracleVerdicts(
+  run: BatteryRun,
+  outcome: ExecutionOracleOutcome,
+  battery?: AgentBattery,
+): BatteryRun {
   const oracleByTaskId = new Map(outcome.results.map((r) => [r.taskId, r]));
   const runTaskIds = new Set(run.tasks.map((t) => t.taskId));
+
+  // The stage-1 bar. Takes the BATTERY (the accepted instrument), never a
+  // bare threshold number a caller could set to 0.01 — same posture as
+  // `promoteComponentWinner`'s replicate evidence. Provenance-checked: a
+  // battery whose receipt is not this run's own receipt object cannot lend
+  // its (possibly laxer) threshold to this run. Absent battery ⇒ 1, the
+  // pre-existing perfection bar.
+  if (battery !== undefined && !Object.is(battery.receipt, run.receipt)) {
+    throw new ExecutionOracleUnavailableError(
+      `battery "${battery.id}" is not the battery this run was scored against (receipt mismatch) — ` +
+        `its gateThreshold cannot govern this run`,
+    );
+  }
+  const gateThreshold = battery?.gateThreshold ?? 1;
 
   // Fail closed on a wiring bug: a verdict naming a task this run does not
   // have is not silently dropped.
@@ -304,7 +322,7 @@ export function mergeOracleVerdicts(run: BatteryRun, outcome: ExecutionOracleOut
   // `passedGate` (agent-runner.ts's own `!noArtifacts && testPassRate >= 1
   // && hackFindings.length === 0` is the first). Upgrade trigger: a third
   // consumer, at which point the composition moves into one shared helper.
-  const passedGate = run.result.passedGate && mergedPassRate >= 1;
+  const passedGate = run.result.passedGate && mergedPassRate >= gateThreshold;
 
   return {
     result: { ...run.result, testPassRate: mergedPassRate, passedGate },
