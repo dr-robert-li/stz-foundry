@@ -493,6 +493,81 @@ three-way split (task 4), and the round-2 pre-registration amendment gate
 `tournament-state.json` retained locally as resumable state (gitignored by
 design — the log carries every decision number).
 
+---
+
+# DECISIONS on tasks 2–4 (2026-08-01, on the full three-seed evidence)
+
+## Task 2 — `beatsIncumbent` noise margin: WARRANTED, replicate-evidence shape
+
+The evidence is direct: noise samples [0.0467, 0.1150, 0.0000], and the bare
+`>` would have banked seed 42's +0.1065 "win" — which a replicate of the
+unchanged baseline then outscored. A gate that promotes that is ratcheting on
+run-to-run variation.
+
+Two design constraints resolve the shape:
+
+1. **No caller-supplied margin number.** `promoteComponentWinner` accepts none
+   of its seven gate inputs as parameters precisely so no caller can assert a
+   gate true; a margin parameter is the same hole inverted — whoever supplies
+   it can set it to 0. Instead the gate accepts **replicate promotion runs**
+   (`BatteryRun[]`, real evidence) and computes the margin itself: the max
+   pairwise `evalReward` spread across `{promotionRun} ∪ replicates`. Evidence
+   in, boolean out — the `calibrationGate` shape every gate here copies.
+2. **The noise is not a constant.** It ranged 0.000–0.115 across three seeds of
+   the same battery, so any fixed number would be wrong somewhere. Measured
+   per-promotion-context or not at all.
+
+No replicates supplied ⇒ margin 0 ⇒ exactly today's behaviour — honest (no
+noise evidence, no margin) and backward compatible. Callers that want the
+guard pay for it in replicate runs, not in a trusted number.
+
+## Task 3 — stage-1 gate: WARRANTED, battery-declared threshold
+
+Corrected finding: `testPassRate >= 1` is not unconditionally unreachable — it
+is **draw-dependent saturation**. And the sharpest form of the problem: the
+gate admitted a candidate exactly once in this experiment, on seed 1234, **the
+seed that carried zero selection signal** (baseline perfect on both halves).
+At the agent-definition altitude, the perfection gate selects *for* saturated,
+uninformative batteries and *against* discriminating ones. `winner: null` in
+6/6 generations is the operational consequence.
+
+Shape: an optional `gateThreshold` on `AgentBattery`, **declared at
+construction** and validated by `makeBattery` (`0 < t <= 1`, default 1 —
+existing behaviour byte-identical). Construction is the right place because a
+battery is only constructable through the receipt/admission path under a
+human-accepted generator — the threshold travels with the accepted instrument,
+not with whoever happens to be running a selection. "Just lower the constant
+in `passedGate`" stays rejected: it would silently weaken the code altitude
+too.
+
+One consequence to carry into implementation honestly: a threshold for the
+data-ops battery is a **generator behaviour change**, so it cannot be slipped
+under the accepted v2 id — it lands with a fresh acceptance event (v2 entry
+amended by the human, or a v3 id), same discipline as the v1→v2 revision.
+
+## Task 4 — anti-overfitting search: WARRANTED in two parts, deferred in one
+
+- **Per-task promotion diagnostics — prerequisite, immediate.** The driver
+  stored only aggregates, so seed 7's tie cannot be decomposed into
+  same-task-failed vs different-tasks-failed, and the ceiling confound
+  (baseline 5/6 leaves one task of headroom) cannot be ruled in or out.
+  `BatteryTaskResult` already carries per-task data; the driver just has to
+  persist it. Round 2 does not run without this.
+- **Multi-warehouse worst-case search — the direct counter.** The measured
+  mechanism is reflection tuning a prompt against ONE warehouse's quirks
+  (diff-in-diff positive on every seed). Scoring each candidate on N≥2
+  independently-seeded search warehouses and selecting on the **min** attacks
+  exactly that. Costs N× search compute; round 2 budgets for N=2.
+- **Three-way split — DEFERRED.** Its purpose is early stopping monitored
+  without touching the promotion half; round 2 keeps a fixed 2-generation
+  horizon, so a validation set has no consumer yet. Build it when a variable
+  horizon exists, not before.
+- **Judged not applicable, recorded to close relitigating:** reward-model
+  ensembles (the oracle is constructed ground truth — no blind spots to
+  cancel), KL-to-base penalties (no token distribution at this altitude;
+  `interfaceParity` already bounds structural drift), action softening and
+  impact regularization (no action confidence, no environment).
+
 ## Prior arms
 
 This is consistent with `../EXPERIMENT-SUMMARY.md`: six arms, five substrates,
