@@ -402,6 +402,97 @@ Neither finding changes `src/` yet. They are recorded first because a gate
 change made mid-experiment, on the strength of one run, would be exactly the
 unprincipled drift this section is about.
 
+---
+
+# THE §3 TOURNAMENT — GATE NOT MET
+
+Run to completion 2026-07-31: `qwen3.6:latest`, seeds 7/42/1234, 4 candidates ×
+2 generations per seed, baseline = `s2-strong` (the strongest hand-written
+prompt), winner scored once on the held-out promotion half. ~17h wall-clock,
+local Ollama, $0. Fully checkpointed (`_tournament.ts`); the replicate units ran
+on a later resume that skipped all 21 completed units — resumability was used
+in anger, not just tested.
+
+## The numbers
+
+| seed | B_search | B_prom | B_prom (replicate) | W_search | W_prom | beats? |
+|---|---|---|---|---|---|---|
+| 7 | 0.7272 | 0.9250 | 0.8783 | 0.9408 | 0.9250 | no — exact tie |
+| 42 | 0.7750 | 0.8100 | **0.9250** | 1.0000 | 0.9165 | raw yes, +0.1065 |
+| 1234 | 1.0000 | 1.0000 | 1.0000 | 0.8875 | 0.8518 | no — baseline perfect |
+
+**§3 arithmetic: 1/3 raw wins (needs 3/3), 1 Goodharting seed → NOT MET.**
+
+## The noise floor killed the one win
+
+Identical baseline prompt, identical promotion half, re-scored:
+noise samples **[0.0467, 0.1150, 0.0000] → margin 0.1150**.
+
+- Seed 42's win was **+0.1065 — inside the margin**. 0/3 wins clear it.
+- Sharper than that: the seed-42 **replicate of the baseline (0.9250) beat the
+  tournament winner (0.9165) outright**. The "win" was the baseline having a
+  bad first run, not the winner being better.
+- Seed 7's replicate moved 0.9250 → 0.8783 with nothing changed, confirming the
+  exact `W = B` tie there was quantization coincidence, not stability.
+
+## Overfitting is systematic, not a one-seed fluke
+
+Diff-in-diff Goodhart excess (`(W_search − W_prom) − (B_search − B_prom)`,
+positive = the winner overfits the search half more than baseline does):
+
+**[+0.2136, +0.1186, +0.0357] — positive on every seed.**
+
+Reflection mutates a prompt from the execution trace of ONE warehouse's
+failures; the gains it buys are warehouse-specific and do not transfer to an
+independently seeded warehouse. Seed 7 is the clean exhibit: +0.21 on search,
++0.00 held out.
+
+## What this run also established
+
+- **The stage-1 claim needs qualifying.** Seed 1234's baseline scored 1.000 on
+  BOTH halves — `passedGate: true`. The `testPassRate >= 1` bar is not
+  unconditionally unreachable at this altitude; it is **draw-dependent**: an
+  easy warehouse admits it, a hard one forbids it. `winner: null` still
+  occurred in every generation of every seed (the population never cleared it),
+  so the practical consequence for tournaments stands, but the mechanism is
+  saturation variance across draws, not a fixed impossibility.
+- **Both halves at seed 1234 saturating for the baseline** also means that seed
+  contributed no selection signal at all: search could only match or lose.
+
+## Verdict
+
+**Phase 5 stays GATED**, per the pre-registered rule, on three independent
+grounds — any one suffices:
+
+1. measured Goodharting on seed 7 (§3 names this NOT met explicitly);
+2. 1/3 raw wins where 3/3 are required;
+3. 0/3 wins clear the measured noise floor.
+
+This is the strong form of the null the repo's prior arms kept finding: the
+machinery is honest, the instrument now discriminates, the search genuinely
+climbs — and the climb does not transfer. What phase 5 would automate is, on
+this evidence, automated overfitting.
+
+## What this does NOT show
+
+- It does not show prompt search can never transfer — 2 generations, 4
+  candidates, 1 search warehouse is a small search. It shows THIS search
+  overfits, and that the gate correctly refused it.
+- It does not show the battery is broken — the v2 battery did its job: it
+  discriminated (separation gate) and it caught non-transfer (split halves).
+  The instrument worked; the candidate improvement was not real.
+- The shipped promotion gate's refusal (no calibrated judge profile,
+  fail-closed `rubricCalibrated`) is independent of all of the above and was
+  reported alongside, never conflated.
+
+Follow-up work is tracked as tasks: the `beatsIncumbent` noise margin (task 2),
+the stage-1 altitude question (task 3, now with the draw-dependence
+correction), anti-overfitting search designs — multi-warehouse worst-case,
+three-way split (task 4), and the round-2 pre-registration amendment gate
+(task 5). Raw evidence: `tournament-progress.log` (committed);
+`tournament-state.json` retained locally as resumable state (gitignored by
+design — the log carries every decision number).
+
 ## Prior arms
 
 This is consistent with `../EXPERIMENT-SUMMARY.md`: six arms, five substrates,

@@ -1173,11 +1173,18 @@ order that **reversed between seeds**. The indicated fix was a **phase-3 battery
 revision**, which shipped: partial-credit scoring (`src/foundry/grade.ts`) and a
 non-prescriptive task prompt (`buildTasksV2`), under a separately human-accepted
 generator id. **On the v2 battery the gate passes** — spread 0.422 at >2 SE,
-with the strong arm beating both weaker arms on **all three seeds**. A
-tournament is therefore justified for the first time. **Phase 5 nonetheless
-remains gated**: a separation gate licenses a tournament, it does not replace
-one, and `PREREG.md` §3 unblocks phase 5 only on a real winner beating baseline
-on the held-out promotion half. See
+with the strong arm beating both weaker arms on **all three seeds** — and the
+**§3 tournament was then run in full** (3 seeds × 4 candidates × 2 reflective
+generations, ~17h local). **Result: GATE NOT MET, on three independent
+grounds**: measured Goodharting (seed 7: +0.21 on search, +0.00 held out), 1/3
+raw wins where 3/3 are required, and 0/3 wins clearing the measured
+identical-prompt noise floor (0.115) — the one raw win dissolved when a
+replicate of the unchanged baseline outscored the tournament winner. The
+diff-in-diff Goodhart excess was positive on every seed: reflective search
+reliably improves the half it can see and the gain does not transfer. **Phase 5
+stays gated** — on this evidence, what it would automate is automated
+overfitting. The instrument itself worked end to end (discrimination, split
+halves, checkpoint/resume), which is the real deliverable of this arm. See
 `experiments/dataops-agent-pilot/PILOT-RESULTS.md`. Full design:
 `docs/development/harness-factory.md`. The abstraction ladder: STZ makes code →
 the same tournament machinery can make *agents* (specimens write `agents/*.md`

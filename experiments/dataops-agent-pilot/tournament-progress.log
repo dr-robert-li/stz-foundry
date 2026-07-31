@@ -1,0 +1,86 @@
+[2026-07-31T03:25:12.535Z] # PREREG §3 tournament — model=qwen3.6:latest seeds=7,42,1234 generations=2
+[2026-07-31T03:25:12.536Z] START s7-baseline-search
+[2026-07-31T03:54:05.105Z] DONE  s7-baseline-search in 28.9min :: {"reward":0.7271587960210087,"testPassRate":0.39368621338001925,"passedGate":false}
+[2026-07-31T03:54:05.105Z] START s7-baseline-promotion
+[2026-07-31T04:12:07.377Z] DONE  s7-baseline-promotion in 18.0min :: {"reward":0.9249999999999999,"testPassRate":0.8333333333333334,"passedGate":false}
+[2026-07-31T04:12:07.377Z] START s7-gen0
+[2026-07-31T06:18:47.309Z] DONE  s7-gen0 in 126.7min :: {"rewards":[{"id":"cand-s0-minimal","reward":0.6625,"testPassRate":0.25},{"id":"cand-s1-plausible","reward":0.8102593384284916,"testPassRate":0.578354085396648},{"id":"cand-s2-strong","reward":0.787712143883759,"testPass
+[2026-07-31T06:18:47.309Z] START s7-mutate0
+[2026-07-31T06:21:45.170Z] DONE  s7-mutate0 in 3.0min :: {"prompts":{"cand-s0-minimal":"---\nname: data-ops-analyst\ntools: []\n---\nYou are a precision data operations specialist responsible for accurately recovering factual metrics from structured business datasets. Your pri
+[2026-07-31T06:21:45.170Z] START s7-gen1
+[2026-07-31T08:36:55.235Z] DONE  s7-gen1 in 135.2min :: {"rewards":[{"id":"cand-s0-minimal","reward":0.7375,"testPassRate":0.4166666666666667},{"id":"cand-s1-plausible","reward":0.9384448742188592,"testPassRate":0.8632108315974647},{"id":"cand-s2-strong","reward":0.9407691674
+[2026-07-31T08:36:55.236Z] START s7-winner-promotion
+[2026-07-31T08:58:00.871Z] DONE  s7-winner-promotion in 21.1min :: {"reward":0.9249999999999999,"testPassRate":0.8333333333333334,"passedGate":false}
+[2026-07-31T08:58:00.871Z] SEED 7 RESULT :: B_prom=0.9250 W_prom=0.9250 W_search=0.9408 gap=0.0158 beatsBaseline=false
+[2026-07-31T08:58:00.881Z] START s42-baseline-search
+[2026-07-31T09:26:36.620Z] DONE  s42-baseline-search in 28.6min :: {"reward":0.775,"testPassRate":0.5,"passedGate":false}
+[2026-07-31T09:26:36.621Z] START s42-baseline-promotion
+[2026-07-31T09:44:12.253Z] DONE  s42-baseline-promotion in 17.6min :: {"reward":0.8100475606106082,"testPassRate":0.5778834680235737,"passedGate":false}
+[2026-07-31T09:44:12.253Z] START s42-gen0
+[2026-07-31T11:47:53.337Z] DONE  s42-gen0 in 123.7min :: {"rewards":[{"id":"cand-s0-minimal","reward":0.7276678627174883,"testPassRate":0.3948174727055296},{"id":"cand-s1-plausible","reward":0.6134225658349984,"testPassRate":0.1409390351888852},{"id":"cand-s2-strong","reward":
+[2026-07-31T11:47:53.337Z] START s42-mutate0
+[2026-07-31T11:49:33.598Z] DONE  s42-mutate0 in 1.7min :: {"prompts":{"cand-s0-minimal":"---\nname: data-ops-analyst\ntools: []\n---\nYou are a precise data-operations agent tasked with exact fact recovery. For each request, compute and return the exact requested metrics (e.g.,
+[2026-07-31T11:49:33.598Z] START s42-gen1
+[2026-07-31T14:11:34.942Z] DONE  s42-gen1 in 142.0min :: {"rewards":[{"id":"cand-s0-minimal","reward":0.5951911334778286,"testPassRate":0.1004247410618412},{"id":"cand-s1-plausible","reward":0.8125000000000001,"testPassRate":0.5833333333333334},{"id":"cand-s2-strong","reward":
+[2026-07-31T14:11:34.942Z] START s42-winner-promotion
+[2026-07-31T14:39:52.561Z] DONE  s42-winner-promotion in 28.3min :: {"reward":0.9164937788438609,"testPassRate":0.8144306196530242,"passedGate":false}
+[2026-07-31T14:39:52.562Z] SEED 42 RESULT :: B_prom=0.8100 W_prom=0.9165 W_search=1.0000 gap=0.0835 beatsBaseline=true
+[2026-07-31T14:39:52.572Z] START s1234-baseline-search
+[2026-07-31T15:09:08.123Z] DONE  s1234-baseline-search in 29.3min :: {"reward":1,"testPassRate":1,"passedGate":true}
+[2026-07-31T15:09:08.123Z] START s1234-baseline-promotion
+[2026-07-31T15:27:22.307Z] DONE  s1234-baseline-promotion in 18.2min :: {"reward":1,"testPassRate":1,"passedGate":true}
+[2026-07-31T15:27:22.307Z] START s1234-gen0
+[2026-07-31T17:28:47.943Z] DONE  s1234-gen0 in 121.4min :: {"rewards":[{"id":"cand-s0-minimal","reward":0.6250000000000001,"testPassRate":0.16666666666666666},{"id":"cand-s1-plausible","reward":0.6625,"testPassRate":0.25},{"id":"cand-s2-strong","reward":0.775,"testPassRate":0.5}
+[2026-07-31T17:28:47.943Z] START s1234-mutate0
+[2026-07-31T17:30:55.968Z] DONE  s1234-mutate0 in 2.1min :: {"prompts":{"cand-s0-minimal":"---\nname: data-ops-analyst\ntools: []\n---\nYou are an expert data operations analyst specializing in precise fact recovery for the `data-ops-v2-search` dataset. Your sole purpose is to ac
+[2026-07-31T17:30:55.968Z] START s1234-gen1
+[2026-07-31T18:55:07.259Z] DONE  s1234-gen1 in 84.2min :: {"rewards":[{"id":"cand-s0-minimal","reward":0.8557454837446606,"testPassRate":0.679434408321468},{"id":"cand-s1-plausible","reward":0.7041214003421854,"testPassRate":0.3424920007604119},{"id":"cand-s2-strong","reward":0
+[2026-07-31T18:55:07.259Z] START s1234-winner-promotion
+[2026-07-31T19:26:14.713Z] DONE  s1234-winner-promotion in 31.1min :: {"reward":0.8518324002099528,"testPassRate":0.6707386671332284,"passedGate":false}
+[2026-07-31T19:26:14.713Z] SEED 1234 RESULT :: B_prom=1.0000 W_prom=0.8518 W_search=0.8875 gap=0.0357 beatsBaseline=false
+[2026-07-31T19:26:14.723Z] 
+## PREREG §3 decision
+[2026-07-31T19:26:14.723Z] seeds=3 winsOnPromotion=1 goodhartingSeeds=1
+[2026-07-31T19:26:14.723Z] search->promotion gaps: [0.0158 0.0835 0.0357]
+[2026-07-31T19:26:14.723Z] GATE NOT MET — measured Goodharting: a win on search that vanished on promotion (§3).
+[2026-07-31T19:26:14.723Z] NOTE: the shipped promotion gate additionally requires a calibrated judge profile, which
+[2026-07-31T19:26:14.723Z]       does not exist for this slice type — it refuses independently of the above.
+[2026-07-31T19:37:00.724Z] RESUME — 21 units already complete
+[2026-07-31T19:37:00.725Z] # PREREG §3 tournament — model=qwen3.6:latest seeds=7,42,1234 generations=2
+[2026-07-31T19:37:00.728Z] SKIP s7-baseline-search (already complete)
+[2026-07-31T19:37:00.728Z] SKIP s7-baseline-promotion (already complete)
+[2026-07-31T19:37:00.728Z] START s7-baseline-promotion-replicate
+[2026-07-31T20:00:54.641Z] DONE  s7-baseline-promotion-replicate in 23.9min :: {"reward":0.8783286745493858,"testPassRate":0.7296192767764129,"passedGate":false}
+[2026-07-31T20:00:54.641Z] SKIP s7-gen0 (already complete)
+[2026-07-31T20:00:54.641Z] SKIP s7-mutate0 (already complete)
+[2026-07-31T20:00:54.641Z] SKIP s7-gen1 (already complete)
+[2026-07-31T20:00:54.641Z] SKIP s7-winner-promotion (already complete)
+[2026-07-31T20:00:54.641Z] SEED 7 RESULT :: B_prom=0.9250 W_prom=0.9250 W_search=0.9408 gap=0.0158 beatsBaseline=false
+[2026-07-31T20:00:54.651Z] SKIP s42-baseline-search (already complete)
+[2026-07-31T20:00:54.651Z] SKIP s42-baseline-promotion (already complete)
+[2026-07-31T20:00:54.651Z] START s42-baseline-promotion-replicate
+[2026-07-31T20:43:34.535Z] DONE  s42-baseline-promotion-replicate in 42.7min :: {"reward":0.9249999999999999,"testPassRate":0.8333333333333334,"passedGate":false}
+[2026-07-31T20:43:34.535Z] SKIP s42-gen0 (already complete)
+[2026-07-31T20:43:34.535Z] SKIP s42-mutate0 (already complete)
+[2026-07-31T20:43:34.535Z] SKIP s42-gen1 (already complete)
+[2026-07-31T20:43:34.535Z] SKIP s42-winner-promotion (already complete)
+[2026-07-31T20:43:34.535Z] SEED 42 RESULT :: B_prom=0.8100 W_prom=0.9165 W_search=1.0000 gap=0.0835 beatsBaseline=true
+[2026-07-31T20:43:34.545Z] SKIP s1234-baseline-search (already complete)
+[2026-07-31T20:43:34.545Z] SKIP s1234-baseline-promotion (already complete)
+[2026-07-31T20:43:34.545Z] START s1234-baseline-promotion-replicate
+[2026-07-31T20:59:52.219Z] DONE  s1234-baseline-promotion-replicate in 16.3min :: {"reward":1,"testPassRate":1,"passedGate":true}
+[2026-07-31T20:59:52.219Z] SKIP s1234-gen0 (already complete)
+[2026-07-31T20:59:52.219Z] SKIP s1234-mutate0 (already complete)
+[2026-07-31T20:59:52.219Z] SKIP s1234-gen1 (already complete)
+[2026-07-31T20:59:52.219Z] SKIP s1234-winner-promotion (already complete)
+[2026-07-31T20:59:52.219Z] SEED 1234 RESULT :: B_prom=1.0000 W_prom=0.8518 W_search=0.8875 gap=0.0357 beatsBaseline=false
+[2026-07-31T20:59:52.229Z] 
+## PREREG §3 decision
+[2026-07-31T20:59:52.229Z] seeds=3 winsOnPromotion=1 goodhartingSeeds=1
+[2026-07-31T20:59:52.229Z] search->promotion gaps: [0.0158 0.0835 0.0357]
+[2026-07-31T20:59:52.229Z] identical-prompt noise samples: [0.0467 0.1150 0.0000] -> margin=0.1150
+[2026-07-31T20:59:52.229Z] wins clearing the noise margin: 0/3
+[2026-07-31T20:59:52.229Z] Goodhart excess-gap vs baseline (diff-in-diff): [0.2136 0.1186 0.0357]
+[2026-07-31T20:59:52.229Z] GATE NOT MET — measured Goodharting: a win on search that vanished on promotion (§3).
+[2026-07-31T20:59:52.229Z] NOTE: the shipped promotion gate additionally requires a calibrated judge profile, which
+[2026-07-31T20:59:52.229Z]       does not exist for this slice type — it refuses independently of the above.
