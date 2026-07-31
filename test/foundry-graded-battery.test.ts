@@ -20,6 +20,7 @@ import {
   buildTasks,
   buildTasksV2,
   generateFixtureBatteryV2,
+  generateFixtureSplitBatteryV2,
   generateWarehouse,
 } from "../src/foundry/fixture-warehouse.js";
 import type { CheckResult } from "../src/contract/predicate-eval.js";
@@ -303,6 +304,23 @@ describe("the v2 battery — less prescriptive prompt, graded revenue", () => {
     expect(() => acceptedGeneratorReceipt("data-ops-fixture-warehouse-generator-v3")).toThrow(
       /is not in ACCEPTED_GENERATORS/,
     );
+  });
+
+  it("the v2 split battery holds its promotion half genuinely disjoint", () => {
+    const split = generateFixtureSplitBatteryV2(7);
+    expect(split.search.id).not.toBe(split.promotion.id);
+    const searchIds = new Set(split.search.tasks.map((t) => t.id));
+    for (const task of split.promotion.tasks) expect(searchIds.has(task.id)).toBe(false);
+    // The two halves are drawn from INDEPENDENT warehouses, so overfitting to
+    // one half's quirks cannot transfer to the other. Different facts, not
+    // merely a partitioned task list.
+    expect(split.promotion.tasks.map((t) => t.checks[0]!.expect)).not.toEqual(
+      split.search.tasks.map((t) => t.checks[0]!.expect),
+    );
+    // Grading survives into both halves — a held-out half scored binarily
+    // while the search half is graded would compare two different metrics.
+    expect(split.search.tasks[0]!.grading).toHaveLength(1);
+    expect(split.promotion.tasks[0]!.grading).toHaveLength(1);
   });
 
   it("a v2 battery now constructs through the real admission path", () => {

@@ -623,3 +623,45 @@ export function generateFixtureSplitBattery(seed: number): SplitBattery {
     { id: promotionBattery.id, tasks: promotionBattery.tasks, receipt: promotionBattery.receipt },
   );
 }
+
+/**
+ * The v2 split battery — identical in structure to
+ * `generateFixtureSplitBattery` (two independently-seeded warehouses, the same
+ * `admitVerticalBattery` path, the same `makeSplitBattery` pair-level
+ * guarantees), differing only in the generator id and `buildTasksV2`.
+ *
+ * This is what a `PREREG.md` §3 tournament needs: the promotion half must be a
+ * genuinely held-out battery, never hill-climbed against, and the disjointness
+ * that guarantees it is enforced structurally by `makeSplitBattery` rather than
+ * by the caller remembering to hold something back.
+ */
+export function generateFixtureSplitBatteryV2(seed: number): SplitBattery {
+  const promotionSeed = derivePromotionSeed(seed);
+  const searchBatteryId = `data-ops-v2-search-${seed}`;
+  const promotionBatteryId = `data-ops-v2-promotion-${seed}`;
+
+  const searchWarehouse = generateWarehouse(seed);
+  const promotionWarehouse = generateWarehouse(promotionSeed);
+
+  const receipt = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_V2_ID);
+  requireGeneratorRooted(receipt, DATA_OPS_GENERATOR_V2_ID);
+
+  const searchTasks = buildTasksV2(searchWarehouse, `${searchBatteryId}::`);
+  const promotionTasks = buildTasksV2(promotionWarehouse, `${promotionBatteryId}::`);
+
+  const searchBattery = admitVerticalBattery("data-ops", {
+    id: searchBatteryId,
+    tasks: searchTasks,
+    receipt,
+  });
+  const promotionBattery = admitVerticalBattery("data-ops", {
+    id: promotionBatteryId,
+    tasks: promotionTasks,
+    receipt,
+  });
+
+  return makeSplitBattery(
+    { id: searchBattery.id, tasks: searchBattery.tasks, receipt: searchBattery.receipt },
+    { id: promotionBattery.id, tasks: promotionBattery.tasks, receipt: promotionBattery.receipt },
+  );
+}

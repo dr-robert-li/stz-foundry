@@ -6,3 +6,7 @@ coverage/
 .claude/
 docs/CLAUDE.md
 .planning/
+
+# Long-running experiment checkpoints — resumable state, not source of truth
+experiments/**/tournament-state.json
+experiments/**/smoke*-state.json
