@@ -1,0 +1,23 @@
+{
+  "granite4.1:30b": {
+    "sliceType": "component",
+    "scored": 19,
+    "dropped": 0,
+    "correct": 10,
+    "abstained": 0,
+    "accuracy": 0.5263157894736842,
+    "baselineAccuracy": 0.5789473684210527,
+    "consistency": 0.631578947368421,
+    "bucket": "low",
+    "batteryHash": "3a0b56d686e98015eb68f3d9a49aff20ba8d8b557718d4660fbde3708d41db83",
+    "entry": {
+      "sliceType": "component",
+      "consistency": 0.631578947368421,
+      "blindAccuracyBucket": "low",
+      "n": 19
+    },
+    "notes": [
+      "accuracy 0.526 does NOT beat the trivial fixed-preference baseline 0.579 (always prefer \"s42-gen0::cand-s2-strong\") — the judge is exploiting class imbalance, not discriminating; bucket forced to \"low\""
+    ]
+  }
+}

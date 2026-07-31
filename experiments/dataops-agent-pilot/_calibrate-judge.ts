@@ -53,14 +53,53 @@ const RESULT_PATH = join(HERE, "judge-calibration-result.json");
  */
 const EXCLUDED_JUDGE_MODELS = ["wp-judge"];
 
-const MODEL = process.env.CALIB_MODEL ?? "qwen3.6:latest";
-for (const banned of EXCLUDED_JUDGE_MODELS) {
-  if (MODEL.includes(banned)) {
-    throw new Error(
-      `[calibrate-judge] model ${JSON.stringify(MODEL)} is excluded: ${banned} is finetuned for an ` +
-        `unrelated domain and cannot serve as a general judge. Use a generalist model ` +
-        `(e.g. qwen3.6:latest).`,
-    );
+/**
+ * Default judge is CROSS-FAMILY from the candidate model.
+ *
+ * The tournament's candidates run on `qwen3.6`. Judging with that same model
+ * would put ranking and execution in one family — the self-preference shape
+ * the survey flags (RHO, `experiments/META-RSI-SURVEY.md`) — so the judge is a
+ * different family by default. This also matches the repo's own v1.1
+ * cross-family judge direction.
+ *
+ * Note the open question this makes measurable rather than assumed: granite
+ * FLOOR-SATURATES as a candidate on this battery (0.000 on every arm), so it
+ * demonstrably cannot DO the task. Whether it can nonetheless RANK definitions
+ * for it is a different competency, and exactly what the blind battery exists
+ * to find out. A "low" bucket here would be an informative result, not a
+ * failure of the experiment.
+ */
+/**
+ * The generalist judge candidates, in the order they are swept.
+ *
+ * All must be cross-family from the tournament's candidate model (`qwen3.6`),
+ * so ranking and execution never sit in one family — the self-preference
+ * shape the survey flags (RHO, `experiments/META-RSI-SURVEY.md`), and the
+ * repo's own v1.1 cross-family judge direction.
+ *
+ * A model absent from `ollama list` is skipped with a note rather than
+ * failing the sweep, so this list can name models that are still being pulled.
+ */
+export const JUDGE_CANDIDATES = [
+  "granite4.1:30b",
+  "nemotron3:33b",
+  "gpt-oss:20b",
+  "gemma4:31b",
+];
+
+const MODELS = (process.env.CALIB_MODELS ?? process.env.CALIB_MODEL ?? JUDGE_CANDIDATES.join(","))
+  .split(",")
+  .map((m) => m.trim())
+  .filter((m) => m !== "");
+for (const model of MODELS) {
+  for (const banned of EXCLUDED_JUDGE_MODELS) {
+    if (model.includes(banned)) {
+      throw new Error(
+        `[calibrate-judge] model ${JSON.stringify(model)} is excluded: ${banned} is finetuned for ` +
+          `an unrelated domain and cannot serve as a general judge. Use a generalist model ` +
+          `(one of: ${JUDGE_CANDIDATES.join(", ")}).`,
+      );
+    }
   }
 }
 const BASE_URL = process.env.CALIB_BASE_URL ?? "http://localhost:11434/v1";
@@ -155,13 +194,14 @@ const JUDGE_SYSTEM = [
  *  is the order-invariance perturbation `consistencyScore` measures. */
 async function askJudge(
   provider: ReturnType<typeof createProvider>,
+  model: string,
   winnerPrompt: string,
   loserPrompt: string,
   swap: boolean,
 ): Promise<"winner" | "loser" | null> {
   const [first, second] = swap ? [loserPrompt, winnerPrompt] : [winnerPrompt, loserPrompt];
   const res = await provider.chat({
-    model: MODEL,
+    model,
     system: JUDGE_SYSTEM,
     messages: [{ role: "user", content: `Definition A:\n${first}\n\n---\n\nDefinition B:\n${second}` }],
   });
@@ -172,6 +212,14 @@ async function askJudge(
   if (pick === null) return null;
   const choseFirst = pick === "A";
   return swap ? (choseFirst ? "loser" : "winner") : choseFirst ? "winner" : "loser";
+}
+
+/** Installed model tags, so an absent candidate is SKIPPED with a note rather
+ *  than failing the sweep — the list can name models still being pulled. */
+async function listInstalledModels(): Promise<string[]> {
+  const res = await fetch(`${BASE_URL.replace(/\/v1$/, "")}/api/tags`);
+  const body = (await res.json()) as { models?: { name: string }[] };
+  return (body.models ?? []).map((m) => m.name);
 }
 
 const main = async () => {
@@ -203,55 +251,87 @@ const main = async () => {
         `  recorded:   ${battery.batteryHash}\n  recomputed: ${recomputed}`,
     );
   }
-  console.log(`# Judge calibration — model=${MODEL} pairs=${battery.pairs.length}`);
-  console.log(`  battery hash verified: ${battery.batteryHash}\n`);
+  console.log(`# Judge calibration — battery ${battery.pairs.length} pairs`);
+  console.log(`  hash verified: ${battery.batteryHash}`);
+  console.log(`  sweeping: ${MODELS.join(", ")}\n`);
 
   const provider = createProvider({ kind: "openai", baseUrl: BASE_URL });
-  const scored: BlindPair[] = [];
-  for (const [i, p] of battery.pairs.entries()) {
-    const t0 = Date.now();
-    const direct = await askJudge(provider, p.winnerPrompt, p.loserPrompt, false);
-    const swapped = await askJudge(provider, p.winnerPrompt, p.loserPrompt, true);
-    // An unparseable verdict is PASSED THROUGH as null, never dropped. Two
-    // runs over this same frozen battery abstained on 1 and 4 pairs, and three
-    // of those four were pairs the judge had answered wrong on the other run —
-    // excluding them lifted accuracy 0.722 -> 0.933 with no improvement in
-    // judging. The scorer counts null as incorrect.
-    scored.push({
-      pairId: p.pairId,
-      oracleWinner: p.oracleWinner,
-      oracleLoser: p.oracleLoser,
-      gap: p.gap,
-      judgeVerdict: direct === null ? null : direct === "winner" ? p.oracleWinner : p.oracleLoser,
-      ...(swapped !== null
-        ? { judgeVerdictSwapped: swapped === "winner" ? p.oracleWinner : p.oracleLoser }
-        : {}),
-    });
-    console.log(
-      `  [${i + 1}/${battery.pairs.length}] ${p.pairId}: judge=${direct ?? "ABSTAINED"} ` +
-        `swapped=${swapped ?? "unparseable"} (${((Date.now() - t0) / 1000).toFixed(0)}s)`,
-    );
+  const installed = await listInstalledModels();
+  const all: Record<string, unknown> = existsSync(RESULT_PATH)
+    ? JSON.parse(readFileSync(RESULT_PATH, "utf8"))
+    : {};
+
+  for (const model of MODELS) {
+    if (!installed.some((m) => m === model || m.startsWith(model.split(":")[0] + ":"))) {
+      console.log(`  SKIP ${model} — not installed (still pulling?)`);
+      continue;
+    }
+    if (all[model] && !process.env.CALIB_FORCE) {
+      console.log(`  SKIP ${model} — already scored (set CALIB_FORCE=1 to redo)`);
+      continue;
+    }
+    console.log(`\n## ${model}`);
+    const scored: BlindPair[] = [];
+    for (const [i, p] of battery.pairs.entries()) {
+      const t0 = Date.now();
+      const direct = await askJudge(provider, model, p.winnerPrompt, p.loserPrompt, false);
+      const swapped = await askJudge(provider, model, p.winnerPrompt, p.loserPrompt, true);
+      // An unparseable verdict is PASSED THROUGH as null, never dropped —
+      // dropping them biases accuracy upward whenever abstention tracks
+      // difficulty, which it measurably did on the voided first run.
+      scored.push({
+        pairId: p.pairId,
+        oracleWinner: p.oracleWinner,
+        oracleLoser: p.oracleLoser,
+        gap: p.gap,
+        judgeVerdict: direct === null ? null : direct === "winner" ? p.oracleWinner : p.oracleLoser,
+        ...(swapped !== null
+          ? { judgeVerdictSwapped: swapped === "winner" ? p.oracleWinner : p.oracleLoser }
+          : {}),
+      });
+      console.log(
+        `  [${i + 1}/${battery.pairs.length}] ${p.pairId}: judge=${direct ?? "ABSTAINED"} ` +
+          `swapped=${swapped ?? "unparseable"} (${((Date.now() - t0) / 1000).toFixed(0)}s)`,
+      );
+    }
+    try {
+      // The scorer re-applies the gap filter itself, so an excluded pair
+      // cannot sneak in via a hand-edited battery file.
+      const result = scoreCalibrationBattery(battery.sliceType, scored, battery.minGap);
+      all[model] = result;
+      writeFileSync(RESULT_PATH, JSON.stringify(all, null, 2));
+      console.log(
+        `  => accuracy ${result.correct}/${result.scored} = ${result.accuracy.toFixed(3)} -> ` +
+          `${result.bucket} (baseline ${result.baselineAccuracy.toFixed(3)}, abstentions ` +
+          `${result.abstained}, consistency ${result.consistency.toFixed(3)})`,
+      );
+      for (const n of result.notes) console.log(`     note: ${n}`);
+    } catch (e) {
+      console.log(`  => REFUSED: ${(e as Error).message}`);
+      all[model] = { error: (e as Error).message };
+      writeFileSync(RESULT_PATH, JSON.stringify(all, null, 2));
+    }
   }
 
-  // NOTE: the scorer re-applies the gap filter itself, so an excluded pair
-  // cannot sneak in via a hand-edited battery file.
-  const result = scoreCalibrationBattery(battery.sliceType, scored, battery.minGap);
-  writeFileSync(RESULT_PATH, JSON.stringify({ model: MODEL, ...result }, null, 2));
-
-  console.log(`\n## Result — judge "${MODEL}" on sliceType "${result.sliceType}"`);
-  console.log(`  scored ${result.scored} pairs (${result.dropped} dropped as indiscriminable)`);
-  console.log(
-    `  accuracy    ${result.correct}/${result.scored} = ${result.accuracy.toFixed(3)} -> ${result.bucket} ` +
-      `(trivial-preference baseline ${result.baselineAccuracy.toFixed(3)}, abstentions ${result.abstained})`,
+  console.log(`\n## Comparison — sliceType "${battery.sliceType}"`);
+  console.log("| judge | accuracy | baseline | beats? | abstained | consistency | bucket |");
+  console.log("|---|---|---|---|---|---|---|");
+  for (const [model, r] of Object.entries(all)) {
+    const x = r as Record<string, number | string>;
+    if (x.error !== undefined) {
+      console.log(`| ${model} | — | — | — | — | — | refused |`);
+      continue;
+    }
+    const beats = (x.accuracy as number) > (x.baselineAccuracy as number) ? "yes" : "**no**";
+    console.log(
+      `| ${model} | ${(x.accuracy as number).toFixed(3)} | ${(x.baselineAccuracy as number).toFixed(3)} | ` +
+        `${beats} | ${x.abstained} | ${(x.consistency as number).toFixed(3)} | ${x.bucket} |`,
+    );
+  }
+  const pending = MODELS.filter(
+    (m) => !all[m] && !installed.some((i) => i === m || i.startsWith(m.split(":")[0] + ":")),
   );
-  console.log(`  consistency ${result.consistency.toFixed(3)}`);
-  for (const n of result.notes) console.log(`  note: ${n}`);
-  console.log(`\n  profile entry: ${JSON.stringify(result.entry)}`);
-  console.log(
-    result.bucket === "low"
-      ? "  => judge REFUSED for promotion steering. Correct: a coin-flip ranker must not steer."
-      : "  => judge is calibrated for this slice type on this battery.",
-  );
+  if (pending.length > 0) console.log(`\nstill not installed: ${pending.join(", ")}`);
 };
 
 main().catch((e) => {
