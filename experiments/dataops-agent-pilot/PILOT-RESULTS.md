@@ -328,6 +328,80 @@ took ~8.8 h, so N specimens × generations × a split battery is **days** of
 wall-clock, unattended and $0. It should be scheduled as a long-running detached
 job, not run in-session.
 
+---
+
+# TWO SELECTION-GATE FINDINGS, found by running the tournament
+
+Both are about the *gates*, not the battery, and both were surfaced by real
+numbers from the §3 run rather than by reading the code.
+
+## 1. The absolute eval gate is unreachable at this altitude
+
+`select()`'s stage-1 filter keeps only specimens with `passedGate`, which needs
+`testPassRate >= 1` — a **perfect** battery. Generation 0 of seed 7 scored
+0.250 / 0.578 / 0.528 / 0.530, so `judgment.winner` came back **`null`**: every
+candidate eliminated, nothing to rank.
+
+That absolute bar is correct at STZ's code altitude — shipping code that fails
+its own tests is not acceptable, so "must pass everything" is the right stage-1
+filter. At the **agent-definition** altitude it is wrong: fitness is a graded
+competence score that no local model reaches 1.0 on, so stage 1 deletes the
+entire population before the relative stage can rank anything.
+
+Consequence, stated plainly: **on this battery a component tournament can never
+promote anything, however good the search is.** That is a property of the gate,
+not of the candidates.
+
+The experiment driver therefore selects best-by-reward rather than bailing on a
+null winner — a deliberate divergence from `runComponentTournament`, recorded
+here because it is what makes the §3 measurement obtainable at all.
+
+## 2. `beatsIncumbent` is a bare `>`, and that ratchets on noise
+
+`promoteComponentWinner` computes `beatsIncumbent = promotionFitness >
+incumbentFitness`. Relative-to-incumbent is the right *shape* at this altitude
+— the goal is consistently above the existing definition, not above a fixed bar
+— but a bare `>` promotes on any epsilon.
+
+Measured against this run's own noise, that is too much leeway. An accidental
+control appeared in seed 7: `BASELINE` and `cand-s2-strong` are the **identical
+prompt** on the **identical** search battery, and scored:
+
+| | reward | testPassRate |
+|---|---|---|
+| `B_search` | 0.7272 | 0.3937 |
+| `cand-s2-strong` | 0.7877 | 0.5282 |
+| **delta** | **0.0606** | **0.1345** |
+
+Same input, 0.13 apart on `testPassRate` — larger than most plausible search
+gains. Under a bare `>`, a candidate genuinely equal to the incumbent wins
+roughly half the time, and because each winner becomes the next incumbent, those
+noise wins compound into a random walk with selected-max bias. That is the
+winner's curse, and it is how a purely relative gate drifts.
+
+**The guard against that drift is not an absolute bar — it is a noise-aware
+margin on the relative one**, plus the held-out comparison `PREREG.md` §3
+already mandates. The two constraints do different jobs: held-out kills
+search-Goodharting, the margin kills promotion-on-noise. So the driver now:
+
+- re-scores the identical baseline on the identical promotion half
+  (`s<seed>-baseline-promotion-replicate`), making the noise floor **measured**
+  rather than assumed;
+- requires `W_promotion > B_promotion + margin`, where `margin` is the largest
+  observed identical-prompt spread;
+- reports the raw and margin-cleared verdicts separately, so a win that exists
+  only under the bare `>` is visible as such rather than banked.
+
+It also reports Goodharting as a **difference-in-differences** against the
+baseline's own gap. The two halves are not equally hard — the same baseline
+scored 0.394 on search and 0.833 on promotion for seed 7 — so reading the raw
+`searchPromotionGap` against zero would mistake half-difficulty for
+Goodharting. Only `W`'s excess gap over `B`'s is attributable to search.
+
+Neither finding changes `src/` yet. They are recorded first because a gate
+change made mid-experiment, on the strength of one run, would be exactly the
+unprincipled drift this section is about.
+
 ## Prior arms
 
 This is consistent with `../EXPERIMENT-SUMMARY.md`: six arms, five substrates,

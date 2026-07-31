@@ -204,6 +204,21 @@ const main = async () => {
       scoreOn(BASELINE, split.promotion),
     );
 
+    // ── NOISE CONTROL. The identical BASELINE prompt, scored a SECOND time on
+    //    the SAME promotion half. Nothing differs but the model's own
+    //    run-to-run variation, so |rep - orig| is a direct sample of the noise
+    //    floor on the half the §3 decision turns on.
+    //
+    //    This exists because `beatsIncumbent` is a bare `>`: any epsilon wins.
+    //    An accidental control earlier in this run (BASELINE vs the identical
+    //    `cand-s2-strong`, same search battery) differed by 0.13 testPassRate —
+    //    larger than most plausible search gains. Without measuring that, a
+    //    narrow `W > B` is indistinguishable from the model having a good day,
+    //    and promoting on it is how a relative gate ratchets on noise.
+    const bPromotionRep = await once(state, `s${seed}-baseline-promotion-replicate`, async () =>
+      scoreOn(BASELINE, split.promotion),
+    );
+
     // ── Bounded search on the SEARCH half only. The promotion half is never
     //    in scope inside this loop — `runSearchGeneration` takes a plain
     //    AgentBattery, so that is structural, not discipline.
@@ -300,10 +315,15 @@ const main = async () => {
     const gap = wSearchReward - wPromReward;
     const beatsBaseline = wPromReward > bPromReward;
 
+    const bPromRepReward = bPromotionRep.reward as number;
+    const noiseSample = Math.abs(bPromRepReward - bPromReward);
+
     perSeed[seed] = {
       winnerId: best.id,
       B_search: bSearch.reward,
       B_promotion: bPromReward,
+      B_promotion_replicate: bPromRepReward,
+      noiseSample,
       W_search: wSearchReward,
       W_promotion: wPromReward,
       searchPromotionGap: gap,
@@ -338,12 +358,42 @@ const main = async () => {
     (s) => (s.W_search as number) > (s.B_search as number) && (s.W_promotion as number) <= (s.B_promotion as number),
   ).length;
 
+  // ── The noise floor, MEASURED. Each seed re-scored the identical baseline
+  //    prompt on the identical promotion half; the spread between those two is
+  //    pure run-to-run variation. A "win" narrower than this is the model
+  //    having a good day, not a better agent definition.
+  const noise = summaries.map((s) => s.noiseSample as number).filter((n) => Number.isFinite(n));
+  const margin = noise.length > 0 ? Math.max(...noise) : 0;
+  const winsWithMargin = summaries.filter(
+    (s) => (s.W_promotion as number) > (s.B_promotion as number) + margin,
+  ).length;
+
   log(`seeds=${summaries.length} winsOnPromotion=${wins} goodhartingSeeds=${goodharting}`);
   log(`search->promotion gaps: [${gaps.map((g) => g.toFixed(4)).join(" ")}]`);
+  log(`identical-prompt noise samples: [${noise.map((n) => n.toFixed(4)).join(" ")}] -> margin=${margin.toFixed(4)}`);
+  log(`wins clearing the noise margin: ${winsWithMargin}/${summaries.length}`);
+
+  // Difference-in-differences, because the two halves are NOT equally hard
+  // (seed 7: the same baseline scored 0.394 search vs 0.833 promotion). Reading
+  // the raw search->promotion gap against zero would mistake half-difficulty
+  // for Goodharting. B's own gap is the offset; only W's EXCESS over it is
+  // attributable to search.
+  const dind = summaries.map(
+    (s) =>
+      ((s.W_search as number) - (s.W_promotion as number)) -
+      ((s.B_search as number) - (s.B_promotion as number)),
+  );
+  log(`Goodhart excess-gap vs baseline (diff-in-diff): [${dind.map((d) => d.toFixed(4)).join(" ")}]`);
+
   if (goodharting > 0) {
     log("GATE NOT MET — measured Goodharting: a win on search that vanished on promotion (§3).");
+  } else if (winsWithMargin === summaries.length) {
+    log("GATE MET on the §3 arithmetic — W_promotion beat B_promotion by more than the measured");
+    log("      noise floor on every seed.");
   } else if (wins === summaries.length) {
-    log("GATE MET on the §3 arithmetic — W_promotion > B_promotion on every seed.");
+    log(`GATE NOT MET — W_promotion > B_promotion on all ${wins} seeds, but only ${winsWithMargin} cleared`);
+    log("      the measured noise margin. A bare `>` here would be promoting on run-to-run variation:");
+    log("      that is how a relative gate ratchets on noise, and it is not a gain.");
   } else {
     log(`GATE NOT MET — W_promotion beat B_promotion on ${wins}/${summaries.length} seeds; §3 needs all.`);
   }
