@@ -237,6 +237,97 @@ buys a stable gradient. **That is an open empirical question, not a claim** —
 partial credit removes the 0.167 quantum by construction, but whether prompt
 quality then separates sign-consistently across seeds can only be measured.
 
+---
+
+# THE v2 SEPARATION GATE — the revision works
+
+`DATA_OPS_GENERATOR_V2_ID` accepted by Dr. Robert Li 2026-07-31. Gate re-run in
+full: 3 arms × 3 pre-registered seeds × 6 tasks = 54 tasks, `qwen3.6:latest`,
+local Ollama, $0, ~8.8 h.
+
+| arm | seed 7 | seed 42 | seed 1234 | mean | (v1 mean) |
+|---|---|---|---|---|---|
+| `s0-minimal` | 0.518 | 0.333 | 0.333 | **0.395** | 0.778 |
+| `s1-plausible` | 0.534 | 0.193 | 0.250 | **0.326** | 0.722 |
+| `s2-strong` | 0.833 | 0.540 | 0.869 | **0.747** | 0.833 |
+
+**SPREAD = 0.422**, against SE(diff) 0.151 — more than 2 SE.
+
+## The test that actually matters: sign consistency
+
+v1 failed not on spread but on an ordering that reversed between seeds. v2 does
+not reverse:
+
+| comparison | seed 7 | seed 42 | seed 1234 | consistent? |
+|---|---|---|---|---|
+| `s2 − s0` | +0.315 | +0.207 | +0.536 | **3/3** |
+| `s2 − s1` | +0.299 | +0.347 | +0.619 | **3/3** |
+| `s0 − s1` | −0.016 | +0.140 | +0.083 | 2/3 |
+
+The strong arm beats **both** weaker arms on **every seed**. `s0` vs `s1` is not
+sign-consistent — but their means differ by 0.069, well inside one SE, so they
+are statistically indistinguishable and their ordering is noise. That is the
+expected shape: the two weak prompts are equivalent, and the strong one is not.
+
+Paired across seeds (n=3): `s2 − s0` mean +0.353, `s2 − s1` mean +0.422, both
+with all three differences positive. With only three seeds a paired t sits at
+p ≈ 0.05–0.07 — **sign consistency, not formal significance, is what carries
+this**, and that is what the decision rule asked for.
+
+## Why the revision produced this
+
+Both mechanisms did what they were built to do:
+
+1. **Removing the methodology from the prompt created headroom.** Under v1 the
+   minimal prompt scored 0.778 against the strong prompt's 0.833 — the task text
+   had already said everything a system prompt could add. Under v2 the same
+   minimal prompt scores 0.395 while the strong prompt holds 0.747. The task got
+   harder for an unguided candidate and stayed tractable for a guided one, which
+   is exactly the gap a search needs.
+2. **Partial credit recovered information exact matching destroyed.**
+   `s1-plausible` on seed 1234 scored **0/6 exact** — under v1 that is 0.000,
+   indistinguishable from a candidate that understood nothing. Graded, it is
+   0.250, because three of its answers were within 10%. Fractional scores
+   (0.11, 0.16, 0.20, 0.21, 0.24, 0.50) appear throughout; every one of them was
+   a flat 0 under v1.
+
+## Caveats, recorded because they qualify the result
+
+- **n=3 seeds.** The effect is large and sign-consistent, but three seeds is
+  three seeds.
+- **The SE is conservative, in our favour.** The gate computes a *binomial* SE,
+  which assumes binary outcomes. Scores are now continuous in [0,1], where the
+  Bernoulli variance is an upper bound — so the real standard error is smaller
+  than 0.151 and the test is harder to pass than it needs to be.
+- **Formatting failures persist and confound, also in our favour.** Four cells
+  show a `NO artifact` task. In `s2-strong` seed 7 the arm's single 0.00 *is*
+  that formatting failure (5/6 exact, one no-artifact, one zero) — so correcting
+  for it would raise `s2` further and widen the gap. Removing prose from the
+  prompt appears to have cost some format discipline even though the fence
+  contract is still stated verbatim; under v1 `s1`/`s2` had zero no-fence.
+- The gate's verdict line still only checks the error bar. Sign consistency was
+  checked separately, by hand, from the per-seed table — which remains the
+  operative rule.
+
+## What this does and does not unblock
+
+**A tournament is now justified.** The battery discriminates: rates sit inside
+`0 < rate < 1`, the arms separate by more than 2 SE, and the ordering holds its
+sign across every seed. `PREREG.md` §1's precondition — *"a tournament can only
+select if the battery discriminates"* — is satisfied for the first time.
+
+**Phase 5 is still GATED.** A separation gate justifies a tournament; it is not
+a substitute for one. `PREREG.md` §3 unblocks phase 5 only on
+`W_promotion > B_promotion` — a real tournament winner beating baseline on the
+**held-out promotion** half, across ≥3 seeds, with the search→promotion gap
+recorded and a win-on-search-that-vanishes-on-promotion counted as **NOT met**.
+No tournament has been run. Nothing here speaks to that.
+
+Cost estimate for the tournament, at the measured ~9.8 min/task: a 54-task gate
+took ~8.8 h, so N specimens × generations × a split battery is **days** of
+wall-clock, unattended and $0. It should be scheduled as a long-running detached
+job, not run in-session.
+
 ## Prior arms
 
 This is consistent with `../EXPERIMENT-SUMMARY.md`: six arms, five substrates,

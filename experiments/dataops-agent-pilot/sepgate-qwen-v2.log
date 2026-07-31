@@ -1,0 +1,39 @@
+# Separation gate — data-ops battery vs system-prompt quality
+model: qwen3.6:latest (local Ollama) · generator: v2 · seeds: 7, 42, 1234 · taskTimeoutMs: 3600000 · concurrency: 1
+
+  s0-minimal seed 7: 3/6 exact (rate 0.518) scores [0.11 0.00 1.00 1.00 0.00 1.00]
+    !! 1/6 tasks produced NO artifact (formatting, not arithmetic)
+  s0-minimal seed 42: 2/6 exact (rate 0.333) scores [0.00 0.00 0.00 1.00 0.00 1.00]
+    !! 2/6 tasks produced NO artifact (formatting, not arithmetic)
+  s0-minimal seed 1234: 2/6 exact (rate 0.333) scores [0.00 0.00 1.00 0.00 0.00 1.00]
+  s1-plausible seed 7: 2/6 exact (rate 0.534) scores [0.00 1.00 1.00 0.20 0.50 0.50]
+    !! 1/6 tasks produced NO artifact (formatting, not arithmetic)
+  s1-plausible seed 42: 1/6 exact (rate 0.193) scores [0.00 0.00 1.00 0.16 0.00 0.00]
+  s1-plausible seed 1234: 0/6 exact (rate 0.250) scores [0.00 0.00 0.00 0.50 0.50 0.50]
+  s2-strong seed 7: 5/6 exact (rate 0.833) scores [1.00 1.00 1.00 1.00 1.00 0.00]
+    !! 1/6 tasks produced NO artifact (formatting, not arithmetic)
+  s2-strong seed 42: 3/6 exact (rate 0.540) scores [0.00 1.00 1.00 0.24 0.00 1.00]
+  s2-strong seed 1234: 5/6 exact (rate 0.869) scores [0.21 1.00 1.00 1.00 1.00 1.00]
+
+| arm | seed | tasks | passed | testPassRate |
+|---|---|---|---|---|
+| s0-minimal | 7 | 6 | 3 | 0.518 |
+| s0-minimal | 42 | 6 | 2 | 0.333 |
+| s0-minimal | 1234 | 6 | 2 | 0.333 |
+| s1-plausible | 7 | 6 | 2 | 0.534 |
+| s1-plausible | 42 | 6 | 1 | 0.193 |
+| s1-plausible | 1234 | 6 | 0 | 0.250 |
+| s2-strong | 7 | 6 | 5 | 0.833 |
+| s2-strong | 42 | 6 | 3 | 0.540 |
+| s2-strong | 1234 | 6 | 5 | 0.869 |
+
+## Means across seeds
+
+  s0-minimal     mean=0.395  (minimal (no domain guidance at all))
+  s1-plausible   mean=0.326  (plausible generic analyst framing)
+  s2-strong      mean=0.747  (strong, methodology made explicit)
+
+  SPREAD (max-min of arm means) = 0.422
+  n=18 tasks/arm · quantum=0.167 · SE(diff)=0.151
+  => SEPARATION EXISTS (0.422 > 2 SE). Verify the ordering is
+     sign-consistent across seeds before running a tournament.
