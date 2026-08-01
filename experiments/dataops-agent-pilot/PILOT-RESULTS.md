@@ -675,16 +675,38 @@ the line.
 
 | judge | accuracy | trivial baseline | beats? | abstained | consistency | bucket |
 |---|---|---|---|---|---|---|
-| `granite4.1:30b` | 0.526 | 0.579 | **no** | 0 | 0.632 | **low** |
+| `granite4.1:30b` | 0.526 | 0.579 | **no** | 0 | 0.632 | **low** — refused |
+| `nemotron3:33b` | **0.737** | 0.579 | yes (+0.158) | 0 | 0.842 | **medium** — calibrated |
 
-`granite4.1:30b` is **refused** for promotion steering, and both guards fire
-independently: it fails the beat-the-baseline bar and it is order-inconsistent
-(0.632, below the 0.7 trust threshold). Zero abstentions, so this measures the
-model rather than an artifact of selective non-answering.
+**`rubricCalibrated` can now be earned.** `nemotron3:33b` is the first judge to
+clear every guard: it beats the trivial fixed-preference baseline by 0.158, it
+is order-consistent at 0.842 (above the 0.7 trust threshold), and it abstained
+on nothing. Fed into `calibrationGate` this returns `calibrated: true` — the
+first time that gate has ever passed, after refusing in both tournament rounds
+for want of a battery that had never been authored.
 
-This also settles a question that was open rather than assumed: granite
-floor-saturates as a CANDIDATE on this battery (0.000 on every arm), so it
-demonstrably cannot DO the task. Whether it could nonetheless RANK definitions
-for it is a different competency. Measured answer: no.
+**Stated with its error bar, because n=19 is small.** 14/19 = 0.737 has a
+binomial SE of 0.101, so the 95% CI is [0.539, 0.935] and the 0.7 trust
+threshold sits *inside* it. This is evidence the judge discriminates, not proof
+it is reliable. The honest reading: good enough to stop being fail-closed for
+want of any evidence at all, not good enough to lean on hard. Growing the
+battery is the obvious follow-up and is cheap — round 2 is generating more
+recorded pairs as it runs.
+
+### The finding underneath: judging and doing are different competencies
+
+Both directions are now measured on the same battery, which is worth more than
+either result alone:
+
+| model | can it DO the data-ops task? | can it RANK definitions for it? |
+|---|---|---|
+| `granite4.1:30b` | **no** — floor-saturates, 0.000 on every arm | **no** — 0.526, below the trivial baseline |
+| `nemotron3:33b` | **no** — 3220s then unparseable output as a candidate | **yes** — 0.737, beats baseline, order-consistent |
+
+`nemotron3` was written off earlier in this arm as "unusable", and that verdict
+was correct *for the candidate role* and wrong as a general statement about the
+model. A model that cannot solve a task can still rank solutions to it — which
+is the entire premise of a judge, and is why the cross-family judge is worth
+having rather than reusing the candidate model.
 
 Remaining candidates are swept as they land.

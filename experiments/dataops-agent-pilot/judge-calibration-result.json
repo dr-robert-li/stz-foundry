@@ -19,5 +19,24 @@
     "notes": [
       "accuracy 0.526 does NOT beat the trivial fixed-preference baseline 0.579 (always prefer \"s42-gen0::cand-s2-strong\") — the judge is exploiting class imbalance, not discriminating; bucket forced to \"low\""
     ]
+  },
+  "nemotron3:33b": {
+    "sliceType": "component",
+    "scored": 19,
+    "dropped": 0,
+    "correct": 14,
+    "abstained": 0,
+    "accuracy": 0.7368421052631579,
+    "baselineAccuracy": 0.5789473684210527,
+    "consistency": 0.8421052631578947,
+    "bucket": "medium",
+    "batteryHash": "3a0b56d686e98015eb68f3d9a49aff20ba8d8b557718d4660fbde3708d41db83",
+    "entry": {
+      "sliceType": "component",
+      "consistency": 0.8421052631578947,
+      "blindAccuracyBucket": "medium",
+      "n": 19
+    },
+    "notes": []
   }
 }

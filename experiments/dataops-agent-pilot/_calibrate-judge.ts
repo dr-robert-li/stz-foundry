@@ -301,11 +301,19 @@ const main = async () => {
     ? JSON.parse(readFileSync(RESULT_PATH, "utf8"))
     : {};
 
-  for (const model of MODELS) {
-    if (!installed.some((m) => m === model || m.startsWith(model.split(":")[0] + ":"))) {
-      console.log(`  SKIP ${model} — not installed (still pulling?)`);
+  for (const wanted of MODELS) {
+    // Resolve to the tag actually installed. A pull may land under a
+    // different tag than the one named here (gpt-oss:20b arriving as
+    // gpt-oss:latest), and matching loosely while CALLING the requested name
+    // produces a 404 mid-sweep — which is how a candidate silently goes
+    // unscored. Match on the family, then use the installed tag verbatim.
+    const family = wanted.split(":")[0]!;
+    const model = installed.find((m) => m === wanted) ?? installed.find((m) => m.startsWith(family + ":"));
+    if (model === undefined) {
+      console.log(`  SKIP ${wanted} — not installed (still pulling?)`);
       continue;
     }
+    if (model !== wanted) console.log(`  NOTE ${wanted} resolved to installed tag ${model}`);
     if (all[model] && !process.env.CALIB_FORCE) {
       console.log(`  SKIP ${model} — already scored (set CALIB_FORCE=1 to redo)`);
       continue;
@@ -375,7 +383,7 @@ const main = async () => {
     );
   }
   const pending = MODELS.filter(
-    (m) => !all[m] && !installed.some((i) => i === m || i.startsWith(m.split(":")[0] + ":")),
+    (m) => !installed.some((i) => i === m || i.startsWith(m.split(":")[0]! + ":")),
   );
   if (pending.length > 0) console.log(`\nstill not installed: ${pending.join(", ")}`);
 };
