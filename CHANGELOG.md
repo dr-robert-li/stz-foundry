@@ -9,6 +9,53 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### Selection gates hardened from round-1 evidence (phase-5 arm)
+
+- **Replicate-evidence noise margin on `beatsIncumbent`** — `promoteComponentWinner`
+  accepts replicate promotion runs and computes the run-to-run margin itself
+  (never a caller-supplied number); receipt-identity provenance on replicates
+  prevents margin dilution. No replicates ⇒ byte-identical behaviour.
+- **Battery-declared `gateThreshold`** — the stage-1 bar travels with the
+  human-accepted instrument (validated `(0,1]` at construction, frozen); both
+  `passedGate` composition sites honour it. Default 1 keeps the code-altitude
+  perfection bar byte-identical. Not wired into data-ops: a threshold there is
+  a generator behaviour change needing a fresh acceptance event.
+
+### Judge calibration + roster
+
+- **`src/judge-calibration.ts`** — blind-battery scorer feeding `calibrationGate`'s
+  fail-closed `blindAccuracyBucket`, with ground truth from the constructed
+  exogenous oracle. Guards, each confirmed against a real model: minimum
+  battery size; noise-floor gap filter; **trivial-preference baseline** (a
+  judge failing to beat always-prefer-X is forced `low`); **abstentions count
+  as incorrect** (never excluded — selective abstention inflated a real score
+  0.722→0.933). Battery hash covers ground truth, never verdicts, so it is
+  computable before the judge runs.
+- **`src/judge-roster.ts`** — measured roster for `component`: `gemma4:31b`
+  primary (0.895, order-perfect), `gpt-oss` alternate, `nemotron3` fallback,
+  `granite4.1` refused (below the trivial baseline). Strict failover; the
+  measured 3-judge majority (0.789) is WORSE than the best single judge
+  (0.895) — correlated errors, confirming `NAIVE_ENSEMBLE_FORBIDDEN` on this
+  repo's own data. `selectJudge` fail-closed: a refused judge is never chosen
+  however available.
+- `wp-judge-v4` (WordPress finetune) excluded in code from every role; the one
+  run that used it voided and purged.
+
+### Round-2 tournament infrastructure
+
+- Pre-registration amendment (`PREREG-AMENDMENT.md`) committed before blind
+  data; round-1 verdict stands for its instrument.
+- Driver: per-task promotion diagnostics (caught a mid-run ollama upgrade
+  corrupting a noise replicate — a false negative a bare aggregate would have
+  banked); multi-warehouse worst-case search (min-aggregated, reflection from
+  the worst warehouse); the shipped `promoteComponentWinner` exercised for
+  real (seed 7: margin gate refused a +0.0067 within-noise win against its
+  own measured 0.0463 margin; search→promotion gap went NEGATIVE −0.17 vs
+  round 1's +0.21 — the Goodhart signature gone under min-aggregation).
+- **`_memory-watchdog.sh`** — 109GB ceiling on the 121GB unified-memory DGX
+  (no memory protection), largest-first eviction, tournament model protected,
+  halt-and-surface; judge sweep strictly sequential via `unloadJudges`.
+
 ## [1.21.0] — graded battery scoring; the phase-5 gate decided (NOT MET)
 
 ### Partial-credit battery scoring (`src/foundry/grade.ts`)
