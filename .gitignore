@@ -9,4 +9,5 @@ docs/CLAUDE.md
 
 # Long-running experiment checkpoints — resumable state, not source of truth
 experiments/**/tournament-state.json
+experiments/**/tournament-r2-state.json
 experiments/**/smoke*-state.json
