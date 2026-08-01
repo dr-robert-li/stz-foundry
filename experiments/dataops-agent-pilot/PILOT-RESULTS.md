@@ -735,3 +735,59 @@ correct for the *candidate* role and wrong as a statement about the model: it
 cannot solve the task but can rank solutions to it. That asymmetry is the whole
 premise of a judge, and the reason a cross-family judge is worth having rather
 than reusing the candidate model.
+
+---
+
+# JUDGE ROSTER (measured, 2026-08-01)
+
+| role | model | accuracy | baseline | consistency | why |
+|---|---|---|---|---|---|
+| **primary** | `gemma4:31b` | 0.895 | 0.579 | **1.000** | highest accuracy *and* perfect order-invariance |
+| **alternate** | `gpt-oss:latest` | 0.842 | 0.579 | 0.842 | clears every guard |
+| **fallback** | `nemotron3:33b` | 0.737 | 0.579 | 0.842 | clears every guard |
+| **refused** | `granite4.1:30b` | 0.526 | 0.579 | 0.632 | **below** the trivial baseline — worse than reading nothing |
+
+`src/judge-roster.ts` encodes this with strict precedence
+(primary → alternate → fallback) and a fail-closed `selectJudge`: the refused
+model is never selected however available it is, and an empty availability set
+throws rather than defaulting. "Something is better than nothing" is precisely
+wrong when the something scores below a judge that reads nothing.
+
+**The alternates are FAILOVER, never voters.** The measured council regression
+(0.789 vs 0.895) and the correlated-error structure rule out a quorum.
+
+**The ordering is not statistically established** and the roster's own doc
+comment says so: n=19, and `gpt-oss` moved 0.895 → 0.842 across an ollama
+upgrade on the identical battery. The gaps between the three passing judges sit
+inside that ±1-pair noise. The defensible claims are that granite fails, three
+pass, and `gemma4` is uniquely order-perfect — a *stability* property, and the
+real reason it is primary.
+
+---
+
+# ROUND-2 DATA DEFECT: ollama restart corrupted one unit
+
+A mid-run ollama upgrade killed three in-flight tasks. Caught by the per-task
+`status` diagnostics added for round 2 — the aggregate alone could not have
+shown it:
+
+```
+s7-baseline-promotion-replicate: 3 of 6 tasks status="error"
+  B_promotion            0.941  (clean)
+  B_promotion_replicate  0.625  (3 tasks errored to 0)
+```
+
+**Why this must be fixed rather than reported.** That replicate exists solely to
+measure the noise floor. Taken as-is it yields `noiseSample = 0.316`, so the
+margin guard would demand `W_promotion > B_promotion + 0.316` — unreachable by
+construction. The result would be a **false negative produced by a harness
+fault**, structurally identical to round 1's timeout contamination, and it
+would look exactly like a real null.
+
+**Fix:** after round 2 completes, delete `s7-baseline-promotion-replicate` and
+`s7-summary` from `tournament-r2-state.json` and resume. Checkpointing re-runs
+only those two units (~30 min); every other unit is untouched. The corrupted
+figure must not reach the §3 decision.
+
+Seed 7's other numbers are clean and unaffected (`B_search` 0.925,
+`B_promotion` 0.941, `W_promotion` 0.948, all six tasks `ok`).

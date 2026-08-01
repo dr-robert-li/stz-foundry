@@ -259,6 +259,145 @@
           "cand-s3-verify": "---\nname: data-ops-analyst\ntools: []\n---\nYou are an exact data-recovery engineer. Do not aggregate internally or estimate. Follow this strict sequence:\n1. EXTRACT: List every raw event matching the criteria. State the exact count of qualifying rows.\n2. AGGREGATE: For each requested metric, write out each contributing value with its unit (e.g., cents per transaction). Perform explicit addition or counting. Verify order counts match row lengths exactly. Verify revenue magnitude aligns with standard transaction values.\n3. VALIDATE: Cross-check sums against raw lists. Ensure no records were skipped, double-counted, or incorrectly converted. If any input is missing or zero, output 0 explicitly—never omit a requested key.\n4. FORMAT: Output only the final exact integers in the requested structure. No prose, no rounding. Repeat the calculation explicitly to confirm consistency before outputting. Every required key must be present and correctly typed."
         }
       }
+    },
+    "s7-gen1": {
+      "unit": "s7-gen1",
+      "finishedAt": "2026-08-01T08:05:32.798Z",
+      "elapsedMs": 13308081,
+      "data": {
+        "rewards": [
+          {
+            "id": "cand-s0-minimal",
+            "reward": 0.5510024630214172,
+            "testPassRate": 0.0022276956031492177,
+            "perWarehouse": [
+              {
+                "batteryId": "data-ops-v2-search-7",
+                "reward": 0.5510024630214172,
+                "testPassRate": 0.0022276956031492177
+              },
+              {
+                "batteryId": "data-ops-v2-search2-7",
+                "reward": 0.6670623269843144,
+                "testPassRate": 0.26013850440958747
+              }
+            ]
+          },
+          {
+            "id": "cand-s1-plausible",
+            "reward": 0.7375,
+            "testPassRate": 0.4166666666666667,
+            "perWarehouse": [
+              {
+                "batteryId": "data-ops-v2-search-7",
+                "reward": 0.7566963668692609,
+                "testPassRate": 0.4593252597094686
+              },
+              {
+                "batteryId": "data-ops-v2-search2-7",
+                "reward": 0.7375,
+                "testPassRate": 0.4166666666666667
+              }
+            ]
+          },
+          {
+            "id": "cand-s2-strong",
+            "reward": 0.7803144969767043,
+            "testPassRate": 0.511809993281565,
+            "perWarehouse": [
+              {
+                "batteryId": "data-ops-v2-search-7",
+                "reward": 0.8125000000000001,
+                "testPassRate": 0.5833333333333334
+              },
+              {
+                "batteryId": "data-ops-v2-search2-7",
+                "reward": 0.7803144969767043,
+                "testPassRate": 0.511809993281565
+              }
+            ]
+          },
+          {
+            "id": "cand-s3-verify",
+            "reward": 0.6446102583458232,
+            "testPassRate": 0.2102450185462735,
+            "perWarehouse": [
+              {
+                "batteryId": "data-ops-v2-search-7",
+                "reward": 0.85,
+                "testPassRate": 0.6666666666666666
+              },
+              {
+                "batteryId": "data-ops-v2-search2-7",
+                "reward": 0.6446102583458232,
+                "testPassRate": 0.2102450185462735
+              }
+            ]
+          }
+        ],
+        "winner": null,
+        "gatePassers": [],
+        "prompts": {
+          "cand-s0-minimal": "---\nname: data-ops-analyst\ntools: []\n---\nYou are a precise data assistant capable of accurate fact recovery. When retrieving precomputed metrics such as orderCount or revenueCents, you must strictly output the exact precomputed values without estimation, approximation, or modification. Ensure all requested fields are fully populated; never omit required values or produce nothing for any valid customer ID.",
+          "cand-s1-plausible": "---\nname: data-ops-analyst\ntools: []\n---\nYou are an exact numerical aggregation engine. Process input data with strict computational precision. For each metric: apply all filters, scopes, and groupings exactly as specified; compute counts and sums without estimation or rounding; ensure order tallies match precise record tallies (no off-by-one errors); and calculate revenue in exact integer cents. Cross-verify your arithmetic step-by-step against the source data before finalizing. Return strictly in the exact requested output format with zero extra text, explanations, or formatting deviations. If a result must align with a precomputed fact, validate your aggregation logic against the target definition to guarantee precise correspondence.",
+          "cand-s2-strong": "---\nname: data-ops-analyst\ntools: []\n---\nYou are a meticulous data-ops engineer. Follow this method exactly:\n1. Parse every CSV row without dropping any prematurely. Extract the year and month from each date field to apply the filter. Support ISO (YYYY-MM-DD), slashed (DD/MM/YYYY or MM/DD/YYYY—apply digit-range logic: if second segment > 12, treat first as Month; otherwise default to DD/MM/YYYY), and written-month formats (e.g., January 5, 2026). Filter strictly to the requested customerId and target month-year.\n2. Deduplicate carefully: Only drop a row if every field is byte-for-byte identical to a previously seen row. Do NOT collapse or count once per orderId; treat each surviving filtered row as its own distinct order.\n3. For each surviving row, extract rawAmount. If empty/null/falsy, use amountBackup. Strip all currency symbols ($, €, £), commas, and whitespace. Parse safely: if the cleaned value contains a dot, split on it; multiply the left part by 100 and add the right part (zero-pad if needed) to get integer cents. If no dot exists, treat the entire numeric value as whole-cents.\n4. Compute final metrics exactly: orderCount = total number of surviving filtered rows. revenueCents = sum of all converted integer cents.\n5. Return ONLY the requested JSON with keys \"orderCount\" and \"revenueCents\". Never output markdown, code fences, explanations, or partial results. If no rows match the filter, return {\"orderCount\": 0, \"revenueCents\": 0}.",
+          "cand-s3-verify": "---\nname: data-ops-analyst\ntools: []\n---\nYou are an exact data-recovery engineer. Do not aggregate internally or estimate. Follow this strict sequence:\n1. EXTRACT: List every raw event matching the criteria. State the exact count of qualifying rows.\n2. AGGREGATE: For each requested metric, write out each contributing value with its unit (e.g., cents per transaction). Perform explicit addition or counting. Verify order counts match row lengths exactly. Verify revenue magnitude aligns with standard transaction values.\n3. VALIDATE: Cross-check sums against raw lists. Ensure no records were skipped, double-counted, or incorrectly converted. If any input is missing or zero, output 0 explicitly—never omit a requested key.\n4. FORMAT: Output only the final exact integers in the requested structure. No prose, no rounding. Repeat the calculation explicitly to confirm consistency before outputting. Every required key must be present and correctly typed."
+        },
+        "traces": {
+          "cand-s0-minimal": "Task data-ops-v2-search-7::data-ops-fact-recovery-cust-1105__2026-09:\n  - [data-ops-v2-search-7::data-ops-fact-recovery-cust-1105__2026-09-order-count] recovered orderCount for cust-1105__2026-09 matches the precomputed fact: expected \"15\", produced the WRONG VALUE: \"13\"\n  - [data-ops-v2-search-7::data-ops-fact-recovery-cust-1105__2026-09-revenue-cents] recovered revenueCents for cust-1105__2026-09 matches the precomputed fact: expected \"744035\", produced the WRONG VALUE: \"607141\"\nTask data-ops-v2-search-7::data-ops-fact-recovery-cust-1105__2026-07:\n  - [data-ops-v2-search-7::data-ops-fact-recovery-cust-1105__2026-07-order-count] recovered orderCount for cust-1105__2026-07 matches the precomputed fact: expected \"17\", produced the WRONG VALUE: \"13\"\n  - [data-ops-v2-search-7::data-ops-fact-recovery-cust-1105__2026-07-revenue-cents] recovered revenueCents for cust-1105__2026-07 matches the precomputed fact: expected \"1094168\", produced the WRONG VALUE: \"806516\"\nTask data-ops-v2-search-7::data-ops-fact-recovery-cust-1557__2026-09:\n  - [data-ops-v2-search-7::data-ops-fact-recovery-cust-1557__2026-09-order-count] recovered orderCount for cust-1557__2026-09 matches the precomputed fact: expected \"18\", produced the WRONG VALUE: \"15\"\n  - [data-ops-v2-search-7::data-ops-fact-recovery-cust-1557__2026-09-revenue-cents] recovered revenueCents for cust-1557__2026-09 matches the precomputed fact: expected \"1218984\", produced the WRONG VALUE: \"1009678\"\nTask data-ops-v2-search-7::data-ops-fact-recovery-cust-1557__2026-07:\n  - [data-ops-v2-search-7::data-ops-fact-recovery-cust-1557__2026-07-order-count] recovered orderCount for cust-1557__2026-07 matches the precomputed fact: expected \"11\", produced the WRONG VALUE: \"9\"\n  - [data-ops-v2-search-7::data-ops-fact-recovery-cust-1557__2026-07-revenue-cents] recovered revenueCents for cust-1557__2026-07 matches the precomputed fact: expected \"601294\", produced the WRONG VALUE: \"542772\"\nTask data-ops-v2-search-7::data-ops-fact-recovery-cust-9792__2026-09:\n  - [data-ops-v2-search-7::data-ops-fact-recovery-cust-9792__2026-09-order-count] recovered orderCount for cust-9792__2026-09 matches the precomputed fact: expected \"20\", produced the WRONG VALUE: \"16\"\n  - [data-ops-v2-search-7::data-ops-fact-recovery-cust-9792__2026-09-revenue-cents] recovered revenueCents for cust-9792__2026-09 matches the precomputed fact: expected \"1195847\", produced the WRONG VALUE: \"964217\"\nTask data-ops-v2-search-7::data-ops-fact-recovery-cust-9792__2026-07:\n  - [data-ops-v2-search-7::data-ops-fact-recovery-cust-9792__2026-07-order-count] recovered orderCount for cust-9792__2026-07 matches the precomputed fact: expected \"15\", produced the WRONG VALUE: \"12\"\n  - [data-ops-v2-search-7::data-ops-fact-recovery-cust-9792__2026-07-revenue-cents] recovered revenueCents for cust-9792__2026-07 matches the precomputed fact: expected \"976350\", produced the WRONG VALUE: \"722289\"",
+          "cand-s1-plausible": "Task data-ops-fact-recovery-cust-5466__2026-08:\n  - [data-ops-fact-recovery-cust-5466__2026-08-order-count] recovered orderCount for cust-5466__2026-08 matches the precomputed fact: expected \"17\", produced the WRONG VALUE: \"14\"\n  - [data-ops-fact-recovery-cust-5466__2026-08-revenue-cents] recovered revenueCents for cust-5466__2026-08 matches the precomputed fact: expected \"1082861\", produced the WRONG VALUE: \"879140\"\nTask data-ops-fact-recovery-cust-1178__2026-09:\n  - [data-ops-fact-recovery-cust-1178__2026-09-revenue-cents] recovered revenueCents for cust-1178__2026-09 matches the precomputed fact: expected \"979214\", produced the WRONG VALUE: \"24226592\"\nTask data-ops-fact-recovery-cust-1178__2026-08:\n  - [data-ops-fact-recovery-cust-1178__2026-08-order-count] recovered orderCount for cust-1178__2026-08 matches the precomputed fact: expected \"20\", produced NOTHING (no observation was made)\n  - [data-ops-fact-recovery-cust-1178__2026-08-revenue-cents] recovered revenueCents for cust-1178__2026-08 matches the precomputed fact: expected \"969739\", produced NOTHING (no observation was made)\nTask data-ops-fact-recovery-cust-3696__2026-08:\n  - [data-ops-fact-recovery-cust-3696__2026-08-order-count] recovered orderCount for cust-3696__2026-08 matches the precomputed fact: expected \"11\", produced the WRONG VALUE: \"10\"\n  - [data-ops-fact-recovery-cust-3696__2026-08-revenue-cents] recovered revenueCents for cust-3696__2026-08 matches the precomputed fact: expected \"512024\", produced the WRONG VALUE: \"29560308\"",
+          "cand-s2-strong": "Task data-ops-fact-recovery-cust-5466__2026-09:\n  - [data-ops-fact-recovery-cust-5466__2026-09-order-count] recovered orderCount for cust-5466__2026-09 matches the precomputed fact: expected \"15\", produced the WRONG VALUE: \"12\"\n  - [data-ops-fact-recovery-cust-5466__2026-09-revenue-cents] recovered revenueCents for cust-5466__2026-09 matches the precomputed fact: expected \"779538\", produced the WRONG VALUE: \"623320\"\nTask data-ops-fact-recovery-cust-5466__2026-08 (error): provider request failed after 3 attempts (network error)\nTask data-ops-fact-recovery-cust-3696__2026-08:\n  - [data-ops-fact-recovery-cust-3696__2026-08-order-count] recovered orderCount for cust-3696__2026-08 matches the precomputed fact: expected \"11\", produced the WRONG VALUE: \"9\"\n  - [data-ops-fact-recovery-cust-3696__2026-08-revenue-cents] recovered revenueCents for cust-3696__2026-08 matches the precomputed fact: expected \"512024\", produced the WRONG VALUE: \"468078\"",
+          "cand-s3-verify": "Task data-ops-fact-recovery-cust-5466__2026-09:\n  - [data-ops-fact-recovery-cust-5466__2026-09-order-count] recovered orderCount for cust-5466__2026-09 matches the precomputed fact: expected \"15\", produced the WRONG VALUE: \"14\"\n  - [data-ops-fact-recovery-cust-5466__2026-09-revenue-cents] recovered revenueCents for cust-5466__2026-09 matches the precomputed fact: expected \"779538\", produced the WRONG VALUE: \"738932\"\nTask data-ops-fact-recovery-cust-5466__2026-08:\n  - [data-ops-fact-recovery-cust-5466__2026-08-order-count] recovered orderCount for cust-5466__2026-08 matches the precomputed fact: expected \"17\", produced the WRONG VALUE: \"15\"\n  - [data-ops-fact-recovery-cust-5466__2026-08-revenue-cents] recovered revenueCents for cust-5466__2026-08 matches the precomputed fact: expected \"1082861\", produced the WRONG VALUE: \"979322\"\nTask data-ops-fact-recovery-cust-1178__2026-08:\n  - [data-ops-fact-recovery-cust-1178__2026-08-order-count] recovered orderCount for cust-1178__2026-08 matches the precomputed fact: expected \"20\", produced NOTHING (no observation was made)\n  - [data-ops-fact-recovery-cust-1178__2026-08-revenue-cents] recovered revenueCents for cust-1178__2026-08 matches the precomputed fact: expected \"969739\", produced NOTHING (no observation was made)\nTask data-ops-fact-recovery-cust-3696__2026-09:\n  - [data-ops-fact-recovery-cust-3696__2026-09-order-count] recovered orderCount for cust-3696__2026-09 matches the precomputed fact: expected \"18\", produced the WRONG VALUE: \"15\"\n  - [data-ops-fact-recovery-cust-3696__2026-09-revenue-cents] recovered revenueCents for cust-3696__2026-09 matches the precomputed fact: expected \"1016750\", produced the WRONG VALUE: \"830517\"\nTask data-ops-fact-recovery-cust-3696__2026-08:\n  - [data-ops-fact-recovery-cust-3696__2026-08-order-count] recovered orderCount for cust-3696__2026-08 matches the precomputed fact: expected \"11\", produced the WRONG VALUE: \"6\"\n  - [data-ops-fact-recovery-cust-3696__2026-08-revenue-cents] recovered revenueCents for cust-3696__2026-08 matches the precomputed fact: expected \"512024\", produced the WRONG VALUE: \"245128\""
+        }
+      }
+    },
+    "s7-winner-promotion": {
+      "unit": "s7-winner-promotion",
+      "finishedAt": "2026-08-01T08:26:14.000Z",
+      "elapsedMs": 1241201,
+      "data": {
+        "reward": 0.947837074956701,
+        "testPassRate": 0.8840823887926689,
+        "passedGate": false,
+        "tasks": [
+          {
+            "taskId": "data-ops-v2-promotion-7::data-ops-fact-recovery-cust-3587__2026-04",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-promotion-7::data-ops-fact-recovery-cust-3587__2026-12",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-promotion-7::data-ops-fact-recovery-cust-5050__2026-04",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-promotion-7::data-ops-fact-recovery-cust-5050__2026-12",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-promotion-7::data-ops-fact-recovery-cust-8281__2026-04",
+            "pass": false,
+            "score": 0.30449433275601256,
+            "status": "ok"
+          },
+          {
+            "taskId": "data-ops-v2-promotion-7::data-ops-fact-recovery-cust-8281__2026-12",
+            "pass": true,
+            "score": 1,
+            "status": "ok"
+          }
+        ]
+      }
     }
   }
 }
