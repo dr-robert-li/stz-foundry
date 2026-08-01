@@ -671,42 +671,67 @@ and `_memory-watchdog.sh` enforces a 109GB ceiling independently, unloading
 largest-first and halting-and-surfacing if only protected models remain over
 the line.
 
-### Results
+### Results — four cross-family judges
 
 | judge | accuracy | trivial baseline | beats? | abstained | consistency | bucket |
 |---|---|---|---|---|---|---|
 | `granite4.1:30b` | 0.526 | 0.579 | **no** | 0 | 0.632 | **low** — refused |
-| `nemotron3:33b` | **0.737** | 0.579 | yes (+0.158) | 0 | 0.842 | **medium** — calibrated |
+| `nemotron3:33b` | 0.737 | 0.579 | yes | 0 | 0.842 | medium |
+| `gpt-oss:latest` | 0.842 | 0.579 | yes | 0 | 0.842 | medium |
+| `gemma4:31b` | **0.895** | 0.579 | yes | 0 | **1.000** | medium |
 
-**`rubricCalibrated` can now be earned.** `nemotron3:33b` is the first judge to
-clear every guard: it beats the trivial fixed-preference baseline by 0.158, it
-is order-consistent at 0.842 (above the 0.7 trust threshold), and it abstained
-on nothing. Fed into `calibrationGate` this returns `calibrated: true` — the
-first time that gate has ever passed, after refusing in both tournament rounds
-for want of a battery that had never been authored.
+**`rubricCalibrated` can now be earned.** Three of four generalist judges clear
+every guard, where the gate had previously refused in both tournament rounds
+for want of a battery nobody had authored. `gemma4:31b` is the pick: highest
+accuracy and *perfect* order-invariance. Zero abstentions across all four, so
+these measure the models rather than selective non-answering.
 
-**Stated with its error bar, because n=19 is small.** 14/19 = 0.737 has a
-binomial SE of 0.101, so the 95% CI is [0.539, 0.935] and the 0.7 trust
-threshold sits *inside* it. This is evidence the judge discriminates, not proof
-it is reliable. The honest reading: good enough to stop being fail-closed for
-want of any evidence at all, not good enough to lean on hard. Growing the
-battery is the obvious follow-up and is cheap — round 2 is generating more
-recorded pairs as it runs.
+Consistency tracks accuracy cleanly (0.632 → 0.842 → 0.842 → 1.000), which is
+mild evidence the two guards are measuring one underlying competence rather
+than two unrelated things.
+
+**Do not over-read the ordering.** `gpt-oss` scored 0.895 before an ollama
+upgrade and 0.842 after, on the identical frozen battery — one pair. At n=19
+the gaps between the three passing judges are within that noise, so "gemma4 >
+gpt-oss > nemotron" is not a defensible strict ranking. What *is* defensible:
+granite fails, the other three pass, and gemma4 is order-perfect.
+
+### The naive council is measurably WORSE than one judge
+
+The obvious use of four judges is a majority vote. On this battery that is a
+regression, measured not assumed:
+
+| selector | accuracy |
+|---|---|
+| majority vote of the 3 calibrated judges | 15/19 = **0.789** |
+| `gemma4:31b` alone | 17/19 = **0.895** |
+
+The reason is in the error structure. Of the 5 pairs any judge got wrong, **4
+had two or more judges wrong together**; only 1 had a lone dissenter. The
+errors are correlated, so voting amplifies the shared bias instead of
+cancelling it — which is exactly what `NAIVE_ENSEMBLE_FORBIDDEN`
+(`src/judge-reliability.ts`, citing arXiv:2505.19477) already encodes as a
+standing rule, now confirmed on this repo's own data.
+
+So the cross-family sweep's value is **selection and calibration**, not
+quorum: it identifies which single judge to trust and proves the others are
+not independent enough to vote with. The sanctioned design stands unchanged —
+one robust judge, stress-tested for order-consistency, with the sealed/truth
+divergence as the independent backstop.
 
 ### The finding underneath: judging and doing are different competencies
 
-Both directions are now measured on the same battery, which is worth more than
-either result alone:
+Both directions are now measured on one battery, which is worth more than
+either alone:
 
 | model | can it DO the data-ops task? | can it RANK definitions for it? |
 |---|---|---|
-| `granite4.1:30b` | **no** — floor-saturates, 0.000 on every arm | **no** — 0.526, below the trivial baseline |
-| `nemotron3:33b` | **no** — 3220s then unparseable output as a candidate | **yes** — 0.737, beats baseline, order-consistent |
+| `granite4.1:30b` | **no** — floor-saturates, 0.000 every arm | **no** — 0.526, below the trivial baseline |
+| `nemotron3:33b` | **no** — 3220s then unparseable as a candidate | **yes** — 0.737, beats baseline |
+| `gemma4:31b` | not tested as a candidate | **yes** — 0.895, order-perfect |
 
-`nemotron3` was written off earlier in this arm as "unusable", and that verdict
-was correct *for the candidate role* and wrong as a general statement about the
-model. A model that cannot solve a task can still rank solutions to it — which
-is the entire premise of a judge, and is why the cross-family judge is worth
-having rather than reusing the candidate model.
-
-Remaining candidates are swept as they land.
+`nemotron3` was written off earlier in this arm as "unusable". That verdict was
+correct for the *candidate* role and wrong as a statement about the model: it
+cannot solve the task but can rank solutions to it. That asymmetry is the whole
+premise of a judge, and the reason a cross-family judge is worth having rather
+than reusing the candidate model.
