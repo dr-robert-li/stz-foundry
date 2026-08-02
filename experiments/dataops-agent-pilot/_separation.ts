@@ -10,8 +10,10 @@
  * Touches no blind data. Reports whatever it finds.
  */
 import { generateFixtureBattery, generateFixtureBatteryV2 } from "../../src/foundry/fixture-warehouse.js";
+import { generateFixtureBatteryV3, v3Knobs } from "../../src/foundry/fixture-warehouse-v3.js";
 import { runAgentBattery } from "../../src/foundry/agent-runner.js";
 import { ARMS } from "./_arms.js";
+import { ARMS_V3 } from "./_v3-arms.js";
 
 // Env-configurable so the SAME committed script reproduces both the original
 // granite 3-seed gate (defaults below) and the pre-registered escalation runs
@@ -27,13 +29,29 @@ const CONCURRENCY = Number(process.env.SEPGATE_CONCURRENCY ?? 2);
 // Re-measure a single contaminated cell without re-running the clean ones.
 // v1 = the accepted original battery (prescriptive prompt, exact-match only).
 // v2 = the phase-3 revision (non-prescriptive prompt, graded revenueCents).
+// v3 = the headroom battery (V3-BATTERY-DESIGN.md rev 2). It takes a GRID
+// POINT as well as a seed, because the knob setting is exactly what the
+// calibration probe selected and what the human then accepted — running the
+// gate at a different point would gate a different instrument.
 const GENERATOR = process.env.SEPGATE_GENERATOR ?? "v1";
-if (GENERATOR !== "v1" && GENERATOR !== "v2") {
-  throw new Error(`SEPGATE_GENERATOR must be "v1" or "v2", got ${JSON.stringify(GENERATOR)}`);
+if (GENERATOR !== "v1" && GENERATOR !== "v2" && GENERATOR !== "v3") {
+  throw new Error(`SEPGATE_GENERATOR must be "v1", "v2" or "v3", got ${JSON.stringify(GENERATOR)}`);
 }
-const buildBattery = GENERATOR === "v2" ? generateFixtureBatteryV2 : generateFixtureBattery;
+const GRID_POINT = process.env.SEPGATE_GRID_POINT;
+if (GENERATOR === "v3" && !GRID_POINT) {
+  throw new Error("SEPGATE_GRID_POINT must be set explicitly when SEPGATE_GENERATOR=v3");
+}
+const buildBattery =
+  GENERATOR === "v3"
+    ? (seed: number, id: string) => generateFixtureBatteryV3(seed, id, v3Knobs(GRID_POINT!))
+    : GENERATOR === "v2"
+      ? generateFixtureBatteryV2
+      : generateFixtureBattery;
+// The v3 battery gets the v3 arms — see `_v3-arms.ts` for why the strong arm
+// is restated rather than carried over.
+const ALL_ARMS = GENERATOR === "v3" ? ARMS_V3 : ARMS;
 const ARM_FILTER = process.env.SEPGATE_ARMS?.split(",").map((s) => s.trim());
-const RUN_ARMS = ARM_FILTER ? ARMS.filter((a) => ARM_FILTER.includes(a.id)) : ARMS;
+const RUN_ARMS = ARM_FILTER ? ALL_ARMS.filter((a) => ARM_FILTER.includes(a.id)) : ALL_ARMS;
 if (RUN_ARMS.length === 0) throw new Error(`SEPGATE_ARMS matched no arm: ${process.env.SEPGATE_ARMS}`);
 
 const main = async () => {
@@ -48,7 +66,7 @@ const main = async () => {
 
   for (const arm of RUN_ARMS) {
     for (const seed of SEEDS) {
-      const battery = buildBattery(seed, `sepgate-${GENERATOR}-${seed}`);
+      const battery = buildBattery(seed, `sepgate-${GENERATOR}${GRID_POINT ? `-${GRID_POINT}` : ""}-${seed}`);
       const run = await runAgentBattery(
         { id: arm.id as never, systemPrompt: arm.systemPrompt },
         battery,
@@ -131,10 +149,38 @@ const main = async () => {
         "     trusting the ordering — and check it does not reverse between them.",
     );
   } else {
+    console.log(`  => SEPARATION EXISTS (${spread.toFixed(3)} > 2 SE) on the pooled means.`);
+  }
+
+  // ── SIGN CONSISTENCY. Pooled means can show a clean separation that no
+  //    individual seed reproduces: two seeds ordering one way and a third
+  //    ordering the other average to a spread that looks like signal and is
+  //    a cancellation. Round 2 measured exactly that shape one altitude up —
+  //    a +0.0067 win, a −0.22 loss and an exact tie pooling to "nearly
+  //    nothing" — so the gate checks the ordering per seed rather than
+  //    advising a human to remember to.
+  //
+  //    Reported for the top-vs-bottom arm pair, which is the pair the spread
+  //    verdict above is about. A gate that separates on the pooled mean but
+  //    flips sign across seeds is NOT a gate that passed.
+  if (RUN_ARMS.length >= 2) {
+    const hiRates = byArm.get(hi)!;
+    const loRates = byArm.get(lo)!;
+    const perSeed = SEEDS.map((seed, i) => ({ seed, diff: hiRates[i]! - loRates[i]! }));
+    const positive = perSeed.filter((p) => p.diff > 0).length;
+    const zero = perSeed.filter((p) => p.diff === 0).length;
     console.log(
-      `  => SEPARATION EXISTS (${spread.toFixed(3)} > 2 SE). Verify the ordering is\n` +
-        "     sign-consistent across seeds before running a tournament.",
+      `\n  SIGN CONSISTENCY (${hi} - ${lo}): ` +
+        perSeed.map((p) => `s${p.seed}=${p.diff >= 0 ? "+" : ""}${p.diff.toFixed(3)}`).join(" · "),
     );
+    if (positive === perSeed.length) {
+      console.log("  => SIGN-CONSISTENT across every seed. The ordering is a fact about the arms.");
+    } else {
+      console.log(
+        `  => NOT SIGN-CONSISTENT (${positive}/${perSeed.length} positive, ${zero} exact ties). The pooled\n` +
+          "     spread above is a cancellation, not a separation. Do not run a tournament on it.",
+      );
+    }
   }
 };
 
