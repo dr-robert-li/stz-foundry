@@ -113,6 +113,65 @@ describe("v3 generator — structure and the pre-registered grid", () => {
   });
 });
 
+describe("v3 pipeline — hand-computed oracle", () => {
+  /**
+   * The generator and the interpreter share no code, but they share an AUTHOR
+   * and a source document, so their agreement could still encode one
+   * misreading of the design held in both. This case is worked by hand from
+   * the published rule text, on data small enough to check by eye, and it
+   * pins every step that the design had to argue about:
+   *
+   *   ord-1  two rows, distinct `updatedAt`      -> latest wins (60000, not 50000)
+   *   ord-2  amount empty, carried in backup     -> $100.00 = 10000
+   *   ord-3  two rows, SAME `updatedAt`          -> larger amount wins (70000)
+   *   ord-4  right customer, WRONG month         -> filtered out at step 4
+   *   ord-5  right month, WRONG customer         -> filtered out at step 4
+   *   rfd-1  references a survivor               -> valid, subtracts 10000
+   *   rfd-2  references ord-4 (April)            -> DANGLING: survived the file,
+   *                                                 not the post-filter set
+   *   rfd-3  references an id that exists nowhere-> DANGLING
+   *   adj-1  signed, references a survivor       -> valid, adds -2500
+   *   adj-2  references cust-B's ord-5           -> DANGLING
+   *
+   * orderCount = 3 (ord-1, ord-2, ord-3 — refunds and adjustments are not
+   * orders). revenueCents = 60000 + 10000 + 70000 - 10000 - 2500 = 127500.
+   *
+   * rfd-2 is the case the panel called ambiguous and the design closed: it
+   * carries the right customer and the right payment month, so it reaches
+   * step 5, and it is rejected there because `origOrderId` must name an order
+   * that survived steps 2-4, not merely one that appears in the file.
+   */
+  const HAND_CSV = [
+    "orderId,customerId,type,origOrderId,paymentDate,updatedAt,rawAmount,amountBackup",
+    "ord-1,cust-A,order,,2026-03-05,2026-03-10,50000,",
+    "ord-1,cust-A,order,,2026-03-05,2026-03-12,60000,",
+    "ord-2,cust-A,order,,2026-03-07,2026-03-11,,$100.00",
+    "ord-3,cust-A,order,,2026-03-08,2026-03-11,70000,",
+    "ord-3,cust-A,order,,2026-03-08,2026-03-11,65000,",
+    "ord-4,cust-A,order,,2026-04-02,2026-04-05,80000,",
+    "ord-5,cust-B,order,,2026-03-09,2026-03-10,90000,",
+    "rfd-1,cust-A,refund,ord-2,2026-03-15,2026-03-16,10000,",
+    "rfd-2,cust-A,refund,ord-4,2026-03-16,2026-03-17,80000,",
+    "rfd-3,cust-A,refund,ord-99,2026-03-17,2026-03-18,5000,",
+    "adj-1,cust-A,adjustment,ord-1,2026-03-18,2026-03-19,-2500,",
+    "adj-2,cust-A,adjustment,ord-5,2026-03-19,2026-03-20,3000,",
+  ].join("\n");
+
+  it("the interpreter reproduces a by-hand walk of all six steps", () => {
+    expect(recomputeFact(HAND_CSV, "cust-A", "2026-03")).toEqual({
+      orderCount: 3,
+      revenueCents: 127_500,
+    });
+  });
+
+  it("the other customer's group is unaffected by the first one's dangling rows", () => {
+    expect(recomputeFact(HAND_CSV, "cust-B", "2026-03")).toEqual({
+      orderCount: 1,
+      revenueCents: 90_000,
+    });
+  });
+});
+
 describe("v3 generator — independent reference interpreter (design S2)", () => {
   it("recomputes every stored fact from the emitted CSV alone, across the sweep", () => {
     for (const knobs of V3_GRID) {
