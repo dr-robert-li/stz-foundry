@@ -66,6 +66,24 @@ export const DATA_OPS_GENERATOR_ID = "data-ops-fixture-warehouse-generator-v1";
  */
 export const DATA_OPS_GENERATOR_V2_ID = "data-ops-fixture-warehouse-generator-v2";
 
+/**
+ * The v3 battery generator (`experiments/dataops-agent-pilot/V3-BATTERY-DESIGN.md`
+ * rev 2). Rounds 1 and 2 both returned GATE NOT MET, and round 2 localized the
+ * cause to the INSTRUMENT: baselines of 0.92–0.94 leave a search nothing to
+ * climb. v3 rebuilds the warehouse around three reasoning levers — duplicate
+ * resolution, reference validation, month attribution — at 10 tasks per half.
+ * The generator itself lives in `fixture-warehouse-v3.ts`; only its id lives
+ * here, so `ACCEPTED_GENERATORS` stays the single place a human acceptance is
+ * recorded.
+ *
+ * DELIBERATELY ABSENT from `ACCEPTED_GENERATORS` below. Every v3 construction
+ * path therefore throws until Dr. Robert Li adds the entry in session, having
+ * been shown what v3 changes relative to the accepted v2. An agent adding its
+ * own generator to that table would make the acceptance event self-issued and
+ * worthless — the same reason v2 was held unaccepted until 2026-07-31.
+ */
+export const DATA_OPS_GENERATOR_V3_ID = "data-ops-fixture-warehouse-generator-v3";
+
 /** The encoded human-acceptance event: generator id -> the human identity who
  *  accepted it. This map IS the acceptance event for this phase; a later
  *  phase's blocking checkpoint is where a human actually performs one for a

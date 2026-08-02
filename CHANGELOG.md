@@ -9,6 +9,30 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### v3 battery generator built (phase-5 arm, steps 1–3 of the build sequence)
+
+- **Added** `src/foundry/fixture-warehouse-v3.ts` — the v3 data-ops warehouse
+  generator and task builder, implementing `V3-BATTERY-DESIGN.md` rev 2: the
+  six-step evaluation pipeline (dedup by `updatedAt` with a total tie rule →
+  attribute by `paymentDate` → filter → validate references against the
+  post-filter surviving set → aggregate), 5 customers × 2 months = 10 tasks per
+  half, ISO-only dates in both columns, and the pre-registered knob grid G1–G5
+  exposed as `V3_GRID` point values.
+- **Added** `test/fixtures/v3-reference-interpreter.ts` — the independent
+  reference interpreter (design S2). Shares no helper, constant or type with
+  the generator; recomputes every fact from the emitted CSV and the published
+  rule text alone. Proves the oracle in the direction answer-first construction
+  cannot.
+- **Added** `test/foundry-fixture-warehouse-v3.test.ts` — 18 tests: structure
+  and grid, seed replay, the magnitude invariant, the acceptance gate, and the
+  extended leak checks (no-dedup, first/last-row-wins, largest/smallest-amount,
+  refund-validity-ignored, bucket-by-`orderDate`, decoy columns, combined
+  L1×L2×L3, and row-order/`updatedAt` independence).
+- **Added** `DATA_OPS_GENERATOR_V3_ID`, deliberately ABSENT from
+  `ACCEPTED_GENERATORS`: every v3 construction path throws until Dr. Robert Li
+  records the acceptance in session. Mechanism unchanged from v2; see
+  `docs/development/dark-factory.md` for the acceptance discipline.
+
 ### v3 battery design reviewed and revised (phase-5 arm)
 
 - Cross-AI design review of the v3 headroom battery (5 reviewers, 5 model
