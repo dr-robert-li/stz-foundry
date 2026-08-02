@@ -51,16 +51,21 @@ export interface ProbeOptions {
   model: string;
   baseUrl?: string;
   taskTimeoutMs: number;
+  /** In-flight requests. Default 1 (the tournament's own default). Raising it
+   *  only helps when the ollama server also runs OLLAMA_NUM_PARALLEL >= the
+   *  same value — otherwise requests just queue on one slot. Round-2's
+   *  separation gate ran concurrency 2 (SEPGATE_CONCURRENCY default), so
+   *  parallel scoring of one model has precedent on this arm; the single
+   *  RESIDENT MODEL rule (watchdog, sequential model LOADS) is untouched —
+   *  this is N requests to one model, never a second model. */
+  concurrency?: number;
 }
 
 /**
- * Score one system prompt against one task list, sequentially.
+ * Score one system prompt against one task list.
  *
- * Sequential on purpose: the DGX has no memory protection and the watchdog
- * protects one resident model at a time (HANDOFF-V3 §2). Concurrency here
- * would also change the model's effective load relative to the tournament's
- * default of 1, which is the sort of difference that quietly moves a
- * calibration.
+ * Order-stable: results land at their task's index whatever order workers
+ * finish in, so a checkpointed unit reads identically at any concurrency.
  */
 export async function scoreProbeTasks(
   systemPrompt: string,
@@ -73,59 +78,74 @@ export async function scoreProbeTasks(
     model: opts.model,
   });
 
-  const results: ProbeTaskResult[] = [];
-  for (const task of tasks) {
-    const startedAt = Date.now();
-    let status: ProbeTaskResult["status"] = "ok";
-    let failureReason: string | undefined;
-    let text = "";
-    let inputTokens = 0;
-    let outputTokens = 0;
-
-    try {
-      // A task that outruns the bound scores 0 and is otherwise
-      // indistinguishable from a wrong answer, so it is recorded as
-      // `timeout` rather than folded into the rate. qwen3.6 needs >= 1h;
-      // 1200s once killed slow tasks and faked a capability floor.
-      const timer = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`task timeout after ${opts.taskTimeoutMs}ms`)), opts.taskTimeoutMs).unref(),
-      );
-      const res = await Promise.race([
-        provider.chat({
-          model: opts.model,
-          system: systemPrompt,
-          messages: [{ role: "user", content: task.prompt }],
-        }),
-        timer,
-      ]);
-      text = res.text;
-      inputTokens = res.usage.inputTokens;
-      outputTokens = res.usage.outputTokens;
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      status = message.includes("task timeout") ? "timeout" : "error";
-      failureReason = message;
+  const concurrency = Math.max(1, opts.concurrency ?? 1);
+  const results: ProbeTaskResult[] = new Array(tasks.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < tasks.length) {
+      const index = next++;
+      results[index] = await scoreOneTask(provider, systemPrompt, tasks[index]!, opts);
     }
-
-    const files = parseArtifacts(text);
-    const observed = buildObservations(task.checks, files, text);
-    const checkResults = evaluateChecks(task.checks, observed).checks;
-    const score = status === "ok" ? gradeTask(checkResults, task.grading) : 0;
-
-    results.push({
-      taskId: task.id,
-      status,
-      score,
-      exact: status === "ok" && checkResults.every((c) => c.pass),
-      hasArtifact: Object.keys(files).length > 0,
-      ...(failureReason ? { failureReason } : {}),
-      promptChars: task.prompt.length,
-      inputTokens,
-      outputTokens,
-      wallMs: Date.now() - startedAt,
-    });
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, worker));
   return results;
+}
+
+async function scoreOneTask(
+  provider: ReturnType<typeof createProvider>,
+  systemPrompt: string,
+  task: BatteryTask,
+  opts: ProbeOptions,
+): Promise<ProbeTaskResult> {
+  const startedAt = Date.now();
+  let status: ProbeTaskResult["status"] = "ok";
+  let failureReason: string | undefined;
+  let text = "";
+  let inputTokens = 0;
+  let outputTokens = 0;
+
+  try {
+    // A task that outruns the bound scores 0 and is otherwise
+    // indistinguishable from a wrong answer, so it is recorded as
+    // `timeout` rather than folded into the rate. qwen3.6 needs >= 1h;
+    // 1200s once killed slow tasks and faked a capability floor.
+    const timer = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`task timeout after ${opts.taskTimeoutMs}ms`)), opts.taskTimeoutMs).unref(),
+    );
+    const res = await Promise.race([
+      provider.chat({
+        model: opts.model,
+        system: systemPrompt,
+        messages: [{ role: "user", content: task.prompt }],
+      }),
+      timer,
+    ]);
+    text = res.text;
+    inputTokens = res.usage.inputTokens;
+    outputTokens = res.usage.outputTokens;
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    status = message.includes("task timeout") ? "timeout" : "error";
+    failureReason = message;
+  }
+
+  const files = parseArtifacts(text);
+  const observed = buildObservations(task.checks, files, text);
+  const checkResults = evaluateChecks(task.checks, observed).checks;
+  const score = status === "ok" ? gradeTask(checkResults, task.grading) : 0;
+
+  return {
+    taskId: task.id,
+    status,
+    score,
+    exact: status === "ok" && checkResults.every((c) => c.pass),
+    hasArtifact: Object.keys(files).length > 0,
+    ...(failureReason ? { failureReason } : {}),
+    promptChars: task.prompt.length,
+    inputTokens,
+    outputTokens,
+    wallMs: Date.now() - startedAt,
+  };
 }
 
 /** Mean of a numeric list; `0` for an empty list rather than `NaN`. */

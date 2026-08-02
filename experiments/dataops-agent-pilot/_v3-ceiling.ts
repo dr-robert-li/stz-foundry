@@ -27,6 +27,9 @@ const MODEL = process.env.V3_MODEL ?? "qwen3.6:latest";
 // qwen3.6 needs >= 3600000; 1200s once killed slow tasks and faked a
 // capability floor (HANDOFF-V3 §2).
 const TIMEOUT_MS = Number(process.env.V3_TIMEOUT_MS ?? 3_600_000);
+// In-flight requests. Only useful when the ollama server runs
+// OLLAMA_NUM_PARALLEL >= the same value; see _v3-score.ts.
+const CONCURRENCY = Number(process.env.V3_CONCURRENCY ?? 1);
 const SEEDS = (process.env.V3_SEEDS ?? "7,42,1234").split(",").map((s) => Number(s.trim()));
 const POINTS = (process.env.V3_POINTS ?? "G1,G5").split(",").map((s) => s.trim());
 // Explicit, never defaulted: an omitted state path once pointed a re-run at
@@ -112,6 +115,7 @@ const main = async () => {
       const results = await once(state, key, () => scoreProbeTasks(BASELINE.systemPrompt, withAnswers, {
         model: MODEL,
         taskTimeoutMs: TIMEOUT_MS,
+        concurrency: CONCURRENCY,
       }));
 
       // Per-task status BEFORE any aggregate (HANDOFF-V3 §2).

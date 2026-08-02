@@ -48,6 +48,9 @@ import { mean, meanCi90, scoreProbeTasks, type ProbeTaskResult } from "./_v3-sco
 
 const MODEL = process.env.V3_MODEL ?? "qwen3.6:latest";
 const TIMEOUT_MS = Number(process.env.V3_TIMEOUT_MS ?? 3_600_000);
+// In-flight requests. Only useful when the ollama server runs
+// OLLAMA_NUM_PARALLEL >= the same value; see _v3-score.ts.
+const CONCURRENCY = Number(process.env.V3_CONCURRENCY ?? 1);
 const SEEDS = (process.env.V3_SEEDS ?? "7,42,1234").split(",").map((s) => Number(s.trim()));
 /** The seed whose PROMOTION half carries the noise replicate. Held out from
  *  nothing here — the probe touches no blind data — but drawn from the
@@ -173,7 +176,7 @@ const main = async () => {
         const key = `grid-${pointId}-${arm.id}-s${seed}`;
         const tasks = buildTasksV3(generateWarehouseV3(seed, knobs));
         const results = await once(state, key, () =>
-          scoreProbeTasks(arm.systemPrompt, tasks, { model: MODEL, taskTimeoutMs: TIMEOUT_MS }),
+          scoreProbeTasks(arm.systemPrompt, tasks, { model: MODEL, taskTimeoutMs: TIMEOUT_MS, concurrency: CONCURRENCY }),
         );
         if (!reportUnit(key, results)) clean = false;
         sink.push(...results);
@@ -227,7 +230,7 @@ const main = async () => {
     for (const rep of [1, 2]) {
       const key = `noise-${s.pointId}-r${rep}`;
       const results = await once(state, key, () =>
-        scoreProbeTasks(BASELINE.systemPrompt, tasks, { model: MODEL, taskTimeoutMs: TIMEOUT_MS }),
+        scoreProbeTasks(BASELINE.systemPrompt, tasks, { model: MODEL, taskTimeoutMs: TIMEOUT_MS, concurrency: CONCURRENCY }),
       );
       reportUnit(key, results);
       reps.push(mean(results.map((r) => r.score)));
