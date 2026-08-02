@@ -11,3 +11,6 @@ docs/CLAUDE.md
 experiments/**/tournament-state.json
 experiments/**/tournament-r2-state.json
 experiments/**/smoke*-state.json
+experiments/**/v3-ceiling-state.json
+experiments/**/v3-grid-state.json
+experiments/**/tournament-r3-state.json

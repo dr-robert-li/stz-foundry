@@ -1,0 +1,27 @@
+# v3 CEILING PROBE — can the model emit the artifact when handed the answer?
+model: qwen3.6:latest · seeds: 7, 42 · points: G1, G5
+taskTimeoutMs: 3600000 · state: v3-ceiling-state.json · target: >= 0.95
+
+
+## ceiling-G1-s7 (10 tasks)
+  mean=1.000 exact=10/10 medianWallMs=36022
+
+## ceiling-G1-s42 (10 tasks)
+  mean=1.000 exact=10/10 medianWallMs=23264
+
+## ceiling-G5-s7 (10 tasks)
+  mean=1.000 exact=10/10 medianWallMs=36604
+
+## ceiling-G5-s42 (10 tasks)
+  mean=1.000 exact=10/10 medianWallMs=38244
+
+
+## CEILING VERDICT
+
+| point | n | not-ok | no-artifact | mean score | exact rate | verdict |
+|---|---|---|---|---|---|---|
+| G1 | 20 | 0 | 0 | 1.000 | 1.000 | CLEAR |
+| G5 | 20 | 0 | 0 | 1.000 | 1.000 | CLEAR |
+
+=> CEILING CLEAR at >= 0.95. The artifact contract is not the bottleneck;
+   proceed to the pre-registered grid probe.
