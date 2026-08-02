@@ -57,6 +57,13 @@ import { onGeneration, initialMeta } from "../../src/harness.js";
 import type { SpecimenId } from "../../src/types.js";
 import type { JudgeReliabilityProfile } from "../../src/judge-reliability.js";
 import { ARMS } from "./_arms.js";
+import { ARMS_V3 } from "./_v3-arms.js";
+import {
+  generateFixtureBatteryV3,
+  generateFixtureSplitBatteryV3,
+  v3Knobs,
+} from "../../src/foundry/fixture-warehouse-v3.js";
+import { profileFor, selectJudge } from "../../src/judge-roster.js";
 
 const HERE = new URL(".", import.meta.url).pathname;
 const STATE_PATH = join(HERE, process.env.TOURNEY_STATE ?? "tournament-state.json");
@@ -70,6 +77,37 @@ const MAX_GENERATIONS = Number(process.env.TOURNEY_GENERATIONS ?? 2);
 const SEARCH_WAREHOUSES = Number(process.env.TOURNEY_SEARCH_WAREHOUSES ?? 2);
 const TIMEOUT_MS = Number(process.env.TOURNEY_TIMEOUT_MS ?? 3_600_000);
 const BASE_URL = process.env.TOURNEY_BASE_URL ?? "http://localhost:11434/v1";
+
+/**
+ * WHICH BATTERY. Round 3 changes exactly this and nothing else (HANDOFF-V3 §2,
+ * one variable per round): the method — reflective mutation, 2 generations, 2
+ * search warehouses, min-aggregation, worst-warehouse traces — is frozen at its
+ * round-2 form. `v2` reproduces round 2 byte for byte; `v3` runs the headroom
+ * battery at the grid point the calibration probe selected and the human then
+ * accepted.
+ *
+ * `TOURNEY_GRID_POINT` is never defaulted. The knob setting IS what was
+ * accepted, so a defaulted one would silently run a different instrument than
+ * the one in the acceptance record — the same class of footgun as the omitted
+ * `TOURNEY_STATE` that once pointed a re-run at round 1's data.
+ */
+const GENERATOR = process.env.TOURNEY_GENERATOR ?? "v2";
+if (GENERATOR !== "v2" && GENERATOR !== "v3") {
+  throw new Error(`TOURNEY_GENERATOR must be "v2" or "v3", got ${JSON.stringify(GENERATOR)}`);
+}
+const GRID_POINT = process.env.TOURNEY_GRID_POINT;
+if (GENERATOR === "v3" && !GRID_POINT) {
+  throw new Error("TOURNEY_GRID_POINT must be set explicitly when TOURNEY_GENERATOR=v3");
+}
+const KNOBS = GENERATOR === "v3" ? v3Knobs(GRID_POINT!) : undefined;
+
+const buildSplit = (seed: number) =>
+  KNOBS ? generateFixtureSplitBatteryV3(seed, KNOBS) : generateFixtureSplitBatteryV2(seed);
+const buildSearchBattery = (seed: number, id: string) =>
+  KNOBS ? generateFixtureBatteryV3(seed, id, KNOBS) : generateFixtureBatteryV2(seed, id);
+/** The v3 battery gets the v3 arms — `_v3-arms.ts` documents why the strong
+ *  arm is restated for v3 rather than carried over from v2. */
+const TOURNEY_ARMS = GENERATOR === "v3" ? ARMS_V3 : ARMS;
 
 const runOpts = {
   provider: { kind: "openai" as const, baseUrl: BASE_URL, model: MODEL },
@@ -89,7 +127,7 @@ const definition = (body: string) => `${frontmatter}\n${body}`;
  *  would otherwise ship. */
 const BASELINE: CandidateAgent = {
   id: "baseline-s2-strong" as SpecimenId,
-  systemPrompt: definition(ARMS.find((a) => a.id === "s2-strong")!.systemPrompt),
+  systemPrompt: definition(TOURNEY_ARMS.find((a) => a.id === "s2-strong")!.systemPrompt),
 };
 
 /** Generation 0 population: the three separation-gate arms plus one variant,
@@ -98,7 +136,7 @@ const BASELINE: CandidateAgent = {
  *  produce near-identical children). B itself is IN the population — if the
  *  human baseline simply wins, that is a legitimate null, not a bug. */
 const seedPopulation = (): CandidateAgent[] => [
-  ...ARMS.map((a) => ({ id: `cand-${a.id}` as SpecimenId, systemPrompt: definition(a.systemPrompt) })),
+  ...TOURNEY_ARMS.map((a) => ({ id: `cand-${a.id}` as SpecimenId, systemPrompt: definition(a.systemPrompt) })),
   {
     id: "cand-s3-verify" as SpecimenId,
     systemPrompt: definition(
@@ -214,14 +252,39 @@ const main = async () => {
   log(`# PREREG §3 tournament — model=${MODEL} seeds=${SEEDS.join(",")} generations=${MAX_GENERATIONS}`);
 
   const mutationProvider = createProvider({ kind: "openai", baseUrl: BASE_URL });
-  // No calibrated judge profile exists for this slice type. Supplied empty and
-  // reported honestly rather than fabricated — see the module doc comment.
-  const judgeProfile: JudgeReliabilityProfile = { schemaVersion: 1, perSliceType: [] };
+  // ── THE JUDGE PROFILE. Round 2 ran with an EMPTY profile, which made
+  //    `rubricCalibrated` fail closed and the shipped promotion gate refuse
+  //    regardless of merit — correct behaviour on no evidence, and recorded
+  //    as such, but it meant one of seven gates had still never been observed
+  //    to pass. The judge battery since measured a real roster
+  //    (`src/judge-roster.ts`): gemma4 primary at 0.895 with perfect order
+  //    invariance, gpt-oss alternate, nemotron fallback, granite REFUSED for
+  //    scoring below a judge that reads nothing.
+  //
+  //    `selectJudge` throws rather than falling through to a refused judge:
+  //    "something is better than nothing" is precisely wrong when the
+  //    something scores below the trivial baseline. Round 2's empty profile is
+  //    kept for `v2` so that round reproduces byte for byte.
+  const AVAILABLE_JUDGES = (process.env.TOURNEY_JUDGES ?? "gemma4:31b,gpt-oss:latest,nemotron3:33b")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  let judgeProfile: JudgeReliabilityProfile = { schemaVersion: 1, perSliceType: [] };
+  if (GENERATOR === "v3") {
+    const judge = selectJudge(AVAILABLE_JUDGES);
+    judgeProfile = profileFor(judge);
+    log(
+      `# judge: ${judge.model} (${judge.role}) consistency=${judge.consistency} ` +
+        `bucket=${judge.bucket} n=${judge.n}`,
+    );
+  } else {
+    log("# judge: none — round-2 reproduction runs the empty profile, gate fails closed");
+  }
 
   const perSeed: Record<number, Record<string, unknown>> = {};
 
   for (const seed of SEEDS) {
-    const split = generateFixtureSplitBatteryV2(seed);
+    const split = buildSplit(seed);
 
     // ── MULTI-WAREHOUSE SEARCH SET (round 2). Round 1 measured reflection
     //    overfitting to the ONE warehouse it could see: diff-in-diff Goodhart
@@ -237,7 +300,10 @@ const main = async () => {
     const searchBatteries = [
       split.search,
       ...Array.from({ length: SEARCH_WAREHOUSES - 1 }, (_, i) =>
-        generateFixtureBatteryV2(deriveSearchSeed(seed, i + 2), `data-ops-v2-search${i + 2}-${seed}`),
+        buildSearchBattery(
+          deriveSearchSeed(seed, i + 2),
+          `data-ops-${GENERATOR}${GRID_POINT ? `-${GRID_POINT}` : ""}-search${i + 2}-${seed}`,
+        ),
       ),
     ];
     // Fail closed on the one wiring bug that would silently destroy the
