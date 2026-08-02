@@ -1,0 +1,125 @@
+[2026-07-31T22:24:59.737Z] # PREREG §3 tournament — model=qwen3.6:latest seeds=7,42,1234 generations=2
+[2026-07-31T22:24:59.739Z] START s7-baseline-search
+[2026-07-31T22:45:06.980Z] DONE  s7-baseline-search in 20.1min :: {"reward":0.9249999999999999,"testPassRate":0.8333333333333334,"passedGate":false,"tasks":[{"taskId":"data-ops-v2-search-7::data-ops-fact-recovery-cust-1105__2026-09","pass":true,"score":1,"status":"ok"},{"taskId":"data-
+[2026-07-31T22:45:06.990Z] START s7-baseline-promotion
+[2026-07-31T23:11:57.960Z] DONE  s7-baseline-promotion in 26.8min :: {"reward":0.9410684944283411,"testPassRate":0.8690410987296469,"passedGate":false,"tasks":[{"taskId":"data-ops-v2-promotion-7::data-ops-fact-recovery-cust-3587__2026-04","pass":true,"score":1,"status":"ok"},{"taskId":"da
+[2026-07-31T23:11:57.960Z] START s7-baseline-promotion-replicate
+[2026-07-31T23:41:16.803Z] DONE  s7-baseline-promotion-replicate in 29.3min :: {"reward":0.6250000000000001,"testPassRate":0.16666666666666666,"passedGate":false,"tasks":[{"taskId":"data-ops-v2-promotion-7::data-ops-fact-recovery-cust-3587__2026-04","pass":false,"score":0,"status":"ok"},{"taskId":"
+[2026-07-31T23:41:16.803Z] START s7-gen0
+[2026-08-01T04:20:41.293Z] DONE  s7-gen0 in 279.4min :: {"rewards":[{"id":"cand-s0-minimal","reward":0.636475398295547,"testPassRate":0.19216755176788206,"perWarehouse":[{"batteryId":"data-ops-v2-search-7","reward":0.636475398295547,"testPassRate":0.19216755176788206},{"batte
+[2026-08-01T04:20:41.293Z] START s7-mutate0
+[2026-08-01T04:23:44.717Z] DONE  s7-mutate0 in 3.1min :: {"prompts":{"cand-s0-minimal":"---\nname: data-ops-analyst\ntools: []\n---\nYou are a precise data assistant capable of accurate fact recovery. When retrieving precomputed metrics such as orderCount or revenueCents, you 
+[2026-08-01T04:23:44.717Z] START s7-gen1
+[2026-08-01T08:05:32.799Z] DONE  s7-gen1 in 221.8min :: {"rewards":[{"id":"cand-s0-minimal","reward":0.5510024630214172,"testPassRate":0.0022276956031492177,"perWarehouse":[{"batteryId":"data-ops-v2-search-7","reward":0.5510024630214172,"testPassRate":0.0022276956031492177},{
+[2026-08-01T08:05:32.799Z] START s7-winner-promotion
+[2026-08-01T08:26:14.001Z] DONE  s7-winner-promotion in 20.7min :: {"reward":0.947837074956701,"testPassRate":0.8840823887926689,"passedGate":false,"tasks":[{"taskId":"data-ops-v2-promotion-7::data-ops-fact-recovery-cust-3587__2026-04","pass":true,"score":1,"status":"ok"},{"taskId":"dat
+[2026-08-01T08:26:14.001Z] START s7-shipped-gate
+[2026-08-01T09:55:23.362Z] DONE  s7-shipped-gate in 89.2min :: {"promote":false,"failed":["does-not-beat-incumbent","judge-rubric-not-calibrated"],"noiseMargin":0.046337900804736654,"beatsIncumbent":false,"searchPromotionGap":0.003874243079022177,"reasons":{"beatsIncumbent":"promoti
+[2026-08-01T09:55:23.362Z] SEED 7 RESULT :: B_prom=0.9411 W_prom=0.9478 W_search=0.7803 gap=-0.1675 beatsBaseline=true
+[2026-08-01T09:55:23.369Z] START s42-baseline-search
+[2026-08-01T10:22:46.676Z] DONE  s42-baseline-search in 27.4min :: {"reward":1,"testPassRate":1,"passedGate":true,"tasks":[{"taskId":"data-ops-v2-search-42::data-ops-fact-recovery-cust-6409__2026-09","pass":true,"score":1,"status":"ok"},{"taskId":"data-ops-v2-search-42::data-ops-fact-re
+[2026-08-01T10:22:46.676Z] START s42-baseline-promotion
+[2026-08-01T10:42:08.414Z] DONE  s42-baseline-promotion in 19.4min :: {"reward":0.9249999999999999,"testPassRate":0.8333333333333334,"passedGate":false,"tasks":[{"taskId":"data-ops-v2-promotion-42::data-ops-fact-recovery-cust-1295__2026-02","pass":true,"score":1,"status":"ok"},{"taskId":"d
+[2026-08-01T10:42:08.414Z] START s42-baseline-promotion-replicate
+[2026-08-01T11:00:26.699Z] DONE  s42-baseline-promotion-replicate in 18.3min :: {"reward":0.8124333770993298,"testPassRate":0.583185282442955,"passedGate":false,"tasks":[{"taskId":"data-ops-v2-promotion-42::data-ops-fact-recovery-cust-1295__2026-02","pass":true,"score":1,"status":"ok"},{"taskId":"da
+[2026-08-01T11:00:26.699Z] START s42-gen0
+[2026-08-01T16:23:23.520Z] DONE  s42-gen0 in 322.9min :: {"rewards":[{"id":"cand-s0-minimal","reward":0.6312746963787317,"testPassRate":0.18061043639718144,"perWarehouse":[{"batteryId":"data-ops-v2-search-42","reward":0.7375,"testPassRate":0.4166666666666667},{"batteryId":"dat
+[2026-08-01T16:23:23.521Z] START s42-mutate0
+[2026-08-01T16:26:07.552Z] DONE  s42-mutate0 in 2.7min :: {"prompts":{"cand-s0-minimal":"---\nname: data-ops-analyst\ntools: []\n---\nYou are a precise data recovery assistant specialized in fact restoration for customer analytics. Your task is to extract exactly two metrics fo
+[2026-08-01T16:26:07.553Z] START s42-gen1
+[2026-08-01T19:59:36.038Z] DONE  s42-gen1 in 213.5min :: {"rewards":[{"id":"cand-s0-minimal","reward":0.7333090329256319,"testPassRate":0.40735340650140395,"perWarehouse":[{"batteryId":"data-ops-v2-search-42","reward":0.7333090329256319,"testPassRate":0.40735340650140395},{"ba
+[2026-08-01T19:59:36.039Z] START s42-winner-promotion
+[2026-08-01T20:23:52.402Z] DONE  s42-winner-promotion in 24.3min :: {"reward":0.7050598928907801,"testPassRate":0.34457753975728894,"passedGate":false,"tasks":[{"taskId":"data-ops-v2-promotion-42::data-ops-fact-recovery-cust-1295__2026-02","pass":true,"score":1,"status":"ok"},{"taskId":"
+[2026-08-01T20:23:52.402Z] START s42-shipped-gate
+[2026-08-01T21:47:23.617Z] DONE  s42-shipped-gate in 83.5min :: {"promote":false,"failed":["does-not-beat-incumbent","judge-rubric-not-calibrated"],"noiseMargin":0.09784352144183028,"beatsIncumbent":false,"searchPromotionGap":0.044512978184785945,"reasons":{"beatsIncumbent":"promotio
+[2026-08-01T21:47:23.617Z] SEED 42 RESULT :: B_prom=0.9250 W_prom=0.7051 W_search=0.7836 gap=0.0785 beatsBaseline=false
+[2026-08-01T21:47:23.627Z] START s1234-baseline-search
+[2026-08-01T22:04:11.312Z] DONE  s1234-baseline-search in 16.8min :: {"reward":0.85,"testPassRate":0.6666666666666666,"passedGate":false,"tasks":[{"taskId":"data-ops-v2-search-1234::data-ops-fact-recovery-cust-1659__2026-12","pass":true,"score":1,"status":"ok"},{"taskId":"data-ops-v2-sear
+[2026-08-01T22:04:11.312Z] START s1234-baseline-promotion
+[2026-08-01T22:33:11.049Z] DONE  s1234-baseline-promotion in 29.0min :: {"reward":0.9249999999999999,"testPassRate":0.8333333333333334,"passedGate":false,"tasks":[{"taskId":"data-ops-v2-promotion-1234::data-ops-fact-recovery-cust-5560__2026-04","pass":true,"score":1,"status":"ok"},{"taskId":
+[2026-08-01T22:33:11.049Z] START s1234-baseline-promotion-replicate
+[2026-08-01T22:49:53.533Z] DONE  s1234-baseline-promotion-replicate in 16.7min :: {"reward":0.9293466213570271,"testPassRate":0.8429924919045045,"passedGate":false,"tasks":[{"taskId":"data-ops-v2-promotion-1234::data-ops-fact-recovery-cust-5560__2026-04","pass":true,"score":1,"status":"ok"},{"taskId":
+[2026-08-01T22:49:53.534Z] START s1234-gen0
+[2026-08-02T02:18:45.648Z] DONE  s1234-gen0 in 208.9min :: {"rewards":[{"id":"cand-s0-minimal","reward":0.7237189733304127,"testPassRate":0.38604216295647253,"perWarehouse":[{"batteryId":"data-ops-v2-search-1234","reward":0.7237189733304127,"testPassRate":0.38604216295647253},{"
+[2026-08-02T02:18:45.648Z] START s1234-mutate0
+[2026-08-02T02:21:34.145Z] DONE  s1234-mutate0 in 2.8min :: {"prompts":{"cand-s0-minimal":"---\nname: data-ops-analyst\ntools: []\n---\nYou are a precise data recovery agent tasked with retrieving exact numerical facts for specified customers and months. Match precomputed ground-
+[2026-08-02T02:21:34.145Z] START s1234-gen1
+[2026-08-02T07:31:35.921Z] DONE  s1234-gen1 in 310.0min :: {"rewards":[{"id":"cand-s0-minimal","reward":0.6279089277970455,"testPassRate":0.173130950660101,"perWarehouse":[{"batteryId":"data-ops-v2-search-1234","reward":0.7000000000000001,"testPassRate":0.3333333333333333},{"bat
+[2026-08-02T07:31:35.921Z] START s1234-winner-promotion
+[2026-08-02T07:56:39.905Z] DONE  s1234-winner-promotion in 25.1min :: {"reward":0.9249999999999999,"testPassRate":0.8333333333333334,"passedGate":false,"tasks":[{"taskId":"data-ops-v2-promotion-1234::data-ops-fact-recovery-cust-5560__2026-04","pass":false,"score":0,"status":"ok"},{"taskId"
+[2026-08-02T07:56:39.905Z] START s1234-shipped-gate
+[2026-08-02T08:56:48.036Z] DONE  s1234-shipped-gate in 60.1min :: {"promote":false,"failed":["does-not-beat-incumbent","judge-rubric-not-calibrated"],"noiseMargin":0.07500000000000007,"beatsIncumbent":false,"searchPromotionGap":-0.05128102666958734,"reasons":{"beatsIncumbent":"promotio
+[2026-08-02T08:56:48.036Z] SEED 1234 RESULT :: B_prom=0.9250 W_prom=0.9250 W_search=0.8500 gap=-0.0750 beatsBaseline=false
+[2026-08-02T08:56:48.037Z] 
+## PREREG §3 decision
+[2026-08-02T08:56:48.037Z] seeds=3 winsOnPromotion=1 goodhartingSeeds=0
+[2026-08-02T08:56:48.037Z] search->promotion gaps: [-0.1675 0.0785 -0.0750]
+[2026-08-02T08:56:48.037Z] identical-prompt noise samples: [0.3161 0.1126 0.0043] -> margin=0.3161
+[2026-08-02T08:56:48.037Z] wins clearing the noise margin: 0/3
+[2026-08-02T08:56:48.037Z] Goodhart excess-gap vs baseline (diff-in-diff): [-0.1515 0.0035 0.0000]
+[2026-08-02T08:56:48.037Z] 
+## per-task promotion decomposition
+[2026-08-02T08:56:48.037Z]   cand-s2-strong: B failed [data-ops-v2-promotion-7::data-ops-fact-recovery-cust-5050__2026-12] · W failed [data-ops-v2-promotion-7::data-ops-fact-recovery-cust-8281__2026-04] · shared-failure 0/1
+[2026-08-02T08:56:48.037Z]     => disjoint failure sets: genuinely different competence, not a shared hard task.
+[2026-08-02T08:56:48.037Z]   cand-s2-strong: B failed [data-ops-v2-promotion-42::data-ops-fact-recovery-cust-6246__2026-04] · W failed [data-ops-v2-promotion-42::data-ops-fact-recovery-cust-1295__2026-04, data-ops-v2-promotion-42::data-ops-fact-recovery-cust-6246__2026-02, data-ops-v2-promotion-42::data-ops-fact-recovery-cust-6246__2026-04, data-ops-v2-promotion-42::data-ops-fact-recovery-cust-5600__2026-04] · shared-failure 1/4
+[2026-08-02T08:56:48.037Z]   cand-s2-strong: B failed [data-ops-v2-promotion-1234::data-ops-fact-recovery-cust-3262__2026-04] · W failed [data-ops-v2-promotion-1234::data-ops-fact-recovery-cust-5560__2026-04] · shared-failure 0/1
+[2026-08-02T08:56:48.037Z]     => disjoint failure sets: genuinely different competence, not a shared hard task.
+[2026-08-02T08:56:48.037Z] 
+## shipped promoteComponentWinner verdict (reported, not conflated with §3)
+[2026-08-02T08:56:48.038Z]   cand-s2-strong: promote=false beatsIncumbent=false margin=0.0463 failedGates=[does-not-beat-incumbent, judge-rubric-not-calibrated]
+[2026-08-02T08:56:48.038Z]   cand-s2-strong: promote=false beatsIncumbent=false margin=0.0978 failedGates=[does-not-beat-incumbent, judge-rubric-not-calibrated]
+[2026-08-02T08:56:48.038Z]   cand-s2-strong: promote=false beatsIncumbent=false margin=0.0750 failedGates=[does-not-beat-incumbent, judge-rubric-not-calibrated]
+[2026-08-02T08:56:48.038Z] GATE NOT MET — W_promotion beat B_promotion on 1/3 seeds; §3 needs all.
+[2026-08-02T08:56:48.038Z] NOTE: the shipped promotion gate additionally requires a calibrated judge profile, which
+[2026-08-02T08:56:48.038Z]       does not exist for this slice type — it refuses independently of the above.
+[2026-08-02T09:13:42.560Z] RESUME — 27 units already complete
+[2026-08-02T09:13:42.561Z] # PREREG §3 tournament — model=qwen3.6:latest seeds=7,42,1234 generations=2
+[2026-08-02T09:13:42.562Z] SKIP s7-baseline-search (already complete)
+[2026-08-02T09:13:42.562Z] SKIP s7-baseline-promotion (already complete)
+[2026-08-02T09:13:42.562Z] SKIP s7-baseline-promotion-replicate (already complete)
+[2026-08-02T09:13:42.562Z] SKIP s7-gen0 (already complete)
+[2026-08-02T09:13:42.562Z] SKIP s7-mutate0 (already complete)
+[2026-08-02T09:13:42.562Z] SKIP s7-gen1 (already complete)
+[2026-08-02T09:13:42.562Z] SKIP s7-winner-promotion (already complete)
+[2026-08-02T09:13:42.563Z] SKIP s7-shipped-gate (already complete)
+[2026-08-02T09:13:42.563Z] SEED 7 RESULT :: B_prom=0.9411 W_prom=0.9478 W_search=0.7803 gap=-0.1675 beatsBaseline=true
+[2026-08-02T09:13:42.564Z] SKIP s42-baseline-search (already complete)
+[2026-08-02T09:13:42.564Z] SKIP s42-baseline-promotion (already complete)
+[2026-08-02T09:13:42.564Z] SKIP s42-baseline-promotion-replicate (already complete)
+[2026-08-02T09:13:42.564Z] SKIP s42-gen0 (already complete)
+[2026-08-02T09:13:42.564Z] SKIP s42-mutate0 (already complete)
+[2026-08-02T09:13:42.564Z] SKIP s42-gen1 (already complete)
+[2026-08-02T09:13:42.565Z] SKIP s42-winner-promotion (already complete)
+[2026-08-02T09:13:42.565Z] SKIP s42-shipped-gate (already complete)
+[2026-08-02T09:13:42.565Z] SEED 42 RESULT :: B_prom=0.9250 W_prom=0.7051 W_search=0.7836 gap=0.0785 beatsBaseline=false
+[2026-08-02T09:13:42.575Z] SKIP s1234-baseline-search (already complete)
+[2026-08-02T09:13:42.575Z] SKIP s1234-baseline-promotion (already complete)
+[2026-08-02T09:13:42.575Z] SKIP s1234-baseline-promotion-replicate (already complete)
+[2026-08-02T09:13:42.575Z] SKIP s1234-gen0 (already complete)
+[2026-08-02T09:13:42.575Z] SKIP s1234-mutate0 (already complete)
+[2026-08-02T09:13:42.575Z] SKIP s1234-gen1 (already complete)
+[2026-08-02T09:13:42.575Z] SKIP s1234-winner-promotion (already complete)
+[2026-08-02T09:13:42.575Z] SKIP s1234-shipped-gate (already complete)
+[2026-08-02T09:13:42.575Z] SEED 1234 RESULT :: B_prom=0.9250 W_prom=0.9250 W_search=0.8500 gap=-0.0750 beatsBaseline=false
+[2026-08-02T09:13:42.575Z] 
+## PREREG §3 decision
+[2026-08-02T09:13:42.575Z] seeds=3 winsOnPromotion=1 goodhartingSeeds=0
+[2026-08-02T09:13:42.575Z] search->promotion gaps: [-0.1675 0.0785 -0.0750]
+[2026-08-02T09:13:42.575Z] identical-prompt noise samples: [0.1531 0.1126 0.0043] -> margin=0.1531
+[2026-08-02T09:13:42.575Z] wins clearing the noise margin: 0/3
+[2026-08-02T09:13:42.575Z] Goodhart excess-gap vs baseline (diff-in-diff): [-0.1515 0.0035 0.0000]
+[2026-08-02T09:13:42.575Z] 
+## per-task promotion decomposition
+[2026-08-02T09:13:42.575Z]   cand-s2-strong: B failed [data-ops-v2-promotion-7::data-ops-fact-recovery-cust-5050__2026-12] · W failed [data-ops-v2-promotion-7::data-ops-fact-recovery-cust-8281__2026-04] · shared-failure 0/1
+[2026-08-02T09:13:42.575Z]     => disjoint failure sets: genuinely different competence, not a shared hard task.
+[2026-08-02T09:13:42.575Z]   cand-s2-strong: B failed [data-ops-v2-promotion-42::data-ops-fact-recovery-cust-6246__2026-04] · W failed [data-ops-v2-promotion-42::data-ops-fact-recovery-cust-1295__2026-04, data-ops-v2-promotion-42::data-ops-fact-recovery-cust-6246__2026-02, data-ops-v2-promotion-42::data-ops-fact-recovery-cust-6246__2026-04, data-ops-v2-promotion-42::data-ops-fact-recovery-cust-5600__2026-04] · shared-failure 1/4
+[2026-08-02T09:13:42.575Z]   cand-s2-strong: B failed [data-ops-v2-promotion-1234::data-ops-fact-recovery-cust-3262__2026-04] · W failed [data-ops-v2-promotion-1234::data-ops-fact-recovery-cust-5560__2026-04] · shared-failure 0/1
+[2026-08-02T09:13:42.575Z]     => disjoint failure sets: genuinely different competence, not a shared hard task.
+[2026-08-02T09:13:42.575Z] 
+## shipped promoteComponentWinner verdict (reported, not conflated with §3)
+[2026-08-02T09:13:42.575Z]   cand-s2-strong: promote=false beatsIncumbent=false margin=0.0463 failedGates=[does-not-beat-incumbent, judge-rubric-not-calibrated]
+[2026-08-02T09:13:42.575Z]   cand-s2-strong: promote=false beatsIncumbent=false margin=0.0978 failedGates=[does-not-beat-incumbent, judge-rubric-not-calibrated]
+[2026-08-02T09:13:42.575Z]   cand-s2-strong: promote=false beatsIncumbent=false margin=0.0750 failedGates=[does-not-beat-incumbent, judge-rubric-not-calibrated]
+[2026-08-02T09:13:42.575Z] GATE NOT MET — W_promotion beat B_promotion on 1/3 seeds; §3 needs all.
+[2026-08-02T09:13:42.575Z] NOTE: the shipped promotion gate additionally requires a calibrated judge profile, which
+[2026-08-02T09:13:42.575Z]       does not exist for this slice type — it refuses independently of the above.

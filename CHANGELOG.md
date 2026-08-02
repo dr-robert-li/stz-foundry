@@ -9,6 +9,25 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### Round-2 tournament result (phase-5 arm) — GATE NOT MET, Goodharting eliminated
+
+- Full pre-registered round 2 completed (3 seeds × 4 candidates × 2 reflective
+  generations × 2 min-aggregated search warehouses, ~34h local): **1/3 raw
+  wins, 0/3 clearing the measured noise margin (0.153), 0 Goodharting seeds →
+  phase 5 stays gated.** Diff-in-diff Goodhart excess [−0.15, +0.004, 0.000]
+  vs round 1's all-positive — multi-warehouse min-aggregation removed the
+  overfit-to-visible-warehouse failure mode.
+- The shipped `promoteComponentWinner` executed on all three seeds and refused
+  all three; the replicate noise margin rejected a +0.0067 within-noise "win"
+  in production. `generation-variance-collapsed` never fired.
+- Instrument finding that drives the next round: baselines 0.92–0.94 leave ~1
+  task of headroom against noise floors measured at 0.004–0.153 per half — no
+  method can register on this battery (v3 headroom battery queued, method
+  frozen).
+- Seed-7 noise replicate corrupted by a mid-run ollama upgrade was repaired
+  concurrently on a state copy and spliced back; final decision regenerated
+  from the clean 27-unit state (zero non-ok tasks).
+
 ### Selection gates hardened from round-1 evidence (phase-5 arm)
 
 - **Replicate-evidence noise margin on `beatsIncumbent`** — `promoteComponentWinner`

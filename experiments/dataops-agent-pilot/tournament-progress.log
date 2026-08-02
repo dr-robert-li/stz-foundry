@@ -84,3 +84,13 @@
 [2026-07-31T20:59:52.229Z] GATE NOT MET — measured Goodharting: a win on search that vanished on promotion (§3).
 [2026-07-31T20:59:52.229Z] NOTE: the shipped promotion gate additionally requires a calibrated judge profile, which
 [2026-07-31T20:59:52.229Z]       does not exist for this slice type — it refuses independently of the above.
+[2026-08-02T09:06:08.208Z] RESUME — 24 units already complete
+[2026-08-02T09:06:08.208Z] # PREREG §3 tournament — model=qwen3.6:latest seeds=7,42,1234 generations=2
+[2026-08-02T09:06:08.210Z] SKIP s7-baseline-search (already complete)
+[2026-08-02T09:06:08.210Z] SKIP s7-baseline-promotion (already complete)
+[2026-08-02T09:06:08.210Z] SKIP s7-baseline-promotion-replicate (already complete)
+[2026-08-02T09:06:08.210Z] SKIP s7-gen0 (already complete)
+[2026-08-02T09:06:08.210Z] SKIP s7-mutate0 (already complete)
+[2026-08-02T09:06:08.210Z] SKIP s7-gen1 (already complete)
+[2026-08-02T09:06:08.210Z] SKIP s7-winner-promotion (already complete)
+[2026-08-02T09:06:08.210Z] START s7-shipped-gate

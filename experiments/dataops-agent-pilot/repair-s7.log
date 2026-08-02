@@ -1,0 +1,15 @@
+[2026-08-01T22:51:17.857Z] RESUME — 19 units already complete
+[2026-08-01T22:51:17.858Z] # PREREG §3 tournament — model=qwen3.6:latest seeds=7 generations=2
+[2026-08-01T22:51:17.860Z] SKIP s7-baseline-search (already complete)
+[2026-08-01T22:51:17.860Z] SKIP s7-baseline-promotion (already complete)
+[2026-08-01T22:51:17.860Z] START s7-baseline-promotion-replicate
+[2026-08-01T23:32:44.324Z] DONE  s7-baseline-promotion-replicate in 41.4min :: {"reward":0.787966434595963,"testPassRate":0.5288142991021402,"passedGate":false,"tasks":[{"taskId":"data-ops-v2-promotion-7::data-ops-fact-recovery-cust-3587__2026-04","pass":true,"score":1,"status":"ok"},{"taskId":"dat
+[2026-08-01T23:32:44.324Z] SKIP s7-gen0 (already complete)
+[2026-08-01T23:32:44.324Z] SKIP s7-mutate0 (already complete)
+[2026-08-01T23:32:44.324Z] SKIP s7-gen1 (already complete)
+[2026-08-01T23:32:44.324Z] SKIP s7-winner-promotion (already complete)
+[2026-08-01T23:32:44.325Z] SKIP s7-shipped-gate (already complete)
+[2026-08-01T23:32:44.325Z] SEED 7 RESULT :: B_prom=0.9411 W_prom=0.9478 W_search=0.7803 gap=-0.1675 beatsBaseline=true
+[2026-08-01T23:32:44.334Z] 
+## PREREG §3 decision
+[2026-08-01T23:32:44.334Z] GATE NOT MET — only 1 seeds produced a result; §3 requires >=3.

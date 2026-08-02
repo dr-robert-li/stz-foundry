@@ -791,3 +791,78 @@ figure must not reach the §3 decision.
 
 Seed 7's other numbers are clean and unaffected (`B_search` 0.925,
 `B_promotion` 0.941, `W_promotion` 0.948, all six tasks `ok`).
+
+---
+
+# ROUND 2 — GATE NOT MET, and the Goodharting is gone
+
+Completed 2026-08-02: qwen3.6, seeds 7/42/1234, 4 candidates × 2 reflective
+generations, **2 independent search warehouses min-aggregated**, baseline =
+`s2-strong`, ~34h wall-clock, local, $0. Pre-registered in
+`PREREG-AMENDMENT.md` (committed before blind data). All 27 units clean after
+the seed-7 replicate repair — zero non-`ok` tasks in the final dataset.
+
+## The numbers
+
+| seed | B_prom | W_prom | raw win | noise (clean) | gap (W) | diff-in-diff |
+|---|---|---|---|---|---|---|
+| 7 | 0.9411 | 0.9478 | +0.0067 | 0.1531 | **−0.1675** | **−0.1515** |
+| 42 | 0.9250 | 0.7051 | −0.2199 | 0.1126 | +0.0785 | +0.0035 |
+| 1234 | 0.9250 | 0.9250 | exact tie | 0.0043 | −0.0750 | 0.0000 |
+
+**§3: 1/3 raw wins (3/3 required), 0/3 clear the measured margin (0.1531),
+0 Goodharting seeds → GATE NOT MET.**
+
+## What round 2 fixed — the method change worked as designed
+
+Round 1's signature was Goodharting: diff-in-diff excess **positive on every
+seed** (+0.21/+0.12/+0.04), search gains that never transferred. Round 2's
+diff-in-diff: **[−0.15, +0.004, 0.000]** — zero or negative on all three.
+Multi-warehouse min-aggregation killed the overfit-to-the-visible-warehouse
+failure mode. The per-warehouse spreads (candidates routinely 0.1–0.2 apart
+across the two search warehouses) show it actively binding.
+
+The shipped `promoteComponentWinner` executed on all three seeds and refused
+all three — `does-not-beat-incumbent` (margins 0.046/0.098/0.075, self-measured
+from real replicates) plus the pre-registered `judge-rubric-not-calibrated`.
+`generation-variance-collapsed` never fired. The margin gate did in production
+exactly what it was built for: seed 7's +0.0067 "win" was refused as
+within-noise.
+
+## What round 2 could not fix — the instrument has no headroom
+
+Baselines sat at 0.92–0.94 on every promotion half. Seed 42's winner *lost* by
+0.22 (reflection made the prompt worse: gen1 rewards converged downward);
+seed 1234 tied exactly; seed 7 won by 0.007 against a 0.15 noise floor. The
+per-task decomposition shows disjoint single-task failure sets on seeds 7 and
+1234 — genuinely different competence, not one shared hard task — but with one
+failure of headroom, "different" cannot cash out as measurable improvement.
+
+Noise itself is wildly draw-dependent: clean identical-prompt samples
+**[0.153, 0.113, 0.004]** across three promotion halves. Every measured floor
+this arm: 0.004–0.153. The v3 battery must budget for the top of that range.
+
+## Characterization
+
+Two rounds, one instrument, opposite failure modes, one conclusion:
+
+- **Round 1:** search climbed what it could see and the gain did not transfer
+  (Goodharting).
+- **Round 2:** the anti-overfit machinery removed the false gains — and
+  revealed there were no true ones at this ceiling: reflective mutation on a
+  strong hand-written baseline produced one within-noise win, one loss, one tie.
+
+Phase 5 stays gated. The next lever is the instrument (v3 headroom battery,
+task 15), with the method frozen — a null with real headroom is the decisive
+test reflective mutation has not yet received.
+
+## Data provenance note
+
+Seed 7's noise replicate was corrupted mid-run by an ollama upgrade (3 tasks
+`status:"error"`, caught by per-task diagnostics) and re-run cleanly on a state
+copy while the tournament continued (same model, no extra memory, sampling
+distribution unaffected by contention), then spliced back. The corrupted 0.316
+figure appears in no decision above; the clean 0.153 does. One driver re-run
+initially read the wrong (round-1) state file because `TOURNEY_STATE` was
+omitted — killed before any write; the round-1 record is unpolluted; the final
+decision above was regenerated from the correct 27-unit state, all cached.
