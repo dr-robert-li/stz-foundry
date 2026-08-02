@@ -9,6 +9,18 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### v3 battery design reviewed and revised (phase-5 arm)
+
+- Cross-AI design review of the v3 headroom battery (5 reviewers, 5 model
+  families via CLI + opencode/openrouter + local ollama): 2× sound-with-changes,
+  3× unsound. All criticals addressed in `V3-BATTERY-DESIGN.md` rev 2; full
+  panel output in `V3-REVIEWS.md`. Headline adoptions: independent reference
+  interpreter (bidirectional oracle proof), formally ordered 6-step evaluation
+  pipeline closing every enumerated rule ambiguity, 10 tasks/half (quantum
+  0.10), ISO-only dates (column-selection reasoning, not parsing),
+  pre-registered fixed knob grid with interval-based acceptance, noise
+  replicates inside the difficulty probe, weak-arm floor check, rollback path.
+
 ### Round-2 tournament result (phase-5 arm) — GATE NOT MET, Goodharting eliminated
 
 - Full pre-registered round 2 completed (3 seeds × 4 candidates × 2 reflective
