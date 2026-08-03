@@ -9,6 +9,35 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### v3 calibration probes: ceiling CLEAR, grid probe in flight (phase-5 arm, steps 4–5)
+
+- **Ceiling probe CLEAR** (step 4): baseline prompt + answer key + CSV on
+  qwen3.6 at both schema extremes (G1/G5), seeds 7+42 — mean 1.000, exact
+  40/40, zero harness faults. The artifact contract is not the bottleneck;
+  the grid probe measures difficulty, not format compliance. Evidence:
+  `experiments/dataops-agent-pilot/v3-ceiling.log`.
+- **Pre-registered grid probe running** (step 5): G1–G5 × {s2-strong,
+  s0-minimal} × seeds 7/42/1234, checkpointed, detached, memory watchdog +
+  15s resource sampler up. Early G1 (not a verdict): baseline pooled ≈0.56
+  vs v2's 0.92–0.94 — the levers bite; floor ≈0.375 (v1's 0.000 death not
+  repeated); gradient borderline at G1, the refund-bearing points exist to
+  fix exactly that.
+- **Throughput finding**: ollama 0.32.5 hard-refuses parallel slots for the
+  qwen35moe architecture (`sched.go:510` warning) — `OLLAMA_NUM_PARALLEL=2`
+  is set and read but overridden to `-np 1` for this model. Probe client
+  concurrency (`V3_CONCURRENCY`, order-stable worker pool) is in place for
+  a future server version that lifts the cap.
+- **Ops incident, recorded**: a probe stop killed the launcher wrapper's PID
+  rather than the node child; the orphaned probe ran concurrently with its
+  replacement for ~6.7h, the two clobbering each other's checkpoints
+  (caught by a duplicated unit in the log vs a missing one in the state
+  file; ground truth via /proc cmdline scan, not ps). Checkpoint semantics
+  self-healed — the surviving run re-runs anything absent from its own
+  state. Hardening: `grid-probe.pid` records the verified node-process
+  tree; stops target those PIDs and confirm the tree empty via /proc.
+  Incidental gain: the duplicated unit is a free replicate pair — |Δ|
+  graded 0.022, the first direct v3 noise datapoint, vs v2's 0.153.
+
 ### v3 battery generator built (phase-5 arm, steps 1–3 of the build sequence)
 
 - **Added** `src/foundry/fixture-warehouse-v3.ts` — the v3 data-ops warehouse
