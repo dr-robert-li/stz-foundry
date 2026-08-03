@@ -120,6 +120,15 @@ function reportUnit(key: string, results: ProbeTaskResult[]): boolean {
         nonOk.map((r) => `${r.taskId.slice(-24)}=${r.status}`).join(", "),
     );
   }
+  // A `timeout` at the method's own 3600s bound is a LEGITIMATE 0 — the
+  // tournament's spawn pool scores it identically — and the design treats
+  // slow tasks as a review trigger (claude Q5c), never a disqualifier. Only
+  // `error` (a harness fault: connection refused, ollama restart, kill) makes
+  // a unit unclean, because an errored task's 0 is not a measurement. The
+  // pre-registered acceptance rule (§3.3) knows nothing of timeouts, and an
+  // extra-prereg cleanliness gate that silently discards a grid point would
+  // be difficulty-shopping's mirror image.
+  const errors = results.filter((r) => r.status === "error");
   if (noArtifact.length > 0) {
     console.log(`  !! ${key}: ${noArtifact.length}/${results.length} produced NO artifact (formatting)`);
   }
@@ -129,7 +138,7 @@ function reportUnit(key: string, results: ProbeTaskResult[]): boolean {
       `inTok=${Math.round(mean(results.map((r) => r.inputTokens)))} ` +
       `medWallS=${Math.round(([...results].map((r) => r.wallMs).sort((a, b) => a - b)[Math.floor(results.length / 2)] ?? 0) / 1000)}`,
   );
-  return nonOk.length === 0;
+  return errors.length === 0;
 }
 
 interface PointSummary {
@@ -200,12 +209,15 @@ const main = async () => {
   };
 
   console.log("\n## PHASE A RESULT\n");
-  console.log("| point | levers | clean | baseline mean | 90% CI | s0 mean | graded-exact | qualifies |");
-  console.log("|---|---|---|---|---|---|---|---|");
+  console.log("| point | levers | clean | timeouts | baseline mean | 90% CI | s0 mean | graded-exact | qualifies |");
+  console.log("|---|---|---|---|---|---|---|---|---|");
   for (const s of summaries) {
     const q = qualifies(s);
+    // Timeouts reported per point (claude Q5c's latency review trigger), never
+    // used to disqualify — see reportUnit.
+    const timeouts = [...s.baseline, ...s.floor].filter((r) => r.status === "timeout").length;
     console.log(
-      `| ${s.pointId} | ${s.levers} | ${s.clean ? "yes" : "NO"} | ${q.ci.mean.toFixed(3)} | ` +
+      `| ${s.pointId} | ${s.levers} | ${s.clean ? "yes" : "NO"} | ${timeouts} | ${q.ci.mean.toFixed(3)} | ` +
         `[${q.ci.lo.toFixed(3)}, ${q.ci.hi.toFixed(3)}] | ${q.floorMean.toFixed(3)} | ` +
         `${q.gradient.toFixed(3)} | ${q.ok ? "YES" : "no"} |`,
     );
