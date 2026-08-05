@@ -22,7 +22,7 @@ import { spawnSpecimens, type SpecimenRunRecord } from "./spawn.js";
 import { createProvider, type Provider, type ProviderKind } from "./provider.js";
 import { evaluateChecks, type CheckResult, type Observations } from "../contract/predicate-eval.js";
 import type { PredicateCheck } from "../contract/contract-types.js";
-import { validateReceipt, type AgentBattery, type OracleReceipt } from "./battery-types.js";
+import { validateReceipt, type AgentBattery, type BatteryTask, type OracleReceipt } from "./battery-types.js";
 import { gradeTask } from "./grade.js";
 import { resolveContained, writeSpecimenFiles } from "../write-guard.js";
 import { FoundryCostMeter, type CostTotals } from "./cost.js";
@@ -201,6 +201,42 @@ export function parseArtifacts(responseText: string): Record<string, string> {
 }
 
 /**
+ * The v3.1 parsing seam (`V3.1-BATTERY-DESIGN.md` §1) — `parseArtifacts` plus
+ * the task-declared fence alias, applied in this order, fail-closed:
+ *
+ *   1. Explicit `path=` blocks win outright: if `parseArtifacts` found the
+ *      alias's target path, the alias is never consulted.
+ *   2. Otherwise, fenced blocks whose info string — lowercased and trimmed —
+ *      is EXACTLY the alias's `info` are counted. Exactly one ⇒ its body is
+ *      the artifact at `alias.path`. Zero or several ⇒ nothing (the task
+ *      instruction says exactly one block; ambiguity fails closed).
+ *
+ * A task without `fenceAlias` — every v1/v2/v3 task — takes the first return
+ * and this function IS `parseArtifacts`, byte for byte. The tournament runner
+ * and the calibration probes both parse through here, so the probe can never
+ * certify a corridor under a contract the tournament does not score.
+ *
+ * Whether the response ALSO satisfied the strict contract is a separate
+ * question deliberately not answered here — callers that need the v3.1
+ * secondary endpoint compare `parseArtifacts` output themselves.
+ */
+export function parseArtifactsForTask(
+  responseText: string,
+  task: Pick<BatteryTask, "fenceAlias">,
+): Record<string, string> {
+  const files = parseArtifacts(responseText);
+  const alias = task.fenceAlias;
+  if (!alias || files[alias.path] !== undefined) return files;
+  const bodies: string[] = [];
+  for (const match of responseText.matchAll(FENCE_RE)) {
+    const infoLine = (match[1] ?? "").trim().toLowerCase();
+    if (infoLine === alias.info) bodies.push((match[2] ?? "").trim());
+  }
+  if (bodies.length === 1) files[alias.path] = bodies[0]!;
+  return files;
+}
+
+/**
  * The kind-dispatching observation PRODUCER (RESEARCH Pattern 1): the fourth
  * such producer in the repo (after `bridge.ts`'s output-assertion-only shell
  * and the two test-file examples), a translation function, never a second
@@ -373,7 +409,7 @@ export async function runAgentBattery(
         opts.costMeter.add("battery", providerSelection.model, res.usage, candidateAgent.id);
       }
       rawResponses.set(strategy, res.text);
-      const files = parseArtifacts(res.text);
+      const files = parseArtifactsForTask(res.text, task);
       // An escaping key throws here — uncaught, converted by spawnSpecimens's
       // existing catch into an attributable `status: "error"` record with the
       // guard's message as `killReason`, never a silent drop and never a

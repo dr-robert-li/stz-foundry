@@ -23,7 +23,7 @@
  * thing reimplemented here is the timeout and the sequential loop.
  */
 import { createProvider } from "../../src/foundry/provider.js";
-import { buildObservations, parseArtifacts } from "../../src/foundry/agent-runner.js";
+import { buildObservations, parseArtifacts, parseArtifactsForTask } from "../../src/foundry/agent-runner.js";
 import { evaluateChecks } from "../../src/contract/predicate-eval.js";
 import { gradeTask } from "../../src/foundry/grade.js";
 import type { BatteryTask } from "../../src/foundry/battery-types.js";
@@ -34,9 +34,18 @@ export interface ProbeTaskResult {
    *  HANDOFF-V3 §2: verify this per task before reading any aggregate. Two
    *  harness faults have already masqueraded as capability results. */
   status: "ok" | "timeout" | "error";
+  /** PRIMARY endpoint: graded score through `parseArtifactsForTask` (the
+   *  task's fence alias applied, when it declares one). */
   score: number;
   exact: boolean;
   hasArtifact: boolean;
+  /** SECONDARY endpoint (`V3.1-BATTERY-DESIGN.md` §1.4): the response ALSO
+   *  satisfied the original strict `path=` contract. Equal to `hasArtifact`
+   *  for any task without an alias. Never an acceptance input. */
+  strictArtifact: boolean;
+  /** Raw response text, verbatim (§3: no probe runs without it — Phase A's
+   *  zeros were undecomposable because this was missing). */
+  rawText: string;
   failureReason?: string;
   promptChars: number;
   /** Real tokenized prompt length, not a char estimate — design §3.6 flags a
@@ -129,7 +138,7 @@ async function scoreOneTask(
     failureReason = message;
   }
 
-  const files = parseArtifacts(text);
+  const files = parseArtifactsForTask(text, task);
   const observed = buildObservations(task.checks, files, text);
   const checkResults = evaluateChecks(task.checks, observed).checks;
   const score = status === "ok" ? gradeTask(checkResults, task.grading) : 0;
@@ -140,6 +149,8 @@ async function scoreOneTask(
     score,
     exact: status === "ok" && checkResults.every((c) => c.pass),
     hasArtifact: Object.keys(files).length > 0,
+    strictArtifact: Object.keys(parseArtifacts(text)).length > 0,
+    rawText: text,
     ...(failureReason ? { failureReason } : {}),
     promptChars: task.prompt.length,
     inputTokens,

@@ -84,6 +84,22 @@ export const DATA_OPS_GENERATOR_V2_ID = "data-ops-fixture-warehouse-generator-v2
  */
 export const DATA_OPS_GENERATOR_V3_ID = "data-ops-fixture-warehouse-generator-v3";
 
+/**
+ * The v3.1 revision (`experiments/dataops-agent-pilot/V3.1-BATTERY-DESIGN.md`,
+ * the pre-registration of 2026-08-05): v3 with exactly ONE change — the task
+ * declares a fence alias so a response answering in a plain ```json fence
+ * scores through the same artifact contract, with strict-contract compliance
+ * kept as a secondary endpoint. The v3 grid probe measured 3%→60% of hard-
+ * point zeros to be fence-dialect drops; v3.1 removes that nuisance from the
+ * primary endpoint. The v3 id above is RETIRED UNACCEPTED — no battery was
+ * ever built under it, and none will be.
+ *
+ * DELIBERATELY ABSENT from `ACCEPTED_GENERATORS`: every v3.1 construction
+ * path throws until Dr. Robert Li records the acceptance in session, shown
+ * the probe numbers and the strict-endpoint gap. Never self-issued.
+ */
+export const DATA_OPS_GENERATOR_V31_ID = "data-ops-fixture-warehouse-generator-v3.1";
+
 /** The encoded human-acceptance event: generator id -> the human identity who
  *  accepted it. This map IS the acceptance event for this phase; a later
  *  phase's blocking checkpoint is where a human actually performs one for a

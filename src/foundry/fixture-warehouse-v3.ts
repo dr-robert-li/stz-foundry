@@ -42,6 +42,7 @@ import { mulberry32 } from "../harness.js";
 import { admitVerticalBattery } from "./vertical-admission.js";
 import {
   DATA_OPS_GENERATOR_V3_ID,
+  DATA_OPS_GENERATOR_V31_ID,
   REVENUE_ZERO_AT,
   acceptedGeneratorReceipt,
   derivePromotionSeed,
@@ -675,6 +676,23 @@ export function buildTasksV3(warehouse: FixtureWarehouseV3, taskIdPrefix: string
 }
 
 /**
+ * The v3.1 task builder (`V3.1-BATTERY-DESIGN.md` §1) — `buildTasksV3` plus
+ * the ONE pre-registered mitigation: each task declares the fence alias
+ * `json` → `answer.json`, honoured by `parseArtifactsForTask` in the shared
+ * scoring seam. Explicit `path=` blocks always win; ambiguity fails closed;
+ * the strict contract stays measurable as a secondary endpoint because the
+ * alias is applied at parse time, never by rewriting the response. The
+ * prompt is BYTE-IDENTICAL to v3's — the mitigation is scoring, not
+ * prompting, which is what makes it arm-symmetric by construction.
+ */
+export function buildTasksV3_1(warehouse: FixtureWarehouseV3, taskIdPrefix: string = ""): BatteryTask[] {
+  return buildTasksV3(warehouse, taskIdPrefix).map((task) => ({
+    ...task,
+    fenceAlias: { info: "json", path: "answer.json" },
+  }));
+}
+
+/**
  * The v3 construction path. Throws until a human adds `DATA_OPS_GENERATOR_V3_ID`
  * to `ACCEPTED_GENERATORS` — the acceptance event has to come from Dr. Robert
  * Li in session, because an agent adding its own generator to the accepted
@@ -714,6 +732,48 @@ export function generateFixtureSplitBatteryV3(seed: number, knobs: V3Knobs): Spl
   const promotionBattery = admitVerticalBattery("data-ops", {
     id: promotionBatteryId,
     tasks: buildTasksV3(generateWarehouseV3(promotionSeed, knobs), `${promotionBatteryId}::`),
+    receipt,
+  });
+
+  return makeSplitBattery(
+    { id: searchBattery.id, tasks: searchBattery.tasks, receipt: searchBattery.receipt },
+    { id: promotionBattery.id, tasks: promotionBattery.tasks, receipt: promotionBattery.receipt },
+  );
+}
+
+/**
+ * The v3.1 construction paths — identical in structure to v3's, differing
+ * only in the generator id and `buildTasksV3_1`. Both throw until the human
+ * acceptance of `DATA_OPS_GENERATOR_V31_ID` exists.
+ */
+export function generateFixtureBatteryV3_1(
+  seed: number,
+  batteryId: string,
+  knobs: V3Knobs,
+): AgentBattery {
+  const warehouse = generateWarehouseV3(seed, knobs);
+  const tasks = buildTasksV3_1(warehouse);
+  const receipt = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_V31_ID);
+  requireGeneratorRooted(receipt, DATA_OPS_GENERATOR_V31_ID);
+  return admitVerticalBattery("data-ops", { id: batteryId, tasks, receipt });
+}
+
+export function generateFixtureSplitBatteryV3_1(seed: number, knobs: V3Knobs): SplitBattery {
+  const promotionSeed = derivePromotionSeed(seed);
+  const searchBatteryId = `data-ops-v3.1-${knobs.id}-search-${seed}`;
+  const promotionBatteryId = `data-ops-v3.1-${knobs.id}-promotion-${seed}`;
+
+  const receipt = acceptedGeneratorReceipt(DATA_OPS_GENERATOR_V31_ID);
+  requireGeneratorRooted(receipt, DATA_OPS_GENERATOR_V31_ID);
+
+  const searchBattery = admitVerticalBattery("data-ops", {
+    id: searchBatteryId,
+    tasks: buildTasksV3_1(generateWarehouseV3(seed, knobs), `${searchBatteryId}::`),
+    receipt,
+  });
+  const promotionBattery = admitVerticalBattery("data-ops", {
+    id: promotionBatteryId,
+    tasks: buildTasksV3_1(generateWarehouseV3(promotionSeed, knobs), `${promotionBatteryId}::`),
     receipt,
   });
 

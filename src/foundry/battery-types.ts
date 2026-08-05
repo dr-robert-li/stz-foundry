@@ -78,6 +78,14 @@ export interface BatteryTask {
   /** Absent (the default, and every v1 task) => the task scores binary, exactly
    *  as before. Present => `gradeTask` scores it continuously. */
   grading?: GradedSpec[];
+  /** The v3.1 fence alias (`V3.1-BATTERY-DESIGN.md` §1): when present, a
+   *  response with NO explicit `path=`-marked block but EXACTLY ONE fenced
+   *  block whose info string (lowercased, trimmed) equals `info` is parsed as
+   *  the artifact at `path`. Absent (every v1/v2/v3 task) => parsing is
+   *  byte-identical to before this field existed — the alias is declared by
+   *  the task so the contract change is versioned by battery construction,
+   *  never by a global parser edit. */
+  fenceAlias?: { info: string; path: string };
 }
 
 /** Type-only nominal brand. It has no runtime representation, so it costs
