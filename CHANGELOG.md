@@ -9,6 +9,36 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### v3 grid probe complete: NO QUALIFYING POINT (phase-5 arm, step 5 verdict)
+
+- Phase A ran to completion — all five pre-registered points × both arms ×
+  three seeds, 300 tasks, one timeout, zero harness faults. Verdict under
+  the pre-registered interval rule, unchanged by the corrected timeout
+  semantics: **no grid point qualifies**.
+  - G1 (L1 only): baseline 0.556, CI [0.410, 0.701] spills the 0.60 top;
+    gradient 0.056 < 0.10.
+  - G2 (+refunds 0.10): baseline 0.300, CI [0.180, 0.420] spills the 0.30
+    floor; gradient healthy (0.167).
+  - G3/G4: 0.157 / 0.088 — far below corridor.
+  - G5 (L4 reserve): 0.001, floor 0.036 < 0.05 — total collapse, both arms.
+- Per design §3.5 the pre-registered outcome is **redesign, publicly** — not
+  a knob hunt. The decision goes to the human acceptance stop.
+- Two measured phenomena for that redesign, both first-order:
+  - **Fence-retention failure scales with lever count** (baseline arm: 3% →
+    27% → 30% → 37% → 60% no-artifact G1→G5) and is NOT correlated with
+    output length (dropped tasks median 28.3k outTok vs 27.9k fenced) — it
+    is prompt-content-driven, not reasoning exhaustion. At G3+ the
+    instrument increasingly measures fence retention, the axis the review
+    panel said to stop rewarding.
+  - **Arm inversion at hard points**: s0-minimal beats s2-strong pooled at
+    G4 (0.220 vs 0.088) and on multiple G3/G4 seeds — methodology guidance
+    stops helping and starts hurting where fence-drops dominate.
+- Incidental v3 noise datapoints: baseline replicate pair |Δ| 0.022 graded;
+  floor pair |Δ| 0.131 — the strong arm is an order of magnitude quieter
+  than v2's 0.153, the minimal arm is not.
+- Evidence: `experiments/dataops-agent-pilot/v3-grid.log` (committed);
+  per-task state local-only by policy.
+
 ### v3 calibration probes: ceiling CLEAR, grid probe in flight (phase-5 arm, steps 4–5)
 
 - **Ceiling probe CLEAR** (step 4): baseline prompt + answer key + CSV on

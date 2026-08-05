@@ -1,0 +1,107 @@
+# v3 PRE-REGISTERED GRID PROBE
+model: qwen3.6:latest · seeds: 7, 42, 1234 · points: G1, G2, G3, G4, G5
+noiseSeed: 7 (promotion half) · taskTimeoutMs: 3600000 · state: v3-grid-state.json
+acceptance: baseline 90% CI within [0.3, 0.6] AND s0 >= 0.05 AND graded-exact >= 0.1
+
+## PHASE A — arms
+
+  grid-G1-s2-strong-s7: graded=0.628 exact=0.600 inTok=9713 medWallS=475
+  !! grid-G1-s2-strong-s42: 1/10 produced NO artifact (formatting)
+  grid-G1-s2-strong-s42: graded=0.625 exact=0.600 inTok=10294 medWallS=420
+# v3 PRE-REGISTERED GRID PROBE
+model: qwen3.6:latest · seeds: 7, 42, 1234 · points: G1, G2, G3, G4, G5
+noiseSeed: 7 (promotion half) · taskTimeoutMs: 3600000 · state: v3-grid-state.json
+acceptance: baseline 90% CI within [0.3, 0.6] AND s0 >= 0.05 AND graded-exact >= 0.1
+
+## PHASE A — arms
+
+  [cached] grid-G1-s2-strong-s7
+  grid-G1-s2-strong-s7: graded=0.628 exact=0.600 inTok=9713 medWallS=475
+  [cached] grid-G1-s2-strong-s42
+  !! grid-G1-s2-strong-s42: 1/10 produced NO artifact (formatting)
+  grid-G1-s2-strong-s42: graded=0.625 exact=0.600 inTok=10294 medWallS=420
+# v3 PRE-REGISTERED GRID PROBE
+model: qwen3.6:latest · seeds: 7, 42, 1234 · points: G1, G2, G3, G4, G5
+noiseSeed: 7 (promotion half) · taskTimeoutMs: 3600000 · state: v3-grid-state.json
+acceptance: baseline 90% CI within [0.3, 0.6] AND s0 >= 0.05 AND graded-exact >= 0.1
+
+## PHASE A — arms
+
+  [cached] grid-G1-s2-strong-s7
+  grid-G1-s2-strong-s7: graded=0.628 exact=0.600 inTok=9713 medWallS=475
+  [cached] grid-G1-s2-strong-s42
+  !! grid-G1-s2-strong-s42: 1/10 produced NO artifact (formatting)
+  grid-G1-s2-strong-s42: graded=0.625 exact=0.600 inTok=10294 medWallS=420
+  !! grid-G1-s2-strong-s1234: 1/10 produced NO artifact (formatting)
+  grid-G1-s2-strong-s1234: graded=0.436 exact=0.200 inTok=11315 medWallS=1334
+  !! grid-G1-s0-minimal-s7: 2/10 produced NO artifact (formatting)
+  grid-G1-s0-minimal-s7: graded=0.375 exact=0.300 inTok=9502 medWallS=1465
+  grid-G1-s2-strong-s1234: graded=0.414 exact=0.300 inTok=11315 medWallS=1453
+  !! grid-G1-s0-minimal-s7: 1/10 NOT OK — overy-cust-1105__2026-06=timeout
+  grid-G1-s0-minimal-s7: graded=0.506 exact=0.400 inTok=8552 medWallS=2162
+  grid-G1-s0-minimal-s42: graded=0.503 exact=0.400 inTok=10083 medWallS=922
+  grid-G1-s0-minimal-s1234: graded=0.485 exact=0.100 inTok=11104 medWallS=410
+
+  !! grid-G2-s2-strong-s7: 3/10 produced NO artifact (formatting)
+  grid-G2-s2-strong-s7: graded=0.362 exact=0.200 inTok=14340 medWallS=607
+  !! grid-G2-s2-strong-s42: 1/10 produced NO artifact (formatting)
+  grid-G2-s2-strong-s42: graded=0.397 exact=0.200 inTok=14046 medWallS=662
+  !! grid-G2-s2-strong-s1234: 4/10 produced NO artifact (formatting)
+  grid-G2-s2-strong-s1234: graded=0.141 exact=0.000 inTok=14093 medWallS=519
+  !! grid-G2-s0-minimal-s7: 2/10 produced NO artifact (formatting)
+  grid-G2-s0-minimal-s7: graded=0.189 exact=0.100 inTok=14129 medWallS=515
+  !! grid-G2-s0-minimal-s42: 1/10 produced NO artifact (formatting)
+  grid-G2-s0-minimal-s42: graded=0.202 exact=0.000 inTok=13835 medWallS=441
+  !! grid-G2-s0-minimal-s1234: 4/10 produced NO artifact (formatting)
+  grid-G2-s0-minimal-s1234: graded=0.057 exact=0.000 inTok=13882 medWallS=479
+
+  !! grid-G3-s2-strong-s7: 5/10 produced NO artifact (formatting)
+  grid-G3-s2-strong-s7: graded=0.166 exact=0.100 inTok=17330 medWallS=415
+  !! grid-G3-s2-strong-s42: 3/10 produced NO artifact (formatting)
+  grid-G3-s2-strong-s42: graded=0.146 exact=0.000 inTok=17892 medWallS=432
+  !! grid-G3-s2-strong-s1234: 1/10 produced NO artifact (formatting)
+  grid-G3-s2-strong-s1234: graded=0.158 exact=0.100 inTok=18283 medWallS=487
+  !! grid-G3-s0-minimal-s7: 3/10 produced NO artifact (formatting)
+  grid-G3-s0-minimal-s7: graded=0.073 exact=0.000 inTok=17119 medWallS=469
+  !! grid-G3-s0-minimal-s42: 3/10 produced NO artifact (formatting)
+  grid-G3-s0-minimal-s42: graded=0.216 exact=0.000 inTok=17681 medWallS=528
+  grid-G3-s0-minimal-s1234: graded=0.279 exact=0.000 inTok=18072 medWallS=392
+
+  !! grid-G4-s2-strong-s7: 2/10 produced NO artifact (formatting)
+  grid-G4-s2-strong-s7: graded=0.114 exact=0.100 inTok=21347 medWallS=679
+  !! grid-G4-s2-strong-s42: 4/10 produced NO artifact (formatting)
+  grid-G4-s2-strong-s42: graded=0.100 exact=0.100 inTok=22009 medWallS=829
+  !! grid-G4-s2-strong-s1234: 5/10 produced NO artifact (formatting)
+  grid-G4-s2-strong-s1234: graded=0.050 exact=0.000 inTok=22469 medWallS=935
+  !! grid-G4-s0-minimal-s7: 2/10 produced NO artifact (formatting)
+  grid-G4-s0-minimal-s7: graded=0.194 exact=0.000 inTok=21136 medWallS=829
+  !! grid-G4-s0-minimal-s42: 3/10 produced NO artifact (formatting)
+  grid-G4-s0-minimal-s42: graded=0.167 exact=0.100 inTok=21798 medWallS=504
+  grid-G4-s0-minimal-s1234: graded=0.298 exact=0.000 inTok=22258 medWallS=534
+
+  !! grid-G5-s2-strong-s7: 7/10 produced NO artifact (formatting)
+  grid-G5-s2-strong-s7: graded=0.002 exact=0.000 inTok=39439 medWallS=767
+  !! grid-G5-s2-strong-s42: 6/10 produced NO artifact (formatting)
+  grid-G5-s2-strong-s42: graded=0.000 exact=0.000 inTok=43827 medWallS=582
+  !! grid-G5-s2-strong-s1234: 5/10 produced NO artifact (formatting)
+  grid-G5-s2-strong-s1234: graded=0.000 exact=0.000 inTok=43801 medWallS=756
+  !! grid-G5-s0-minimal-s7: 3/10 produced NO artifact (formatting)
+  grid-G5-s0-minimal-s7: graded=0.000 exact=0.000 inTok=43610 medWallS=640
+  !! grid-G5-s0-minimal-s42: 1/10 produced NO artifact (formatting)
+  grid-G5-s0-minimal-s42: graded=0.015 exact=0.000 inTok=43616 medWallS=623
+  !! grid-G5-s0-minimal-s1234: 1/10 produced NO artifact (formatting)
+  grid-G5-s0-minimal-s1234: graded=0.093 exact=0.000 inTok=43590 medWallS=772
+
+
+## PHASE A RESULT
+
+| point | levers | clean | baseline mean | 90% CI | s0 mean | graded-exact | qualifies |
+|---|---|---|---|---|---|---|---|
+| G1 | 1 | NO | 0.556 | [0.410, 0.701] | 0.498 | 0.056 | no |
+| G2 | 2 | yes | 0.300 | [0.180, 0.420] | 0.149 | 0.167 | no |
+| G3 | 2 | yes | 0.157 | [0.075, 0.239] | 0.189 | 0.090 | no |
+| G4 | 3 | yes | 0.088 | [0.008, 0.168] | 0.220 | 0.021 | no |
+| G5 | 4 | yes | 0.001 | [-0.000, 0.002] | 0.036 | 0.001 | no |
+
+=> NO QUALIFYING POINT. Per design §3.5 the L4 reserve (G5) enters; if it is already
+   in this run and still fails, the outcome is a REDESIGN, publicly. Not a knob hunt.
