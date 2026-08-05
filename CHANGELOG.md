@@ -9,6 +9,27 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### v3.1 pre-registered: parser relaxation, one shot (phase-5 arm)
+
+- Dr. Robert Li ruled at the step-6 STOP (2026-08-05): option (b), parser-
+  relaxation variant, full prereg discipline, one-shot termination.
+- `V3.1-BATTERY-DESIGN.md` rev 2 committed as the PRE-REGISTRATION after a
+  second 5-lane panel review (`V3.1-REVIEWS.md`: 1 unsound, 4
+  sound-with-changes; every critical adopted, one gemma4 critical rejected
+  with reason). Headlines: fence alias `json` -> `answer.json` declared by
+  the task, explicit `path=` always wins, strict-contract compliance kept as
+  a secondary endpoint; seed-clustered t as the pinned CI estimator; format-
+  stability gate with a pre-committed failure branch; predeclared
+  fewest-levers selection with 3-replicate max-noise headroom; stage-2
+  confirmation on fresh seeds; per-arm per-point <=10% drop budget;
+  quantified strict-gap disclosure at 0.15; one-shot termination pinned to
+  substance not name. G5 excluded as a pre-registered scope choice after the
+  panel caught rev 1's false exclusion arithmetic (all-correct bound is
+  ~0.60, not sub-corridor).
+- New generator id `data-ops-fixture-warehouse-generator-v3.1`, absent from
+  `ACCEPTED_GENERATORS`; the v3 id retires unaccepted.
+
+
 ### v3 grid probe complete: NO QUALIFYING POINT (phase-5 arm, step 5 verdict)
 
 - Phase A ran to completion — all five pre-registered points × both arms ×
