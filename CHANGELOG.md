@@ -9,6 +9,19 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### v3.1 stage-1 interruption: reboot-outage triage (phase-5 arm)
+
+- The 2026-08-08 machine reboot stopped ollama under the running v3.1
+  stage-1 probe; three G3-minimal units were recorded as provider network
+  faults (29/30 tasks, graded 0.000, medWall 2s). Excised from the
+  checkpoint as instrument faults — not measurements — and re-run clean;
+  the kept timeout, backup filename, and full poisoned aggregates are in
+  `docs/JOURNAL.md` (2026-08-08).
+- `_launch-probe.sh`'s single-instance assertion could never pass (tsx runs
+  as a parent+child node pair; node 24 reports comm `MainThread`). Scan now
+  keys on `/proc/*/exe` and asserts one instance tree; proven by refusing
+  against the live relaunched probe.
+
 ### v3.1 pre-registered: parser relaxation, one shot (phase-5 arm)
 
 - Dr. Robert Li ruled at the step-6 STOP (2026-08-05): option (b), parser-
