@@ -60,7 +60,9 @@ import { ARMS } from "./_arms.js";
 import { ARMS_V3 } from "./_v3-arms.js";
 import {
   generateFixtureBatteryV3,
+  generateFixtureBatteryV3_1,
   generateFixtureSplitBatteryV3,
+  generateFixtureSplitBatteryV3_1,
   v3Knobs,
 } from "../../src/foundry/fixture-warehouse-v3.js";
 import { profileFor, selectJudge } from "../../src/judge-roster.js";
@@ -84,7 +86,9 @@ const BASE_URL = process.env.TOURNEY_BASE_URL ?? "http://localhost:11434/v1";
  * search warehouses, min-aggregation, worst-warehouse traces — is frozen at its
  * round-2 form. `v2` reproduces round 2 byte for byte; `v3` runs the headroom
  * battery at the grid point the calibration probe selected and the human then
- * accepted.
+ * accepted. `v3.1` is the same battery through `buildTasksV3_1` — the alias
+ * seam the V3.1 prereg relaxed the parser with — rooted at the separate
+ * `DATA_OPS_GENERATOR_V31_ID` acceptance.
  *
  * `TOURNEY_GRID_POINT` is never defaulted. The knob setting IS what was
  * accepted, so a defaulted one would silently run a different instrument than
@@ -92,22 +96,31 @@ const BASE_URL = process.env.TOURNEY_BASE_URL ?? "http://localhost:11434/v1";
  * `TOURNEY_STATE` that once pointed a re-run at round 1's data.
  */
 const GENERATOR = process.env.TOURNEY_GENERATOR ?? "v2";
-if (GENERATOR !== "v2" && GENERATOR !== "v3") {
-  throw new Error(`TOURNEY_GENERATOR must be "v2" or "v3", got ${JSON.stringify(GENERATOR)}`);
+if (GENERATOR !== "v2" && GENERATOR !== "v3" && GENERATOR !== "v3.1") {
+  throw new Error(`TOURNEY_GENERATOR must be "v2", "v3" or "v3.1", got ${JSON.stringify(GENERATOR)}`);
 }
+const V3_FAMILY = GENERATOR === "v3" || GENERATOR === "v3.1";
 const GRID_POINT = process.env.TOURNEY_GRID_POINT;
-if (GENERATOR === "v3" && !GRID_POINT) {
-  throw new Error("TOURNEY_GRID_POINT must be set explicitly when TOURNEY_GENERATOR=v3");
+if (V3_FAMILY && !GRID_POINT) {
+  throw new Error(`TOURNEY_GRID_POINT must be set explicitly when TOURNEY_GENERATOR=${GENERATOR}`);
 }
-const KNOBS = GENERATOR === "v3" ? v3Knobs(GRID_POINT!) : undefined;
+const KNOBS = V3_FAMILY ? v3Knobs(GRID_POINT!) : undefined;
 
-const buildSplit = (seed: number) =>
-  KNOBS ? generateFixtureSplitBatteryV3(seed, KNOBS) : generateFixtureSplitBatteryV2(seed);
-const buildSearchBattery = (seed: number, id: string) =>
-  KNOBS ? generateFixtureBatteryV3(seed, id, KNOBS) : generateFixtureBatteryV2(seed, id);
+const buildSplit = (seed: number) => {
+  if (!KNOBS) return generateFixtureSplitBatteryV2(seed);
+  return GENERATOR === "v3.1"
+    ? generateFixtureSplitBatteryV3_1(seed, KNOBS)
+    : generateFixtureSplitBatteryV3(seed, KNOBS);
+};
+const buildSearchBattery = (seed: number, id: string) => {
+  if (!KNOBS) return generateFixtureBatteryV2(seed, id);
+  return GENERATOR === "v3.1"
+    ? generateFixtureBatteryV3_1(seed, id, KNOBS)
+    : generateFixtureBatteryV3(seed, id, KNOBS);
+};
 /** The v3 battery gets the v3 arms — `_v3-arms.ts` documents why the strong
  *  arm is restated for v3 rather than carried over from v2. */
-const TOURNEY_ARMS = GENERATOR === "v3" ? ARMS_V3 : ARMS;
+const TOURNEY_ARMS = V3_FAMILY ? ARMS_V3 : ARMS;
 
 const runOpts = {
   provider: { kind: "openai" as const, baseUrl: BASE_URL, model: MODEL },
@@ -270,7 +283,7 @@ const main = async () => {
     .map((s) => s.trim())
     .filter(Boolean);
   let judgeProfile: JudgeReliabilityProfile = { schemaVersion: 1, perSliceType: [] };
-  if (GENERATOR === "v3") {
+  if (V3_FAMILY) {
     const judge = selectJudge(AVAILABLE_JUDGES);
     judgeProfile = profileFor(judge);
     log(

@@ -22,6 +22,13 @@ preserved verbatim.
   keys on `/proc/*/exe` and asserts one instance tree; proven by refusing
   against the live relaunched probe.
 
+### Round-3 readiness (phase-5 arm)
+
+- `_tournament.ts` accepts `TOURNEY_GENERATOR=v3.1`: same frozen method,
+  batteries built through `buildTasksV3_1` (the prereg's alias seam), rooted
+  at the separate `DATA_OPS_GENERATOR_V31_ID` acceptance. `TOURNEY_GRID_POINT`
+  still never defaulted.
+
 ### v3.1 pre-registered: parser relaxation, one shot (phase-5 arm)
 
 - Dr. Robert Li ruled at the step-6 STOP (2026-08-05): option (b), parser-
