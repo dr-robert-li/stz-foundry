@@ -9,6 +9,20 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### Theory-only shortlist against the frozen §2 criteria (phase 5, task 2)
+
+- `experiments/method-research/SHORTLIST.md` (REQ-40/41): all nine `SURVEY-2026-08.md` entries
+  assessed against the two frozen §2 criteria (α>0 injection/preservation at prompt-search
+  altitude, sealed held-out compatibility) on stated mechanism alone. Five qualified; F-01's
+  tie-breaker (diagnostics addressed, then earliest publication date) narrowed the shortlist to
+  three: Two-Stage Prompt Optimization, Contrastive Reflection, and DUALFIX, each with
+  individually traced criterion-1/criterion-2 rationales.
+- The four terminated-arm diagnostics (`experiments/dataops-agent-pilot/PILOT-RESULTS.md`) are
+  recorded as evaluation-design constraints on whatever method is eventually adopted, never as
+  ranking or exclusion inputs.
+- Win-likelihood was not a selection criterion at any point; the criteria freeze predates both
+  the survey and this shortlist in git history.
+
 ### Survey update since the 2026-06-28 cutoff (phase 5, task 1)
 
 - `experiments/method-research/SURVEY-2026-08.md` (REQ-38/39): an auditable survey sweep across

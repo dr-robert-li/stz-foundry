@@ -496,3 +496,51 @@ The verdicts split closer to even than I expected going in, which I take as a si
 The altitude question (REQ-39) mattered more in practice than I expected while writing the plan. It's not always obvious from a title whether a paper lives at agent-definition altitude or has quietly drifted into harness-genome territory — "Reward-Free Evolving Agents via Pairwise Validator" reads exactly like the family until its own sentence hedges between "prompt template" and "program," and I screened it out rather than resolve the ambiguity in the direction that would have padded the entry count. §2 carries META-RSI's harness-genome conclusions forward unchanged, as the plan requires, and nothing in §3 touches them — the two altitudes stayed separated by construction, not by a closing disclaimer.
 
 Nothing here recommends a task family, sketches an instrument, or drafts a line of pre-registration — the six-heading scope fence enforces that mechanically, and I didn't write past it. Task 2 reads this document next and applies the frozen §2 criteria to the nine entries above; whatever it decides doesn't get to change anything written here.
+
+## Five methods qualify, the frozen tie-breaker cuts it to three (2026-08-09)
+
+I ran the frozen §2 criteria — α>0 injection/preservation at prompt-search altitude, sealed
+held-out compatibility — against all nine survey entries on stated mechanism alone, and five
+qualified: the two-stage relation-extraction optimizer, Contrastive Reflection, DUALFIX, SSO, and
+FLARE. That's more than the ≤3 ceiling, which meant invoking F-01's tie-breaker for the first time
+since the criteria were written, and I want the record to show I didn't get to pick.
+
+The honest first pass through the tie-breaker gave every one of the five a score of zero. The
+four terminated-arm diagnostics are specific to the instrument that died — a 395-of-479
+parseable-but-wrong split under a strict/relaxed dichotomy nobody else runs, a fence-dialect drop
+threshold, an inversion-under-strict-parsing finding, a seed-clustered t on six per-seed means —
+and no survey paper's published design implements any of them as stated. Two candidates came
+close enough that I had to argue myself out of crediting them: DUALFIX separates
+specification-level from implementation-level code failures, which sounds like D-1's split until
+you notice it isn't the same split; FLARE claims to be "markedly more stable across random seeds"
+than GEPA without naming an estimator, which sounds like D-4 until you notice a prose claim isn't
+a seed-clustered t. Crediting either would have been the exact shape of rationalization the
+"checkable against stated mechanism" language in §2 exists to close off, so both stayed at zero.
+A full tie on the primary axis is not the same failure as an *unresolved* tie — F-16 routes those
+to the stop-and-report path, but this one has a working secondary tie-breaker: earliest
+primary-source publication date, and all five dates are distinct. That produced a shortlist of
+exactly three without me choosing anything — Two-Stage Prompt Optimization (2026-06-28),
+Contrastive Reflection (2026-06-29), and DUALFIX (2026-07-06) — the three earliest of the five,
+in the order the tie-breaker rule itself specifies.
+
+I want to name a shape I almost fell into and caught before it landed in the document. My first
+draft of the criterion-1 assessment for "From Agent Failures to Text Policies" reasoned from the
+paper's own negative result — it studies GEPA-search-driven policy learning and finds it doesn't
+reliably beat fixed prompting — and used that empirical outcome as the reason criterion 1 failed.
+That's backwards, and it's the exact thing F-03 forbids in either direction: validation status,
+positive or negative, is never the eligibility gate. The corrected framing, which is what's in
+`SHORTLIST.md` now, is that the paper proposes no mechanism carrying a checkable
+injection/preservation claim in the first place — its own analysis locates the missing piece as
+unsolved, not solved-and-merely-unchecked. Same criterion, same verdict, different and more
+defensible reason. I made the same correction pass on ToMap and GRADRAG's writeups: both fail
+criterion 1 because their stated mechanisms carry no preservation claim once the verification/judge
+signal that drives them is set aside — not because their survey verdicts came back circular. The
+circularity call belongs to the survey's verdict business; the shortlist's business is whether a
+checkable claim exists at all.
+
+Nine methods assessed, none excluded or included on win-likelihood, no benchmark number anywhere
+in the reasoning — the assessments in `SHORTLIST.md` §2 read from mechanism only, which is
+checkable by anyone willing to compare them against the abstracts in `SURVEY-2026-08.md`. The
+four terminated-arm diagnostics land in §4 as constraints on whatever evaluation design the future
+arm builds, never as a fifth lever for ranking or cutting a candidate — that door stays shut, same
+as the plan wrote it before I read a single paper.
