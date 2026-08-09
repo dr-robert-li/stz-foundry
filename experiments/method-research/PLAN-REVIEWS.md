@@ -20,7 +20,7 @@ the full prompt — and fell back to direct HTTP POST against
 `_memory-watchdog.sh` running throughout and each model stopped before the next was
 loaded.
 
-**Disposition:** 18 of 21 global findings adopted, 3 rejected with reason. Headline rev-2 changes:
+**Disposition:** 19 of 22 global findings adopted, 3 rejected with reason (F-22 added by amending commit). Headline rev-2 changes:
 the one-variable-per-round baseline (§5) is pinned to the terminated arm's v3.1 battery design with
 a mandatory change ledger naming exactly one variable (F-06, the largest cross-reviewer cluster —
 5 of 5 reviewers raised a version of it); the V3.1-§6 compliance test (§3) is upgraded from a prose
