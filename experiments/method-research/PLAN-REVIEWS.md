@@ -20,6 +20,115 @@ the full prompt — and fell back to direct HTTP POST against
 `_memory-watchdog.sh` running throughout and each model stopped before the next was
 loaded.
 
+**Disposition:** 18 of 21 global findings adopted, 3 rejected with reason. Headline rev-2 changes:
+the one-variable-per-round baseline (§5) is pinned to the terminated arm's v3.1 battery design with
+a mandatory change ledger naming exactly one variable (F-06, the largest cross-reviewer cluster —
+5 of 5 reviewers raised a version of it); the V3.1-§6 compliance test (§3) is upgraded from a prose
+statement to a concrete component-level mapping against the barred hypothesis's identity (F-11, also
+5 of 5); every instrument-residual disclosure and design constraint (§2, §6) now carries a
+quantified, pre-registered threshold rather than a promise (F-10, 5 of 5); the plan's own
+mischaracterization of the 395/479 figure as the format tax itself — when the terminal report says
+it is what remained *after* the tax was removed — is corrected everywhere it appeared (F-08); a
+tie-breaker rule closes the over-three-qualifiers gap (F-01); the terminated-arm diagnostics are
+pinned as evaluation-design constraints only, never a method filter, closing kimi-k3's
+defeat-the-null re-entry route (F-07); and REQ-46 now names its own target document and carries an
+explicit discard-and-reselect rule if it finds the shortlist method-shopped (F-17, F-13). Rejected:
+a request to read "before any survey reading" as blanket field-ignorance (F-04, misreads what the
+freeze protects, precedent below); a request to add a third formal review gate on the Phase 5
+shortlist specifically (F-14, gate placement is fixed by `.planning/REQUIREMENTS.md`, outside this
+document's authority to amend); and a request to pin Phase 6's internal prereg-drafting sequence
+here (F-15, that is Phase 6's own planning responsibility, not this scoping document's).
+
+## Findings and dispositions
+
+Global sequence F-01…F-21 across all five reviewers; duplicate findings raised by more than one
+reviewer are merged into a single F-NN naming every reviewer who raised it.
+
+- F-01 (gpt-sol-pro F1, qwen-max F1): ADOPTED — §2 gets an explicit tie-breaker for more than
+  three qualifying methods (rank by diagnostics already addressed, then publication date; an
+  unresolved tie reports the full qualifier list rather than picking arbitrarily), and §7 folds an
+  unresolved tie into the "no method qualifies, report and stop" path.
+- F-02 (gpt-sol-pro F2, kimi-k3 F1, gpt-oss F1, gpt-oss F6): ADOPTED — §2's two criteria each get a
+  concrete failing example, so "checkable against its stated mechanism" cannot be stretched to
+  admit nearly any candidate.
+- F-03 (gpt-sol-pro F3): ADOPTED — §2 states the §1 validation verdict is informational only, never
+  a shortlisting eligibility gate, consistent with REQ-40's theory-only selection.
+- F-04 (gpt-sol-pro F4): REJECTED — reason: the finding reads "before any survey reading" as a
+  claim of blanket field-ignorance (the plan already names GEPA and carries forward META-RSI, so
+  literal ignorance is impossible and was never the claim). The freeze's actual protection is
+  against shaping criteria around a *specific candidate's claimed results* found during the survey
+  — general awareness that GEPA-style methods exist is disclosed context, not a breach of that
+  protection. This misreads what the clause is for, the same shape as the gemma4 clause-3
+  rejection in `V3.1-REVIEWS.md`: a proposed weakening that would readmit exactly the failure mode
+  the clause exists to catch, here by treating routine field awareness as equivalent to reading
+  specific survey results before freezing criteria. Rejected; §2's freeze wording stands.
+- F-05 (gpt-sol-pro F5): ADOPTED — §1 pins dedup-by-canonical-id, the 2026-06-28 cutoff resolving
+  against original submission date not revision date, and a two-pass title/abstract-then-full-read
+  screening procedure.
+- F-06 (gpt-sol-pro F6/F7/F8/F9, kimi-k3 F3, qwen-max F3, gemma4 F1, gpt-oss F3): ADOPTED — §5's
+  one-variable-per-round baseline is pinned to the terminated arm's v3.1 battery design as it stood
+  at termination; Phase 6 must produce a component-level change ledger against that fixed baseline
+  and name exactly one changed component as the variable. The largest single finding cluster in the
+  panel — every reviewer that addressed one-variable-per-round raised a version of this gap.
+- F-07 (kimi-k3 F2): ADOPTED — §2 states explicitly that the four terminated-arm diagnostics
+  constrain the shortlisted method's *evaluation design* only; they are never inputs to ranking or
+  excluding candidate methods, closing the route by which defeat-the-null could re-enter through
+  the diagnostics layer rather than the frozen criteria layer.
+- F-08 (gpt-sol-pro F10): ADOPTED — §2 and §6's characterization of the 395/479 figure is corrected
+  to match the terminal report: it is the genuine-difficulty residual that remained *after*
+  relaxed scoring removed the format/parsing tax, not the tax itself. The plan's rev-1 text
+  conflated the two everywhere it cited the figure; both occurrences are fixed.
+- F-09 (gpt-sol-pro F11): ADOPTED — §6's disclosure list adds the ceiling-saturation residual
+  (v1's prompt-quality indistinguishability, v2's 0.92+ ceiling) alongside the format-tax and
+  corridor-placement residuals already named.
+- F-10 (gpt-sol-pro F12/F13, qwen-max F2/F4, gemma4 F2, gpt-oss F4): ADOPTED — every disclosure and
+  design constraint in §2 and §6 now carries a quantified, pre-registered threshold or named
+  observable rather than a prose promise (a parseable-but-wrong rate target, a knob-granularity
+  ratio, a stated gradient floor, a headroom target below ceiling). Tied with F-06 as the panel's
+  largest cluster — four of five reviewers raised a version of "falsifiable in name only."
+- F-11 (gpt-sol-pro F14/F15/F16, kimi-k3 F4, gemma4 F3, gpt-oss F2/F5): ADOPTED — §3's V3.1-§6
+  compliance test is upgraded from a prose "written statement" to a required component-level
+  mapping (task semantics, oracle implementation, parser/scoring machinery, promotion-gate role)
+  naming at least one axis as substantively different, not relabelled. All five reviewers raised a
+  version of "self-attestation is not a discriminator."
+- F-12 (gpt-sol-pro F17): ADOPTED — §2 adds an explicit instruction to preserve the terminal
+  report's own "instrument-line exhaustion, not a third null" characterization in any future
+  citation of the terminated arm.
+- F-13 (gpt-sol-pro F18): ADOPTED — §8 adds a discard-and-reselect rule: an ADOPTED REQ-46 finding
+  of method-shopping in the Phase 5 selection write-up requires the shortlist to be discarded and
+  reselected against the frozen §2 criteria, not patched or reasoned around, and blocks REQ-44
+  finalization until resolved.
+- F-14 (kimi-k3 F6): REJECTED — reason: the finding asks for a formal review gate on the Phase 5
+  shortlist itself, before Phase 6 begins building on it. REQ-45 (before Phase 5) and REQ-46
+  (after selection, before prereg finalization) are the two gates fixed by
+  `.planning/REQUIREMENTS.md`, a milestone-level document this Phase-4 scoping plan has no
+  authority to amend by adding a third gate. F-13's discard-and-reselect rule closes the practical
+  risk the finding names — a contaminated shortlist cannot survive to a finalized prereg — without
+  restructuring the review-gate sequence REQUIREMENTS.md already locked.
+- F-15 (gpt-sol-pro F19): REJECTED — reason: the finding asks this document to pin Phase 6's
+  internal sequencing of when the draft prereg's contents are chosen relative to the
+  recommendation analysis. That is Phase 6's own operational planning responsibility; prescribing
+  it here would have this Phase-4 scoping document perform work §0 explicitly reserves for later
+  phases. Phase 6's own plan is the right place to pin that order.
+- F-16 (gpt-sol-pro F20): ADOPTED — §7 extends the "no method qualifies" stop path to cover a
+  disputed qualification, an unresolved over-subscription tie, and a survey conducted outside the
+  frozen §1 protocol — each is a process failure routed to the same stop rule, not a close call
+  resolved toward a forced shortlist.
+- F-17 (qwen-max F5): ADOPTED — §8 names REQ-46's review target explicitly as the Phase 5 selection
+  write-up (shortlist plus per-method rationale), replacing the undefined "the ANALYSIS."
+- F-18 (qwen-max F6): ADOPTED — every reference to the terminated arm's termination clause is
+  written as "V3.1-§6" throughout rev 2, distinguishing it from this document's own §6
+  (instrument-residual masking) wherever both could otherwise be read as the same "§6."
+- F-19 (qwen-max F7, gpt-oss F7): ADOPTED — §7 states explicitly that Phase 6's admission-path
+  analysis and instrument sketch do not require a non-empty Phase 5 shortlist; an empty shortlist
+  leaves the draft prereg's "chosen method" field deferred rather than blocking Phase 6 outright.
+- F-20 (kimi-k3 F7): ADOPTED — §2's dialect-drift diagnostic wording is softened from "confirmed"
+  to "mostly, not universally, confirmed," and notes G3's dropB sitting exactly at the 0.10
+  boundary rather than comfortably under it, matching the terminal report's own qualified language.
+- F-21 (kimi-k3 F8): ADOPTED — §8's record-discipline paragraph no longer cites "Task 3 of this
+  plan" (a reference invisible to a reader of this document alone); it now describes the mechanism
+  functionally as this phase's own tasks producing their own JOURNAL/CHANGELOG entries.
+
 ## Review prompt
 
 You are reviewing a research plan that gates a research milestone. Attack the plan as an

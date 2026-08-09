@@ -9,6 +9,17 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### Method research plan rev 2 — five-reviewer adversarial panel adjudicated (phase 4)
+
+- `experiments/method-research/RESEARCH-PLAN.md` rev 1 scopes the v1.22.0 survey
+  (REQ-38/39), theory-only selection (REQ-40/41), and task-family recommendation
+  (REQ-42/43) work, naming the method-shopping risk and the `V3.1-BATTERY-DESIGN.md`
+  §6 standing bar explicitly.
+- A five-lane adversarial panel (`experiments/method-research/PLAN-REVIEWS.md`)
+  attacked method-shopping, one-variable-per-round, and instrument-residual masking;
+  21 findings adjudicated (18 adopted, 3 rejected with reason), landing as rev 2.
+- REQ-45 satisfied — Phase 5's hard `Depends on` is cleared.
+
 ### v3.1 probe: NO QUALIFIER — instrument line terminated (phase-5 arm)
 
 - The one-shot v3.1 grid probe completed 2026-08-09: format-stability gate
