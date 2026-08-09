@@ -1,7 +1,8 @@
 # Method research plan — survey, theory-only selection, task-family recommendation
 
-**rev 2 · 2026-08-09** (rev 1: 2026-08-09; rev 2 adjudicates the five-reviewer panel in
-`PLAN-REVIEWS.md`; adopted findings are tagged inline at their point of change)
+**rev 3 · 2026-08-09** (rev 1: 2026-08-09; rev 2 adjudicates the five-reviewer panel in
+`PLAN-REVIEWS.md`; rev 3 adds the F-22 amendment — a verification pass caught kimi-k3's F5
+unadjudicated; adopted findings are tagged inline at their point of change)
 
 ## 0. Standing bar and scope
 
@@ -232,10 +233,15 @@ threshold or observable does not satisfy this section:
 - whether the recommended family's difficulty knob is a genuinely new mechanism or a relabelled
   version of the v3 knob family that produced the corridor-placement failure, disclosed with the
   knob's stated step granularity relative to the corridor width it targets;
-- an explicit, falsifiable prediction of what "real behavior" looks like versus "old instrument
+- an explicit prediction of what "real behavior" looks like versus "old instrument
   residual" in the recommended family's own results — named observable, expected direction, and
   numeric threshold (e.g., a specific gradient floor under seed-clustered estimation) — stated
-  before any data exists to check it against;
+  before any data exists to check it against. **[F-22, kimi-k3]** Within this milestone these
+  disclosures are *pre-registered, falsifiable downstream*, not falsifiable here: no data can
+  exist inside phases 4–6 to test them. The named checkpoint where each disclosure meets data is
+  the future arm's format-stability gate + stage-1 readout, run under the adopted prereg — the
+  first battery data produced under the new instrument. A disclosure unmet at that checkpoint
+  fails there, not silently;
 - a stated headroom target below ceiling (mirroring v2's 0.92+ saturation failure) so a new design
   that quietly re-saturates is caught by a pre-declared number rather than discovered after the
   fact.

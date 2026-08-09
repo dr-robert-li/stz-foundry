@@ -41,8 +41,10 @@ here (F-15, that is Phase 6's own planning responsibility, not this scoping docu
 
 ## Findings and dispositions
 
-Global sequence F-01…F-21 across all five reviewers; duplicate findings raised by more than one
-reviewer are merged into a single F-NN naming every reviewer who raised it.
+Global sequence F-01…F-22 across all five reviewers; duplicate findings raised by more than one
+reviewer are merged into a single F-NN naming every reviewer who raised it. F-22 was added by
+amending commit after a verification pass found kimi-k3's F5 missing from the original mapping —
+an adjudication oversight, corrected per the record's amendment rule rather than rewritten.
 
 - F-01 (gpt-sol-pro F1, qwen-max F1): ADOPTED — §2 gets an explicit tie-breaker for more than
   three qualifying methods (rank by diagnostics already addressed, then publication date; an
@@ -128,6 +130,14 @@ reviewer are merged into a single F-NN naming every reviewer who raised it.
 - F-21 (kimi-k3 F8): ADOPTED — §8's record-discipline paragraph no longer cites "Task 3 of this
   plan" (a reference invisible to a reader of this document alone); it now describes the mechanism
   functionally as this phase's own tasks producing their own JOURNAL/CHANGELOG entries.
+- F-22 (kimi-k3 F5): ADOPTED — the finding is correct that §6's "falsifiable… stated before any
+  data exists" was promissory inside this milestone's own horizon: phases 4–6 produce a
+  recommendation and a DRAFT prereg, so no data can arrive here to falsify anything, and the §7
+  inadmissibility test reduced to "cannot write the paragraph." §6 (rev 3) downgrades the claim to
+  *pre-registered, falsifiable downstream* and names the checkpoint where each disclosure meets
+  data: the future arm's format-stability gate + stage-1 readout under the adopted prereg. Added
+  by amending commit — this finding was left out of the rev-2 adjudication by oversight (caught in
+  phase verification), not by decision.
 
 ## Review prompt
 
