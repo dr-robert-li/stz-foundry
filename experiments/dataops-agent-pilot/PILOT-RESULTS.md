@@ -866,3 +866,110 @@ figure appears in no decision above; the clean 0.153 does. One driver re-run
 initially read the wrong (round-1) state file because `TOURNEY_STATE` was
 omitted — killed before any write; the round-1 record is unpolluted; the final
 decision above was regenerated from the correct 27-unit state, all cached.
+
+# V3.1 GRID PROBE — NO QUALIFIER; INSTRUMENT LINE TERMINATED (2026-08-09)
+
+The one-shot probe pre-registered in `V3.1-BATTERY-DESIGN.md` (commit
+`59dfb46`) ran to completion: format-stability gate, then stage 1 across
+G1–G4, both arms, six seeds, n=60 per arm per point. **No point qualifies.
+Per §6, the v3 instrument line terminates on substance**: no successor
+instrument for this hypothesis — prompt-search vs hand-written baseline on
+the data-ops fact-recovery family as the phase-5 promotion gate — under any
+label. This section is the terminal report §6 calls for.
+
+## Run configuration (§3 record)
+
+qwen3.6:latest, digest `07d35212591f`, single ollama slot (qwen35moe
+parallel cap), client concurrency 1, sequential battery order, task timeout
+3600s, seeds 7/42/1234/11/101/2027. **Substrate disclosure:** the machine
+rebooted mid-run (2026-08-08); the ollama server changed 0.30.6 → 0.32.5
+under the same model digest. The 16 post-reboot units are exactly the four
+G3-minimal re-runs/completions (s1234, s11, s101, s2027) and all twelve G4
+units; everything else ran on 0.30.6. Every point's corridor verdict rests
+on single-substrate baseline data — G1/G2/G3 baselines entirely 0.30.6, G4
+entirely 0.32.5; the only mixed arm is G3-minimal, and G3 fails on its
+baseline CI alone. The verdict does not hinge on any mixed-substrate unit.
+(The 2026-08-03 record declined a voluntary mid-run substrate change; this
+one was forced, disclosed, and verdict-irrelevant.) Three units poisoned by
+the reboot outage (provider network faults, not measurements) were excised
+and re-run clean — provenance in `docs/JOURNAL.md` (2026-08-08), backup
+`v31-grid-state.json.bak-20260808-pre-excision`.
+
+Data cleanliness: 480 stage-1 tasks, 479 ok, 1 timeout (a measurement,
+kept), 0 harness faults in the final record.
+
+## Format-stability gate: PASSED everywhere
+
+All eight gate units (G1–G4 × seeds 7, 42) scored **1.000** against the
+0.95 bar, strict-artifact 9–10/10. The §8 falsifier "gate fails all points
+⇒ content-driven premise false" did not fire.
+
+## Stage 1: the numbers
+
+Primary (relaxed) endpoint, seed-clustered t 90% CI on six per-seed means:
+
+| point | baseline mean | 90% CI | s0 floor | gradient | dropB | dropF | sign+ | qualifies |
+|---|---|---|---|---|---|---|---|---|
+| G1 | 0.553 | [0.385, 0.721] | 0.513 | 0.086 | 0.03 | 0.02 | 4/6 | no |
+| G2 | 0.218 | [0.147, 0.288] | 0.190 | 0.068 | 0.08 | 0.00 | 3/6 | no |
+| G3 | 0.190 | [0.123, 0.257] | 0.119 | 0.123 | 0.10 | 0.02 | 4/6 | no |
+| G4 | 0.165 | [0.109, 0.222] | 0.110 | 0.132 | 0.00 | 0.03 | 3/6 | no |
+
+Strict secondary endpoint (contract compliance × exactness), reported per
+§7 alongside every primary: strict-exact baseline/floor — G1 0.417/0.217,
+G2 0.100/0.067, G3 0.067/0.017, G4 0.033/0.033; strict-artifact rates
+0.65–0.88 across arms and points.
+
+Failure per clause: G1's interval pokes above the corridor ([0.385, 0.721]
+⊄ [0.30, 0.60]) and its gradient fails clause 3 (0.086 < 0.10) — the same
+no-gradient-where-easy failure as Phase A, now format-clean. G2, G3 and G4
+place their entire baseline intervals below the 0.30 floor. Selection,
+noise/headroom and stage 2 were **skipped by rule** — the predeclared
+priority order had no input, and the terminal condition is exhaustion of
+that order.
+
+## What the probe measured besides the verdict
+
+The zero-decomposition (§3 instrumentation, prospective): of 479 clean
+tasks, 57 correct-and-strict, 11 correct-but-aliased, **395
+parseable-but-wrong**, 16 no-artifact. The alias seam recovered 95
+artifacts strict parsing would have dropped, and per-arm drop rates fell to
+≤ 0.10 at every point (Phase A: 27–60% at G2–G5).
+
+§8 falsifier disposition, one line each:
+
+- Gate failing all points: **did not fire** (1.000 everywhere).
+- Relaxed scoring failing to bring G2–G4 drops under 0.10: **did not fire**
+  — drops were mostly fence-dialect drift, the mitigation premise
+  confirmed.
+- Arm inversion persisting under relaxed scoring: **did not fire** — G4
+  baseline 0.165 > floor 0.110, so Phase A's inversion was a format
+  artifact, a finding about strict parsing, not about methodology prompts.
+- G1 qualifying with gradient < 0.10: moot — G1 was not corridor-shaped.
+- §5 disclosure at the candidate point / stage-2 exhaustion: no candidate
+  existed.
+
+The one-sentence story: **relaxation removed the format tax, and what
+remained underneath was genuine difficulty — sitting below the corridor
+everywhere the gradient is real, and gradient-free where the difficulty is
+in range.** The knob family moves difficulty in steps too large for the
+corridor, and the corridor was the pre-registered definition of a usable
+instrument.
+
+## Three generations, terminated
+
+Per §6, the terminal characterization of the line: **v1 saturated** (three
+prompt qualities indistinguishable, rank order seed-dependent); **v2
+saturated, Goodharting eliminated** (round 2's min-aggregation removed the
+false gains and found no true ones at a 0.92+ ceiling); **v3/v3.1 unable to
+place difficulty in the corridor without format confounds** (strict scoring
+measured fence retention; relaxed scoring measured real difficulty that
+never landed in [0.30, 0.60] with a working gradient). This is
+**instrument-line exhaustion, not a third null**: rounds 1 and 2 were nulls
+on their instruments; round 3 never ran, so the three-nulls contingency
+(old T-B) is unreachable and closes with the arm. Phase 5 stays gated —
+`docs/ROADMAP.md` item 8 says exactly that. Diagnostics from this run (the
+decomposition, the dialect-drift confirmation, the inversion-as-format
+finding, seed-level variance under the clustered estimator) may inform
+instruments for different hypotheses or task families; they can never
+revive this one.

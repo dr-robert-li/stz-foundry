@@ -9,6 +9,24 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### v3.1 probe: NO QUALIFIER — instrument line terminated (phase-5 arm)
+
+- The one-shot v3.1 grid probe completed 2026-08-09: format-stability gate
+  1.000 everywhere; stage 1 G1–G4 both arms × 6 seeds; **no point met the
+  pre-registered corridor + gradient clauses**. Per `V3.1-BATTERY-DESIGN.md`
+  §6 the v3 instrument line terminates on substance — no successor for this
+  hypothesis under any label. Terminal report (three-generation framing,
+  §8 falsifier dispositions, substrate disclosure) in
+  `experiments/dataops-agent-pilot/PILOT-RESULTS.md`; narrative in
+  `docs/JOURNAL.md` (2026-08-09).
+- Diagnostics for the record: parser relaxation removed the fence-drop
+  confound (drops 27–60% → ≤10%; 95 artifacts alias-recovered); Phase A's
+  G4 arm inversion was a strict-parsing artifact; the residual failure mode
+  is parseable-but-wrong (395/479) — real difficulty below the corridor.
+- Round 3 never ran; the three-nulls contingency (T-B) closes unreachable.
+  Phase 5 stays gated on round-2 evidence — `docs/ROADMAP.md` item 8
+  updated to say exactly that.
+
 ### v3.1 stage-1 interruption: reboot-outage triage (phase-5 arm)
 
 - The 2026-08-08 machine reboot stopped ollama under the running v3.1

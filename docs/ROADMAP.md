@@ -1184,7 +1184,15 @@ diff-in-diff Goodhart excess was positive on every seed: reflective search
 reliably improves the half it can see and the gain does not transfer. **Phase 5
 stays gated** — on this evidence, what it would automate is automated
 overfitting. The instrument itself worked end to end (discrimination, split
-halves, checkpoint/resume), which is the real deliverable of this arm. See
+halves, checkpoint/resume), which is the real deliverable of this arm. The
+planned round 3 never ran: the **v3/v3.1 headroom battery terminated its own
+instrument line** under its pre-registered one-shot rule (2026-08-09) — the
+format-stability gate passed everywhere and the parser relaxation removed the
+fence-drop confound (drops 27–60% → ≤10%), but no grid point placed difficulty
+inside the pre-registered corridor with a working gradient, so the line ended
+by exhaustion rather than producing a third verdict. Phase 5 remains gated on
+this evidence; any future instrument must target a different hypothesis or
+task family. See
 `experiments/dataops-agent-pilot/PILOT-RESULTS.md`. Full design:
 `docs/development/harness-factory.md`. The abstraction ladder: STZ makes code →
 the same tournament machinery can make *agents* (specimens write `agents/*.md`
