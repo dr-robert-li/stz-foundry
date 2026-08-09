@@ -1,6 +1,10 @@
-# Task-family recommendation for the future phase-5 instrument — rev 1
+# Task-family recommendation for the future phase-5 instrument — rev 2
 
-**Date: 2026-08-09 · Author: Robert Li · rev 1 · companion to `experiments/method-research/SHORTLIST.md` (the REQ-40/41 shortlist this recommendation is built on, re-selects nothing from it) and `experiments/method-research/RESEARCH-PLAN.md` §3 (the recommendation approach this document follows, unedited)**
+**Date: 2026-08-09 · Author: Robert Li · rev 2 (rev 1: 2026-08-09; rev 2 adjudicates the five-reviewer
+REQ-46 panel in `ANALYSIS-REVIEWS.md`; adopted findings are tagged inline at their point of change)
+· companion to `experiments/method-research/SHORTLIST.md` (the REQ-40/41 shortlist this
+recommendation is built on, re-selects nothing from it) and `experiments/method-research/RESEARCH-PLAN.md`
+§3 (the recommendation approach this document follows, unedited)**
 
 ## 0. What this is, and what it is not
 
@@ -153,6 +157,15 @@ one axis this mapping does not require to differ, since the phase-5 promotion me
 substrate-agnostic machinery reused across verticals by design (`docs/ROADMAP.md` item 8), not part
 of the barred hypothesis's identity.
 
+**[F-04, kimi-k3]** One shared exposure this mapping does not erase, and should not be read as
+erasing: the new SQL-execution oracle is exactly as blind to the terminated line's dominant failure
+shape as the reference-interpreter oracle was. A syntactically valid, successfully executing query
+that returns the wrong result set is the direct analogue of the terminated arm's 395/479
+parseable-but-wrong residual — "well-formed artifact, wrong answer." The `substantively different`
+verdict on this row is about mechanism (execution vs. recomputation), not about immunity to that
+failure shape; §7's Disclosure 1 numeric ceiling, not this mapping, is the actual defense against
+it, and is written accordingly below.
+
 **V3.1-§6 compliance:** PASS
 
 ## 3. The recommendation
@@ -182,6 +195,20 @@ malformed or semantically wrong query) are all different in kind, not merely in 
 contents. Recommending "fact recovery on a different warehouse" would have failed exactly this
 test — it is not what is recommended here.
 
+**[F-06, gpt-sol-pro]** A compatibility preview, not a selection: choosing which of the Phase 5
+shortlisted methods (S-01 Two-Stage Prompt Optimization, S-02 Contrastive Reflection, S-03 DUALFIX,
+`SHORTLIST.md` §3) is stated-mechanism compatible with this recommended family is REQ-44's job,
+decided in Task 3 after this document is finalized — not this document's. This document is not
+silent on the question, though: at least one plausible compatibility path exists today. S-03
+(DUALFIX) evolves reusable rules from coding-problem failures, and SQL is itself a code artifact —
+a closer surface match to BI query-answering than DUALFIX has to the terminated line's CSV-fact
+reconciliation task, which was never code generation at all. S-01 and S-02 are general-purpose
+prompt optimizers (a gradient/loss signal over a support set; a validation-set accept/reject gate),
+not tied to any particular output contract, and so are compatible with a query-generation target on
+their stated mechanisms alone. None of this pre-empts Task 3's own compatibility argument; it is
+recorded here so a reader is not left wondering whether the recommended family is compatible with
+anything the shortlist actually contains.
+
 ## 4. Instrument sketch — difficulty corridor and knob granularity
 
 The terminated arm's own difficulty knob (the v3/v3.1 grid, G1–G5) moved difficulty in steps too
@@ -190,10 +217,12 @@ coarse for the pre-registered corridor: the baseline seed-clustered 90% CI had t
 (`V3.1-BATTERY-DESIGN.md` §4). Concretely, per `PILOT-RESULTS.md`'s terminal report: G2, G3 and G4
 landed with their entire baseline interval below the 0.30 floor, while G1 landed with an interval
 poking above the corridor ceiling and a gradient too flat to qualify (0.086 against the 0.10
-clause) — the terminated arm's grid offered, in effect, two usable resolution points across the
-whole window, neither of which landed inside it with a working gradient. Grid points landed either
-below the corridor floor with a real gradient, or inside the corridor's general vicinity with no
-gradient — the same failure the plan requires this section to name precisely.
+clause). **[F-10, kimi-k3]** The four points span the window at only two rough resolution bands —
+G1 near the ceiling, G2–G4 clustered near the floor — not a fine sweep across it, and **none of the
+four qualified** with a working gradient inside the corridor (`PILOT-RESULTS.md`'s own verdict is
+"no point qualifies," preserved here without softening). Grid points landed either below the
+corridor floor with a real gradient, or inside the corridor's general vicinity with no gradient —
+the same failure the plan requires this section to name precisely.
 
 The recommended family's own difficulty knob is **query structural complexity**: the number of
 tables the target query must JOIN plus the number of aggregation operations (GROUP BY / window
@@ -212,6 +241,13 @@ ceiling before committing to the full pre-registered grid. A level that violates
 subdivided (for example, an intermediate join level via a partial join predicate or a single added
 filter clause) rather than accepted as coarse and carried into the pre-registered grid unexamined.
 
+**[F-09, gpt-sol-pro]** This pretest is a coarse SCREEN, not a confirmatory measurement: a small-n
+sample at 3–4 levels catches only large granularity violations, not ones near the ≤0.10 boundary
+itself. Final confirmation of granularity happens only once the full six-seed pre-registered grid
+runs and its own seed-clustered estimate (§5) is available — mirroring how the terminated arm's own
+design separated a coarse stage-1 screen from a stage-2 confirmatory measurement rather than trusting
+a small pretest to settle a boundary case.
+
 ## 5. Instrument sketch — noise budget under seed-clustered estimation
 
 Matching the terminated arm's own estimator exactly, not a weaker one: the unit of replication is
@@ -223,10 +259,18 @@ from the terminated arm's own measured range at comparable difficulty points (0.
 expected CI width of ≈0.13 × 2.015 × 2/√6 ≈ 0.21 — inside the 0.20–0.23 range the terminated arm
 itself measured, so this recommendation is held to the same noise bar, not a laxer one.
 
-That width implies a noise budget resolving gradients no finer than roughly 0.10–0.11 in mean
-score reliably (about half the CI width). §4's own knob-granularity ceiling — ≤0.10 mean-score
-movement per step — sits at the edge of, not comfortably inside, that resolvable floor; this is
-disclosed here rather than hidden, and revisited in §7's gradient-floor disclosure. This satisfies
+**[F-08, gpt-sol-pro/kimi-k3]** A real gradient claim compares TWO points (adjacent grid steps),
+not one — the CI width above is a single-arm/single-point quantity, and the standard error of a
+*difference* between two independent six-seed clusters propagates a √2 factor over a single
+cluster's, not a simple halving. The honest resolvable-gradient floor is therefore ≈0.15 in mean
+score (0.21 × √2 / 2 ≈ 0.15), not the ≈0.10–0.11 a naive half-CI-width reading would suggest. §4's
+own knob-granularity ceiling — ≤0.10 mean-score movement per step — sits ABOVE this resolvable
+floor, meaning a single step satisfying the §4 design ceiling may still not be statistically
+distinguishable from noise in any one measurement. This is a real, named tension: the design
+constraint (fine steps, so a grid point can land inside the corridor) and the analysis threshold
+(a large-enough difference to call it a real gradient rather than noise) pull in opposite
+directions, and rev 2 discloses this plainly rather than asserting the two numbers already agree.
+Disclosure 3's gradient floor (§7) is set at 0.15 to match this corrected estimate. This satisfies
 D-4 from `SHORTLIST.md` §4: a naive per-task CI is excluded by name, because it understates
 seed-level draw dependence — measured at ±0.13 in the terminated arm's own Phase A data — which is
 exactly the gap seed-clustered estimation exists to close, and this family's own noise-budget
@@ -245,8 +289,8 @@ constructed to make a bundled change look singular.
 | oracle | changed | Forced consequence: the independent reference-interpreter recomputation is replaced by SQL-engine execution against the frozen warehouse, because the new task distribution's ground truth is a query result, not a reconciled CSV fact — the oracle CLASS (construction) is retained; only its concrete mechanism follows the task family. |
 | output contract | changed | Forced consequence: the emitted artifact becomes an executable SQL statement rather than a fenced free-text answer, because the task distribution now asks for a query, not a reconciled value. |
 | parser/scoring | changed | Forced consequence: fenced-text strict/relaxed parsing is replaced by query execution plus result-set diffing, because there is no free-text answer to parse once the output contract is a query. |
-| qualification gate | held constant | The format-stability gate and the stage-1 acceptance-clause STRUCTURE (baseline CI ⊆ corridor, s0 floor clause, graded-minus-exact clause, per-point no-artifact-rate clause, arm-order clause) are carried forward unchanged from `V3.1-BATTERY-DESIGN.md` §4; only the artifacts they measure differ, because the task distribution differs. |
-| difficulty-knob | changed | Forced consequence, and a deliberate improvement: the coarse v3.1 knob family (a fixed G1–G5 grid) is replaced by the join/aggregation-depth knob in §4, addressing the corridor-placement failure directly. It is still downstream of the task-distribution choice — a BI query-answering task has no v3.1-style CSV-fact knob to reuse. |
+| qualification gate | held constant | **[F-05, gpt-sol-pro]** "Held constant" names the clause SHAPE — the five-clause acceptance-rule structure (baseline CI ⊆ corridor, s0 floor clause, graded-minus-exact clause, per-point no-artifact-rate clause, arm-order clause) — carried forward unchanged from `V3.1-BATTERY-DESIGN.md` §4. Each clause's concrete operationalization against SQL artifacts is, like the generator/oracle/output-contract/parser-scoring rows above, a downstream consequence of the already-designated task-distribution variable, not an independently constant quantity — the shape does not change; what each clause measures necessarily does. |
+| difficulty-knob | changed | **[F-01, gpt-sol-pro/kimi-k3/qwen-max/gemma4]** Forced consequence in one part, deliberate design choice in another, and rev 2 no longer blurs the two: that SOME new knob is needed is forced (a BI query-answering task has no v3.1-style CSV-fact knob to reuse). That the new knob is specifically join/aggregation-depth counting, incrementing by one structural operation per step, with a ≤0.10 mean-score-per-step ceiling, is a deliberately engineered response to REQ-43's corridor-placement requirement — an instrument-quality choice made in service of the one designated variable's own instrument, not a second experimental treatment condition applied alongside it. See the paragraph below for why this does not violate one-variable-per-round in the sense that matters. |
 | noise estimator | held constant | Seed-clustered t on six per-seed means (§5), the terminated arm's own estimator, unchanged. |
 
 **Round variable (exactly one):** task distribution
@@ -258,6 +302,18 @@ chosen lever on top of that choice. The qualification-gate structure and the noi
 held constant precisely so that everything else about how a point is accepted or rejected stays
 pinned while only the task distribution moves.
 
+**[F-01, gpt-sol-pro/kimi-k3/qwen-max/gemma4]** Four of five REQ-46 reviewers independently flagged
+that the difficulty knob's specific granularity ceiling is asserted as a forced consequence while
+also being called "a deliberate improvement" — a variable cannot honestly be both. Rev 2 resolves
+this by distinguishing what one-variable-per-round actually protects against: a SECOND,
+independently manipulated experimental condition that would confound attribution of any measured
+effect. The knob's existence is forced by the task-distribution swap; its granularity ceiling is an
+engineering choice made so the resulting instrument can satisfy REQ-43's own pre-registered
+corridor-placement requirement — it is not a second condition under test, because no arm of the
+future battery varies knob granularity against another arm holding it fixed. It is disclosed here,
+by name, as a design choice rather than asserted as pure logical necessity, which is what the
+reviewers' finding actually asked for.
+
 ## 7. Instrument-residual disclosures (quantified, pre-registered)
 
 Per `RESEARCH-PLAN.md` §6 (F-10), each disclosure below is a quantified, pre-registered prediction,
@@ -265,27 +321,47 @@ never a prose promise.
 
 - **Disclosure 1 — parsing/scoring reuse:** no parsing/scoring machinery is reused from the v3
   line — the recommended family's oracle executes SQL against the warehouse and diffs result sets,
-  with no fenced-text parser inherited from the terminated arm. Numeric target: ≤10%
-  parseable-but-wrong-equivalent rate at the recommended corridor point, where the equivalent of
-  "parseable but wrong" here is a query that executes successfully (a well-formed artifact) but
-  returns an incorrect result set (a wrong answer) — matching the terminated arm's own
-  post-relaxation no-artifact floor as the disclosed comparison bar.
+  with no fenced-text parser inherited from the terminated arm. **[F-02, gpt-sol-pro/kimi-k3/qwen-max]**
+  Numeric target, corrected in rev 2: rev 1 claimed ≤10% "matching the terminated arm's own
+  post-relaxation no-artifact floor," but the terminated arm's actual no-artifact rate was
+  16/479 ≈ 3.3%, not 10% — the 10% figure had been mis-derived from the dialect-drift per-arm
+  drop-rate fence (a different quantity, §2 of `V3.1-BATTERY-DESIGN.md`), not from either of the
+  terminated arm's own real figures for this kind of residual (no-artifact ≈3.3%; genuine-difficulty
+  residual, parseable-but-wrong, 395/479 ≈ 82.5%). The corrected target: an executes-but-wrong rate
+  (a query that runs successfully but returns an incorrect result set — the direct analogue of
+  parseable-but-wrong, per F-04's disclosure above) of ≤20% at the recommended corridor point. This
+  is stated as a fresh, disclosed ceiling for the new family, not claimed to numerically match any
+  single terminated-arm figure — the new family starts without the terminated line's format tax, so
+  a materially lower rate than its 82.5% genuine-difficulty residual is the falsifiable prediction,
+  with ≤20% as the pre-registered ceiling that catches a design that reproduces or worsens that
+  pathology.
 - **Disclosure 2 — difficulty knob:** the join/aggregation-depth knob (§4) is a genuinely new
   mechanism, not a relabelling of the v3.1 knob family — it operates on structural query complexity
   (JOIN count, aggregation-operation count) rather than the v3.1 knob's warehouse-scale/prompt-length
   levers. Step granularity relative to the corridor width it targets (the §4 ratio): ≤0.10
   mean-score movement per step against a 0.30-wide corridor, ≈0.33 of the corridor per step.
+  **[F-07, gpt-sol-pro]** Downstream consequence, stated explicitly: a step found at the future
+  arm's format-stability/stage-1 checkpoint to exceed the ≤0.10 ceiling invalidates that grid point
+  for corridor placement and triggers the §4 subdivision procedure before the point may enter the
+  pre-registered grid — it is not silently included.
 - **Disclosure 3 — real behaviour versus old-instrument residual:** named observable — the pooled
   mean graded score across the join/aggregation-depth grid. Expected direction: monotonically
-  decreasing as join/aggregation count increases. Numeric gradient floor under seed-clustered
-  estimation: an adjacent-grid-point mean-score difference of at least 0.10 (matching §5's
-  resolvable-gradient estimate) is required for a step to be credited as a real behavioural
-  gradient rather than noise; anything smaller is indistinguishable from old-instrument residual
-  and is not claimed as a finding.
+  decreasing as join/aggregation count increases. **[F-08, gpt-sol-pro/kimi-k3]** Numeric gradient
+  floor under seed-clustered estimation, corrected in rev 2 for two-point difference propagation
+  (§5): an adjacent-grid-point mean-score difference of at least **0.15** (not rev 1's 0.10, which
+  conflated a single-arm CI half-width with a two-point difference's standard error) is required for
+  a step to be credited as a real behavioural gradient rather than noise; anything smaller is
+  indistinguishable from old-instrument residual and is not claimed as a finding.
 - **Disclosure 4 — headroom target:** pooled baseline mean ≤0.85 at the qualifying corridor point
-  (leaving ≥0.15 headroom below the 1.0 ceiling, well clear of v2's 0.92+ saturation failure),
-  checked the same way `V3.1-BATTERY-DESIGN.md` §4's headroom clause checked it — (1 − baseline
-  pooled mean) ≥ 3 × the measured replicate noise — before any point is accepted as usable.
+  (leaving ≥0.15 headroom below the 1.0 ceiling, well clear of v2's 0.92+ saturation failure). **[F-08,
+  gpt-sol-pro]** Rev 1 additionally claimed this target was already consistent with
+  `V3.1-BATTERY-DESIGN.md` §4's headroom clause — (1 − baseline pooled mean) ≥ 3 × the measured
+  replicate noise — using §5's sd ≈0.13 estimate; it is not (3 × 0.13 = 0.39 required headroom, not
+  0.15), so rev 2 removes that false consistency claim. The ≤0.85 pooled-baseline-mean figure is the
+  pre-registered ceiling disclosed here; the 3×-replicate-noise rule is a separate, downstream check
+  performed at the future arm's own noise/selection stage against the ACTUAL replicate-pair noise
+  measured then (per `V3.1-BATTERY-DESIGN.md` §4's own procedure) — not a quantity this document can
+  verify now, and not claimed to already agree with the ≤0.85 figure.
 
 **Downstream checkpoint (F-22):** the future arm's format-stability gate plus its stage-1 readout,
 run under the adopted prereg — the first battery data produced under this new instrument — is where

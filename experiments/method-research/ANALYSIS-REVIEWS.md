@@ -27,6 +27,179 @@ work; the two models ran strictly sequentially, each stopped (`ollama stop`) and
 before the next was loaded. `wp-judge-v4` was not invoked in any role, per the standing exclusion
 (`HANDOFF-V3.md` §2).
 
+**Disposition:** 10 of 15 global findings adopted, 5 rejected with reason. Headline rev-2 changes:
+the change ledger's `Round variable (exactly one)` designation is tightened — four of five
+reviewers (gpt-sol-pro, kimi-k3, qwen-max, gemma4) independently flagged that the difficulty knob's
+specific granularity ceiling is a deliberately engineered design choice, not a strictly forced
+consequence of the task-distribution swap, so §6 now names the distinction explicitly rather than
+asserting pure logical necessity (F-01, the panel's largest cluster); Disclosure 1's numeric target
+is corrected after three reviewers (gpt-sol-pro, kimi-k3, qwen-max) caught it citing the wrong
+terminated-arm comparison figure — the ≤10% target was mis-derived from the dialect-drift drop-rate
+fence rather than from either of the terminated arm's own real figures (F-02); the noise-budget
+arithmetic in §5 is corrected for two-arm difference propagation, raising the disclosed resolvable
+gradient floor and resolving a knife-edge conflict with §4's step ceiling that two reviewers
+independently found (F-08, folding in gpt-sol-pro's F12/F13/F14 headroom and pretest caveats);
+§2's oracle-implementation row and §7 now disclose that the new oracle inherits the same
+"well-formed but wrong" blind spot the terminated line had, rather than implying clean distance
+from it (F-04); the qualification-gate ledger row and Disclosure 2 gain clarifying language on what
+"held constant" actually covers and what a downstream violation triggers (F-05, F-07); §3 gains a
+compatibility-preview note connecting the recommended family back to the Phase 5 shortlist, which
+gpt-sol-pro correctly noted was otherwise never done (F-06); and §4's "two usable resolution
+points" phrasing is corrected to remove language that could be misread as contradicting the
+terminated arm's own "no point qualifies" verdict (F-12). Rejected, and load-bearing for the gate
+below: three method-shopping-shaped findings against `SHORTLIST.md`'s criterion application
+(gpt-sol-pro F1/F2/F3, merged as F-13) and two further `SHORTLIST.md` rigor findings (kimi-k3
+F1/F2, F-14/F-15, which the reviewer itself did not frame as method-shopping) — on inspection every
+one of SHORTLIST.md's criterion-2 verdicts traces to a specific, cited feature of the method's own
+stated design (a disclosed overfitting risk, a shared in-loop/final-evaluation judge family, a
+Pareto frontier scored on the same axes it is later evaluated on), not to unexplained asymmetric
+benefit of the doubt, and SHORTLIST.md is Phase 5's frozen, already-reviewed deliverable that only
+an ADOPTED method-shopping finding may reopen. Also rejected: a broader "same hypothesis, different
+surface form" reading of the barred hypothesis (qwen-max F1, gpt-sol-pro F8/F9, merged as F-03)
+that would make V3.1-§6 uncomplyable by any future task family, and a finding that "admissible with
+conditions" improperly promotes a `pending` table verdict (gpt-sol-pro F15, F-11) — the three-way
+verdict vocabulary exists precisely to distinguish a nameable-but-not-yet-built oracle from no
+nameable oracle at all.
+
+**F-13 method-shopping gate:** CLEAR — no ADOPTED finding holds that the Phase 5 selection
+write-up (`SHORTLIST.md`) was method-shopped; the three findings that raised a method-shopping-shaped
+claim against it (merged as global F-13, F-14, F-15 below) were each rejected on the merits after
+tracing every disputed criterion-2 verdict to a specific, cited feature of the method's own stated
+design.
+
+## Findings and dispositions
+
+Global sequence F-01…F-15 across all five reviewers; duplicate findings raised by more than one
+reviewer are merged into a single F-NN naming every reviewer who raised it, with each reviewer's
+own local finding number noted for traceability.
+
+- F-01 (gpt-sol-pro F5/F6, kimi-k3 F3, qwen-max F2, gemma4 F1): ADOPTED — §6's difficulty-knob row
+  and the paragraph following `**Round variable (exactly one):**` are rewritten to distinguish the
+  knob's *existence* (forced by the task-distribution swap — a BI query-answering task has no
+  v3.1-style CSV-fact knob to reuse) from its *specific granularity ceiling* (≤0.10 mean-score
+  movement per step, a deliberately engineered design choice made to satisfy REQ-43's own
+  corridor-placement requirement, not a logical consequence of the task swap). The panel's largest
+  cluster — four of five reviewers independently raised a version of "forced consequence" being
+  overstated for this one row.
+- F-02 (gpt-sol-pro F10, kimi-k3 F5, qwen-max F3): ADOPTED — §7 Disclosure 1's numeric target is
+  corrected. The rev-1 text claimed ≤10% "matching the terminated arm's own post-relaxation
+  no-artifact floor," but the terminated arm's actual no-artifact rate was 16/479 ≈ 3.3%, not 10% —
+  the 10% figure was mis-derived from the dialect-drift per-arm drop-rate fence (a different
+  quantity entirely), and the terminated arm's genuine-difficulty residual was 395/479 ≈ 82.5%.
+  Rev 2 states the target honestly without a false equivalence to either terminated-arm figure.
+- F-03 (gpt-sol-pro F8/F9, qwen-max F1): REJECTED — reason: the finding reads V3.1-§6's barred
+  hypothesis as any prompt-search-vs-baseline experiment that involves "reasoning about warehouse
+  data to produce structured output verified against that data," which is broader than what the
+  termination clause states (`V3.1-BATTERY-DESIGN.md` §6 names a specific task family — data-ops
+  fact-recovery — not a general prohibition on data-reasoning-with-verification designs). Read that
+  broadly, no future task family could ever clear §6, which would make Phase 6's own charter
+  (recommend a next task family) impossible to satisfy by construction — not a workable reading.
+  §2's four-axis mapping requires only that at least one axis (RESEARCH-PLAN.md F-11) read
+  substantively different on stated function, not relabelled; three of four do here (task
+  semantics: reconcile-and-recompute existing facts vs. generate-and-execute a new query; oracle
+  implementation: reference-recomputation vs. engine-execution; parser/scoring: fenced-text parsing
+  vs. structured-query-plus-diff). Rejected; §2's PASS verdict stands. (F-04 below adopts the
+  narrower, more defensible half of this critique.)
+- F-04 (kimi-k3 F4): ADOPTED — §2's oracle-implementation row and §7's Disclosure 1 now explicitly
+  disclose that the new SQL-execution oracle inherits the terminated line's dominant failure shape
+  ("well-formed artifact, wrong answer") rather than avoiding it — a syntactically valid,
+  successfully executing query that returns the wrong result set is the direct analogue of the
+  395/479 parseable-but-wrong residual. The mapping's `substantively different` verdict on
+  mechanism stands (it is a different execution-based check, not a relabelled recomputation), but
+  rev 2 states plainly that Disclosure 1's numeric ceiling — not the mapping's mechanism claim — is
+  the actual defense against this shared exposure.
+- F-05 (gpt-sol-pro F7): ADOPTED — §6's qualification-gate row note is reworded to make explicit
+  that "held constant" refers to the clause SHAPE (the five-clause acceptance-rule structure), not
+  a literal, unchanged operationalization — each clause's concrete definition against SQL artifacts
+  is, like the generator/oracle/output-contract/parser-scoring rows above it, a downstream
+  consequence of the already-designated task-distribution variable, not an independently constant
+  quantity.
+- F-06 (gpt-sol-pro F4): ADOPTED — §3 gains a short compatibility-preview note connecting the
+  recommended family back to the Phase 5 shortlist it is supposed to be built on: it states plainly
+  that choosing among S-01/S-02/S-03 is REQ-44/Task 3's job (stated-mechanism compatibility with the
+  recommended family, decided after this document is finalized), not this document's, and names one
+  concrete reason a plausible compatibility path exists — DUALFIX's rule-evolution mechanism
+  operates on coding-failure classes, and SQL is itself a code artifact, a closer surface match than
+  DUALFIX has to the terminated line's CSV-fact-reconciliation task.
+- F-07 (gpt-sol-pro F11): ADOPTED — §7 Disclosure 2 gains an explicit downstream consequence: a step
+  found at the future arm's format-stability/stage-1 checkpoint to exceed the ≤0.10 ceiling
+  invalidates that grid point for corridor placement and triggers the §4 subdivision procedure, not
+  silent inclusion in the pre-registered grid.
+- F-08 (gpt-sol-pro F12/F13/F14, kimi-k3 F7): ADOPTED — §5's noise-budget arithmetic is corrected.
+  The rev-1 text derived a resolvable-gradient floor of "roughly 0.10–0.11" by halving the
+  single-arm seed-clustered CI width, but a real gradient claim compares TWO arms/points, whose
+  difference's standard error propagates a √2 factor over a single arm's — the honest resolvable
+  floor is ≈0.15, not ≈0.10. Disclosure 3's gradient floor is raised from 0.10 to 0.15 to match, and
+  §5 now discloses plainly that this floor sits ABOVE §4's ≤0.10 per-step design ceiling — a real,
+  named tension (a step satisfying the granularity design constraint may still not be statistically
+  distinguishable from noise in any single measurement) rather than the false appearance of the two
+  numbers already agreeing. This also resolves the knife-edge conflict gpt-sol-pro's F12 identified
+  between the old ≤0.10/≥0.10 pair. Disclosure 4's headroom line is also corrected: the rev-1 text
+  implied the ≤0.85 baseline-mean target and the "≥3× measured replicate noise" rule were already
+  known consistent using §5's sd estimate (they are not — 3×0.13 = 0.39 headroom, not 0.15); rev 2
+  states the ≤0.85 target as the pre-registered ceiling and separately notes the 3×-noise rule is a
+  downstream check performed at the future arm's own noise/selection stage against the ACTUAL
+  measured replicate-pair noise, not something this document can verify now.
+- F-09 (gpt-sol-pro F14): ADOPTED — §4's granularity-validation pretest gains a caveat: a small-n
+  pretest sweep is a coarse SCREEN that catches only large granularity violations, not ones near the
+  ≤0.10 boundary; final confirmation of granularity happens only once the full six-seed
+  pre-registered grid runs, mirroring how the terminated arm's own stage-1/stage-2 split separated a
+  coarse screen from a confirmatory measurement.
+- F-10 (kimi-k3 F6): ADOPTED — §4's "the terminated arm's grid offered, in effect, two usable
+  resolution points across the whole window" sentence is reworded. "Usable" invited a misreading as
+  contradicting the terminal report's own "no point qualifies" verdict stated elsewhere in this
+  document. Rev 2 describes the same coarseness (G1 near the ceiling, G2–G4 clustered near the
+  floor — two rough resolution bands, not a fine sweep) without implying either band qualified.
+- F-11 (gpt-sol-pro F15): REJECTED — reason: the finding treats "admissible with conditions" for
+  bi-analytics as an unauthorized promotion of the table's `pending` verdict, because the fixture
+  warehouse and known-answer query set the oracle depends on do not yet exist. But the three-way
+  admission-verdict vocabulary (admissible / admissible with conditions / inadmissible) exists
+  precisely to distinguish a genuinely nameable, independent oracle MECHANISM contingent on stated
+  construction work (bi-analytics, performance-marketing) from no nameable mechanism at all
+  (revops-gtm-exec-strategy, correctly called inadmissible in §1). Collapsing "not yet built" into
+  "not admissible" would erase that distinction, which the analysis is explicitly asked to draw.
+  §1's bi-analytics verdict stands.
+- F-12 (gpt-sol-pro F12): ADOPTED — folded into F-08's rev-2 edit: the knife-edge conflict between
+  Disclosure 2's ≤0.10 step ceiling and Disclosure 3's old ≥0.10 gradient floor is resolved by the
+  same §5 correction that raises the gradient floor to 0.15, so the two disclosures no longer
+  collide at a single unattainable value.
+- F-13 (gpt-sol-pro F1/F2/F3): REJECTED — reason: the finding alleges SHORTLIST.md's criterion-2
+  (and, in F2, criterion-1) verdicts are applied asymmetrically — lenient toward the eventual
+  qualifiers, strict toward the excluded methods. On inspection each disputed negative verdict
+  traces to a specific, cited textual feature of that method's own paper, not to an unexplained
+  double standard: A-04 (ToMap)'s optimization loop and its published evaluation score the identical
+  two axes (formal verification progress, semantic-rubric preference) — a stated design fact, not
+  an inference; A-05 (BayesPO)'s own authors disclose that "energy minimization may overfit small
+  optimization sets," a self-reported leakage risk no qualifying method's paper discloses about
+  itself; A-07 (GRADRAG)'s in-loop Evaluator and its final judged comparison are stated in the
+  paper's own design as the same judgment-mechanism family. None of these is "nothing rules it out"
+  reasoning of the kind applied to the qualifiers (A-01's support/query separation, A-02's
+  validation-set-only gate, A-08's structurally distinct unlabeled-vs-labeled signals, A-09's
+  disclosed small validation subset) — each qualifier's positive verdict likewise traces to a
+  specific structural feature, not to charitable silence. F2's narrower point that A-01's own
+  criterion-1 language ("intended to improve") is comparatively thinner than A-03's or A-08's is
+  fair as a prose-rigor observation, but nothing in the record suggests strengthening or weakening
+  A-01's specific writeup would have served a "wants a particular downstream answer" motive — Phase
+  6's task-family recommendation does not depend on which of the three shortlisted methods was
+  picked, and the tie-breaker that selected A-01/A-02/A-03 from five qualifiers was a mechanical,
+  pre-committed date rule with zero discretion. `SHORTLIST.md` is Phase 5's frozen, already-reviewed
+  deliverable; per `RESEARCH-PLAN.md` §8 (F-13), only an ADOPTED finding of method-shopping may
+  reopen it, and this finding does not clear that bar. Load-bearing for the gate line above.
+- F-14 (kimi-k3 F1): REJECTED — reason: the reviewer's own text states this "does not rise to an
+  F-13 finding" and is "a transparency defect, not evidence of shopping." A tie-breaker that
+  resolves to a full 0/4 tie across all five qualifiers and falls through to publication date is
+  disclosed as such in `SHORTLIST.md` §3, applying the frozen `RESEARCH-PLAN.md` §2/F-01 rule
+  exactly as written — a mechanical rule producing a mechanical result is not method-shopping by
+  definition, and the reviewer agrees. `SHORTLIST.md` is out of this task's authority to rewrite
+  absent an ADOPTED method-shopping finding, which this is explicitly not. Load-bearing for the
+  gate line above.
+- F-15 (kimi-k3 F2): REJECTED — reason: same disposition as F-14. The reviewer explicitly records
+  this as "a rigor finding, not method-shopping" and notes the asymmetry it identifies (BayesPO
+  penalized for candor, DUALFIX credited for ambition) does not consistently favor the eventual
+  winner — bi-analytics is method-agnostic to which of the three shortlisted methods is chosen, so
+  there is no plausible shopping motive connecting this asymmetry to a preferred downstream answer.
+  Load-bearing for the gate line above.
+
 ## Review prompt
 
 You are an adversarial reviewer of a research selection analysis. Attack this analysis as an
