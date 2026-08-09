@@ -9,6 +9,18 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### Survey update since the 2026-06-28 cutoff (phase 5, task 1)
+
+- `experiments/method-research/SURVEY-2026-08.md` (REQ-38/39): an auditable survey sweep across
+  six query axes (arXiv `cs.CL`/`cs.AI`/`cs.LG`) plus a citation-graph pull off GEPA's own
+  record, executed inside `RESEARCH-PLAN.md`'s frozen §1 protocol. 70 distinct in-window papers
+  found, 9 became fetch-verified entries with validated/unvalidated verdicts stated against
+  `META-RSI-SURVEY.md`'s bar, 61 screened out with reasons (harness-genome altitude,
+  benchmark-only contribution, or a stated dispute).
+- The altitude separation required by REQ-39 is stated explicitly, carrying
+  `META-RSI-SURVEY.md`'s harness-genome conclusions forward unchanged rather than re-litigating
+  them.
+
 ### Method research plan rev 2 — five-reviewer adversarial panel adjudicated (phase 4)
 
 - `experiments/method-research/RESEARCH-PLAN.md` rev 1 scopes the v1.22.0 survey
