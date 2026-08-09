@@ -9,6 +9,26 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### Task-family recommendation, second adversarial panel, and draft pre-registration (phase 6) — milestone close
+
+- `experiments/method-research/RECOMMENDATION.md` (REQ-42/43): recommends BI analytical-query
+  answering (bi-analytics vertical) as the next task family, with a five-vertical admission-path
+  analysis, a four-axis V3.1-§6 compliance mapping (PASS), a difficulty-corridor knob-granularity
+  sketch, and a seed-clustered noise-budget plan. Rev 2 after adjudication (below).
+- `experiments/method-research/ANALYSIS-REVIEWS.md` (REQ-46): a five-lane adversarial panel on
+  both `SHORTLIST.md` and `RECOMMENDATION.md` rev 1 — same three failure modes as the Phase 4
+  panel, plus Phase-6-specific attack instructions. 15 global findings, 10 adopted (rev-2 edits:
+  round-variable/difficulty-knob honesty, a corrected Disclosure 1 numeric target, a corrected
+  noise-budget floor, and several clarifying disclosures) and 5 rejected with reason. The F-13
+  method-shopping gate reads CLEAR — no adopted finding holds the Phase 5 shortlist was
+  method-shopped.
+- `experiments/method-research/PREREG-DRAFT.md` (REQ-44): a DRAFT PREREG-AMENDMENT-3-equivalent —
+  chosen method (S-03, DUALFIX), a quantified decision rule mirroring
+  `V3.1-BATTERY-DESIGN.md` §4, and a substance-binding termination clause mirroring its §6.
+  Marked DRAFT throughout; adoption is commit-is-timestamp, reserved for a future arm. Git
+  ancestry proves the analysis review landed before this draft.
+- Milestone-closing `docs/JOURNAL.md` entry (REQ-47), first person as Robert Li.
+
 ### Theory-only shortlist against the frozen §2 criteria (phase 5, task 2)
 
 - `experiments/method-research/SHORTLIST.md` (REQ-40/41): all nine `SURVEY-2026-08.md` entries

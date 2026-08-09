@@ -544,3 +544,86 @@ checkable by anyone willing to compare them against the abstracts in `SURVEY-202
 four terminated-arm diagnostics land in §4 as constraints on whatever evaluation design the future
 arm builds, never as a fifth lever for ranking or cutting a candidate — that door stays shut, same
 as the plan wrote it before I read a single paper.
+
+## The trigger gets pulled — a recommendation, a second panel, and a DRAFT that isn't a commitment (2026-08-09)
+
+This is the milestone-closing entry. Phase 6 had one job left: turn the frozen shortlist into a
+recommended next task family, survive a second adversarial panel on the resulting analysis, and
+only then write the draft pre-registration — in that order, because REQ-46 is ordered ahead of
+REQ-44 on purpose. I want to record honestly that the order did its job this time, not just that
+it existed on paper.
+
+The recommendation itself: BI analytical-query answering, on the bi-analytics vertical, not
+data-ops. I wrote the admission-path analysis before I let myself pick a winner — all five
+`VERTICAL_ADMISSION` verticals, oracle class and independent-oracle bullet and verdict, in the
+same shape SHORTLIST.md used for all nine survey entries. Data-ops carries the strongest working
+oracle of any of them, and I said so, and then said plainly why I wasn't recommending it anyway:
+V3.1-§6 bars a specific hypothesis inside that vertical, and any fact-recovery-shaped family
+recommended there would have carried the highest possible burden of proving it isn't that
+hypothesis relabelled. Bi-analytics's oracle — a real SQL engine executing a candidate query
+against a frozen warehouse and diffing the result set against known numbers — is independently
+nameable today even though the table itself only says `pending`, and the four-axis V3.1-§6
+mapping passed on three of four axes without me having to relabel anything: the task changes from
+reconciling facts that already exist to generating a new artifact and checking it by running it,
+which is a different kind of failure mode than a wrong number in prose.
+
+Then the panel, and this is the part I want to be honest about rather than smooth over. Five
+lanes, five outputs, no dead lanes this time — three openrouter models through opencode, and
+gemma4 and gpt-oss locally after the seam's own ollama lane timed out cold-loading a 19GB model
+against a 61KB prompt and I fell back to hitting the ollama HTTP endpoint directly, same fallback
+the plan pre-authorised. gpt-sol-pro came back UNSOUND with fifteen findings; the other four were
+SOUND or SOUND-WITH-CHANGES. Fifteen global findings, ten adopted, five rejected — and the ten
+adopted ones caught real mistakes, not stylistic nits. Four of five reviewers independently
+flagged that my change ledger's "task distribution, exactly one variable" line was quietly
+smuggling in a second, deliberately engineered choice — the difficulty knob's specific
+granularity ceiling — under the label "forced consequence." It wasn't forced. It was a good
+design decision I'd dressed up as inevitability so the ledger would look cleaner than it was.
+Rev 2 says so directly now: the knob's existence is forced, its granularity ceiling is an
+engineering choice made in service of that one variable's own instrument, and the difference
+matters because one-variable-per-round exists to protect causal attribution, not to pretend zero
+implementation choices get made along the way. Three reviewers independently caught something
+worse: Disclosure 1's "≤10% parseable-but-wrong-equivalent" target claimed to match the
+terminated arm's own no-artifact floor, and it didn't — that floor was 16/479, about 3.3%, and I'd
+actually borrowed the 10% from an unrelated dialect-drift drop-rate fence. A real number with a
+fabricated citation is exactly the "prose promise dressed as a number" the disclosure section
+exists to prevent, and I'd done it by accident, not by intent, which doesn't make it less wrong.
+And kimi-k3 caught a genuine arithmetic error in my own noise-budget math: I'd halved a single-arm
+confidence interval to get a resolvable-gradient floor, when a real gradient claim compares two
+points and the standard error of that difference propagates a root-two factor I'd simply dropped.
+The honest floor is 0.15, not 0.10, and fixing it also resolved a knife-edge contradiction between
+two of my own disclosures that gpt-sol-pro had separately flagged — a step had to move by at most
+0.10 to satisfy one clause and at least 0.10 to satisfy another, which only a value exactly equal
+to 0.10 could ever pass.
+
+I rejected five findings, each on the merits with a reason on the record, and the three that
+mattered most were about whether SHORTLIST.md itself had been method-shopped — because an ADOPTED
+finding of that shape would have required discarding and reselecting the shortlist, which is
+Phase 5 work this plan cannot perform. gpt-sol-pro argued the criterion-2 verdicts were
+asymmetric: generous toward the eventual qualifiers, strict toward the excluded methods. I traced
+every disputed verdict back to its source text and found each one grounded in something specific
+to that paper — BayesPO's own authors disclosing an overfitting risk, ToMap's loop and its
+evaluation scoring the identical two axes, GRADRAG's in-loop evaluator and final judge stated as
+the same mechanism family — not an unexplained double standard. kimi-k3 raised two related
+concerns and explicitly declined to call them method-shopping itself, which made those easy to
+reject on the reviewer's own terms. The F-13 gate reads CLEAR. I don't think I talked myself into
+that; I think the finding genuinely doesn't hold, and I'm recording the reasoning in full in
+`ANALYSIS-REVIEWS.md` rather than a one-line dismissal, because a gate this consequential deserves
+to be checkable by someone who wasn't in the room.
+
+The draft pre-registration comes last, and stays a draft. `PREREG-DRAFT.md` names S-03 (DUALFIX)
+as the chosen method — not because it would win a bake-off, which nothing here can even measure
+yet, but because its rule-evolution mechanism operates on coding-problem failures and SQL is
+itself a code artifact, a closer surface match than DUALFIX has to the CSV-fact-reconciliation
+task the terminated line ran. The decision rule mirrors the terminated arm's own acceptance
+clauses number for number, adapted to the new family's own corrected disclosures. The termination
+clause binds on substance, not name, the same discipline V3.1-§6 used. And the whole document
+opens with a blockquote that says, in words a cold reader cannot miss, that its own commit is not
+adoption — adoption is the future arm's, and it is that arm's commit that is the timestamp.
+
+This milestone ends with an admissible family, not a "no admissible family" outcome — I want that
+stated plainly rather than buried, the same way I'd have stated the opposite plainly if the four
+§7 conditions had landed there instead. What it leaves the future arm: a task family with a
+working independent oracle, a knob with a validated granularity story, a noise budget corrected by
+five adversarial passes instead of one, and a decision rule with nothing left to a judgment call.
+What it does not leave them: any obligation. The instrument isn't built. No generator id exists.
+Nothing here has run against real data, because nothing here was supposed to.
