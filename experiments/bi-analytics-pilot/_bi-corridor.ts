@@ -192,8 +192,8 @@ type Arm = (typeof ARMS)[number];
  *  stays valid without a driver change. */
 const F60_EQUALITY_SWEEP_CITATION = {
   file: "test/foundry-bi-warehouse.test.ts",
-  describe: "the nine-seed equality sweep — precomputed === recomputed across 9 seeds × 4 levels × 10 tasks (design §3 F-23)",
-  case: "360 task comparisons: every precomputed/recomputed pair is structurally equal under resultSetsEqual",
+  describe: "the nine-seed equality sweep — precomputed === recomputed across 9 seeds × 5 levels × 10 tasks (design §3 F-23)",
+  case: "450 task comparisons: every precomputed/recomputed pair is structurally equal under resultSetsEqual",
 };
 
 // ── checkpoint state (copied in shape from `_bi-ceiling.ts`) ────────────────
