@@ -1,8 +1,8 @@
-# BI analytical-query-answering battery design — rev 1
+# BI analytical-query-answering battery design — rev 2
 
-**Status:** rev 1 / pre-panel. Not frozen. Rev 2 lands after the REQ-49 adversarial panel
-adjudicates every finding (`DESIGN-REVIEWS.md`); this revision is the panel's target, not the
-pre-registration of record.
+**Status:** rev 2, post-adjudication (2026-08-10). 5-lane panel: gpt-sol-pro (UNSOUND), kimi-k3 (SOUND-WITH-CHANGES), qwen-max (SOUND-WITH-CHANGES), gemma4 (SOUND-WITH-CHANGES), gpt-oss (UNSOUND) — 65 global findings, 37 adopted, 28 rejected with reason (`DESIGN-REVIEWS.md`).
+
+**FROZEN — THIS COMMIT IS THE PRE-REGISTRATION.** No probe inference precedes it; no generator code precedes it; the document is not edited after it.
 
 **Authority:** Dr. Robert Li, 2026-08-10. Source documents: `experiments/method-research/RECOMMENDATION.md`
 rev 2, `experiments/method-research/PREREG-DRAFT.md`.
@@ -52,14 +52,19 @@ regenerate a byte-identical warehouse, test-enforced in Phase 8.
 - Dimension table `dim_products`: `product_id`, `product_name`, `category`, `unit_cost`.
 - Dimension table `dim_regions`: `region_id`, `region_name`, `country`.
 
-Row-count scale per seed: `fact_orders` ≈ 800 rows; `dim_customers` ≈ 40 rows; `dim_products` ≈ 25
-rows; `dim_regions` ≈ 8 rows (each pinned in §8, marked `derived:` — no upstream document fixes
-warehouse scale; the figure is chosen large enough that the §5 L4 grid point's two-JOIN-plus-
-aggregation query returns a non-degenerate, non-empty result set at every seed). Storage/loading
-form: the generated warehouse is materialized into an in-process SQL engine instance (an embedded
-engine such as SQLite, loaded from the generator's in-memory tables) that §3's execution oracle
-reads directly — no intermediate CSV export step, unlike the terminated line's CSV-emitted
-warehouse.
+Row-count scale per seed: **[F-40, gpt-sol-pro]** `fact_orders` ≈ 800 rows; `dim_customers` ≈ 40
+rows; `dim_products` ≈ 25 rows; `dim_regions` ≈ 8 rows — these are the EXPECTED ORDER OF MAGNITUDE
+for a human reader, not a free Phase-8 knob: the generator determines the EXACT count per seed
+DETERMINISTICALLY as part of its own seeded stream (following the `fixture-warehouse-v3.ts` house
+pattern, where row counts themselves come out of the seeded PRNG rather than being a fixed
+constant), so "≈N" describes what a given seed is expected to produce, not a range Phase 8 is free
+to vary per run (each pinned in §8, marked `derived:` — no upstream document fixes warehouse scale;
+the figure is chosen large enough that the §5 L4 grid point's two-JOIN-plus-aggregation query
+returns a non-degenerate, non-empty result set at every seed). Storage/loading form: **[F-41,
+gpt-sol-pro]** the generated warehouse is materialized into an in-process SQLite engine instance
+(embedded/in-process binding, ANSI-compatible subset only — no engine-specific extensions in either
+the reference query templates or the accepted candidate syntax, §8) that §3's execution oracle reads
+directly — no intermediate CSV export step, unlike the terminated line's CSV-emitted warehouse.
 
 **The known-answer query set, produced ANSWER-FIRST.** For each task, a reference SQL query is
 composed by the generator from the grid point's structural template (§5) and executed against that
@@ -90,9 +95,17 @@ mirroring `V3.1-BATTERY-DESIGN.md` §1's numbered discipline:
    ONE exists, its body is the artifact. Zero, or more than one, → no artifact (ambiguity fails
    closed, as does zero matches under rule 1 and rule 2 together).
 3. An extracted artifact that is not executable SQL against the frozen warehouse — a syntax error,
-   or any engine-rejected statement — counts as NO ARTIFACT for the drop budget (§6, §8), never as a
-   wrong answer. A non-executable artifact and an executes-but-wrong artifact are different failures
-   and are never conflated (§4, §6).
+   or any engine-rejected statement — **[F-38, gpt-sol-pro]** counts against the DROP BUDGET exactly
+   as a no-artifact response does (§6 clause v), never as a wrong answer, while remaining logged as
+   the distinct NON-EXECUTABLE-ARTIFACT category for the §4 zero-decomposition rule — the drop-budget
+   accounting and the zero-decomposition category are two different bookkeeping purposes for the same
+   event, not a conflict between them. A non-executable artifact and an executes-but-wrong artifact
+   are different failures and are never conflated (§4, §6).
+4. **[F-26, gpt-sol-pro]** The extracted artifact must be a single READ-ONLY `SELECT` statement. Any
+   DDL, DML, or multi-statement artifact is treated as non-executable for the drop budget (rule 3
+   above) and is never executed against the frozen warehouse — the oracle's stability and the
+   byte-identical-replay guarantee (§1) both depend on the warehouse never being mutated by a
+   candidate's own artifact.
 
 Per the one-shot discipline (§10), this is the ONLY extraction contract: no prompt-text change, no
 grammar beyond these two dialects, no second alias later.
@@ -114,17 +127,23 @@ conditions" verdict on bi-analytics:
   against that task's frozen warehouse instance and returns a real result set (or an engine error,
   which routes to §2 rule 3's no-artifact handling).
 - **The result-set diff and the graded score.** Let `expected` be the pre-computed known-answer
-  result set (a set of row-tuples over the reference query's declared column projection) and
-  `actual` be the executed candidate result set. If `actual`'s column set (order-insensitive) does
+  result set and `actual` be the executed candidate result set, **[F-24, gpt-sol-pro]** both
+  compared as MULTISETS of row-tuples over the reference query's declared column projection (SQL is
+  bag-valued: duplicate rows are counted with multiplicity, never deduplicated before comparison,
+  consistent with real SQL semantics). If `actual`'s column set (order-insensitive) does
   not match `expected`'s declared column projection, graded score = 0 — a differently-shaped
-  projection is not a partial answer. Otherwise, comparing rows as unordered, type-normalized
-  tuples:
+  projection is not a partial answer. **[F-25, gpt-sol-pro]** If `expected` is empty, `actual` scores
+  1.0 iff `actual` is also empty (a query correctly returning no rows when none are expected is
+  correct) — Phase 8 must verify, per seed, as part of the equality sweep below, that no L1–L4 task
+  is expected to have a genuinely empty answer, so this rule is a defined edge case rather than a
+  live outcome. Otherwise, comparing rows as unordered, type-normalized tuples with multiplicity:
   `graded score = |expected ∩ actual| / max(|expected|, |actual|)`.
   This is symmetric under both failure directions: dropping rows shrinks the intersection: numerator;
   a dump-everything or over-broad query inflates `|actual|`, the denominator, driving the score
   toward zero as spurious rows accumulate, so a `SELECT *`-style over-selection cannot manufacture a
   passing score. `exact` = graded score is 1.0 AND `|expected| = |actual|` (every row and column
-  matches with nothing extra and nothing missing) — this is §6 clause (iii)'s `exact-match rate`.
+  matches with nothing extra and nothing missing, multiplicity included) — this is §6 clause (iii)'s
+  `exact-match rate`.
 - **The independent reference interpreter.** A second, separately implemented code path recomputes
   the expected result set directly from the warehouse's raw generation state (the in-memory
   fact/dimension arrays), replicating the intended join/aggregation logic without invoking the SQL
@@ -137,8 +156,22 @@ conditions" verdict on bi-analytics:
   shared helper canonicalize as truth on both paths. What is NOT independent: both sides still read
   the same seed's warehouse generation state; independence is in the COMPUTATION of the answer, not
   in the data source, mirroring `HANDOFF-V3.md` §1 T-A step 2's own reference-interpreter discipline.
+  **[F-21, gpt-sol-pro/gpt-oss]** This independence claim is scoped precisely to the COMPUTATION
+  IMPLEMENTATION only — it does NOT cover a shared structural TEMPLATE: the same grid-point
+  definition drives both the reference query's construction and the interpreter's replication of its
+  intended logic, so a bug in that shared template-level specification (both implementations
+  faithfully implementing the wrong intent) would canonicalize on both paths without any shared
+  function import. This is a distinct, separately disclosed exposure from the candidate-execution/
+  precomputation shared-SQL-engine exposure named below — neither is claimed to be closed by "share
+  zero helper functions." **[F-22, kimi-k3]** Phase 8 must enforce the zero-shared-helpers claim
+  MECHANICALLY (an import-graph or module-boundary check), mirroring the warehouse determinism
+  obligation's own "test-enforced" discipline — an unenforced independence claim is not independence.
 - **The equality obligation.** Across a full seed sweep (all six stage-1 seeds plus all three
-  stage-2 fresh seeds), `precomputed === recomputed` for every task. Phase 8 must make this pass
+  stage-2 fresh seeds), `precomputed === recomputed` for every task. **[F-23, gpt-sol-pro]** This
+  equality is a defined STRUCTURAL/VALUE equality — the same row-multiset comparison, with the same
+  type-normalization and a stated numeric tolerance for floating-point columns, that the graded-score
+  definition above already uses — never a literal JavaScript reference/identity comparison, which
+  would be permanently false for separately allocated result objects. Phase 8 must make this pass
   before any task generated under this design is trusted; a mismatch anywhere in the sweep is a
   generator or interpreter bug, not a probe result.
 
@@ -147,6 +180,20 @@ line's dominant failure shape. A syntactically valid, successfully executing que
 wrong result set is the direct analogue of the terminated arm's 395/479 parseable-but-wrong residual
 — "well-formed artifact, wrong answer." The executes-but-wrong ceiling in §6, not the oracle's
 mechanism, is the defense against it.
+
+**[F-20, gpt-sol-pro/kimi-k3]** A further named residual, the strongest the panel raised: the
+equality obligation above validates that the reference SQL's OWN computation is correct
+(`precomputed === recomputed`), but nothing in this oracle validates that the NATURAL-LANGUAGE
+QUESTION shown to the candidate (§1) actually denotes that reference SQL. A misrendered question —
+the wrong filter column named, the wrong grouping described — would leave the equality obligation
+intact while the candidate is scored against a question that does not match the query defining
+"correct." The answer-first construction keeps ground truth free of the candidate's own process, but
+correctness is still defined by the generator's own, unverified question-rendering step. This gap is
+NOT closed by this design: Phase 8 must add its own fidelity check (an independent second
+question-rendering pass compared against the first, or a human spot-audit sample) before this
+oracle's guarantee extends from "the reference query is correct" to "the question shown to the
+candidate is correct," and until that check exists this is recorded here as a known, un-instrumented
+residual rather than left silently unaddressed.
 
 ## 4. Instrumentation and run configuration
 
@@ -174,10 +221,16 @@ measurement and is never retried. Tasks are never re-drawn and seeds are never s
 
 ## 5. The difficulty knob and its pretest screen
 
-**The knob, defined operationally.** Query structural complexity = (the number of tables the
-reference query must JOIN) + (the number of aggregation operations — `GROUP BY` clauses or window
-functions — it must compose), an integer count starting at 1 (a single-table `SELECT`) and
-incrementing by exactly one structural operation per grid step.
+**The knob, defined operationally.** **[F-17, gpt-sol-pro]** Query structural complexity = 1 (the
+base single-table `SELECT` operation) + (the number of tables the reference query must JOIN) +
+(the number of aggregation operations — one per `GROUP BY` clause or window function it must
+compose), an integer count starting at 1 (a single-table `SELECT`, 0 JOINs and 0 aggregations) and
+incrementing by exactly one structural operation per grid step — the `1 +` base term is what makes
+L1's own assigned value (1) consistent with its 0-JOIN, 0-aggregation construction; the count is
+NOT bare `JOINs + aggregations` (that formula would assign L1 the value 0). **[F-18, gpt-sol-pro]**
+One aggregation operation = one `GROUP BY` clause; any number of aggregate functions (`SUM`, `COUNT`,
+etc.) inside that clause's `SELECT` list count as part of that SAME single operation, not counted
+separately — the same one-clause-equals-one-operation convention a window function already gets.
 
 **The concrete grid**, four levels, each incrementing by exactly one structural operation over the
 last:
@@ -191,8 +244,12 @@ last:
 
 **The granularity ceiling.** ≤0.10 mean-score movement per single knob increment against the
 0.30-wide corridor — ≈0.33 of the corridor per step (§8). A step that violates this ceiling is
-subdivided (an intermediate level via a partial join predicate or a single added filter clause) —
-never carried forward coarse or silently included in the pre-registered grid.
+subdivided — never carried forward coarse or silently included in the pre-registered grid.
+**[F-16, gpt-sol-pro]** Subdivision registers the intermediate level (via a partial join predicate
+or a single added filter clause) as its OWN NEW NAMED LEVEL with its OWN integer knob value on the
+same scale (renumbering the grid before the pretest screen concludes), never as a fractional
+insertion into the existing count — the knob stays integer-valued throughout and no unregistered
+second difficulty dimension is introduced.
 
 **The pretest screen**, carrying REQ-54's rule verbatim: 3–4 knob levels (this design uses all four
 L1–L4), a small-n baseline-arm sample at each (n=10 per level, pinned in §8 as `derived:`), run on a
@@ -200,6 +257,14 @@ single pinned pretest seed (999, §8, `derived:` — distinct from every stage-1
 screen draws on data the corridor probe itself never reuses), confirming no adjacent pair moves the
 mean score by more than the 0.10 ceiling before the full pre-registered grid is committed. A
 violating level is subdivided rather than accepted as coarse and carried forward unexamined.
+**[F-34, gpt-sol-pro]** Subdivision is capped at ONE pass per violating adjacent pair; a level still
+violating the ceiling after that one subdivision routes to §10 rather than being iterated further —
+an unbounded subdivision search is exactly the post-data grid-shopping this screen exists to
+prevent. **[F-35, gpt-sol-pro]** Subdivision is a PRETEST-STAGE-ONLY mechanism, applied before the
+grid is committed and before any stage-1 data exists. A granularity violation discovered only once
+the full six-seed grid runs (downstream of commitment) is NOT subdivided post-hoc — that outcome is
+instead Falsifier 3's (§11) pre-registered terminal finding, never a new grid point inserted after
+data exists.
 
 This pretest is a coarse SCREEN, not a confirmatory measurement (F-09): a small-n sample at four
 levels catches only large granularity violations, not ones near the ≤0.10 boundary itself. Final
@@ -237,8 +302,11 @@ ceiling-probe prompt contains the reference SQL query VERBATIM plus the same §2
 instruction the corridor probe uses — a candidate that simply transcribes the given query into the
 required fence should score at or near 1.0 if extraction and execution both work, isolating
 extraction/execution reliability from query-writing capability. Seed subset: the first two of the
-six stage-1 seeds (101, 202), n = 20 per point (2 seeds × 10 tasks, §8). Pass condition: no-artifact
-count = 0 AND mean graded score ≥ 0.95 at that point (denominator: all 20 tasks). A point failing the
+six stage-1 seeds (101, 202), n = 20 per point (2 seeds × 10 tasks, §8). Pass condition: **[F-62,
+kimi-k3]** no-artifact-OR-non-executable count = 0 AND mean graded score ≥ 0.95 at that point
+(denominator: all 20 tasks) — both zero-decomposition categories (§4) that represent extraction or
+execution failure, not only "no artifact," must be absent, so a single execution failure cannot
+hide inside the 0.05 of tolerance the mean-score threshold otherwise permits. A point failing the
 gate is EXCLUDED from the difficulty probe. If ALL points fail, the content-driven premise is
 falsified and the instrument line terminates under §10.
 
@@ -252,17 +320,28 @@ these are DISTINCT failures and all six are required:
 4. Executes-but-wrong rate ≤ 0.20 on EACH arm separately, evaluated per grid point over that point's
    full seed × task sample, never pooled across points.
 5. A per-point no-artifact / non-executable-artifact drop-budget ceiling of ≤ 0.10 on EACH arm
-   separately (§8, `derived:` — no upstream document fixes this figure for the BI family; it is set
-   to match `V3.1-BATTERY-DESIGN.md` §4's own no-artifact ceiling clause, with the terminated arm's
-   measured post-relaxation no-artifact rate, ≈3.3%, offered as context for that choice, not as its
-   source). A no-artifact/non-executable response is a different failure from a query that runs and
-   returns the wrong rows, and this clause is never satisfied by folding one into the other.
+   separately, **[F-46, gpt-oss]** evaluated over that point's full seed × task sample — the same
+   scope clause (iv) above already states — never per-seed or on any subset (§8, `derived:` —
+   **[F-06, gpt-sol-pro]** the THRESHOLD VALUE is carried from `V3.1-BATTERY-DESIGN.md` §4's own
+   no-artifact ceiling clause, but the DENOMINATOR EVENT is broader for this family — this design's
+   clause counts no-artifact AND non-executable-artifact together, where V3.1's clause 4 counted
+   no-artifact alone — so "matches" describes the numeral carried forward, not an identical
+   category; the terminated arm's measured post-relaxation no-artifact rate, ≈3.3%, is offered as
+   context for this choice, not as its source). A no-artifact/non-executable response is a different
+   failure from a query that runs and returns the wrong rows, and this clause is never satisfied by
+   folding one into the other.
 6. Arm order: baseline pooled mean > s0-minimal pooled mean, AND sign(baseline seed-mean − s0-minimal
    seed-mean) > 0 on ≥ 5 of 6 seeds. A zero difference counts as a violation.
 
 **THE GRADIENT CLAUSE.** An adjacent grid-point mean-score difference of at least 0.15, under the
 same seed-clustered estimator, is required for a step to be credited as a real behavioural gradient
-rather than noise (§7's derivation).
+rather than noise (§7's derivation). **[F-36, gpt-sol-pro]** The credited difference must be in the
+EXPECTED DIRECTION — mean score decreasing as knob value increases, per Disclosure 3 (§7) — a ≥0.15
+movement in the wrong direction is not credited as a real behavioural gradient and is instead
+reported as a Disclosure-3 falsification. **[F-59, kimi-k3]** "Adjacent" means the nearest
+SURVIVING neighbor — the nearest grid point (in either direction) that passed the format-stability
+gate — since an excluded point supplies no comparison. A point with no surviving neighbor in either
+direction cannot be evaluated on the gradient clause and does not qualify.
 
 **SELECTION AMONG QUALIFIERS.** The predeclared priority order is fewest structural operations
 first (lowest knob value wins), independent of measured noise, mirroring the terminated arm's own
@@ -275,6 +354,17 @@ re-run of stage 1: (i) baseline pooled mean ∈ [0.30, 0.60] as a point estimate
 sign(baseline − s0-minimal) positive on ALL fresh seeds; (iii) executes-but-wrong ≤ 0.20 and the
 drop budget respected on each arm. Failure routes to the next stage-1 qualifier in priority order,
 once each.
+
+**THE `QUALIFIED` VERDICT LABEL, DEFINED.** **[F-08, gpt-sol-pro/kimi-k3/qwen-max/gpt-oss]** A grid
+point is recorded `QUALIFIED` in the corridor probe's state-file/log artifact iff it passes, IN
+ORDER: the format-stability gate, all six stage-1 clauses, the gradient clause (including its
+direction and surviving-neighbor rules above), the §7 headroom clause, and the stage-2 confirmation
+rule — every predicate in this section, not a subset. **[F-60, kimi-k3]** `QUALIFIED` additionally
+requires the §3 equality obligation (`precomputed === recomputed`) to have passed across the full
+stage-1 and stage-2 seed sweep for every task at that point; a point cannot be recorded `QUALIFIED`
+if the oracle's own ground-truth validity was never confirmed for it, even if every other predicate
+above passed — this closes the oracle-integrity gap without adding a fourth top-level §9 gate
+condition, since `QUALIFIED` itself is what §9 gate condition 2 already cites as its evidence.
 
 **THE FAILURE BRANCH, PRE-COMMITTED.** If no point passes the gate, stage 1, the gradient and
 headroom clauses (§7), and stage 2, the probe's verdict is the FAILURE BRANCH — a terminal report is
@@ -297,6 +387,14 @@ lane will hunt for:
   over: §5's ≤0.10 per-step design ceiling sits BELOW this 0.15 analysis floor, so a step satisfying
   the granularity constraint may still not be statistically distinguishable from noise in any single
   measurement. This document discloses that rather than asserting the two numbers already agree.
+  **[F-14, gpt-sol-pro]** The √2 propagation itself assumes the two grid points' six-seed estimates
+  are INDEPENDENT — but the SAME six seeds (§6) are reused at every grid point, so adjacent-point
+  estimates may be positively correlated rather than independent. This is disclosed as a named
+  assumption, not resolved: a positive same-seed correlation would make the TRUE resolvable floor
+  SMALLER than 0.15 (easier to resolve), not larger, since the variance of a paired difference falls
+  as the correlation between the pair rises — so the disclosed 0.15 is, if anything, a conservative
+  (not an optimistic) floor under same-seed reuse. The actual correlation is measurable only once
+  real data exists; this document does not claim to know its value in advance.
 - **The REPLICATE-PAIR NOISE PROCEDURE and the headroom clause** — a different mechanism entirely.
   At the selected point, run three baseline replicate pairs (six runs) on the first three of the six
   stage-1 seeds (101, 202, 303; §8, `derived:`). Noise = the MAXIMUM |pair difference| across the
@@ -310,11 +408,17 @@ lane will hunt for:
 
 The four carried disclosures, thresholds carried verbatim, not softened in transit:
 
-- **Disclosure 1** — parsing/scoring reuse: no parsing/scoring machinery is reused from the v3 line
-  — the oracle executes SQL against the warehouse and diffs result sets, with no fenced-text parser
-  inherited from the terminated arm. Numeric target: an executes-but-wrong rate (a query that runs
-  successfully but returns an incorrect result set — the direct analogue of parseable-but-wrong) of
-  ≤20% at the recommended corridor point.
+- **Disclosure 1** — parsing/scoring reuse: **[F-65, kimi-k3]** no VALUE-RECONCILIATION
+  parsing/scoring machinery is reused from the v3 line — the strict/relaxed parser that extracted and
+  graded a reconciled numeric fact from prose has no analogue here; the oracle instead executes SQL
+  against the warehouse and diffs result sets. What IS retained, named honestly rather than
+  overclaimed: the fenced-block ENVELOPE discipline (§2's ordered extraction rules, first-match-wins,
+  fail-closed on ambiguity) mirrors `V3.1-BATTERY-DESIGN.md` §1's own numbered discipline in
+  STRUCTURE — but the accepted DIALECT SET (`sql` / bare-fence) is materially different content from
+  v3.1's (`path=answer.json` / `json`), frozen up front per §2 rather than relaxed reactively, which
+  is the actual lesson carried forward. Numeric target, untouched: an executes-but-wrong rate (a
+  query that runs successfully but returns an incorrect result set — the direct analogue of
+  parseable-but-wrong) of ≤20% at the recommended corridor point.
 - **Disclosure 2** — difficulty knob: the join/aggregation-depth knob is a genuinely new mechanism,
   not a relabelling of the v3.1 knob family. Step granularity relative to the corridor width it
   targets: ≤0.10 mean-score movement per step against a 0.30-wide corridor, ≈0.33 of the corridor per
@@ -370,6 +474,11 @@ Every numeric constant used anywhere in this document, with its source or deriva
 | Ceiling-gate seed subset and n | 2 of 6 seeds times 10 tasks = 20 per point | derived: matches V3.1-BATTERY-DESIGN.md §4's own gate probe shape (2 seeds, n=20 per point) |
 | Replicate-pair seed half (three of six stage-1 seeds) | 101, 202, 303 | derived: the first three of the pinned stage-1 seed set, chosen for reproducibility, no other significance |
 | Task timeout bound | 3600s | V3.1-BATTERY-DESIGN.md §3 |
+| Dimension-table row scale, dim_customers (F-01) | approximately 40 | derived: no upstream figure fixes dimension-table scale; determined per seed by the generator's own deterministic stream, same discipline as the fact-table scale row above |
+| Dimension-table row scale, dim_products (F-01) | approximately 25 | derived: same basis as dim_customers above |
+| Dimension-table row scale, dim_regions (F-01) | approximately 8 | derived: same basis as dim_customers above |
+| Replicate-pair count (F-02) | 3 | V3.1-BATTERY-DESIGN.md §4 |
+| Harness-fault retry count (F-03) | 1 | derived: matches V3.1-BATTERY-DESIGN.md §3's own no-redraw rule (one retry, logged) |
 
 A constant used in the prose but missing from this table is the defect this table exists to catch;
 none is left out above.
@@ -388,27 +497,46 @@ this committed document is therefore the durable record of the directive, exactl
 **Supersession of PREREG-DRAFT.md §6:** `PREREG-DRAFT.md` §6's requirement of human acceptance in session for the generator id is SUPERSEDED by the directive above; the supersession is recorded here rather than silently dropped. What the supersession PRESERVES: the generator id stays ABSENT from
 `ACCEPTED_GENERATORS` and is never self-issued by the generator's own code; acceptance is refused
 automatically if any gate condition fails; and the gate conditions below are frozen with this
-document, before any data exists. What it CHANGES, and only this: who pulls the trigger when all
+document, before any data exists. **[F-29, gpt-sol-pro]** It also preserves the IDENTITY-BINDING
+requirement `PREREG-DRAFT.md` §6 names: the generator id created in Phase 8 must be recorded in the
+acceptance commit and must match the id whose runs produced the gate evidence being cited — the
+rev-1 supersession stated this requirement's ABSENCE-from-`ACCEPTED_GENERATORS` half but omitted the
+matching-identity half; rev 2 restores both. What it CHANGES: who pulls the trigger when all
 frozen gates pass — an automated commit citing the pre-authorization, rather than a human keystroke
-in session. This is a real loosening of a human control, stated plainly rather than dressed up as a
-formality, and the compensating control is the strictness and pre-registration of the gate set below,
-not the operator's presence.
+in session. **[F-28, qwen-max]** It also changes a second thing the rev-1 text did not name: per
+`V3.1-BATTERY-DESIGN.md` §7's own precedent, prior practice showed the human the probe numbers, the
+triggered disclosure, and the strict-endpoint gap BEFORE accepting — a pre-acceptance EVIDENCE-REVIEW
+step, not only a trigger-pull. Automation removes that review step too, not only who commits. This is
+a real loosening of a human control, stated plainly rather than dressed up as a formality, and the
+compensating control is the strictness and pre-registration of the gate set below, not the operator's
+presence.
 
-- **Gate condition 1 — ceiling.** The ceiling probe reads ≥ 0.95 and is recorded in a committed
+- **Gate condition 1 — ceiling.** **[F-07/F-10, gpt-sol-pro/kimi-k3/qwen-max/gemma4]** The §6
+  format-stability/ceiling gate's FULL two-conjunct rule (no-artifact-or-non-executable count = 0 AND
+  mean graded score ≥ 0.95) passed AT THE SPECIFIC POINT that ultimately qualifies (§6's `QUALIFIED`
+  definition) — not merely a ≥0.95 mean-score reading in isolation, and not a reading from any other
+  probed point — and is recorded in a committed artifact.
+- **Gate condition 2 — corridor verdict.** **[F-08, gpt-sol-pro/kimi-k3/qwen-max/gpt-oss]** The
+  corridor probe's recorded verdict is `QUALIFIED`, per §6's own explicit definition of that label
+  (including the §6 equality-sweep precondition, F-60), read from a completed state-file or log
   artifact.
-- **Gate condition 2 — corridor verdict.** The corridor probe's recorded verdict is QUALIFIED per
-  §6's written rule, read from a completed state-file or log artifact.
-- **Gate condition 3 — disclosure readout.** The REQ-56 disclosure readout is committed with each of
-  the four §7 disclosures marked met or unmet.
+- **Gate condition 3 — disclosure readout.** **[F-09, gpt-sol-pro/gemma4/qwen-max]** The REQ-56
+  disclosure readout is committed with each of the four §7 disclosures marked met or unmet. This
+  condition is a PRESENCE/RECORDING requirement, not a pass/fail quality gate — per the UNMET rule
+  below, a disclosure recorded UNMET does not by itself fail this condition; the substantive quality
+  bar for acceptance sits in gate conditions 1 and 2, and this condition's role is only to guarantee
+  the disclosure record exists and is complete, never omitted.
 
 Firing order and AND semantics, written so a Phase-9 executor cannot misread them: acceptance
 (REQ-57) fires iff ALL THREE conditions hold, in an acceptance commit citing both the
 pre-authorization above and the specific gate evidence. Adoption (REQ-58) fires iff acceptance
-actually fired, adopting `PREREG-DRAFT.md` by its own commit (commit-is-timestamp) before any round-1
-data exists. A partial pass never accepts — concretely, ceiling met but probe unqualified is a
-REFUSAL, not a partial acceptance. A disclosure recorded as UNMET does not by itself block
-acceptance but must be recorded and carried into every downstream report, exactly as
-`V3.1-BATTERY-DESIGN.md` §5's disclosure was informational-by-pre-registration and un-omittable.
+actually fired, adopting `PREREG-DRAFT.md` by its own commit (commit-is-timestamp) **[F-63,
+qwen-max]** before any Phase 10 DUALFIX tournament round-1 data exists (distinct from this battery's
+own stage 1/stage 2, which necessarily precede acceptance). A partial pass never accepts —
+concretely, ceiling met but probe unqualified is a REFUSAL, not a partial acceptance. A disclosure
+recorded as UNMET does not by itself block acceptance but must be recorded and carried into every
+downstream report, exactly as `V3.1-BATTERY-DESIGN.md` §5's disclosure was
+informational-by-pre-registration and un-omittable.
 
 ## 10. One-shot termination
 
