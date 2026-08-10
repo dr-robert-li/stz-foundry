@@ -36,6 +36,30 @@ preserved verbatim.
 - Version 1.24.0 synced across `package.json`, `.claude-plugin/plugin.json`, and
   `.claude-plugin/marketplace.json` (drift guard green); full suite and typecheck green.
 
+### Milestone close (phase 12) — dualfix-study
+
+- `experiments/dualfix-study/stage-b-decision.json` (REQ-66): Phase 12's Stage-B auto-gate
+  decided once, deterministically, from `dualfix-study-verdict.json`'s own recorded arms —
+  `evaluateStageBGate("COMPLETE", 19, 17, 24)` returns `verdict: "NOT-MET"`,
+  `branch: "MILESTONE CLOSING"` (`20*(19-17)=40 < 3*24=72`). REQ-63 (failing-candidate corpus,
+  pinned at `7e44cca`), REQ-64 (paired repair run: DUALFIX 19/24 vs naive-retry 17/24, zero
+  harness-fault retries, shared denominator verified), and REQ-65 (`STUDY-RESULTS.md`, per-task
+  accounting before aggregates, bound to the verdict artifact by a drift guard) are satisfied.
+- `experiments/dualfix-study/TERMINAL-REPORT.md`: REQ-67 (third-family selection + paired
+  prereg), REQ-68 (instrument build per frozen paired design), and REQ-69 (paired round) close
+  **VOID BY RULE** — each requirement's own triggering condition is Stage B opening, which never
+  happened here, and each is disposed with its own reason rather than a blanket line. REQ-70
+  (record and version discipline) closes **COMPLETE**: JOURNAL and CHANGELOG carry first-person
+  milestone-close entries, version 1.24.0 stays synced across `package.json`,
+  `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` (drift guard green), the
+  full suite holds, and this milestone is pushed to origin exactly once at this gate.
+- Phases 13 and 14 are marked void by rule in `.planning/ROADMAP.md`'s phase checklist and
+  Progress table — neither executes, and no plan, stub, or placeholder exists for either.
+- The substantive finding: on the pinned 24-entry failing-candidate corpus, DUALFIX's repair
+  rate cleared naive-retry's by only 2/24, well short of the pre-registered 0.15-of-denominator
+  margin — a standalone measurement of the repair-component property this study set out to test,
+  reported as it was found rather than pressed toward a positive result.
+
 ## [1.23.0] — BI-analytics instrument line VOID BY RULE at the pretest screen; milestone closes at Phase 9's terminal report
 
 ### Milestone close (phase 10) — bi-analytics-pilot

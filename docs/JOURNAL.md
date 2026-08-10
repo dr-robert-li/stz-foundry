@@ -1174,3 +1174,47 @@ and 14 do not execute, not even a stub plan — and the milestone closes at Phas
 closing discipline folded in there. 12-06 is the plan that executes this branch: the terminal
 report, the roadmap/requirements void-by-rule record, and the milestone close. This entry
 records the numbers and the verdict; it performs none of that branch's own actions.
+
+## Milestone v1.24.0 closes at Phase 12: MILESTONE CLOSING, REQ-67–69 VOID BY RULE (2026-08-11)
+
+Plan 12-06 evaluated the Stage-B gate exactly once — `evaluateStageBGate("COMPLETE", 19, 17,
+24)`, reading only `dualfix-study-verdict.json`'s own recorded arms and the imported margin
+constants — and recorded the result in `stage-b-decision.json`: `verdict: "NOT-MET"`, `branch:
+"MILESTONE CLOSING"`. The two integer sides are `40` and `72`; `40 < 72`. That is the only
+arithmetic this decision performs; nothing was re-derived by hand.
+
+I took the branch that decision names. The STAGE B OPEN task ran its own dispatch check,
+confirmed the recorded branch was not STAGE B OPEN, and wrote nothing — no CHANGELOG opening
+subsection, no `docs/JOURNAL.md` opening entry beyond this record, and Phase 13's own precondition
+line in `.planning/ROADMAP.md` untouched.
+
+The MILESTONE CLOSING branch wrote `experiments/dualfix-study/TERMINAL-REPORT.md`: the verdict
+statement, what was measured (DUALFIX 19/24 vs. naive-retry 17/24, the two integer sides of the
+inequality, the finding stated plainly as a standalone result), REQ-67/68/69 disposed one at a
+time as VOID BY RULE with each requirement's own reason — REQ-67 had no Stage-B-opening
+condition to select a third family against, REQ-68 had no frozen paired design to build an
+instrument against, REQ-69 had no instrument to run a paired round against — and the
+pre-authorization quoted verbatim from `.planning/ROADMAP.md`'s Overview and
+`.planning/REQUIREMENTS.md`'s REQ-66 text, confirming the gate refused on the rule written down
+before the data existed, not on a decision made after seeing it.
+
+REQ-70's closing discipline completes here, at Phase 12, under its own dual-homing: Phases 13
+and 14 are marked void by rule in `.planning/ROADMAP.md`'s phase checklist and Progress table —
+no plan, stub, or placeholder exists for either — and this CHANGELOG entry, this JOURNAL entry,
+and the version check below satisfy the record and version half of REQ-70. I verified rather
+than bumped: 1.24.0 already spans this whole milestone across `package.json`,
+`.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json`, confirmed by the existing
+drift-guard suite, since this is the milestone's own version and nothing about a refused Stage-B
+gate changes that.
+
+The three frozen documents — `DUALFIX-STUDY-PREREG.md`, `BI-BATTERY-DESIGN.md`,
+`PREREG-DRAFT.md` — are untouched by this plan, same as every plan before it in this milestone.
+
+This is a legitimate, pre-registered, milestone-ending outcome, not an incomplete one. The
+substantive finding is what it is: on the pinned 24-entry corpus, DUALFIX's repair-rate
+advantage over a naive retry (2/24) fell well short of the pre-registered 0.15-of-denominator
+margin. I am recording that as a standalone measurement of the method's repair-component
+property on this corpus, not as a milestone that ran out of time.
+
+I am pushing this commit to origin once, at this gate — the milestone-ending push REQ-70
+authorizes here since Phase 12 is where the milestone actually ends on this branch.
