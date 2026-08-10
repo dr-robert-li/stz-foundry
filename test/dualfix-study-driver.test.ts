@@ -11,7 +11,7 @@
  * `test/dualfix-study-arms.test.ts`'s own convention.
  */
 import { describe, it, expect } from "vitest";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -99,6 +99,25 @@ describe("state round-trip", () => {
     const reloaded = loadState(statePath);
     expect(reloaded.units["dualfix::task-1"]).toEqual(result);
     expect(reloaded.units["dualfix::task-1"]!.rawText).toBe(rawText);
+  });
+
+  // WR-09: a bare catch collapsed every failure mode into "start fresh" —
+  // only ENOENT (no state file yet) should do that.
+  it("loadState returns fresh state for a path that does not exist (ENOENT)", () => {
+    const state = loadState(freshStatePath());
+    expect(state).toEqual({ units: {}, retries: [] });
+  });
+
+  it("loadState throws (does not silently discard) on corrupt/truncated JSON", () => {
+    const statePath = freshStatePath();
+    writeFileSync(statePath, "{ this is not valid json");
+    expect(() => loadState(statePath)).toThrow();
+  });
+
+  it("loadState throws (does not silently discard) when the path is a directory (EISDIR)", () => {
+    const statePath = freshStatePath();
+    mkdirSync(statePath);
+    expect(() => loadState(statePath)).toThrow();
   });
 });
 

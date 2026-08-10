@@ -340,8 +340,17 @@ export function loadState(statePath: string): DualfixState {
   try {
     const parsed = JSON.parse(readFileSync(statePath, "utf8")) as Partial<DualfixState>;
     return { units: parsed.units ?? {}, retries: parsed.retries ?? [], runConfig: parsed.runConfig };
-  } catch {
-    return { units: {}, retries: [] };
+  } catch (e) {
+    // WR-09: ENOENT is the ONLY case for which "no state yet, start fresh"
+    // is actually correct. Every other failure — corrupt/truncated JSON,
+    // EACCES, EISDIR, a typo'd TOURNEY_STATE resolving to an unrelated
+    // existing file — must NOT be swallowed into empty state: `main()`
+    // would proceed as if this were run 1, and the very next `saveState`
+    // call would overwrite that path, silently discarding an in-progress
+    // checkpoint or clobbering whatever unrelated file it actually pointed
+    // at.
+    if ((e as NodeJS.ErrnoException)?.code === "ENOENT") return { units: {}, retries: [] };
+    throw e;
   }
 }
 
