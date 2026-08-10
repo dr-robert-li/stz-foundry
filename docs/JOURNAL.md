@@ -996,3 +996,61 @@ merge into fourteen global findings, and the adjudication ledger with a reason f
 a finding surfaces after this freeze that would have changed rev 2, it gets its own amendment entry
 in that same file, never a silent rev 3 — that's D-17's whole point, and it's the only door this
 freeze leaves open.
+
+## Phase 11 closes: a drift guard pins the frozen prereg to the code it describes, and version 1.24.0 lands (2026-08-11)
+
+Plan 11-05 is the last plan of the phase and it does no new science — it closes the loop between the
+document I froze yesterday and the code that already exists, then takes every gate green. Three
+tasks: write a test that reads `DUALFIX-STUDY-PREREG.md`'s §9 table off disk and compares every
+pinned number against its exported constant, sync the version, and write this record. The drift test
+found nothing to fix — all nine constants already matched, because plans 11-01 and 11-02 exported
+them from the same names §9 quotes rather than typing the numbers twice. That is the point of the
+test existing at all: not that I expected drift, but that nobody should have to trust me that there
+isn't any a year from now, after Phase 12 has run against this exact text.
+
+A few judgement calls from the prereg are worth writing down now, while I still remember the reasoning
+that isn't visible in the diff:
+
+**Why the control arm echoes the failed artifact instead of running a bare try-again.** I considered
+and rejected two weaker controls before landing on this one (§5 records both, with reasons). A pure
+stochastic resample — just re-running the original prompt with a different seed — tests baseline
+variance, not repair; it would tell me nothing about whether feedback of any kind helps. A bare
+try-again with no artifact shown would confound "did the model see its own failure" with "did it get
+execution feedback," which is exactly the two things the DUALFIX arm adds on top of the shared
+baseline. Echoing the artifact in both arms holds that variable constant, so a measured difference
+can only come from the failure-class label and the execution feedback — the thing the study is
+actually testing, isolated from a visibility gap that would otherwise explain the same number.
+
+**Why the Stage-B trigger is evaluated as an integer inequality, never a float comparison.** `20 *
+(kD - kC) >= 3 * n` is arithmetically identical to "repair-rate difference >= 0.15," but the integer
+form has no rounding step and no tie-breaking policy to get wrong at the one decision point that
+matters most — the exact-threshold case. A float comparison invites a "close enough" reading exactly
+where this milestone's whole design argues against one. Every number that enters that inequality
+(`kD`, `kC`, `n`, and the two pinned constants) is an integer by construction, so there was no reason
+to introduce a float at all.
+
+**Why the six study seeds are disjoint from every seed the bi-analytics-pilot line already used.**
+`DUALFIX_STUDY_SEEDS` (1201–1206) shares nothing with `BI_PRETEST_SEED` (999), the six stage-1 seeds,
+or the three stage-2 seeds. If they overlapped, a candidate whose baseline score is already published
+in `PRETEST-SCREEN.md` could enter this study's corpus, and a repair "finding" on that candidate would
+really be re-measuring a number I already have. Distinct seeds give distinct task content, not just
+distinct labels — `bi-warehouse.ts`'s generation is seed-keyed all the way down — so disjoint seeds
+are what actually keeps this corpus independent of the terminated line's own published data, not a
+formality.
+
+**Why the study describes itself as narrower than the published method.** The prereg is explicit,
+more than once, that this is execution-feedback repair informed by a spec-vs-implementation split —
+not the full DUALFIX method's offline rule-evolution search, and not a claim on that method's
+zero-shot cross-model transfer result. No rule set is evolved or persisted here; there is nothing to
+transfer. I chose the narrower reading of SURVEY-2026-08.md's `(DUALFIX)` parenthetical deliberately,
+because it's the claim the shipped code (`dualfixMutate`) actually supports — the wider reading would
+overstate what a single fixed-attempt repair on one local model can tell anyone. Rev 2's one adopted
+finding in this area (removing the provenance overreach in §1) made this narrower framing airtight
+rather than merely stated.
+
+The study itself has produced no data. No corpus file exists, `DUALFIX_CORPUS` has no default path,
+and nothing under `experiments/dualfix-study/` is a run artifact — this plan's own read-only gate
+checked the whole of phase 11's commit history for exactly that and found none. Phase 12 pins the
+corpus under this frozen prereg, runs both arms to a verdict, and evaluates the Stage-B inequality
+this document defines. Version 1.24.0 is synced across all four checked manifest locations, `npm
+test` is green (955/955), and `npm run typecheck` is clean. Phase 11 is done.

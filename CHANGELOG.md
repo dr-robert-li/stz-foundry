@@ -7,6 +7,35 @@ and the project aims to follow [Semantic Versioning](https://semver.org/).
 Entries at 0.9.6 and below are the upstream slice-tournament-zoo record,
 preserved verbatim.
 
+## [1.24.0] — DUALFIX repair mechanism + two-arm study driver; pre-registration frozen before data (Phase 11)
+
+### Phase 11 — Study prereg + build
+
+- `src/foundry/dualfix.ts` (REQ-62): `dualfixMutate` — a single, fixed-attempt, execution-feedback
+  repair informed by a specification-vs-implementation failure split, provenance pinned to
+  `SHORTLIST.md` A-03/S-03 and `SURVEY-2026-08.md` E-03. No invented mechanism, and no offline
+  rule-evolution search — the study measures the narrower repair-component property those documents
+  attribute to the method, disclosed explicitly rather than implied.
+- `experiments/dualfix-study/_dualfix-arms.ts` (REQ-62): the DUALFIX arm and a naive-retry control
+  arm sharing one repair-and-score core, with an equal-treatment invariant — same model, same
+  timeout, same prompt-length bound, same single-attempt discipline, same independent-oracle scoring
+  path for both arms.
+- `experiments/dualfix-study/_dualfix-study.ts` + `_launch-probe.sh` (REQ-62): the detached,
+  checkpointed study driver and its sole-instance launcher, copied in shape from the twice-proven
+  corridor-probe pattern — required env contract, run-config capture before any unit runs,
+  deterministic corpus-order iteration, harness-fault retry distinct from the naive-retry control,
+  and the pre-registered underpowered/error-budget termination clauses.
+- `experiments/dualfix-study/DUALFIX-STUDY-PREREG.md` (REQ-61): the light study pre-registration —
+  repair-rate metric, naive-retry control arm, corpus construction rule, the explicit Stage-B
+  trigger inequality, a termination clause, and per-task status discipline — frozen at rev 2 after
+  one adversarial review pass (`PREREG-REVIEWS.md`, three lanes, 25 findings merged into 14, 11
+  adopted / 3 rejected with reason). No pinned constant changed by the review.
+- `test/dualfix-study-prereg-sync.test.ts`: a drift guard reading the frozen prereg's pinned
+  constants off disk and comparing them against the exported study/repair constants, so the document
+  and the code cannot disagree silently.
+- Version 1.24.0 synced across `package.json`, `.claude-plugin/plugin.json`, and
+  `.claude-plugin/marketplace.json` (drift guard green); full suite and typecheck green.
+
 ## [1.23.0] — BI-analytics instrument line VOID BY RULE at the pretest screen; milestone closes at Phase 9's terminal report
 
 ### Milestone close (phase 10) — bi-analytics-pilot
