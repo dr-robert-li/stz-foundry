@@ -363,3 +363,209 @@ isolation rationale) and less meticulous about the parts that guard against a fa
 must add a mechanical precondition to the gate (check termination before evaluating the
 inequality), define the error/timeout boundary, and either verify the α>0 claim survives the
 narrower reading or drop the attribution.
+
+## Disposition
+
+**11 of 14 global findings adopted, 3 rejected with reason.** The 25 raw findings from Task 1 (10
+gpt-sol-pro + 9 kimi-k3 + 6 qwen-max) merge into 14 global findings: seven clusters where two or
+more lanes independently raised the same point (F-03, F-04, F-05, F-06, F-07, F-08, F-10 — 18 raw
+findings absorbed into 7 global ones) plus seven findings raised by exactly one lane (F-01, F-02,
+F-09, F-11, F-12, F-13, F-14 — 7 raw findings, 7 global ones). `18 - 7 = 11` fewer global findings
+than raw findings from merging; `25 - 11 = 14` global findings, reconciling exactly against Task
+1's per-lane counts. Of the 14, 11 are ADOPTED and 3 are REJECTED; `11 + 3 = 14`.
+
+Every adjudication below was checked against the already-shipped Phase 11 code
+(`experiments/dualfix-study/_dualfix-arms.ts`, `experiments/dualfix-study/_dualfix-study.ts`,
+`src/foundry/dualfix.ts` — all committed in plans 11-01/11-02, before this review ran) rather than
+assumed from the prose alone, per D-16: several findings turn out to already be correctly handled
+by that code, and the adopted edit brings rev 2's prose into precise alignment with what the
+driver actually does; others turn out to describe a real gap in the code's own behavior, or a gap
+the code cannot close because it lives one phase downstream (Phase 12's own gate-evaluation code,
+not yet written). None of the eleven ADOPTED findings changes any pinned numeric constant in §9 —
+every edit either adds an explicit ordering/boundary rule using constants and functions the
+document and code already name, or brings a description into alignment with already-shipped code.
+
+## Adjudication ledger
+
+**F-01 (gpt-sol-pro F1): ADOPTED** — §5's naive-retry control-arm sentence reads "the same original
+task question," which read literally could mean a narrower text than the DUALFIX arm's "the
+original task (schema, business question, output contract)." Checked against code
+(`_dualfix-arms.ts`'s `buildNaiveRetryPrompt` and `dualfix.ts`'s `buildDualfixRepairPrompt` both
+consume the identical `input.question` field from the same `DualfixCorpusEntry.question`, documented
+there as "schema DDL + business question + output contract — the same text the candidate originally
+saw"): the code already sends the identical full task text to both arms. Rev 2 rewords §5's control-
+arm line to name the same three-part task block explicitly, closing the reading gap the prose left
+open rather than changing what either arm actually receives.
+
+**F-02 (gpt-sol-pro F2): REJECTED** — reason: the finding asks for exact, byte-level prompt
+templates to be frozen in the pre-registration before corpus outcomes exist, on the premise that the
+control line ("e.g., ...") and the DUALFIX feedback text ("a statement") are still open, mutable
+design choices. Checked against code: `_dualfix-arms.ts` exports `NAIVE_RETRY_INSTRUCTION = "Your
+previous answer was incorrect — try again."` as a fixed, named constant, and `dualfix.ts`'s
+`buildDualfixRepairPrompt` builds a fully fixed system string and a fixed line template for both the
+implementation-level and specification-level feedback cases — none of this is an "e.g." placeholder
+in the actually-governing artifact. This code was committed in plan 11-01, before this review pass
+ran, so the exact prompt text is not an open judgment call this document's freeze needs to pin a
+second time; `RESEARCH.md`'s own Claude's-Discretion list assigns "the exact repair-prompt text" to
+the implementation tier, not the prereg tier, and the implementation already discharged that
+discretion in committed code. §9's drift test (plan 11-05) is the mechanism that keeps the two in
+sync going forward, not a duplicate literal-text freeze in this document.
+
+**F-03 (gpt-sol-pro F3, kimi-k3 F9): ADOPTED** — §5's equal-treatment invariant states both arms
+share `MAX_DUALFIX_PROMPT_CHARS` but does not state the truncation policy, leaving open whether an
+over-bound prompt is rejected, truncated, or compacted, and whether the DUALFIX arm's necessarily
+longer prompt (task + artifact + failure label + execution feedback, versus the control's task +
+artifact + one line) is more likely to be truncated. Checked against code: both `buildNaiveRetryPrompt`
+and `buildDualfixRepairPrompt` apply `truncateDualfixSegment` identically twice — once to each
+embedded segment (the echoed artifact; the engine-error text where present) and once to the fully
+assembled user message — the same exported function, not a re-derived equivalent (D-09). Rev 2 adds
+one sentence to §5 naming this two-layer, identical-function truncation policy and disclosing that
+the DUALFIX arm's larger informational payload makes it the more likely of the two to reach the
+per-segment or whole-prompt bound, so a reader interprets a truncated DUALFIX prompt as an expected
+consequence of the mechanism under test, not an undisclosed asymmetry.
+
+**F-04 (gpt-sol-pro F4, qwen-max F6): ADOPTED** — the term "genuinely failing" in §4's heading could
+read to an unhedged reader as covering any incorrect answer, when the operative predicate
+(`gradedScore === 0` exactly) is narrower — it excludes the `0 < gradedScore < 1` partial-credit
+band that §3 itself names as part of `executes-but-wrong`. §4 already states this exclusion
+explicitly as a locked decision (RESEARCH.md Assumption A2, adopted, not reopened by this finding —
+neither reviewer argues the predicate itself is wrong, and qwen-max's own text notes the narrowing
+"bias[es] against a high repair rate, so not gaming in the author's favor"), so this is a labelling
+clarification, not a population change. Rev 2 adds one sentence immediately after the predicate
+stating that "genuinely failing," used throughout this document, refers exclusively to the
+zero-overlap predicate and never to the wider `gradedScore < 1` population.
+
+**F-05 (gpt-sol-pro F5, kimi-k3 F3): ADOPTED** — §4's contamination defense argues from seed
+disjointness ("`DUALFIX_STUDY_SEEDS` disjoint from every seed already used") to task-content
+disjointness ("no candidate whose score is already published... can enter"), without stating the
+mechanism that makes distinct seeds produce distinct task content. Checked against code:
+`bi-warehouse.ts`'s task generation seeds a `mulberry32` PRNG stream from a SHA-256 hash of
+`${seed}|bi-tasks|${levelId}` (`deriveTaskSeed`) — a deterministic, seed-keyed pseudorandom stream,
+the same mechanism this project already relies on to treat the pretest/stage-1/stage-2/corridor
+seed sets as independent. Rev 2 adds one sentence to §4 naming this mechanism explicitly as the
+basis for the disjointness claim, rather than leaving the inference from seed numbers to task
+content implicit.
+
+**F-06 (gpt-sol-pro F6, kimi-k3 F1, qwen-max F1): ADOPTED** — the highest-consensus finding (raised
+independently by all three lanes): §7's "if and only if" firing discipline does not state that the
+inequality is evaluated only when the study has NOT already terminated under §8. Checked against
+code: the already-shipped `_dualfix-study.ts` driver checks `isUnderpowered` before either arm runs
+and computes `isErrorBudgetExceeded` per arm after both arms complete, recording the result as an
+`outcome` field (`"UNDERPOWERED"` / `"ERROR-BUDGET-EXCEEDED"` / `"COMPLETE"`) in
+`dualfix-study-verdict.json` — but this driver explicitly does NOT evaluate the Stage-B inequality
+itself ("the Stage-B inequality (REQ-66) is Phase 12's own gate... never evaluated here"), so the
+ordering constraint the reviewers are asking for is a real, currently-unwritten obligation on
+Phase 12's own gate code, not yet satisfied anywhere. This is exactly what the pre-registration
+exists to pin before that code is written. Rev 2 adds an explicit sentence to §7's firing discipline:
+the inequality is evaluated only when `dualfix-study-verdict.json`'s `outcome` field reads
+`"COMPLETE"`; an `"UNDERPOWERED"` or `"ERROR-BUDGET-EXCEEDED"` outcome means the study already
+terminated under §8, and Phase 12 reports that terminal state instead of ever evaluating §7's
+inequality — mirroring §8's own "a terminated study reports its terminal state... never an
+incomplete study" language.
+
+**F-07 (gpt-sol-pro F7, kimi-k3 F7, qwen-max F3): ADOPTED** — §8's error-budget condition is stated
+as a prose fraction ("more than 1/10") with no integer evaluation rule and no stated evaluation
+checkpoint, unlike §7's meticulous integer form and worked boundary examples. Checked against code:
+the already-shipped `isErrorBudgetExceeded(errorCount, attemptedCount)` in `_dualfix-study.ts`
+implements exactly `errorCount * DUALFIX_ERROR_BUDGET_DEN > attemptedCount * DUALFIX_ERROR_BUDGET_NUM`
+— i.e. `10 * errorCount > attemptedCount` — evaluated once, after `runStudyUnits` completes for both
+arms (a final evaluation, not a per-unit continuous one), with a strict `>` (exclusive boundary,
+confirming "more than" means exactly what it says: at `n=20`, exactly 2 errors is `10*2=20 > 20`
+false — not a breach). Rev 2 adds this exact integer form and its evaluation checkpoint to §8,
+matching the already-shipped code precisely rather than leaving it to prose.
+
+**F-08 (gpt-sol-pro F8, kimi-k3 F4, qwen-max F2): ADOPTED** — the second-highest-consensus finding
+(three lanes): §6's harness-fault-retry description ("connection refused, server restart, kill")
+could read as covering only infrastructure-level failures, distinct from a genuine model/provider
+`error`, raising the concern that a driver could discretionarily reclassify an unfavorable outcome
+as a harness fault to evade the error budget or shrink the denominator. Checked against code: the
+already-shipped `onceWithHarnessRetry` in `_dualfix-study.ts` retries ANY `status === "error"`
+result exactly once, mechanically, regardless of cause — there is no discretionary classification
+step, no code path that distinguishes "connection refused" from "the provider returned an error" —
+and the retry's own result, even if it is `error` again, becomes the single, permanent
+`state.units[key]` entry, counted in both the denominator and the error budget. There is no
+reclassification path in the shipped code for a failure to "disappear." Rev 2 rewrites §6's
+harness-fault-retry paragraph to state the actual mechanical rule: any `error`-status outcome is
+retried once, uniformly, regardless of cause, and the second attempt's result — even if also
+`error` — is the final, denominator-counted, error-budget-counted status; nothing is discarded or
+reclassified after that point.
+
+**F-09 (gpt-sol-pro F9): ADOPTED** — §10's disclosure that `n=20-30` is "sized to resolve a 0.15
+two-arm difference... at the corresponding statistical floor" implies a formal power derivation for
+this specific paired, candidate-count-based design, while §7's own "Where 0.15 comes from" paragraph
+already discloses honestly that the study "reuses that same floor... rather than deriving or
+asserting a fresh number" — the two sections are in slight tension. This is not a case for adopting
+a different threshold (0.15 remains the pinned margin, reused deliberately per D-15/§7, and
+reworking a full paired-design power calculation is out of scope for a light prereg); it is a case
+for §10 matching §7's own honesty. Rev 2 rewords §10's disclosure to say the target/minimum n is
+sized around the REUSED 0.15 floor as a deliberate heuristic carried over from a prior six-seed
+cluster measurement (ANALYSIS-REVIEWS.md F-08), not an independently-derived power calculation for
+this paired design — bringing §10 into alignment with what §7 already discloses.
+
+**F-10 (gpt-sol-pro F10, kimi-k3 F6, qwen-max F5): ADOPTED** — the third three-lane finding: §1's
+narrower reading disclaims the whole-method interpretation of E-03's `(DUALFIX)` parenthetical, but
+the same section then calls the study "a direct implementation of the mechanism... credited with the
+α>0 injection/preservation claim," and §2/§5/§7/§8 name the arm "the DUALFIX arm" throughout without
+re-stating the narrower scope — inheriting, in every operative section, exactly the broader framing
+§1 says it rejects. The α>0 preservation claim (SHORTLIST.md A-03/S-03) is specifically about the
+EVOLVED RULE SET's zero-shot cross-model transfer, which this narrower reading explicitly does not
+implement (no rule set exists here to transfer) — crediting the isolated repair component with that
+claim is the overreach both §1 and this finding correctly name. Rev 2 removes the "direct
+implementation... credited with the α>0... claim" sentence from §1, replacing it with language
+describing `dualfixMutate` as a local, single-attempt operationalization of the specification-vs-
+implementation distinction A-03/S-03/E-03 attribute to the mechanism, explicitly NOT claiming
+inheritance of the α>0 cross-model transfer claim (already disclosed two paragraphs later as out of
+scope). "The DUALFIX arm" naming is left as a label of convenience (already qualified once, in §1),
+consistent with how §10's existing disclosure already frames the narrowing.
+
+**F-11 (kimi-k3 F2): REJECTED** — reason: the finding argues the control arm's fixed line ("Your
+previous answer was incorrect — try again.") is factually false for `no-artifact`/
+`non-executable-artifact` candidates, since those candidates' prior attempts "never ran, or never
+existed," and that this asymmetry (an accurate statement to the DUALFIX arm, an inaccurate one to
+the control) confounds the measured margin. On inspection this does not hold: §4's eligibility
+predicate restricts the corpus to `gradedScore === 0` exactly, and by that predicate's own
+construction every corpus candidate — whether `no-artifact`, `non-executable-artifact`, or
+zero-overlap `executes-but-wrong` — DID give an incorrect answer to the business question (a missing
+or non-executing artifact answers nothing correctly, which is what "incorrect" describes in ordinary
+usage). The statement is true for the entire eligible population, not false for a subset of it. What
+the finding actually identifies — that the control's information content is a strict subset of the
+DUALFIX arm's (both are true statements about failure, one more specific than the other) — is not a
+confound; it is precisely the mechanism §5's isolation rationale states the design measures: "the
+two arms' information sets differ only by the mechanism under test." An asymmetry in informativeness
+between two true statements is the independent variable, not a leaked confound.
+
+**F-12 (kimi-k3 F5): ADOPTED** — the finding's underlying worry (do the two arms always attempt the
+identical corpus, giving §7's inequality a well-defined shared `n`?) is answered by already-shipped
+code rather than left open: `_dualfix-study.ts`'s `runStudyUnits` iterates every corpus entry against
+both arms unconditionally, and `onceWithHarnessRetry`/`once()` always writes exactly one
+`DualfixArmResult` into `state.units` per `(arm, taskId)` key — a harness-fault retry is absorbed
+transparently (at most one extra attempt, logged to `state.retries`, never a second unit-map entry),
+and there is no code path that skips a unit or leaves a key unset. `computeArmAccounting`'s
+`attempted` count is therefore always exactly `corpus.length` for both arms by construction, never a
+value the two arms could diverge on. This is a positive fact worth stating in the document itself,
+since §7's inequality reads it mechanically: rev 2 adds one sentence to §7 stating that the shared-`n`
+assumption holds by construction of the study driver (every corpus entry yields exactly one final
+recorded outcome per arm; no retry-exhaustion path produces a missing or duplicate outcome), so `n`
+is always the pinned corpus size for both arms.
+
+**F-13 (kimi-k3 F8): ADOPTED** — §4's "sixty candidates are expected to yield well above 30 eligible"
+projection treats the L3 pretest's single observed mean (0.500, n=10, seed 999) with more confidence
+than a ten-task sample supports, and does not connect the projection back to §8's own honest
+handling of an underpowered outcome. The finding itself calls this "not fatal" since §8 already
+reports underpowering as a legitimate terminal state rather than a failure to remedy. Rev 2 softens
+§4's language from an expectation to a projection explicitly hedged on the pretest's small sample
+size, and adds a cross-reference to §8's termination clause as the governing outcome if the eligible
+count falls short — connecting the two sections rather than leaving the confident projection to
+stand alone.
+
+**F-14 (qwen-max F4): REJECTED** — reason: the finding argues §8's "neither condition is ever
+remedied by extending the seed list... or re-running an arm mid-study" is enforced only by prose,
+with no mechanical check against a future driver-code change that adds seeds and re-draws the
+corpus after the freeze. This document's own §9 already names the mechanism this concern calls for:
+the pinned constants table (including `DUALFIX_STUDY_SEEDS`) is the single source of truth a drift
+test (`test/dualfix-study-prereg-sync.test.ts`, plan 11-05, already named in this plan's own
+`artifacts_this_phase_produces` and in `11-RESEARCH.md`'s Wave 0 Gaps) compares against the exported
+code constants and fails on any mismatch. A driver change that added a seventh seed or re-drew the
+corpus post-freeze would change `DUALFIX_STUDY_SEEDS`'s exported value away from what this frozen
+document pins, which is exactly the drift the named test exists to catch. The mechanism the finding
+says is missing already exists, by design, one plan ahead of this one.
