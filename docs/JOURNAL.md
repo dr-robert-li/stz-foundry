@@ -1054,3 +1054,49 @@ checked the whole of phase 11's commit history for exactly that and found none. 
 corpus under this frozen prereg, runs both arms to a verdict, and evaluates the Stage-B inequality
 this document defines. Version 1.24.0 is synced across all four checked manifest locations, `npm
 test` is green (955/955), and `npm run typecheck` is clean. Phase 11 is done.
+
+## The corpus closes at the minimum, and its ancestry proves itself (2026-08-11)
+
+Phase 12 plan 03 ran the full sixty-unit §4 draw order to completion: the detached,
+checkpointed builder (`_dualfix-corpus-build.ts`, plan 12-01) launched through
+`_launch-probe.sh`'s sole-instance guarantee against the single local Ollama slot
+(`qwen3.6:latest`), all six pinned seeds, ten `L3` tasks each, every one of the sixty draws
+landing `status: ok` on its first attempt — zero timeouts, zero errors, so §8 clause 2's
+error-budget breach never enters the picture. I polled only the completion artifact
+(`dualfix-corpus-build-verdict.json`'s existence with `complete: true`), never wall-clock or
+a log tail, across roughly an hour of real inference.
+
+**Outcome: `CLOSED-AT-MINIMUM`.** 24 candidates cleared §4's eligibility predicate
+(`gradedScore === 0` exactly) out of 60 drawn — above `DUALFIX_CORPUS_MIN_N = 20`, short of
+`DUALFIX_CORPUS_TARGET_N = 30`. `experiments/dualfix-study/CORPUS-BUILD.md` records every one
+of the sixty draws — seed, task index, status, category, graded score, tokens, wall-clock time,
+eligibility — in draw order, before either the status breakdown or the eligible count is
+stated, per §6's ordering rule. The corpus's own per-draw records, not a recomputation, are
+what the aggregate figures in that document are transcribed from.
+
+24 is a sufficient outcome under §4's pinning clause ("once the corpus reaches its target (or
+is closed at the minimum per §8)"), not §8 clause 1's `UNDERPOWERED` terminal state, which
+requires fewer than 20. The corpus was re-validated one final time through the shipped
+`validateCorpusEntries` — the same function `_dualfix-study.ts` itself will call to load it —
+before I staged anything, and its 24 entries matched the verdict artifact's `eligibleCount`
+exactly.
+
+**Corpus-pin commit:** `7e44cca2c170cb15d90b66834af606da042e2e44`. This is the one-way door
+§4 names: both repair arms bind to this exact file from here forward, and the driver's own
+resume check refuses even a whitespace-only edit to it after this point.
+
+**The ancestry proof, run and quoted verbatim, not asserted:**
+
+```
+$ git merge-base --is-ancestor 66c0ead9f99765a3347d8c683bf5389bd99008af 7e44cca2c170cb15d90b66834af606da042e2e44
+$ echo $?
+0
+```
+
+Exit 0: the rev-2 freeze commit is a strict ancestor of the corpus-pin commit. This is the
+same read-only discipline the freeze entry above asked for — a command anyone can re-run
+against the tree, never a narrative claim about commit order.
+
+No repair arm has launched. `experiments/dualfix-study/dualfix-study-state.json` and
+`dualfix-study-verdict.json` do not exist. 12-04 runs both arms against this exact, now-frozen
+corpus next.
