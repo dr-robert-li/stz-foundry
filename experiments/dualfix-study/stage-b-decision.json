@@ -1,0 +1,15 @@
+{
+  "decidedAt": "2026-08-10T19:48:49.286Z",
+  "sourceArtifact": "dualfix-study-verdict.json",
+  "outcome": "COMPLETE",
+  "kD": 19,
+  "kC": 17,
+  "n": 24,
+  "lhs": 40,
+  "rhs": 72,
+  "marginNum": 3,
+  "marginDen": 20,
+  "verdict": "NOT-MET",
+  "branch": "MILESTONE CLOSING",
+  "reason": "§7's inequality does not hold: DUALFIX_STAGE_B_MARGIN_DEN*(kD-kC) = 40 < DUALFIX_STAGE_B_MARGIN_NUM*n = 72"
+}
