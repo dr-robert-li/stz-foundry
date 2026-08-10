@@ -259,6 +259,16 @@ export async function runArmOnCandidate(
   let outputTokens = 0;
 
   try {
+    // WR-01: mirror `dualfixMutate`'s "correct"-category refusal for BOTH
+    // arms, at the one shared entry point — so a malformed corpus entry
+    // (§4's eligibility predicate violated) is rejected identically for
+    // dualfix and naive-retry, rather than one arm refusing/erroring and the
+    // other spending a real provider call and getting scored normally.
+    if (entry.category === "correct") {
+      throw new Error(
+        `[dualfix-arms] refusing to run a "correct"-category corpus entry (${entry.taskId}) — nothing to repair`,
+      );
+    }
     const timer = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`task timeout after ${taskTimeoutMs}ms`)), taskTimeoutMs).unref(),
     );

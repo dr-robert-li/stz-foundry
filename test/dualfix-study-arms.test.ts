@@ -112,6 +112,26 @@ describe("dualfixMutate refusal — the correct category never spends a call", (
   });
 });
 
+describe("runArmOnCandidate refuses a \"correct\"-category entry identically for both arms (WR-01)", () => {
+  it("both arms return status:\"error\" and never spend a provider call", async () => {
+    const correctEntry: DualfixCorpusEntry = {
+      ...executesButWrongEntry,
+      category: "correct",
+      gradedScore: 1,
+    };
+    const { provider, calls } = makeRecordingProvider(fence("sql", correctSql));
+
+    const dualfixResult = await runArmOnCandidate("dualfix", correctEntry, provider, "test-model");
+    const naiveResult = await runArmOnCandidate("naive-retry", correctEntry, provider, "test-model");
+
+    for (const result of [dualfixResult, naiveResult]) {
+      expect(result.status).toBe("error");
+      expect(result.failureReason).toMatch(/refusing to run a "correct"-category corpus entry/);
+    }
+    expect(calls.length).toBe(0);
+  });
+});
+
 describe("null-artifact prompts — no artifact section in either arm", () => {
   it("neither arm's prompt contains a fenced SQL echo or a literal null", () => {
     const input: DualfixInput = {
