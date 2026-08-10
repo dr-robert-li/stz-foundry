@@ -330,6 +330,36 @@ export function isErrorBudgetExceeded(errorCount: number, attemptedCount: number
   return errorCount * DUALFIX_ERROR_BUDGET_DEN > attemptedCount * DUALFIX_ERROR_BUDGET_NUM;
 }
 
+// ── WR-03: corpus pinning re-verified on every run, not just the first ──
+// §4: "the corpus is never re-drawn or extended after either arm has begun."
+// `captureRunConfig` only ran on the FIRST invocation against a given state
+// file; a resume never compared the freshly-loaded corpus against what was
+// recorded. Pure — takes the already-recorded `runConfig` plus the freshly
+// computed values, never touches the filesystem, so a test can exercise it
+// without a real corpus file.
+
+/** Throws when `runConfig`'s previously pinned `corpusByteLength`/
+ *  `corpusEntryCount` diverge from the freshly-loaded corpus's own values —
+ *  a byte-length/entry-count mismatch is the cheapest possible signal that
+ *  the corpus file changed between a crash and a resume. No-ops when
+ *  `runConfig` is undefined (first run, nothing pinned yet). */
+export function assertCorpusPinned(
+  runConfig: Record<string, unknown> | undefined,
+  corpusByteLength: number,
+  corpusEntryCount: number,
+): void {
+  if (!runConfig) return;
+  const pinnedByteLength = runConfig.corpusByteLength;
+  const pinnedEntryCount = runConfig.corpusEntryCount;
+  if (pinnedByteLength !== corpusByteLength || pinnedEntryCount !== corpusEntryCount) {
+    throw new Error(
+      `[dualfix-study] corpus drift detected on resume: state.runConfig pinned corpusByteLength=${JSON.stringify(pinnedByteLength)} ` +
+        `corpusEntryCount=${JSON.stringify(pinnedEntryCount)}, but the corpus now has corpusByteLength=${corpusByteLength} ` +
+        `corpusEntryCount=${corpusEntryCount} — the corpus must not change between resumes (§4)`,
+    );
+  }
+}
+
 // ══════════════════════════════════ main ════════════════════════════════
 
 async function main(): Promise<void> {
@@ -344,9 +374,14 @@ async function main(): Promise<void> {
   const corpus = loadCorpus(corpusPath);
 
   const state = loadState(statePath);
+  const corpusByteLength = Buffer.byteLength(corpusRaw, "utf8");
   if (!state.runConfig) {
     state.runConfig = captureRunConfig(corpusPath, corpusRaw, corpus.length);
     saveState(statePath, state);
+  } else {
+    // WR-03: every resume, not just the first run, must re-verify the
+    // corpus hasn't drifted — throw BEFORE running any unit.
+    assertCorpusPinned(state.runConfig, corpusByteLength, corpus.length);
   }
   // Persisted BEFORE any unit runs — the milestone's standing rule.
   writeArtifact("dualfix-study-runconfig.json", state.runConfig);

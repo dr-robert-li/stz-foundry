@@ -36,6 +36,7 @@ import {
   computeArmAccounting,
   isUnderpowered,
   isErrorBudgetExceeded,
+  assertCorpusPinned,
 } from "../experiments/dualfix-study/_dualfix-study.js";
 
 function freshStatePath(): string {
@@ -332,5 +333,28 @@ describe("D-11 termination clauses — pinned constants, not inline literals", (
     expect(isErrorBudgetExceeded(DUALFIX_ERROR_BUDGET_NUM, DUALFIX_ERROR_BUDGET_DEN)).toBe(false);
     // one unit over the ratio IS exceeded
     expect(isErrorBudgetExceeded(DUALFIX_ERROR_BUDGET_NUM + 1, DUALFIX_ERROR_BUDGET_DEN)).toBe(true);
+  });
+});
+
+// ── WR-03: corpus pinning re-verified on every resume ────────────────────
+
+describe("assertCorpusPinned — corpus drift detection on resume", () => {
+  it("no-ops when runConfig is undefined (first run, nothing pinned yet)", () => {
+    expect(() => assertCorpusPinned(undefined, 100, 5)).not.toThrow();
+  });
+
+  it("no-ops when the freshly-loaded corpus matches the pinned byte length and entry count", () => {
+    const runConfig = { corpusByteLength: 100, corpusEntryCount: 5 };
+    expect(() => assertCorpusPinned(runConfig, 100, 5)).not.toThrow();
+  });
+
+  it("throws when the byte length diverges from what was pinned", () => {
+    const runConfig = { corpusByteLength: 100, corpusEntryCount: 5 };
+    expect(() => assertCorpusPinned(runConfig, 101, 5)).toThrow(/corpus drift detected/);
+  });
+
+  it("throws when the entry count diverges from what was pinned", () => {
+    const runConfig = { corpusByteLength: 100, corpusEntryCount: 5 };
+    expect(() => assertCorpusPinned(runConfig, 100, 6)).toThrow(/corpus drift detected/);
   });
 });
