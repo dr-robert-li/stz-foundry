@@ -46,12 +46,21 @@ export const MAX_DUALFIX_PROMPT_CHARS = 4000;
 export const DUALFIX_TRUNCATION_MARKER = "\n…[dualfix prompt truncated at MAX_DUALFIX_PROMPT_CHARS]";
 
 /**
- * Cut `full` to fit `MAX_DUALFIX_PROMPT_CHARS`, at a whole-line boundary,
- * with a visible marker appended — never a silent cut. Exported so
- * `experiments/dualfix-study/_dualfix-arms.ts` can apply the IDENTICAL
- * truncation behaviour to the naive-retry control arm's echoed artifact
- * (D-09: "the same bound applies identically to both arms" — the same
- * function call, not a re-derived equivalent).
+ * Cut `full` to fit `MAX_DUALFIX_PROMPT_CHARS`, at a whole-line boundary
+ * when one exists within budget, with a visible marker appended — never a
+ * silent cut. Exported so `experiments/dualfix-study/_dualfix-arms.ts` can
+ * apply the IDENTICAL truncation behaviour to the naive-retry control arm's
+ * echoed artifact (D-09: "the same bound applies identically to both arms"
+ * — the same function call, not a re-derived equivalent).
+ *
+ * WR-04 (disclosed, not fixed — the ceiling is the newline-free case):
+ * `lastIndexOf("\n")` can return -1 within the first `budget` characters
+ * (a long single-line artifact/error with no embedded newline), in which
+ * case the whole-line guarantee does NOT hold and the raw mid-line slice is
+ * returned as-is. The overall `<= MAX_DUALFIX_PROMPT_CHARS` length bound
+ * still holds either way, and the marker is always appended, so the cut is
+ * never silent — it can just occasionally land mid-line rather than at a
+ * line boundary.
  */
 export function truncateDualfixSegment(full: string): string {
   if (full.length <= MAX_DUALFIX_PROMPT_CHARS) return full;
