@@ -1140,3 +1140,37 @@ The pinned corpus (`dualfix-corpus.json`) is byte-identical to its state at the 
 I am not evaluating the Stage-B inequality in this entry, and I am not characterising 19/24 vs.
 17/24 as a hit or a miss. That reading belongs to 12-05 and 12-06, off the report's own recorded
 arithmetic, per REQ-66's never-auto-accept-on-a-miss rule.
+
+## The Stage-B gate reads NOT-MET: STUDY-RESULTS.md committed (2026-08-11)
+
+Phase 12 plan 05 wrote `STUDY-RESULTS.md`, REQ-65's committed study report: per-task records for
+all 48 units before any aggregate, both arms' repair rates as exact integer pairs, the paired
+comparison, and then the Stage-B gate evaluation. The recorded outcome is `COMPLETE` — the
+paired run terminated normally, not under either §8 clause.
+
+**The comparison, plainly.** dualfix repaired 19 of 24 attempted candidates; naive-retry
+repaired 17 of 24 — the same shared denominator. §7's inequality is
+`DUALFIX_STAGE_B_MARGIN_DEN * (kD - kC) >= DUALFIX_STAGE_B_MARGIN_NUM * n`: substituting,
+`20 * (19 - 17) >= 3 * 24`, i.e. `40 >= 72`. This does not hold — `40 < 72`. The gate's verdict
+is **NOT-MET**.
+
+I am not calling this nearly a hit. The pre-registered margin is 0.15 of the shared
+denominator; the observed difference is 2/24, well short of that floor. A repair rate this
+close to the naive-retry control is a standalone finding under this study's design, stated in
+its own terms, not softened toward a positive result.
+
+**How the verdict was produced.** `evaluateStageBGate("COMPLETE", 19, 17, 24)` — the pure
+evaluator shipped in 12-02, imported from `_dualfix-gate.ts`, never a hand-authored reading of
+the numbers — returned `verdict: "NOT-MET"`, `branch: "MILESTONE CLOSING"`. `STUDY-RESULTS.md`
+transcribes that return value in its pinned Stage-B table. `test/dualfix-study-results-sync.test.ts`
+binds the report's transcription to the artifact's own numbers and to the imported frozen
+margin constants — recomputing the evaluator's call from `dualfix-study-verdict.json` directly,
+never trusting the document's own arithmetic. `npm test` (1020/1020) and `npm run typecheck`
+are both green with the new suite included.
+
+**The branch.** REQ-66's gate auto-refuses on this run: **MILESTONE CLOSING**. Per the
+milestone's own pre-registered conditional-exit rule, REQ-67–69 are VOID BY RULE — Phases 13
+and 14 do not execute, not even a stub plan — and the milestone closes at Phase 12 with REQ-70's
+closing discipline folded in there. 12-06 is the plan that executes this branch: the terminal
+report, the roadmap/requirements void-by-rule record, and the milestone close. This entry
+records the numbers and the verdict; it performs none of that branch's own actions.
