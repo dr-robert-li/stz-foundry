@@ -83,8 +83,21 @@ export function requireFinitePositiveNumber(name: string, raw: string | undefine
 const DUALFIX_MODEL = process.env.DUALFIX_MODEL ?? "qwen3.6:latest";
 const DUALFIX_BASE_URL = process.env.DUALFIX_BASE_URL ?? "http://localhost:11434/v1";
 const DUALFIX_TIMEOUT_MS = requireFinitePositiveNumber("DUALFIX_TIMEOUT_MS", process.env.DUALFIX_TIMEOUT_MS, BI_TASK_TIMEOUT_MS);
-// Single Ollama inference slot — D-13's operational sibling.
-const DUALFIX_CONCURRENCY = Number(process.env.DUALFIX_CONCURRENCY ?? 1);
+// Single Ollama inference slot — D-13's operational sibling. `runStudyUnits`
+// is a strictly sequential nested loop with no batching/parallel dispatch
+// anywhere in the driver — WR-05: rather than recording a
+// `clientConcurrency` in the audit artifact that never governed anything
+// (an operator setting DUALFIX_CONCURRENCY=4 would see the run silently
+// stay sequential), reject any value other than 1 at startup so the
+// audit-facing number can never misrepresent the real execution
+// concurrency.
+const DUALFIX_CONCURRENCY = requireFinitePositiveNumber("DUALFIX_CONCURRENCY", process.env.DUALFIX_CONCURRENCY, 1);
+if (DUALFIX_CONCURRENCY !== 1) {
+  throw new Error(
+    `[dualfix-study] DUALFIX_CONCURRENCY=${DUALFIX_CONCURRENCY} is not supported — execution is strictly sequential ` +
+      `(single Ollama inference slot, D-13); only 1 is accepted.`,
+  );
+}
 // Honoured ONLY when "1" — the end-to-end smoke path; absent in the real run.
 const DUALFIX_SMOKE = process.env.DUALFIX_SMOKE === "1";
 
