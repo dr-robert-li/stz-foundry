@@ -34,6 +34,15 @@ per ROADMAP Phase 11 Success Criterion 1 item, naming the section that satisfies
 | Failure-class mapping (D-07) | §3 |
 | Disclosures and limitations | §10 |
 
+**Self-audit record (Task 2).** Every row above was checked by reading the named section's actual
+text against REQ-61's enumerated list and ROADMAP.md Phase 11 Success Criterion 1, not assumed
+from the table alone. Confirmed by re-reading: §7 states both the human-readable and the mechanical
+integer forms of the trigger and the inclusive-boundary case explicitly; §8 names both termination
+conditions with their pinned constants; §4's eligibility predicate (`gradedScore === 0` exactly) is
+numeric, never category-name based; §2 names both `data-ops` and `bi-analytics` and uses the
+`substance not name` phrase verbatim. No gap was found; rev 1 remains as authored, unamended beyond
+this audit record.
+
 ## §1 What this study tests, and what it does not
 
 **Provenance.** This study's method choice is pinned to `experiments/method-research/SHORTLIST.md`
