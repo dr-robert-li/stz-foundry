@@ -22,6 +22,20 @@ scan() {
     [ "$match" -eq 1 ] && echo "${d#/proc/}"
   done
 }
+# mkdir is atomic at the filesystem level — closes the TOCTOU window
+# between the pre-launch scan and the launch itself (WR-07): two
+# near-simultaneous invocations can no longer both observe an empty scan()
+# and both proceed. Held only across check-and-launch; the post-launch scan
+# below remains a defense-in-depth backstop, not the primary guarantee. A
+# killed launcher (SIGKILL) leaves the lock dir behind — the refusal message
+# below names the path so an operator can remove it manually.
+LOCKDIR="$(basename "$SCRIPT").launch.lock"
+if ! mkdir "$LOCKDIR" 2>/dev/null; then
+  echo "REFUSED: launch lock held ($LOCKDIR) — another invocation is mid-launch, or a prior one was killed before cleanup (remove the dir if no launch is in progress)"
+  exit 1
+fi
+trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
+
 existing=$(scan)
 if [ -n "$existing" ]; then echo "REFUSED: $SCRIPT already running (pid $existing)"; exit 1; fi
 TOURNEY_STATE="$STATE" nohup ../../node_modules/.bin/tsx "$SCRIPT" > "$LOG" 2>&1 &
