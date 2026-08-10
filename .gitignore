@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 *.log
+*.pid
 .DS_Store
 .claude/
 docs/CLAUDE.md

@@ -1,0 +1,28 @@
+{
+  "complete": true,
+  "outcome": "CLOSED-AT-MINIMUM",
+  "drawsTaken": 60,
+  "eligibleCount": 24,
+  "targetN": 30,
+  "minN": 20,
+  "corpusPath": "dualfix-corpus.json",
+  "runConfig": {
+    "ollamaVersion": "ollama version is 0.32.5",
+    "modelDigestLine": "qwen3.6:latest             07d35212591f    23 GB     3 months ago",
+    "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+    "ollamaNumParallel": "<unset — server default>",
+    "taskTimeoutMs": 3600000,
+    "baselineSystemPrompt": "You are a SQL assistant.",
+    "baselineGuidanceSuffix": "A few pointers before you write the query:\n- Column names in this schema are self-describing (for example\n  customer_name, segment, category, order_date) — match the question's\n  business terms to the exact column name rather than guessing an\n  abbreviation.\n- When a dimension table is needed, join it on its declared\n  primary/foreign key pair (fact_orders.customer_id to\n  dim_customers.customer_id, or fact_orders.product_id to\n  dim_products.product_id) rather than a derived or inferred join key.\n- If the question asks for a total or a count broken down by one or more\n  columns, double-check that every one of those columns appears in your\n  GROUP BY clause, and only those columns — a missing or extra grouping\n  column is one of the most common ways a correct-looking query returns\n  the wrong rows.",
+    "levelId": "L3",
+    "seeds": [
+      1201,
+      1202,
+      1203,
+      1204,
+      1205,
+      1206
+    ],
+    "drawOrder": "DUALFIX_STUDY_SEEDS array order, then taskIndex 0..(BI_TASKS_PER_SEED_PER_POINT-1) within each seed — deterministic, total, and stable"
+  }
+}
