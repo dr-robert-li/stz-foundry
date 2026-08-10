@@ -1241,6 +1241,20 @@ summaries:
 
 No mutation across any of these five left the full suite green either.
 
+Plan 08-01 (admission + build, 1.23.0) added three more, transcribed
+verbatim from its own plan summary — a fresh M1–M3 numbering restarting at
+this milestone's Phase 8, distinct from every earlier sequence above:
+
+| Plan | Mutation | What was disabled | Observed failing test(s) |
+|---|---|---|---|
+| 08-01 M1 | Deleted `requireAdmitted(vertical)` inside `admitVerticalBattery` | Vertical-admission real-path wiring (REQ-50) | `vertical admission is wired on the REAL construction path (D1/REQ-27, Pitfall 4) > admitVerticalBattery refuses a battery tagged revops-gtm-exec-strategy through the real construction entry point`; `admitVerticalBattery — the refusal fires on the REAL construction path, not only in isolation (D8, RESEARCH Pitfall 4) > refuses revops-gtm-exec-strategy through the real construction entry point, with an otherwise-completely-legal draft`; `... > refuses performance-marketing too — a pending vertical is not silently treated as admitted`; `... > refuses customer-support too — a pending vertical is not silently treated as admitted` (4 red / 902 green). Second half of the same guard — flipped `performance-marketing`'s row `verdict` to `"admitted"`: `admitVertical — the five-row posture ... > performance-marketing: pending, oracle class names replay, note records the horizon cap`; `requireAdmitted — the separate throw step > throws VerticalRefusedError for performance-marketing, naming the vertical, its verdict, and its oracle class`; `requireAdmitted — the separate throw step > each of the three refusal messages names ONLY its own vertical's verdict — one message cannot cover all three`; `admitVerticalBattery — the refusal fires on the REAL construction path ... > refuses performance-marketing too — a pending vertical is not silently treated as admitted` (4 red / 902 green) |
+| 08-01 M2 | Added `[BI_ANALYTICS_GENERATOR_ID, "Dr. Robert Li"]` to `ACCEPTED_GENERATORS` — the exact self-issued acceptance design §9's supersession forbids | Unaccepted-generator-id guard (REQ-51) | `BI_ANALYTICS_GENERATOR_ID — deliberately unaccepted (REQ-51) > is absent from ACCEPTED_GENERATORS`; `BI_ANALYTICS_GENERATOR_ID — deliberately unaccepted (REQ-51) > generateBiBattery throws, naming BI_ANALYTICS_GENERATOR_ID` (2 red / 904 green) |
+| 08-01 M3 | Added an import of `composeReferenceSql` from `bi-warehouse.ts` into `test/fixtures/bi-reference-interpreter.ts`, called it | No-shared-helpers independence guard (REQ-52) | `F-22 mechanical independence enforcement (design §3) — the reference interpreter > the reachable set from bi-reference-interpreter.ts is non-empty and has ZERO intersection with BI_INTERPRETER_FORBIDDEN_MODULES` (1 red / 905 green); the discrimination-control test (`... DOES report bi-warehouse.ts`) stayed GREEN throughout, confirmed by an isolated `-t` run |
+
+No mutation across any of these three left the full suite green either.
+`git status --porcelain` was confirmed empty after each of the three
+reverts (08-01-SUMMARY.md).
+
 ## Phase 4, as shipped (emit / packaging)
 
 Phase 4 built `src/foundry/emit.ts` — the inverse of `planInstall`, closing
