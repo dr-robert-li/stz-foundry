@@ -1100,3 +1100,43 @@ against the tree, never a narrative claim about commit order.
 No repair arm has launched. `experiments/dualfix-study/dualfix-study-state.json` and
 `dualfix-study-verdict.json` do not exist. 12-04 runs both arms against this exact, now-frozen
 corpus next.
+
+## The paired run completes: dualfix 19/24, naive-retry 17/24 (2026-08-11)
+
+Phase 12 plan 04 launched both arms — DUALFIX and the naive-retry control — over the pinned
+24-entry corpus, detached and checkpointed through `_launch-probe.sh`'s sole-instance
+guarantee against the single local Ollama slot, strictly sequential (`clientConcurrency: 1`).
+Before launch I ran the driver's own one-candidate smoke against the same state path the full
+run would use, and compared the run's model digest line against the corpus build's own
+recorded line: both read `qwen3.6:latest 07d35212591f` verbatim. No model drift between corpus
+construction and this run.
+
+I read completion the way the standing rule requires — from the artifact's own existence with
+`complete: true`, never from wall-clock or a log tail. `dualfix-study-verdict.json` now records
+`outcome: "COMPLETE"`.
+
+**The numbers, quoted from the verdict artifact, not the log:**
+
+| Arm | attempted | ok | timeout | error | repaired | primaryRepairRate |
+|---|---|---|---|---|---|---|
+| dualfix | 24 | 24 | 0 | 0 | 19 | 19/24 |
+| naive-retry | 24 | 24 | 0 | 0 | 17 | 17/24 |
+
+Both arms attempted exactly 24, matching the pinned corpus entry count exactly — the shared
+denominator §7 assumes by construction of the driver's interleaved loop. I did not trust that
+construction; I ran `assertPairedDenominator` from `_dualfix-gate.ts` against the artifact's own
+`attempted` counts and it passed. Each arm's `primaryRepairRate` denominator equals its
+`attempted` count and its numerator equals `repaired`, per the full-denominator rule — no
+timeout or error unit is excluded. `okRepairRate` for both arms is identical to
+`primaryRepairRate` here only because neither arm produced a timeout or error unit; that
+equality is a fact about this run, not a rule the driver enforces.
+
+The retry ledger is empty — zero harness-fault retries across all 48 units (24 candidates ×
+2 arms). Every unit resolved on its first attempt.
+
+The pinned corpus (`dualfix-corpus.json`) is byte-identical to its state at the pin commit
+(`7e44cca`), confirmed by `git diff --quiet` before committing anything here.
+
+I am not evaluating the Stage-B inequality in this entry, and I am not characterising 19/24 vs.
+17/24 as a hit or a miss. That reading belongs to 12-05 and 12-06, off the report's own recorded
+arithmetic, per REQ-66's never-auto-accept-on-a-miss rule.
