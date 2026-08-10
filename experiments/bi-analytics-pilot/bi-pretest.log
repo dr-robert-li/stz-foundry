@@ -1,0 +1,48 @@
+# BI CORRIDOR DRIVER — §5 pretest screen / §6 full verdict pipeline
+stage: pretest · model: qwen3.6:latest · state: bi-pretest-state.json
+run config: {"ollamaVersion":"ollama version is 0.32.5","modelDigestLine":"qwen3.6:latest             07d35212591f    23 GB     3 months ago","samplerParams":"none sent (no temperature, no max_tokens override — provider/server default applies)","ollamaNumParallel":"<unset — server default>","clientConcurrency":1,"taskOrder":"pretest: BI_GRID order (ascending knobValue), baseline arm only, seed 999, task 0..9","taskTimeoutMs":3600000,"systemPrompt":"You are a SQL assistant.","stage":"pretest"}
+
+# BI CORRIDOR — §5 PRETEST SCREEN (REQ-54, coarse per F-09)
+seed: 999 · levels: L1, L2, L2B, L3, L4 · n/level: 10
+
+## pretest-L1-s999 (10 tasks)
+  [cached] pretest-L1-s999
+  all 10 ok
+
+## pretest-L2-s999 (10 tasks)
+  [cached] pretest-L2-s999
+  all 10 ok
+
+## pretest-L2B-s999 (10 tasks)
+  all 10 ok
+
+## pretest-L3-s999 (10 tasks)
+  [cached] pretest-L3-s999
+  all 10 ok
+
+## pretest-L4-s999 (10 tasks)
+  [cached] pretest-L4-s999
+  all 10 ok
+
+## PRETEST per-level table (§5)
+| level | knob | n | mean | exact | no-artifact | non-exec | exec-wrong | correct |
+|---|---|---|---|---|---|---|---|---|
+| L1 | 1 | 10 | 0.700 | 0.700 | 1 | 0 | 2 | 7 |
+| L2 | 2 | 10 | 0.800 | 0.800 | 0 | 0 | 2 | 8 |
+| L2B | 3 | 10 | 0.500 | 0.500 | 0 | 0 | 5 | 5 |
+| L3 | 4 | 10 | 0.500 | 0.500 | 0 | 0 | 5 | 5 |
+| L4 | 5 | 10 | 0.400 | 0.400 | 0 | 1 | 5 | 4 |
+
+## PRETEST adjacent-pair table (0.10 granularity ceiling)
+| left | right | |Δmean| | clears 0.10 | post-subdivision pair |
+|---|---|---|---|---|
+| L1 | L2 | 0.100 | yes | no |
+| L2 | L2B | 0.300 | NO | yes |
+| L2B | L3 | 0.000 | yes | yes |
+| L3 | L4 | 0.100 | yes | no |
+
+PRETEST SCREEN OUTCOME: TERMINATE
+
+wrote bi-pretest-verdict.json — outcome TERMINATE.
+
+TERMINATE — bi-corridor-verdict.json written with failureStage 'pretest'. No stage-1 launch.

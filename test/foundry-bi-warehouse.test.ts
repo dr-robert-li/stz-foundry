@@ -126,15 +126,36 @@ describe("BI_ANALYTICS_GENERATOR_ID — deliberately unaccepted (REQ-51)", () =>
 });
 
 describe("BI_GRID — the concrete grid, F-17's formula pinned as an assertion (design §5)", () => {
-  it("is exactly L1..L4 with knobValue 1,2,3,4", () => {
-    expect(BI_GRID.map((p) => p.id)).toEqual(["L1", "L2", "L3", "L4"]);
-    expect(BI_GRID.map((p) => p.knobValue)).toEqual([1, 2, 3, 4]);
+  // §5/F-34 subdivision (Phase 9 Plan 09-01): the pretest screen found the
+  // L2->L3 pair violating the 0.10 ceiling (PRETEST-SCREEN.md) and inserted
+  // `L2B` between them, renumbering the scale to a contiguous 1..5.
+  const ORIGINAL_LEVEL_IDS: BiLevelId[] = ["L1", "L2", "L3", "L4"];
+
+  it("is exactly L1, L2, L2B, L3, L4 with knobValue 1,2,3,4,5 — the subdivided, renumbered grid", () => {
+    expect(BI_GRID.map((p) => p.id)).toEqual(["L1", "L2", "L2B", "L3", "L4"]);
+    expect(BI_GRID.map((p) => p.knobValue)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it("F-17: knobValue === 1 + joins + aggregations at every level (the '1 +' base term, pinned, not just commented)", () => {
-    for (const point of BI_GRID) {
-      expect(point.knobValue).toBe(1 + point.joins + point.aggregations);
-    }
+  it("F-17: knobValue === 1 + joins + aggregations, SCOPED to the four ORIGINAL structural levels (the formula it was written for)", () => {
+    // Bound to the four originals' own STRUCTURAL identity (their live
+    // joins/aggregations counts), never to their live (renumbered)
+    // knobValue — renumbering shifted L3/L4's knobValue without changing
+    // their structure, so the formula is checked against each original's
+    // 1-based POSITION among the originals, not the live grid's index.
+    const originals = BI_GRID.filter((p) => ORIGINAL_LEVEL_IDS.includes(p.id));
+    expect(originals.map((p) => p.id)).toEqual(ORIGINAL_LEVEL_IDS);
+    originals.forEach((point, i) => {
+      expect(1 + point.joins + point.aggregations).toBe(i + 1);
+    });
+  });
+
+  it("L2B's own accounting: knobValue 3, joins/aggregations identical to L2's (1/0) — the registered increment is a filter clause, not a join or an aggregation, so it does not satisfy the F-17 formula and is asserted separately rather than folded into it", () => {
+    const l2 = biLevel("L2");
+    const l2b = biLevel("L2B");
+    expect(l2b.knobValue).toBe(3);
+    expect(l2b.joins).toBe(l2.joins);
+    expect(l2b.aggregations).toBe(l2.aggregations);
+    expect(1 + l2b.joins + l2b.aggregations).not.toBe(l2b.knobValue);
   });
 
   it("biLevel('L9') throws, naming the whole grid", () => {
@@ -145,7 +166,7 @@ describe("BI_GRID — the concrete grid, F-17's formula pinned as an assertion (
 });
 
 describe("buildBiTasks — ten tasks per level, distinct filter values (design §1)", () => {
-  const LEVELS: BiLevelId[] = ["L1", "L2", "L3", "L4"];
+  const LEVELS: BiLevelId[] = ["L1", "L2", "L2B", "L3", "L4"];
 
   it.each(LEVELS)("%s: returns exactly BI_TASKS_PER_SEED_PER_POINT tasks, each with a distinct filter value", (levelId) => {
     const warehouse = generateBiWarehouse(101);
@@ -171,7 +192,7 @@ describe("buildBiTasks — ten tasks per level, distinct filter values (design �
 // F-22 mechanical independence, F-20 question fidelity).
 
 const SWEEP_SEEDS: readonly number[] = [...BI_STAGE1_SEEDS, ...BI_STAGE2_SEEDS];
-const LEVELS: readonly BiLevelId[] = ["L1", "L2", "L3", "L4"];
+const LEVELS: readonly BiLevelId[] = ["L1", "L2", "L2B", "L3", "L4"];
 
 interface SweepEntry {
   seed: number;
@@ -183,8 +204,9 @@ interface SweepEntry {
 }
 
 /** One materialized warehouse + db PER SWEEP SEED, memoized — the sweep is
- *  9 seeds x 4 levels x 10 tasks = 360 executions; memoizing per seed
- *  (never by reducing the sweep) keeps this file's wall time small. */
+ *  9 seeds x 5 levels x 10 tasks = 450 executions (5 levels since Phase 9's
+ *  §5/F-34 subdivision inserted `L2B`, PRETEST-SCREEN.md); memoizing per
+ *  seed (never by reducing the sweep) keeps this file's wall time small. */
 const seedCache = new Map<number, { warehouse: ReturnType<typeof generateBiWarehouse>; db: ReturnType<typeof materializeWarehouse> }>();
 function seedContext(seed: number) {
   let ctx = seedCache.get(seed);
@@ -241,20 +263,20 @@ describe("byte-identical replay across the full nine-seed sweep (design §1)", (
   });
 });
 
-describe("the nine-seed equality sweep — precomputed === recomputed across 9 seeds × 4 levels × 10 tasks (design §3 F-23)", () => {
-  it("360 task comparisons: every precomputed/recomputed pair is structurally equal under resultSetsEqual", () => {
+describe("the nine-seed equality sweep — precomputed === recomputed across 9 seeds × 5 levels × 10 tasks (design §3 F-23)", () => {
+  it("450 task comparisons: every precomputed/recomputed pair is structurally equal under resultSetsEqual", () => {
     const entries = sweep();
     expect(entries.length).toBe(SWEEP_SEEDS.length * LEVELS.length * BI_TASKS_PER_SEED_PER_POINT);
-    expect(entries.length).toBe(360);
+    expect(entries.length).toBe(450);
     let compared = 0;
     for (const entry of entries) {
       expect(resultSetsEqual(entry.precomputed, entry.recomputed)).toBe(true);
       compared++;
     }
-    expect(compared).toBe(360);
+    expect(compared).toBe(450);
   });
 
-  it("F-25: every task's expected result set is non-empty across the same 360", () => {
+  it("F-25: every task's expected result set is non-empty across the same 450", () => {
     for (const entry of sweep()) {
       expect(entry.precomputed.rows.length).toBeGreaterThan(0);
     }
@@ -359,6 +381,9 @@ describe("question fidelity — F-20's Phase-8 obligation (design §3)", () => {
       expect([...fromGenerator.tables].sort()).toEqual([...entry.spec.tables].sort());
       expect(fromGenerator.filterColumn).toBe(entry.spec.filter.column);
       expect(fromGenerator.filterValue).toBe(entry.spec.filter.value);
+      // §5/F-34 subdivision only (`L2B`) — null for every original level.
+      expect(fromGenerator.extraFilterColumn).toBe(entry.spec.extraFilter?.column ?? null);
+      expect(fromGenerator.extraFilterValue).toBe(entry.spec.extraFilter?.value ?? null);
       expect(fromGenerator.groupBy).toEqual(entry.spec.groupBy);
       expect(fromGenerator.aggregateFn).toBe(entry.spec.aggregate?.fn ?? null);
       expect(fromGenerator.aggregateColumn).toBe(entry.spec.aggregate?.column ?? null);

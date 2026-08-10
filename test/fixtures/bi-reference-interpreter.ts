@@ -84,10 +84,12 @@ interface DuckAggregate {
 }
 
 /** Duck-typed spec — structurally compatible with `BiQuerySpec`, never
- *  imported from it. */
+ *  imported from it. `extraFilter` is the §5/F-34 subdivision field
+ *  (Phase 9 Plan 09-01, `L2B` only) — absent for every original level. */
 export interface DuckQuerySpec {
   tables: string[];
   filter: DuckFilter;
+  extraFilter?: DuckFilter;
   groupBy: string[] | null;
   aggregate: DuckAggregate | null;
   projection: string[];
@@ -115,6 +117,17 @@ function passesFilter(order: DuckFactOrder, filter: DuckFilter): boolean {
   }
   const code = order.orderDate.slice(0, 4) + order.orderDate.slice(5, 7);
   return code === filter.value;
+}
+
+/** §5/F-34 subdivision only (`L2B`): the ONE extra filter concept it adds
+ *  (`segment`), written independently of `bi-warehouse.ts`'s
+ *  `composeReferenceSql` (which does the same check via a SQL `AND` on the
+ *  joined `dim_customers.segment` column). */
+function passesExtraFilter(order: DuckFactOrder, filter: DuckFilter, customerById: Map<number, DuckCustomer>): boolean {
+  if (filter.column !== "segment") {
+    throw new Error(`[bi-reference-interpreter] unsupported extra filter column ${JSON.stringify(filter.column)}`);
+  }
+  return customerById.get(order.customerId)?.segment === filter.value;
 }
 
 function groupKeyValue(
@@ -159,9 +172,11 @@ function aggregateAddend(column: string, order: DuckFactOrder): number {
  *   - otherwise: a plain per-row projection of the filtered fact rows.
  */
 export function recomputeExpected(warehouseState: DuckWarehouseState, spec: DuckQuerySpec): RecomputedResult {
-  const filtered = warehouseState.factOrders.filter((o) => passesFilter(o, spec.filter));
   const customerById = new Map(warehouseState.dimCustomers.map((c) => [c.customerId, c] as const));
   const productById = new Map(warehouseState.dimProducts.map((p) => [p.productId, p] as const));
+  const filtered = warehouseState.factOrders.filter(
+    (o) => passesFilter(o, spec.filter) && (!spec.extraFilter || passesExtraFilter(o, spec.extraFilter, customerById)),
+  );
 
   if (spec.groupBy && spec.aggregate) {
     const groups = new Map<string, { keyValues: string[]; total: number }>();

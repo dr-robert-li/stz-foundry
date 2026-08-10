@@ -46,10 +46,12 @@ interface DuckAggregate {
 }
 
 /** Duck-typed spec — structurally compatible with `BiQuerySpec`, never
- *  imported from it. */
+ *  imported from it. `extraFilter` is the §5/F-34 subdivision field
+ *  (Phase 9 Plan 09-01, `L2B` only) — absent for every original level. */
 export interface DuckQuerySpecLike {
   tables: string[];
   filter: DuckFilter;
+  extraFilter?: DuckFilter;
   groupBy: string[] | null;
   aggregate: DuckAggregate | null;
   projection: string[];
@@ -67,11 +69,17 @@ export function renderQuestionIndependent(spec: DuckQuerySpecLike): string {
     ? `the ${spec.aggregate.fn.toLowerCase()} of ${spec.aggregate.column}` +
       (spec.groupBy ? `, broken out by ${spec.groupBy.join(" then ")}` : "")
     : `these fields per order: ${spec.projection.join(", ")}`;
-  const lede = `A business user wants to know, for the ${spec.filter.value} order window, ${askedFor}.`;
+  // §5/F-34 subdivision only (`L2B`) — empty string for every original
+  // level, matching `bi-warehouse.ts`'s own byte-identity requirement for
+  // L1-L4 (this file's independence is scoped to WORDING, not to whether
+  // the subdivision field is honoured at all).
+  const extraClause = spec.extraFilter ? `, restricted to ${spec.extraFilter.column} = ${spec.extraFilter.value}` : "";
+  const lede = `A business user wants to know, for the ${spec.filter.value} order window${extraClause}, ${askedFor}.`;
 
   const footer = [
     `Tables: ${spec.tables.join(", ")}.`,
     `Filter: ${spec.filter.column} = ${spec.filter.value}.`,
+    ...(spec.extraFilter ? [`Extra filter: ${spec.extraFilter.column} = ${spec.extraFilter.value}.`] : []),
     `Grouped by: ${spec.groupBy ? spec.groupBy.join(", ") : "none"}.`,
     `Aggregate: ${spec.aggregate ? `${spec.aggregate.fn}(${spec.aggregate.column}) as ${spec.aggregate.alias}` : "none"}.`,
     `Return columns: ${spec.projection.join(", ")}.`,
@@ -84,6 +92,10 @@ export interface ExtractedQuestionFields {
   tables: string[];
   filterColumn: string;
   filterValue: string;
+  /** §5/F-34 subdivision only (`L2B`) — `null` when the "Extra filter:"
+   *  line is absent, exactly the original-level case. */
+  extraFilterColumn: string | null;
+  extraFilterValue: string | null;
   groupBy: string[] | null;
   aggregateFn: string | null;
   aggregateColumn: string | null;
@@ -116,6 +128,14 @@ export function extractQuestionFields(question: string): ExtractedQuestionFields
   const filterColumn = filterMatch[1]!;
   const filterValue = filterMatch[2]!.trim();
 
+  // §5/F-34 subdivision only (`L2B`) — OPTIONAL: absent in every original
+  // level's question text, so `null` is the correct reading there, not a
+  // parse failure (the strict-fails-loud posture applies to the REQUIRED
+  // fields above and below, not to this conditional one).
+  const extraFilterMatch = /Extra filter:\s*(\S+)\s*=\s*(.+?)\./i.exec(question);
+  const extraFilterColumn = extraFilterMatch ? extraFilterMatch[1]! : null;
+  const extraFilterValue = extraFilterMatch ? extraFilterMatch[2]!.trim() : null;
+
   const groupedMatch = /Grouped by:\s*(.+?)\./i.exec(question);
   if (!groupedMatch) {
     throw new Error(`[bi-question-fidelity] missing "Grouped by:" line in ${JSON.stringify(question)}`);
@@ -143,5 +163,16 @@ export function extractQuestionFields(question: string): ExtractedQuestionFields
 
   const projection = parseListLine(question, "Return columns");
 
-  return { tables, filterColumn, filterValue, groupBy, aggregateFn, aggregateColumn, aggregateAlias, projection };
+  return {
+    tables,
+    filterColumn,
+    filterValue,
+    extraFilterColumn,
+    extraFilterValue,
+    groupBy,
+    aggregateFn,
+    aggregateColumn,
+    aggregateAlias,
+    projection,
+  };
 }

@@ -279,7 +279,7 @@ export function generateBiWarehouse(seed: number): BiWarehouse {
 
 // ── the grid (L1 only in this task; Task 2 completes L2-L4 + `biLevel`) ────
 
-export type BiLevelId = "L1" | "L2" | "L3" | "L4";
+export type BiLevelId = "L1" | "L2" | "L2B" | "L3" | "L4";
 
 export interface BiGridPoint {
   readonly id: BiLevelId;
@@ -293,14 +293,27 @@ export interface BiGridPoint {
  * table, `WHERE` filter only), L2 = 2/1/0 (+1 JOIN to `dim_customers`),
  * L3 = 3/1/1 (L2 plus one `GROUP BY` aggregation), L4 = 4/2/1 (L3 plus a
  * second JOIN to `dim_products`, the aggregation retained). F-17's formula
- * (`knobValue === 1 + joins + aggregations`) is pinned as a test assertion,
- * not just a comment — `test/foundry-bi-warehouse.test.ts`.
+ * (`knobValue === 1 + joins + aggregations`) is pinned as a test assertion
+ * over these four ORIGINAL structural levels — `test/foundry-bi-warehouse.test.ts`.
+ *
+ * `L2B` — §5/F-34 SUBDIVISION, Phase 9 Plan 09-01: the pretest screen found
+ * the L2->L3 adjacent pair's mean-score movement (0.30) exceeding the 0.10
+ * granularity ceiling (`PRETEST-SCREEN.md`), so the intermediate level is
+ * registered here per F-16, ONE PASS (F-34), as its own named integer knob
+ * value (3) on the renumbered contiguous scale — L3 and L4 shift to 4 and 5.
+ * Its structural shape is IDENTICAL to L2's (1 join, 0 aggregations); the
+ * registered increment is "a single added filter clause" (§5's own named
+ * recipe, not a join or an aggregation), so it does NOT satisfy the
+ * `1 + joins + aggregations` formula — that formula stays scoped to the
+ * four originals, never applied live to this inserted level (see the F-17
+ * test's own scoping note).
  */
 export const BI_GRID: readonly BiGridPoint[] = Object.freeze([
   Object.freeze({ id: "L1", knobValue: 1, joins: 0, aggregations: 0 }),
   Object.freeze({ id: "L2", knobValue: 2, joins: 1, aggregations: 0 }),
-  Object.freeze({ id: "L3", knobValue: 3, joins: 1, aggregations: 1 }),
-  Object.freeze({ id: "L4", knobValue: 4, joins: 2, aggregations: 1 }),
+  Object.freeze({ id: "L2B", knobValue: 3, joins: 1, aggregations: 0 }),
+  Object.freeze({ id: "L3", knobValue: 4, joins: 1, aggregations: 1 }),
+  Object.freeze({ id: "L4", knobValue: 5, joins: 2, aggregations: 1 }),
 ]);
 
 /** Resolve a grid point by id, or throw naming the whole grid — the
@@ -342,12 +355,23 @@ export interface BiQuerySpec {
   /** Join order; physical table names, first is the base table. */
   tables: string[];
   filter: BiFilterSpec;
+  /** §5/F-34 subdivision (Phase 9 Plan 09-01, `L2B` only): a single ADDED
+   *  filter clause, ANDed after `filter` — the registered "single added
+   *  filter clause" subdivision recipe, never a join or an aggregation.
+   *  Absent (undefined) for every original level, so `composeReferenceSql`/
+   *  `renderQuestion` produce BYTE-IDENTICAL output for L1-L4 to before this
+   *  field existed — the frozen prompt/arm invariant this plan requires. */
+  extraFilter?: BiFilterSpec;
   /** Conceptual column names — a single GROUP BY clause may name more than
    *  one column (F-18: still one aggregation operation). */
   groupBy: string[] | null;
   aggregate: BiAggregateSpec | null;
   /** Output column names, in display order — order-insensitive per the
-   *  pinned projection-comparison reading (`bi-oracle.ts`). */
+   *  pinned projection-comparison reading (`bi-oracle.ts`). NEVER include a
+   *  column also named by `filter`/`extraFilter` — doing so would leak the
+   *  filter's own value as a projected cell value (the leak-check rule this
+   *  battery enforces), which is why `L2B` filters on `segment` but never
+   *  projects it. */
   projection: string[];
 }
 
@@ -424,10 +448,16 @@ export function composeReferenceSql(spec: BiQuerySpec): string {
       ? `(SUBSTR(fo.order_date, 1, 4) || SUBSTR(fo.order_date, 6, 2)) = '${spec.filter.value.replace(/'/g, "''")}'`
       : `${qualify(spec.filter.column)} ${spec.filter.op} '${String(spec.filter.value).replace(/'/g, "''")}'`;
 
+  // §5/F-34 subdivision only (`L2B`) — absent for every original level, so
+  // this AND-clause never changes L1-L4's reference SQL text.
+  const extraWhereClause = spec.extraFilter
+    ? ` AND ${qualify(spec.extraFilter.column)} ${spec.extraFilter.op} '${String(spec.extraFilter.value).replace(/'/g, "''")}'`
+    : "";
+
   const groupByClause =
     spec.groupBy && spec.groupBy.length > 0 ? ` GROUP BY ${spec.groupBy.map(qualify).join(", ")}` : "";
 
-  return `SELECT ${selectParts.join(", ")} FROM ${fromParts.join(" ")} WHERE ${whereClause}${groupByClause}`;
+  return `SELECT ${selectParts.join(", ")} FROM ${fromParts.join(" ")} WHERE ${whereClause}${extraWhereClause}${groupByClause}`;
 }
 
 /**
@@ -449,15 +479,21 @@ export function composeReferenceSql(spec: BiQuerySpec): string {
 export function renderQuestion(spec: BiQuerySpec): string {
   const month = spec.filter.value;
   const columns = spec.projection.join(", ");
+  // §5/F-34 subdivision only (`L2B`) — empty string for every original
+  // level, so the sentence stays BYTE IDENTICAL to before this existed.
+  const extraClause = spec.extraFilter ? ` for ${spec.extraFilter.column} = ${spec.extraFilter.value}` : "";
   const sentence =
     spec.aggregate && spec.groupBy
-      ? `For orders placed in ${month}, what is the total ${spec.aggregate.column} ` +
+      ? `For orders placed in ${month}${extraClause}, what is the total ${spec.aggregate.column} ` +
         `(${spec.aggregate.fn}), broken down by ${spec.groupBy.join(" and ")}?`
-      : `For orders placed in ${month}, list the ${columns} for each order.`;
+      : `For orders placed in ${month}${extraClause}, list the ${columns} for each order.`;
 
   const footer = [
     `Tables: ${spec.tables.join(", ")}.`,
     `Filter: ${spec.filter.column} = ${spec.filter.value}.`,
+    // §5/F-34 subdivision only (`L2B`) — the array spreads nothing for
+    // every original level, so the footer stays BYTE IDENTICAL to before.
+    ...(spec.extraFilter ? [`Extra filter: ${spec.extraFilter.column} = ${spec.extraFilter.value}.`] : []),
     `Grouped by: ${spec.groupBy ? spec.groupBy.join(", ") : "none"}.`,
     `Aggregate: ${spec.aggregate ? `${spec.aggregate.fn}(${spec.aggregate.column}) as ${spec.aggregate.alias}` : "none"}.`,
     `Return columns: ${columns}.`,
@@ -501,6 +537,26 @@ function presentMonths(warehouse: BiWarehouse): string[] {
 }
 
 /**
+ * §5/F-34 subdivision only (`L2B`): every `dim_customers.segment` value that
+ * has AT LEAST ONE order in `month` — the SAME forced-shape discipline
+ * `generateBiWarehouse`'s month pool already uses (guaranteeing presence BY
+ * CONSTRUCTION rather than leaving it to chance), so `levelSpec`'s pick from
+ * this set is guaranteed non-empty (F-25) without a separate existence
+ * check at task-build time.
+ */
+function segmentsPresentInMonth(warehouse: BiWarehouse, month: string): string[] {
+  const segmentByCustomer = new Map(warehouse.dimCustomers.map((c) => [c.customerId, c.segment] as const));
+  const segments = new Set<string>();
+  for (const order of warehouse.factOrders) {
+    if (monthCode(order.orderDate) === month) {
+      const segment = segmentByCustomer.get(order.customerId);
+      if (segment) segments.add(segment);
+    }
+  }
+  return [...segments].sort();
+}
+
+/**
  * Every level shares the SAME filter concept (`order_month`, a domain of 12
  * distinct guaranteed-present values, per the module doc comment on
  * distinctness) — the level's structural template varies only the join set,
@@ -512,7 +568,13 @@ function presentMonths(warehouse: BiWarehouse): string[] {
  * F-18 still counts this as ONE aggregation operation (one `GROUP BY`
  * clause, however many columns it names).
  */
-function levelSpec(levelId: BiLevelId, taskIndex: number, month: string): BiQuerySpec {
+function levelSpec(
+  levelId: BiLevelId,
+  taskIndex: number,
+  month: string,
+  warehouse: BiWarehouse,
+  rand: () => number,
+): BiQuerySpec {
   const filter = { column: "order_month", op: "=" as const, value: month };
   switch (levelId) {
     case "L1":
@@ -535,6 +597,24 @@ function levelSpec(levelId: BiLevelId, taskIndex: number, month: string): BiQuer
         aggregate: null,
         projection: ["order_id", "customer_name"],
       };
+    case "L2B": {
+      // §5/F-34 subdivision: L2's exact shape (1 join, 0 aggregations) plus
+      // ONE added filter clause on `segment` — never projected (see
+      // `BiQuerySpec.projection`'s doc comment on why), so filtering AND
+      // returning the same column can never leak the filter's own value.
+      const segments = segmentsPresentInMonth(warehouse, month);
+      const segment = segments[Math.floor(rand() * segments.length)]!;
+      return {
+        levelId,
+        taskIndex,
+        tables: ["fact_orders", "dim_customers"],
+        filter,
+        extraFilter: { column: "segment", op: "=" as const, value: segment },
+        groupBy: null,
+        aggregate: null,
+        projection: ["order_id", "customer_name"],
+      };
+    }
     case "L3":
       return {
         levelId,
@@ -579,7 +659,7 @@ export function buildBiQuerySpecs(warehouse: BiWarehouse, levelId: BiLevelId): B
   const order = [...months.keys()];
   shuffleInPlace(order, rand);
   const chosenMonths = order.slice(0, BI_TASKS_PER_SEED_PER_POINT).map((idx) => months[idx]!);
-  return chosenMonths.map((month, taskIndex) => levelSpec(levelId, taskIndex, month));
+  return chosenMonths.map((month, taskIndex) => levelSpec(levelId, taskIndex, month, warehouse, rand));
 }
 
 const BI_OUTPUT_CONTRACT = [

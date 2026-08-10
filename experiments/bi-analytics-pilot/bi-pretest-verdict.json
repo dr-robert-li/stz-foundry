@@ -1,0 +1,142 @@
+{
+  "stage": "pretest",
+  "seed": 999,
+  "tasksPerLevel": 10,
+  "gridSize": 5,
+  "levels": [
+    {
+      "levelId": "L1",
+      "knobValue": 1,
+      "n": 10,
+      "meanGradedScore": 0.7,
+      "exactRate": 0.7,
+      "categoryCounts": {
+        "no-artifact": 1,
+        "non-executable-artifact": 0,
+        "executes-but-wrong": 2,
+        "correct": 7
+      },
+      "statusRollup": {
+        "ok": 10,
+        "timeout": 0,
+        "error": 0
+      }
+    },
+    {
+      "levelId": "L2",
+      "knobValue": 2,
+      "n": 10,
+      "meanGradedScore": 0.8,
+      "exactRate": 0.8,
+      "categoryCounts": {
+        "no-artifact": 0,
+        "non-executable-artifact": 0,
+        "executes-but-wrong": 2,
+        "correct": 8
+      },
+      "statusRollup": {
+        "ok": 10,
+        "timeout": 0,
+        "error": 0
+      }
+    },
+    {
+      "levelId": "L2B",
+      "knobValue": 3,
+      "n": 10,
+      "meanGradedScore": 0.5,
+      "exactRate": 0.5,
+      "categoryCounts": {
+        "no-artifact": 0,
+        "non-executable-artifact": 0,
+        "executes-but-wrong": 5,
+        "correct": 5
+      },
+      "statusRollup": {
+        "ok": 10,
+        "timeout": 0,
+        "error": 0
+      }
+    },
+    {
+      "levelId": "L3",
+      "knobValue": 4,
+      "n": 10,
+      "meanGradedScore": 0.5,
+      "exactRate": 0.5,
+      "categoryCounts": {
+        "no-artifact": 0,
+        "non-executable-artifact": 0,
+        "executes-but-wrong": 5,
+        "correct": 5
+      },
+      "statusRollup": {
+        "ok": 10,
+        "timeout": 0,
+        "error": 0
+      }
+    },
+    {
+      "levelId": "L4",
+      "knobValue": 5,
+      "n": 10,
+      "meanGradedScore": 0.4,
+      "exactRate": 0.4,
+      "categoryCounts": {
+        "no-artifact": 0,
+        "non-executable-artifact": 1,
+        "executes-but-wrong": 5,
+        "correct": 4
+      },
+      "statusRollup": {
+        "ok": 10,
+        "timeout": 0,
+        "error": 0
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "left": "L1",
+      "right": "L2",
+      "deltaMean": 0.10000000000000009,
+      "clearsCeiling": true,
+      "postSubdivision": false
+    },
+    {
+      "left": "L2",
+      "right": "L2B",
+      "deltaMean": 0.30000000000000004,
+      "clearsCeiling": false,
+      "postSubdivision": true
+    },
+    {
+      "left": "L2B",
+      "right": "L3",
+      "deltaMean": 0,
+      "clearsCeiling": true,
+      "postSubdivision": true
+    },
+    {
+      "left": "L3",
+      "right": "L4",
+      "deltaMean": 0.09999999999999998,
+      "clearsCeiling": true,
+      "postSubdivision": false
+    }
+  ],
+  "outcome": "TERMINATE",
+  "screenCaveat": "F-09: this is a coarse SCREEN over n=10/level on a single pinned seed — it catches only LARGE granularity violations, never a boundary case near the 0.10 ceiling itself. Final confirmation is the full six-seed stage-1 grid's own seed-clustered estimate (§6), not this screen.",
+  "retries": [],
+  "runConfig": {
+    "ollamaVersion": "ollama version is 0.32.5",
+    "modelDigestLine": "qwen3.6:latest             07d35212591f    23 GB     3 months ago",
+    "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+    "ollamaNumParallel": "<unset — server default>",
+    "clientConcurrency": 1,
+    "taskOrder": "pretest: BI_GRID order (ascending knobValue), baseline arm only, seed 999, task 0..9",
+    "taskTimeoutMs": 3600000,
+    "systemPrompt": "You are a SQL assistant.",
+    "stage": "pretest"
+  }
+}

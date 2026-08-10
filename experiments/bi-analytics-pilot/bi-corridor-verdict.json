@@ -1,0 +1,9 @@
+{
+  "complete": true,
+  "verdict": "FAILURE BRANCH",
+  "failureStage": "pretest",
+  "selectedPoint": null,
+  "unitsEvaluated": [],
+  "evidence": "experiments/bi-analytics-pilot/PRETEST-SCREEN.md",
+  "note": "§10 terminal exit at the pretest screen — a violating adjacent pair persisted after its one permitted §5 subdivision pass (F-34). The instrument line terminates here; stage 1 never ran."
+}
