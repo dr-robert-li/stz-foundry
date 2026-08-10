@@ -788,3 +788,78 @@ rather than a format confound. Falsifier 1 didn't fire, which was always a legit
 way — I want that stated as plainly as the alternative would have been. REQ-53 closes with this
 entry; the ceiling-probe half `CEILING-PROBE.md` records is the piece 08-01 explicitly left open for
 this plan.
+
+## A second line ends, one stage earlier (2026-08-10)
+
+The pretest screen ran before the corridor probe ever got a chance to, and it caught the same shape
+of problem the ceiling gate was built to rule out: L2↔L3 moved 0.30 on the baseline arm at n=10,
+seed 999 — three times the 0.10 granularity ceiling §5 pins before any real grid gets committed. I
+expected a screen at four levels on one seed to pass through, coarse by its own design (F-09), and
+mostly it did — L1↔L2 and L3↔L4 both landed exactly at the 0.10 boundary, which turned out to be a
+float-epsilon artifact of the two gaps' exact-rational means (7/10 and 8/10, 5/10 and 4/10) losing
+their equality under binary64 subtraction. I caught that before committing anything, added a 1e-9
+tolerance by direct analogy to F-23's own numeric-tolerance precedent, and both boundary pairs
+cleared correctly. That fix cost me nothing I hadn't budgeted. L2↔L3 did.
+
+Subdivision fired — the one permitted §5/F-34 pass — and I priced the edit as smaller than it turned
+out to be. I'd imagined inserting `L2B` as touching the grid definition and not much else. It touched
+the reference interpreter (a new independently-written `extraFilter` branch), the question-fidelity
+renderer (the same branch, written separately so F-22's independence claim actually held for the new
+level), and both hardcoded `LEVELS` sweeps in the test file — and it broke the F-17 knobValue formula
+assertion outright, because renumbering the scale to keep L2B's knob value contiguous shifted L3 and
+L4's live knobValue without touching their structure. I had to re-scope that assertion to the
+originals' 1-based position rather than delete it, and write L2B's own accounting as its own separate,
+explicit assertion. None of that was hard, exactly, but it was real work I hadn't priced when I wrote
+"insert a named integer-knob level" into the design as though it were one line. Worth saying plainly
+rather than letting the summary read as though the subdivision mechanism cost what I expected it to.
+
+The two Phase-9-derived prompt pins — the barest system prompt I could justify, and the three-element
+baseline guidance suffix — froze at the moment the first pretest task returned, pass 1, level L1, task
+0, before I'd seen a single number. The grid itself froze a commit later, at the subdivision commit,
+once L2B existed and the scale was renumbered. Those are genuinely two different freeze moments, not
+one I'm double-counting: the prompts are properties of what gets shown to the model and don't change
+shape no matter what the grid does underneath them; the grid is the thing the screen exists to
+adjudicate, and it can't freeze until the adjudication (including its one permitted subdivision pass)
+is actually finished. Freezing the grid at task-0 would have meant freezing it before I knew whether
+subdivision would fire at all.
+
+Data cleanliness, stated because it's the standing rule and because two harness faults already
+masqueraded as capability results on the prior arm before I started checking this first: 50 of 50
+pretest tasks `ok`, zero timeouts, zero harness-fault retries, no excision amendment — nothing to
+excise, because nothing failed at the harness level. No substrate change mid-run either; one ollama
+version and one model digest for the whole screen, unlike the reboot that split the v3.1 grid across
+two ollama versions. The corridor probe itself never drew a single task, so there's no corridor-level
+data-cleanliness story to tell — that's not a gap, it's the direct consequence of the screen catching
+the problem first.
+
+The verdict, stated as the measurement it is rather than a near-miss dressed up as almost-qualifying:
+L2↔L2B still moved 0.30 after the one permitted subdivision, the identical magnitude as the original
+violation, meaning the intermediate level didn't bridge the cliff at all — it landed exactly on L3's
+own score. Per F-34 that's not iterated a second time; an unbounded subdivision search is exactly the
+post-data grid-shopping the screen exists to prevent, and I wrote that rule into the design before any
+pretest data existed for the same reason I trusted the v3.1 one-shot clause when I typed it. None of
+§11's five named falsifiers actually fired, and I want that stated precisely rather than forced: all
+five are defined over corridor-probe stage-1 data, and the corridor probe never launched. The
+termination mechanism here is §5's own F-34 exhaustion rule, routing directly to §10 — a different,
+separately pre-registered path to the same terminal state, reached one stage earlier than any of the
+five falsifiers describe. `TERMINAL-REPORT.md` names this precisely rather than reaching for
+Falsifier 3's language because it was the closest-sounding one available.
+
+Neither gate fired, and that's the pre-authorization working exactly as written, not a step that got
+skipped. Gate condition 2 needs the corridor verdict to be `QUALIFIED`; it's the FAILURE BRANCH, so
+the full AND of §9's three conditions can't hold regardless of what the other two would have read, and
+acceptance auto-refuses. Adoption never gets to evaluate its own precondition because acceptance never
+fired. `BI_ANALYTICS_GENERATOR_ID` stays exactly where it's been sitting since Phase 8 — absent from
+`ACCEPTED_GENERATORS`, `generateBiBattery` still throwing — and `PREREG-DRAFT.md` stays exactly what
+its own header says it is, a draft, unedited and unadopted. F-28's loosening (the pre-acceptance human
+evidence-review step going away) never actually got exercised on this run, because there was no
+acceptance event for it to have applied to; it's still worth naming as a real change to the process,
+just one that stayed dormant here.
+
+REQ-56, REQ-57, REQ-58 and all of Phase 10 (REQ-59 included) are VOID BY RULE — recorded, not
+skipped, per the milestone's own pre-committed exit. This is the second instrument line this
+milestone has ended by its own rule rather than by a decision made after seeing the data: the v3/v3.1
+data-ops family terminated on corridor-placement and gradient-floor failures against real six-seed
+grid data; this one terminated on a raw pretest granularity violation before the grid was ever run.
+Different failure shape, different stage, same discipline — the rule was written before the data, and
+nobody, including me, got to move it once the data came in.

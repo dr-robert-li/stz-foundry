@@ -9,6 +9,30 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### Corridor probe + gates — FAILURE BRANCH, terminal report (phase 9, v1.23.0) — bi-analytics-pilot
+
+- `experiments/bi-analytics-pilot/PRETEST-SCREEN.md` (REQ-54): the §5 knob pretest screen —
+  baseline arm, n=10 per level, seed 999. L2<->L3 moved 0.30 (three times the 0.10 granularity
+  ceiling); the one permitted §5/F-34 subdivision inserted `L2B` (L2's exact join shape plus one
+  added `segment` filter clause); the re-screened L2<->L2B pair still moved 0.30, unchanged
+  magnitude — the subdivision did not bridge the cliff.
+- `experiments/bi-analytics-pilot/bi-corridor-verdict.json`: `complete: true`, `verdict: "FAILURE
+  BRANCH"`, `failureStage: "pretest"` — the corridor probe (§6) never launched; F-34's one-pass
+  subdivision cap routes directly to §10 termination.
+- `experiments/bi-analytics-pilot/PROBE-RESULTS.md` (REQ-55): the corridor-probe readout, closing
+  REQ-55 on the pretest-stage failure branch.
+- `experiments/bi-analytics-pilot/TERMINAL-REPORT.md`: REQ-56, REQ-57, REQ-58 and all of Phase 10
+  (REQ-59 included) recorded VOID BY RULE — a legitimate pre-registered milestone-ending outcome,
+  not an incomplete milestone. Neither auto-gate fired: `BI_ANALYTICS_GENERATOR_ID` stays absent
+  from `ACCEPTED_GENERATORS`, `generateBiBattery` still throws, `PREREG-DRAFT.md` stays unadopted
+  and byte-unchanged — the §9 conditional pre-authorization's auto-refusal path, exercised exactly
+  as written, with no mid-run human stop.
+- The substantive finding: a genuine difficulty cliff in the BI knob between structural complexity
+  2 (one JOIN) and 3 (one JOIN plus one aggregation), unbridged by a filter-clause subdivision —
+  the second instrument line this milestone has terminated under the corridor methodology, at an
+  earlier stage (the pretest screen) and by a different mechanism (a raw granularity violation, not
+  a corridor-placement or gradient-floor failure) than the terminated v3/v3.1 data-ops line.
+
 ### BI-analytics admission, generator/oracle build, and the ceiling gate (phase 8, v1.23.0) — bi-analytics-pilot
 
 - `bi-analytics` flipped `pending` -> `admitted` in `VERTICAL_ADMISSION` (REQ-50), oracle class
