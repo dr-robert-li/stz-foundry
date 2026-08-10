@@ -15,8 +15,11 @@ cd "$(dirname "$0")"
 scan() {
   for d in /proc/[0-9]*; do
     case "$(readlink "$d/exe" 2>/dev/null)" in */node) ;; *) continue;; esac
-    c=$(tr '\0' ' ' < "$d/cmdline" 2>/dev/null) || continue
-    case "$c" in *"$SCRIPT"*) echo "${d#/proc/}";; esac
+    match=0
+    while IFS= read -r -d '' arg; do
+      case "$arg" in "$SCRIPT"|*/"$SCRIPT") match=1;; esac
+    done 2>/dev/null < "$d/cmdline"
+    [ "$match" -eq 1 ] && echo "${d#/proc/}"
   done
 }
 existing=$(scan)
