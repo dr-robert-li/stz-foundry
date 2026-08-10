@@ -7,7 +7,24 @@ and the project aims to follow [Semantic Versioning](https://semver.org/).
 Entries at 0.9.6 and below are the upstream slice-tournament-zoo record,
 preserved verbatim.
 
-## [Unreleased]
+## [1.23.0] — BI-analytics instrument line VOID BY RULE at the pretest screen; milestone closes at Phase 9's terminal report
+
+### Milestone close (phase 10) — bi-analytics-pilot
+
+- `experiments/bi-analytics-pilot/round1-entry.json`: Phase 10's entry gate, decided once from
+  Phase 9's own artifacts — `branch: "void"`, `verdict: "FAILURE BRANCH"`. Tasks 2-4 (the held-out
+  split battery, `dualfixMutate`, the `bi` tournament arm, the detached round-1 launch) are recorded
+  no-ops: no `src/` change, no experiment driver change, nothing launched. No round-1 data
+  (`bi-round1-state.json`, `bi-round1.log`, `bi-round1-verdict.json`) exists anywhere in the tree.
+- REQ-59 (round 1 under the adopted prereg) closes VOID BY RULE — the instrument never qualified to
+  receive DUALFIX. REQ-60 (record and version discipline) closes COMPLETE: JOURNAL and CHANGELOG
+  carry first-person milestone-close entries, version 1.23.0 stays synced across `package.json`,
+  `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` (drift guard green), the full
+  suite holds, and this milestone is pushed to origin exactly once at this gate.
+- This is the second instrument line this milestone ended by its own pre-registered rule rather than
+  by a decision made after seeing the data — see the JOURNAL milestone-close entry for the headline
+  diagnostic (the L2<->L3 aggregation-boundary cliff, unbridged by the one permitted subdivision
+  pass) and what carries forward to a future, differently-scoped instrument.
 
 ### Corridor probe + gates — FAILURE BRANCH, terminal report (phase 9, v1.23.0) — bi-analytics-pilot
 

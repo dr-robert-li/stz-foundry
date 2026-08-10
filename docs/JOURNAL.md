@@ -863,3 +863,58 @@ data-ops family terminated on corridor-placement and gradient-floor failures aga
 grid data; this one terminated on a raw pretest granularity violation before the grid was ever run.
 Different failure shape, different stage, same discipline — the rule was written before the data, and
 nobody, including me, got to move it once the data came in.
+
+## The line ends by its own rule, and v1.23.0 closes here (2026-08-10)
+
+I set out this milestone to qualify a phase-5 promotion-gate instrument for the bi-analytics
+vertical, adopt the DUALFIX pre-registration under the conditional pre-authorization, and run round 1
+of the tournament with DUALFIX as the round's one variable — with "instrument fails to qualify" and
+"DUALFIX null" written in as pre-committed legitimate outcomes from the start, on the same footing as
+a measured win. Phase 10 is where I execute that entry gate honestly and either run round 1 or close
+the milestone at whatever Phase 9 actually recorded. It recorded the failure branch, so this is the
+close.
+
+The instrument itself turned out to be the finding. `bi-warehouse.ts`'s join/aggregation-depth knob
+has a genuine difficulty cliff between structural complexity 2 (one JOIN, zero aggregations) and 3
+(one JOIN plus one aggregation) — a 0.30 mean-score drop against a 0.10 per-step granularity ceiling,
+three times over. I gave it the one subdivision pass the design allows: `L2B`, a genuinely new
+intermediate level built from L2's exact join shape plus one added filter clause, written and scored
+independently rather than interpolated. It didn't bridge anything — L2↔L2B still moved 0.30, the
+identical magnitude, landing exactly on L3's own score. The filter clause added no measurable
+difficulty at this point on the scale; the entire drop belongs to the aggregation operation itself,
+and a filter-shaped subdivision was never going to touch that. That's the headline diagnostic of this
+whole milestone, and it's worth more than a null verdict would have been: a local qwen3.6 model's
+SQL-writing capability doesn't degrade smoothly across structural complexity, it falls off a specific
+kind of cliff, and now I know where to look for that shape again in a differently-scoped instrument.
+
+Round 1 itself never ran, and I want that stated as plainly as a completed run would be. No
+`bi-round1-state.json`, no `bi-round1.log`, no `bi-round1-verdict.json` exist anywhere in this tree —
+Task 1's entry gate read `bi-corridor-verdict.json` (`FAILURE BRANCH`, `failureStage: "pretest"`) and
+`TERMINAL-REPORT.md` and wrote `round1-entry.json` recording the void branch once, from those
+artifacts, before any other task ran. Tasks 2 through 4 — the split battery, `dualfixMutate`, the `bi`
+tournament arm, the detached launch — are recorded no-ops, not silently skipped work: no `src/` change,
+no experiment driver change, nothing launched. `BI_ANALYTICS_GENERATOR_ID` is still exactly where it's
+sat since Phase 8, absent from `ACCEPTED_GENERATORS`; `PREREG-DRAFT.md` is still an unadopted draft,
+byte-unchanged from the blob Phase 9 pinned. REQ-59 is void by rule on that basis — not because DUALFIX
+was tried and found wanting, but because the instrument it would have run on never qualified to receive
+it.
+
+REQ-60's record discipline applies to a void milestone exactly as it would to a measured one, which is
+the whole point of writing that requirement the way I did back at elicitation: this entry, the
+CHANGELOG's v1.23.0 section, and STATE.md's close all exist because a milestone that ends on a
+pre-registered null is not an incomplete milestone, and the record has to read that way a year from now
+without anyone having to reconstruct it from `TERMINAL-REPORT.md` alone. Version 1.23.0 stays synced
+across `package.json`, `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` — the drift
+guard held, unchanged from Phase 8 — and the suite is still green at the count it closed Phase 9 at.
+
+What I'd tell the next person picking this up: two instrument lines have now ended under this
+milestone's corridor methodology, at two different stages, by two different mechanisms, and both times
+the discipline held because the termination rule was written into the design before any data existed
+to argue it out of the way. The v3/v3.1 data-ops family failed on corridor-placement and gradient-floor
+grounds against real six-seed grid data; this one failed at the pretest screen, one stage earlier,
+before the corridor probe ever drew a task. Neither failure is a gap in this milestone — each is the
+design working. The bi-analytics vertical's phase-5 promotion gate stays exactly as gated as it was
+before this milestone began; nothing here moves it forward, and nothing here is licensed to try again
+under a different name. If someone wants to test whether search-based prompt evolution beats a
+hand-written baseline on a task family with a real capability cliff, the join/aggregation-depth
+diagnostic is the thing to carry forward — the barred hypothesis is not.
