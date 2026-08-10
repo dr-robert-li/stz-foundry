@@ -37,6 +37,7 @@ import {
   isUnderpowered,
   isErrorBudgetExceeded,
   assertCorpusPinned,
+  requireFinitePositiveNumber,
 } from "../experiments/dualfix-study/_dualfix-study.js";
 
 function freshStatePath(): string {
@@ -356,5 +357,28 @@ describe("assertCorpusPinned — corpus drift detection on resume", () => {
   it("throws when the entry count diverges from what was pinned", () => {
     const runConfig = { corpusByteLength: 100, corpusEntryCount: 5 };
     expect(() => assertCorpusPinned(runConfig, 100, 6)).toThrow(/corpus drift detected/);
+  });
+});
+
+// ── WR-05/WR-06: env var numeric validation ──────────────────────────────
+
+describe("requireFinitePositiveNumber — startup env var validation", () => {
+  it("uses the fallback when raw is undefined", () => {
+    expect(requireFinitePositiveNumber("X", undefined, 42)).toBe(42);
+  });
+
+  it("parses a valid numeric string", () => {
+    expect(requireFinitePositiveNumber("X", "17", 42)).toBe(17);
+  });
+
+  it("throws a diagnostic naming the variable when raw is non-numeric (would otherwise silently become NaN)", () => {
+    expect(() => requireFinitePositiveNumber("DUALFIX_TIMEOUT_MS", "not-a-number", 1000)).toThrow(
+      /DUALFIX_TIMEOUT_MS must be a finite positive number, got "not-a-number"/,
+    );
+  });
+
+  it("throws on zero or negative values", () => {
+    expect(() => requireFinitePositiveNumber("X", "0", 1)).toThrow(/finite positive number/);
+    expect(() => requireFinitePositiveNumber("X", "-5", 1)).toThrow(/finite positive number/);
   });
 });

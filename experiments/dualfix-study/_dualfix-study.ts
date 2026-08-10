@@ -65,9 +65,24 @@ import {
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 
+// WR-06: an unvalidated `Number(...)` on a malformed env var silently
+// yields NaN, which flows into `setTimeout` as an effectively-immediate
+// timer — a confusing, silent, full-study failure mode with no diagnostic
+// pointing at the env var as the cause. Fail fast, naming the bad value,
+// exactly as `requireStatePath`/`requireCorpusPath` already do for their
+// own required env vars. Exported so a test can exercise the validation
+// directly without importing/evaluating the whole module.
+export function requireFinitePositiveNumber(name: string, raw: string | undefined, fallback: number): number {
+  const value = Number(raw ?? fallback);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`[dualfix-study] ${name} must be a finite positive number, got ${JSON.stringify(raw)}`);
+  }
+  return value;
+}
+
 const DUALFIX_MODEL = process.env.DUALFIX_MODEL ?? "qwen3.6:latest";
 const DUALFIX_BASE_URL = process.env.DUALFIX_BASE_URL ?? "http://localhost:11434/v1";
-const DUALFIX_TIMEOUT_MS = Number(process.env.DUALFIX_TIMEOUT_MS ?? BI_TASK_TIMEOUT_MS);
+const DUALFIX_TIMEOUT_MS = requireFinitePositiveNumber("DUALFIX_TIMEOUT_MS", process.env.DUALFIX_TIMEOUT_MS, BI_TASK_TIMEOUT_MS);
 // Single Ollama inference slot — D-13's operational sibling.
 const DUALFIX_CONCURRENCY = Number(process.env.DUALFIX_CONCURRENCY ?? 1);
 // Honoured ONLY when "1" — the end-to-end smoke path; absent in the real run.
