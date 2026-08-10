@@ -17,17 +17,17 @@
  * `bi-oracle.ts`'s own rule.
  *
  * MODULE-LEVEL IMPORT SURFACE IS DELIBERATELY MINIMAL (T-12-02): every
- * static `from "..."` specifier in this file is one of `node:fs`,
- * `../../src/foundry/bi-warehouse.js`, `../../src/foundry/bi-oracle.js`,
- * `../../src/foundry/provider.js`, and `./_dualfix-arms.js` —
- * `test/dualfix-corpus-build.test.ts` asserts this set exactly. Two
- * diagnostic/validation calls that would otherwise widen that static surface
- * (`ollama --version`/`ollama list` shellouts, and re-validating the emitted
- * corpus through `_dualfix-study.ts`'s own `validateCorpusEntries`) go
- * through a runtime `await import(...)` INSIDE a function body instead of a
- * module-level `import` declaration — neither is a "module-level import
- * specifier" the allowlist test scans for, and neither reaches
- * `generateBiBattery`/`ACCEPTED_GENERATORS`.
+ * static import declaration's module specifier in this file is one of
+ * `node:fs`, `../../src/foundry/bi-warehouse.js`,
+ * `../../src/foundry/bi-oracle.js`, `../../src/foundry/provider.js`, and
+ * `./_dualfix-arms.js` — `test/dualfix-corpus-build.test.ts` asserts this
+ * set exactly. Two diagnostic/validation calls that would otherwise widen
+ * that static surface (`ollama --version`/`ollama list` shellouts, and
+ * re-validating the emitted corpus through `_dualfix-study.ts`'s own
+ * `validateCorpusEntries`) go through a runtime `await import(...)` INSIDE a
+ * function body instead of a module-level import declaration — neither is a
+ * "module-level import specifier" the allowlist test scans for, and neither
+ * reaches `generateBiBattery`/`ACCEPTED_GENERATORS`.
  *
  * The baseline system prompt and guidance suffix below are copied
  * byte-identical from `experiments/bi-analytics-pilot/_bi-corridor.ts`
