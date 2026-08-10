@@ -1,8 +1,9 @@
 /**
  * DUALFIX repair mechanism (Phase 11 — Study prereg + build, Plan 11-01,
- * REQ-62). Provenance, cited verbatim-by-citation: `experiments/method-research/
- * SHORTLIST.md` A-03/S-03 and `experiments/method-research/SURVEY-2026-08.md`
- * E-03. D-05 scope narrowing (11-01-PLAN.md `<locked_decisions>`): this module
+ * REQ-62). Provenance, cited verbatim-by-citation:
+ *   - `experiments/method-research/SHORTLIST.md` A-03/S-03
+ *   - `experiments/method-research/SURVEY-2026-08.md` E-03
+ * D-05 scope narrowing (11-01-PLAN.md `<locked_decisions>`): this module
  * implements EXECUTION-FEEDBACK REPAIR INFORMED BY A SPECIFICATION-VS-
  * IMPLEMENTATION FAILURE SPLIT, per SHORTLIST A-03/S-03 and SURVEY E-03 — it
  * does NOT implement the source paper's full rule-evolution search (no rule
