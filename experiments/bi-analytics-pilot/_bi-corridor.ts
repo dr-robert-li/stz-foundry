@@ -99,6 +99,25 @@ const GRADIENT_FLOOR = 0.15; // §7/§8: the resolvable-gradient floor
 const HEADROOM_MEAN_CEILING = 0.85; // §8
 const REPLICATE_NOISE_MULTIPLIER = 3; // §8
 const PRETEST_GRANULARITY_CEILING = 0.1; // §5/§8
+/**
+ * Rule-1 bugfix (found adjudicating the first pretest run, before any grid
+ * commit): `meanGradedScore` is a mean of exact-rational per-task scores
+ * (n/10), but two decimal literals like 0.7/0.8 have no exact binary64
+ * representation, so `0.8 - 0.7` evaluates to `0.10000000000000009` in
+ * IEEE754 — a ~1e-16 representation artifact, not a real measurement above
+ * the ceiling. Without tolerance, a mathematically-exact 0.10 gap could
+ * clear OR violate depending on which side of 0.10 the float noise happens
+ * to land, which is exactly the F-09 boundary-case failure mode the design
+ * warns this coarse screen cannot resolve — except here it is float noise,
+ * not real noise. Tolerance borrows F-23's own precedent (`BI_NUMERIC_TOLERANCE`,
+ * 1e-6) for absorbing binary64 round-trip noise in a numeric comparison — a
+ * different mechanism (result-cell equality) but the same principle, applied
+ * here by analogy since §5 pins no tolerance of its own. 1e-9 is generous
+ * against the ~1e-16 noise scale and negligible against any real ≥1e-3
+ * measurement difference, so it can only reclassify a true float-epsilon
+ * artifact, never mask a genuine violation.
+ */
+const PRETEST_GRANULARITY_TOLERANCE = 1e-9;
 // §8: "the first three of the six stage-1 seeds" — derived from the pinned
 // stage-1 seed set rather than a second hardcoded literal.
 const REPLICATE_PAIR_SEEDS: readonly number[] = BI_STAGE1_SEEDS.slice(0, 3);
@@ -481,7 +500,7 @@ async function runPretestStage(state: State): Promise<void> {
       left,
       right,
       deltaMean,
-      clearsCeiling: deltaMean <= PRETEST_GRANULARITY_CEILING,
+      clearsCeiling: deltaMean <= PRETEST_GRANULARITY_CEILING + PRETEST_GRANULARITY_TOLERANCE,
       postSubdivision: !ORIGINAL_LEVEL_IDS.includes(left) || !ORIGINAL_LEVEL_IDS.includes(right),
     });
   }
