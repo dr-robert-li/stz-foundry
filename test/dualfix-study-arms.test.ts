@@ -28,7 +28,9 @@ import {
 import {
   DUALFIX_STUDY_SEEDS,
   DUALFIX_LEVEL_ID,
+  NAIVE_RETRY_INSTRUCTION,
   buildNaiveRetryPrompt,
+  rebuildCandidateContext,
   runArmOnCandidate,
   dualfixUnitKey,
   loadState,
@@ -234,4 +236,110 @@ describe("one failing L3 candidate, both arms, end to end", () => {
     expect(dualfixCall!.messages[0]!.content).toContain("total_quantity");
     expect(naiveCall!.messages[0]!.content).toContain("total_quantity");
   });
+});
+
+// ── the mechanical enforcement of the D-01/D-03 equal-treatment prohibition
+// ("MUST NOT give the two arms unequal treatment ... beyond the repair-prompt
+// CONTENT itself"). A reader deleting this block is deleting the ONLY thing
+// that turns that prose prohibition into a red test the instant a future
+// edit privileges one arm — code review alone already let one asymmetry
+// through once (this plan's own Task 1 tracer gate exists for the same
+// reason, one layer up). ───────────────────────────────────────────────────
+
+const badSql = "SELECT segment, SUM(quantity FROM fact_orders GROUP BY segment";
+const NON_EXECUTABLE_ENGINE_ERROR = 'near "FROM": syntax error';
+
+const SYMMETRY_TABLE: { name: string; entry: DualfixCorpusEntry; expectFeedbackMarker: string | null }[] = [
+  {
+    name: "no-artifact (the null-artifact case)",
+    entry: {
+      seed: SEED,
+      levelId: DUALFIX_LEVEL_ID,
+      taskIndex: 0,
+      taskId: task.id,
+      question: task.prompt,
+      rawText: "I don't know the answer.",
+      artifact: null,
+      category: "no-artifact",
+      gradedScore: 0,
+      engineError: null,
+    },
+    expectFeedbackMarker: null,
+  },
+  {
+    name: "non-executable-artifact",
+    entry: {
+      seed: SEED,
+      levelId: DUALFIX_LEVEL_ID,
+      taskIndex: 0,
+      taskId: task.id,
+      question: task.prompt,
+      rawText: fence("sql", badSql),
+      artifact: badSql,
+      category: "non-executable-artifact",
+      gradedScore: 0,
+      engineError: NON_EXECUTABLE_ENGINE_ERROR,
+    },
+    expectFeedbackMarker: "Engine error (data",
+  },
+  {
+    name: "executes-but-wrong",
+    entry: executesButWrongEntry,
+    expectFeedbackMarker: "returned the wrong result",
+  },
+];
+
+describe("arm-symmetry invariant — the equal-treatment prohibition, made mechanical", () => {
+  for (const { name, entry, expectFeedbackMarker } of SYMMETRY_TABLE) {
+    it(`${name}: both arms get symmetric treatment outside the repair-prompt content`, async () => {
+      const { provider, calls } = makeRecordingProvider(fence("sql", correctSql));
+
+      await runArmOnCandidate("dualfix", entry, provider, "test-model");
+      await runArmOnCandidate("naive-retry", entry, provider, "test-model");
+
+      expect(calls).toHaveLength(2);
+      const [dualfixReq, naiveReq] = calls;
+
+      // symmetric: exactly one chat request per arm (asserted by construction
+      // above), same model, no sampler override on either, both bounded.
+      expect(dualfixReq!.model).toBe(naiveReq!.model);
+      expect(dualfixReq!.temperature).toBeUndefined();
+      expect(naiveReq!.temperature).toBeUndefined();
+      expect(dualfixReq!.maxTokens).toBeUndefined();
+      expect(naiveReq!.maxTokens).toBeUndefined();
+      expect(dualfixReq!.messages[0]!.content.length).toBeLessThanOrEqual(MAX_DUALFIX_PROMPT_CHARS);
+      expect(naiveReq!.messages[0]!.content.length).toBeLessThanOrEqual(MAX_DUALFIX_PROMPT_CHARS);
+
+      // symmetric: both arms are scored by the same oracle, against an
+      // independently freshly-materialized handle per arm — never the same
+      // object (candidate execution isolation).
+      const ctxA = rebuildCandidateContext(entry);
+      const ctxB = rebuildCandidateContext(entry);
+      expect(ctxA.db).not.toBe(ctxB.db);
+      expect(ctxA.expected).toEqual(ctxB.expected);
+
+      // asymmetric, deliberately: the DUALFIX request names the failure
+      // level (asserted against the exported symbol, never a re-typed
+      // literal); the naive-retry request carries the one fixed generic
+      // instruction and nothing resembling a failure-level label.
+      const level = entry.category === "correct" ? null : dualfixFailureLevel(entry.category);
+      if (level) {
+        expect(dualfixReq!.messages[0]!.content).toContain(level);
+      }
+      expect(naiveReq!.messages[0]!.content).toContain(NAIVE_RETRY_INSTRUCTION);
+      expect(naiveReq!.messages[0]!.content).not.toContain("Failure level:");
+
+      // asymmetric, deliberately: for a non-null-artifact input, BOTH
+      // requests echo the artifact text (D-01's equal-information rule),
+      // but only the DUALFIX request carries the execution-feedback segment.
+      if (entry.artifact !== null) {
+        expect(dualfixReq!.messages[0]!.content).toContain(entry.artifact);
+        expect(naiveReq!.messages[0]!.content).toContain(entry.artifact);
+      }
+      if (expectFeedbackMarker !== null) {
+        expect(dualfixReq!.messages[0]!.content).toContain(expectFeedbackMarker);
+        expect(naiveReq!.messages[0]!.content).not.toContain(expectFeedbackMarker);
+      }
+    });
+  }
 });
