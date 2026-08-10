@@ -288,11 +288,33 @@ export interface BiGridPoint {
   readonly aggregations: number;
 }
 
-/** §5's concrete grid, point values only (never ranges). L1 only for now —
- *  Task 2 completes L2-L4 and adds `biLevel(id)` on the `v3Knobs` model. */
+/**
+ * §5's concrete grid, point values only (never ranges): L1 = 1/0/0 (single
+ * table, `WHERE` filter only), L2 = 2/1/0 (+1 JOIN to `dim_customers`),
+ * L3 = 3/1/1 (L2 plus one `GROUP BY` aggregation), L4 = 4/2/1 (L3 plus a
+ * second JOIN to `dim_products`, the aggregation retained). F-17's formula
+ * (`knobValue === 1 + joins + aggregations`) is pinned as a test assertion,
+ * not just a comment — `test/foundry-bi-warehouse.test.ts`.
+ */
 export const BI_GRID: readonly BiGridPoint[] = Object.freeze([
   Object.freeze({ id: "L1", knobValue: 1, joins: 0, aggregations: 0 }),
+  Object.freeze({ id: "L2", knobValue: 2, joins: 1, aggregations: 0 }),
+  Object.freeze({ id: "L3", knobValue: 3, joins: 1, aggregations: 1 }),
+  Object.freeze({ id: "L4", knobValue: 4, joins: 2, aggregations: 1 }),
 ]);
+
+/** Resolve a grid point by id, or throw naming the whole grid — the
+ *  `v3Knobs` model (`fixture-warehouse-v3.ts:104-113`). */
+export function biLevel(id: string): BiGridPoint {
+  const point = BI_GRID.find((p) => p.id === id);
+  if (!point) {
+    throw new Error(
+      `[foundry:bi-warehouse] unknown grid point ${JSON.stringify(id)} (grid: ` +
+        `${BI_GRID.map((p) => p.id).join(", ")})`,
+    );
+  }
+  return point;
+}
 
 // ── the known-answer query set ───────────────────────────────────────────
 
@@ -448,21 +470,61 @@ function presentMonths(warehouse: BiWarehouse): string[] {
   return [...new Set(warehouse.factOrders.map((o) => o.orderDate.slice(0, 7)))].sort();
 }
 
-/** L1 only in this task — Task 2 adds the L2/L3/L4 cases. */
+/**
+ * Every level shares the SAME filter concept (`order_month`, a domain of 12
+ * distinct guaranteed-present values, per the module doc comment on
+ * distinctness) — the level's structural template varies only the join set,
+ * the `GROUP BY`, and the projection, matching `BI_GRID`'s own
+ * joins/aggregations counts exactly. L3's `GROUP BY` is retained unchanged
+ * into L4 (design §5's own "the L3 aggregation retained") — L4 widens it to
+ * a two-column `GROUP BY` (`segment`, `category`) so the second JOIN
+ * (`dim_products`) is structurally load-bearing rather than a vacuous join;
+ * F-18 still counts this as ONE aggregation operation (one `GROUP BY`
+ * clause, however many columns it names).
+ */
 function levelSpec(levelId: BiLevelId, taskIndex: number, month: string): BiQuerySpec {
+  const filter = { column: "order_month", op: "=" as const, value: month };
   switch (levelId) {
     case "L1":
       return {
         levelId,
         taskIndex,
         tables: ["fact_orders"],
-        filter: { column: "order_month", op: "=", value: month },
+        filter,
         groupBy: null,
         aggregate: null,
         projection: ["order_id", "quantity", "unit_price"],
       };
-    default:
-      throw new Error(`[foundry:bi-warehouse] level ${JSON.stringify(levelId)} is not yet implemented`);
+    case "L2":
+      return {
+        levelId,
+        taskIndex,
+        tables: ["fact_orders", "dim_customers"],
+        filter,
+        groupBy: null,
+        aggregate: null,
+        projection: ["order_id", "customer_name"],
+      };
+    case "L3":
+      return {
+        levelId,
+        taskIndex,
+        tables: ["fact_orders", "dim_customers"],
+        filter,
+        groupBy: ["segment"],
+        aggregate: { fn: "SUM", column: "quantity", alias: "total_quantity" },
+        projection: ["segment", "total_quantity"],
+      };
+    case "L4":
+      return {
+        levelId,
+        taskIndex,
+        tables: ["fact_orders", "dim_customers", "dim_products"],
+        filter,
+        groupBy: ["segment", "category"],
+        aggregate: { fn: "SUM", column: "quantity", alias: "total_quantity" },
+        projection: ["segment", "category", "total_quantity"],
+      };
   }
 }
 

@@ -14,12 +14,17 @@ import { describe, it, expect } from "vitest";
 import {
   generateBiWarehouse,
   buildBiQuerySpecs,
+  buildBiTasks,
   composeReferenceSql,
   generateBiBattery,
+  BI_GRID,
+  biLevel,
+  BI_TASKS_PER_SEED_PER_POINT,
   BI_FACT_ROWS_SCALE,
   BI_DIM_CUSTOMERS_SCALE,
   BI_DIM_PRODUCTS_SCALE,
   BI_DIM_REGIONS_SCALE,
+  type BiLevelId,
 } from "../src/foundry/bi-warehouse.js";
 import { materializeWarehouse, executeSelect, resultSetsEqual } from "../src/foundry/bi-oracle.js";
 import { recomputeExpected, type DuckWarehouseState, type DuckQuerySpec } from "./fixtures/bi-reference-interpreter.js";
@@ -109,5 +114,46 @@ describe("BI_ANALYTICS_GENERATOR_ID — deliberately unaccepted (REQ-51)", () =>
   it("generateBiBattery throws, naming BI_ANALYTICS_GENERATOR_ID", () => {
     const err = thrown(() => generateBiBattery(101, "L1", "bi-tracer"));
     expect(err.message).toContain(BI_ANALYTICS_GENERATOR_ID);
+  });
+});
+
+describe("BI_GRID — the concrete grid, F-17's formula pinned as an assertion (design §5)", () => {
+  it("is exactly L1..L4 with knobValue 1,2,3,4", () => {
+    expect(BI_GRID.map((p) => p.id)).toEqual(["L1", "L2", "L3", "L4"]);
+    expect(BI_GRID.map((p) => p.knobValue)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("F-17: knobValue === 1 + joins + aggregations at every level (the '1 +' base term, pinned, not just commented)", () => {
+    for (const point of BI_GRID) {
+      expect(point.knobValue).toBe(1 + point.joins + point.aggregations);
+    }
+  });
+
+  it("biLevel('L9') throws, naming the whole grid", () => {
+    const err = thrown(() => biLevel("L9"));
+    expect(err.message).toContain("L9");
+    for (const point of BI_GRID) expect(err.message).toContain(point.id);
+  });
+});
+
+describe("buildBiTasks — ten tasks per level, distinct filter values (design §1)", () => {
+  const LEVELS: BiLevelId[] = ["L1", "L2", "L3", "L4"];
+
+  it.each(LEVELS)("%s: returns exactly BI_TASKS_PER_SEED_PER_POINT tasks, each with a distinct filter value", (levelId) => {
+    const warehouse = generateBiWarehouse(101);
+    const tasks = buildBiTasks(warehouse, levelId);
+    expect(tasks.length).toBe(BI_TASKS_PER_SEED_PER_POINT);
+
+    const specs = buildBiQuerySpecs(warehouse, levelId);
+    const filterValues = new Set(specs.map((s) => s.filter.value));
+    expect(filterValues.size).toBe(BI_TASKS_PER_SEED_PER_POINT);
+  });
+
+  it("every task carries exactly one output-assertion check", () => {
+    const warehouse = generateBiWarehouse(101);
+    for (const task of buildBiTasks(warehouse, "L3")) {
+      expect(task.checks.length).toBe(1);
+      expect(task.checks[0]!.kind).toBe("output-assertion");
+    }
   });
 });
