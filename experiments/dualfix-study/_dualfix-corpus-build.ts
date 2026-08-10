@@ -67,6 +67,7 @@ import {
   DUALFIX_STUDY_SEEDS,
   DUALFIX_LEVEL_ID,
   DUALFIX_CORPUS_TARGET_N,
+  DUALFIX_CORPUS_MIN_N,
   type DualfixCorpusEntry,
 } from "./_dualfix-arms.js";
 
@@ -160,6 +161,26 @@ export async function onceDraw(
   state.draws[key] = result;
   saveCorpusBuildState(statePath, state);
   return result;
+}
+
+// ── §4 the full pinned draw order ────────────────────────────────────────
+
+export interface DrawOrderUnit {
+  seed: number;
+  taskIndex: number;
+}
+
+/** DUALFIX_STUDY_SEEDS array order, then taskIndex 0..N-1 within each seed —
+ *  60 units total, derived from the imported constants, never a re-typed
+ *  literal. */
+export function buildDrawOrder(): DrawOrderUnit[] {
+  const order: DrawOrderUnit[] = [];
+  for (const seed of DUALFIX_STUDY_SEEDS) {
+    for (let taskIndex = 0; taskIndex < BI_TASKS_PER_SEED_PER_POINT; taskIndex++) {
+      order.push({ seed, taskIndex });
+    }
+  }
+  return order;
 }
 
 // ── §4 pure decisions ────────────────────────────────────────────────────
@@ -336,6 +357,77 @@ async function writeCorpusOutput(outPath: string, entries: DualfixCorpusEntry[])
   renameSync(`${outPath}.tmp`, outPath);
 }
 
+// ── §8 termination classification ────────────────────────────────────────
+
+export type CorpusBuildOutcome = "TARGET-REACHED" | "CLOSED-AT-MINIMUM" | "UNDERPOWERED";
+
+/** Classifies the achieved eligible count against the two pinned
+ *  constants — never a re-typed literal. Evaluated only after the full
+ *  draw order is exhausted (or the target is reached early). */
+export function classifyOutcome(eligibleCount: number): CorpusBuildOutcome {
+  if (eligibleCount < DUALFIX_CORPUS_MIN_N) return "UNDERPOWERED";
+  if (eligibleCount < DUALFIX_CORPUS_TARGET_N) return "CLOSED-AT-MINIMUM";
+  return "TARGET-REACHED";
+}
+
+/** Shells out for diagnostic-only provenance strings via a runtime
+ *  `import()` (see the module doc comment) — never a module-level
+ *  `node:child_process` import. Any failure degrades to an
+ *  `<unavailable: ...>` placeholder string, never a thrown error: a
+ *  detached multi-hour run must not die because `ollama` is momentarily
+ *  unreachable on the shell PATH. */
+async function safeExec(cmd: string): Promise<string> {
+  try {
+    const { execSync } = await import("node:child_process");
+    return execSync(cmd, { encoding: "utf8" }).trim();
+  } catch (e) {
+    return `<unavailable: ${e instanceof Error ? e.message : String(e)}>`;
+  }
+}
+
+/** Properties of the EXECUTED run, captured at run time, never pinned as a
+ *  design constant — mirrors `_dualfix-study.ts`'s `captureRunConfig`,
+ *  extended with the fields this builder needs (baseline prompt provenance,
+ *  the level id, the seed list, the draw order description). Called once,
+ *  before any draw runs, and persisted into the checkpoint state — 12-05
+ *  diffs its `modelDigestLine` against the repair run's own to disclose any
+ *  model drift between corpus construction and the paired run. */
+export async function captureCorpusBuildRunConfig(model: string, taskTimeoutMs: number): Promise<Record<string, unknown>> {
+  const ollamaVersion = await safeExec("ollama --version");
+  const listLine = (await safeExec("ollama list"))
+    .split("\n")
+    .find((l) => l.startsWith(model) || l.startsWith(model.replace(/:latest$/, "")));
+  return {
+    ollamaVersion,
+    modelDigestLine: listLine ?? `<not found in 'ollama list': ${model}>`,
+    samplerParams: "none sent (no temperature, no max_tokens override — provider/server default applies)",
+    ollamaNumParallel: process.env.OLLAMA_NUM_PARALLEL ?? "<unset — server default>",
+    taskTimeoutMs,
+    baselineSystemPrompt: BI_PROBE_SYSTEM_PROMPT,
+    baselineGuidanceSuffix: BI_BASELINE_GUIDANCE,
+    levelId: DUALFIX_LEVEL_ID,
+    seeds: DUALFIX_STUDY_SEEDS,
+    drawOrder:
+      "DUALFIX_STUDY_SEEDS array order, then taskIndex 0..(BI_TASKS_PER_SEED_PER_POINT-1) within each " +
+      "seed — deterministic, total, and stable",
+  };
+}
+
+/** Small, human-readable readout artifact — the verdict — always written
+ *  beside this script, atomically (tmp + rename). A URL constructed from
+ *  `import.meta.url` needs no `node:path`/`node:url` import (`node:fs`
+ *  accepts a `URL` directly), keeping the static import surface at the
+ *  allowlisted five. Written ONLY on a completed, uncapped run — a run
+ *  still in flight or that crashed leaves no verdict file, so the
+ *  existence of this artifact is the completion signal a later plan waits
+ *  on, never wall-clock, never a log tail. */
+async function writeVerdict(data: unknown): Promise<void> {
+  const tmpUrl = new URL("dualfix-corpus-build-verdict.json.tmp", import.meta.url);
+  const url = new URL("dualfix-corpus-build-verdict.json", import.meta.url);
+  writeFileSync(tmpUrl, JSON.stringify(data, null, 2));
+  renameSync(tmpUrl, url);
+}
+
 // ══════════════════════════════════ main ════════════════════════════════
 
 function requireEnv(name: string): string {
@@ -369,28 +461,82 @@ async function main(): Promise<void> {
   );
 
   const state = loadCorpusBuildState(statePath);
-  const provider = createProvider({ kind: "openai", baseUrl });
+  if (!state.runConfig) {
+    // Captured once, before any draw runs, and persisted — a resumed run
+    // reuses the config recorded on its first invocation rather than
+    // re-capturing (and potentially disagreeing with itself mid-run).
+    state.runConfig = await captureCorpusBuildRunConfig(model, taskTimeoutMs);
+    saveCorpusBuildState(statePath, state);
+  }
+  console.log(`run config: ${JSON.stringify(state.runConfig)}\n`);
 
-  // Task 1's tracer scope: one seed, honouring DUALFIX_CORPUS_MAX_DRAWS only
-  // — the full pinned draw order, stop conditions and run-config capture are
-  // Task 2's own extension of this loop.
-  const seed = DUALFIX_STUDY_SEEDS[0]!;
+  const provider = createProvider({ kind: "openai", baseUrl });
+  const drawOrder = buildDrawOrder();
+
   let drawsTaken = 0;
-  for (let taskIndex = 0; taskIndex < BI_TASKS_PER_SEED_PER_POINT; taskIndex++) {
+  for (const unit of drawOrder) {
     if (maxDraws !== undefined && drawsTaken >= maxDraws) break;
-    const key = `${seed}::${taskIndex}`;
-    const result = await onceDraw(statePath, state, key, () => drawOneCandidate(seed, taskIndex, provider, model, taskTimeoutMs));
+    const eligibleBefore = Object.values(state.draws).filter(isEligibleDraw).length;
+    if (shouldStopDrawing(eligibleBefore, drawsTaken)) break;
+    const key = `${unit.seed}::${unit.taskIndex}`;
+    const result = await onceDraw(statePath, state, key, () =>
+      drawOneCandidate(unit.seed, unit.taskIndex, provider, model, taskTimeoutMs),
+    );
     drawsTaken++;
-    const eligibleSoFar = Object.values(state.draws).filter(isEligibleDraw).length;
+    const eligibleAfter = Object.values(state.draws).filter(isEligibleDraw).length;
     console.log(
-      `  seed=${seed} taskIndex=${taskIndex} status=${result.status} category=${result.category} ` +
-        `gradedScore=${result.gradedScore} eligibleSoFar=${eligibleSoFar}`,
+      `  seed=${unit.seed} taskIndex=${unit.taskIndex} status=${result.status} category=${result.category} ` +
+        `gradedScore=${result.gradedScore} eligibleSoFar=${eligibleAfter}`,
     );
   }
 
-  const entries = Object.values(state.draws).filter(isEligibleDraw).map(toCorpusEntry);
+  const eligibleDraws = Object.values(state.draws).filter(isEligibleDraw);
+
+  if (maxDraws !== undefined) {
+    // The capped/smoke path: a corpus file is still written (Task 1's own
+    // acceptance criteria validate it), but never a verdict — a capped run
+    // can never be mistaken for a completed build.
+    const entries = eligibleDraws.map(toCorpusEntry);
+    await writeCorpusOutput(corpusOutPath, entries);
+    console.log(
+      `\nSMOKE — wrote ${entries.length} eligible entr${entries.length === 1 ? "y" : "ies"} to ${corpusOutPath}. ` +
+        `No verdict artifact written (capped run).`,
+    );
+    return;
+  }
+
+  const outcome = classifyOutcome(eligibleDraws.length);
+
+  if (outcome === "UNDERPOWERED") {
+    // §8: an under-floor corpus is a terminal state that reports itself
+    // rather than a corpus that runs — no corpus file at all.
+    await writeVerdict({
+      complete: true,
+      outcome,
+      drawsTaken,
+      eligibleCount: eligibleDraws.length,
+      targetN: DUALFIX_CORPUS_TARGET_N,
+      minN: DUALFIX_CORPUS_MIN_N,
+      corpusPath: null,
+      runConfig: state.runConfig,
+    });
+    console.log(`\nUNDERPOWERED — ${eligibleDraws.length} < ${DUALFIX_CORPUS_MIN_N}. Verdict written; no corpus file.`);
+    return;
+  }
+
+  const entries = eligibleDraws.map(toCorpusEntry);
   await writeCorpusOutput(corpusOutPath, entries);
-  console.log(`\nWrote ${entries.length} eligible entr${entries.length === 1 ? "y" : "ies"} to ${corpusOutPath}`);
+  await writeVerdict({
+    complete: true,
+    outcome,
+    drawsTaken,
+    eligibleCount: eligibleDraws.length,
+    targetN: DUALFIX_CORPUS_TARGET_N,
+    minN: DUALFIX_CORPUS_MIN_N,
+    corpusPath: corpusOutPath,
+    runConfig: state.runConfig,
+  });
+  console.log(`\n=> DUALFIX CORPUS BUILD OUTCOME: ${outcome} (${eligibleDraws.length} eligible / ${drawsTaken} drawn)`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
