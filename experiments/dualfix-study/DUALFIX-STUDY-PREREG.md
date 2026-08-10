@@ -1,7 +1,9 @@
 # DUALFIX property study — pre-registration (light)
 
-**Revision:** 1 (draft-under-review — rev 2 is the frozen revision, produced by plan 11-04's one
-adversarial review pass; this document is not binding on any run until rev 2 exists).
+**Revision:** 2 — **FROZEN — THIS COMMIT IS THE PRE-REGISTRATION.** Frozen 2026-08-11, after plan
+11-04's one adversarial review pass (`PREREG-REVIEWS.md`) and adjudication of every finding it
+raised. No further edit is made to this document without a recorded amendment entry, per §0's
+freeze discipline below.
 
 ## §0 Status and freeze discipline
 
@@ -10,13 +12,13 @@ means, what the control arm is, how many candidates, which seeds, the exact ineq
 autonomous gate evaluates, when the study stops, and how per-task status is accounted. Every
 judgement call this milestone needs pinned lives here or nowhere.
 
-**Freeze discipline.** Rev 1 (this document) is a draft, produced before any study data exists.
-Plan 11-04 runs exactly one adversarial review pass over it; every finding is adjudicated ADOPTED
-or REJECTED-with-reason (`PREREG-REVIEWS.md`), and the resulting document is committed as rev 2.
-Rev 2 is FROZEN — no further edits after that commit. The freeze commit must be a strict git
-ancestor of Phase 12's corpus-pin commit (REQ-63), proven by `git merge-base --is-ancestor
-<rev2-commit> <corpus-pin-commit>` returning success, never asserted by convention or commit-order
-narrative alone.
+**Freeze discipline.** Rev 1 was a draft, produced before any study data existed. Plan 11-04 ran
+exactly one adversarial review pass over it (`PREREG-REVIEWS.md`); every finding was adjudicated
+ADOPTED or REJECTED-with-reason, and the resulting document is committed as this rev 2. Rev 2 is
+FROZEN — no further edits after this commit. The freeze commit must be a strict git ancestor of
+Phase 12's corpus-pin commit (REQ-63), proven by `git merge-base --is-ancestor <rev2-commit>
+<corpus-pin-commit>` returning success, never asserted by convention or commit-order narrative
+alone.
 
 **Compliance table (added by plan 11-03 Task 2).** One row per REQ-61 enumerated content item and
 per ROADMAP Phase 11 Success Criterion 1 item, naming the section that satisfies it.
@@ -40,8 +42,9 @@ from the table alone. Confirmed by re-reading: §7 states both the human-readabl
 integer forms of the trigger and the inclusive-boundary case explicitly; §8 names both termination
 conditions with their pinned constants; §4's eligibility predicate (`gradedScore === 0` exactly) is
 numeric, never category-name based; §2 names both `data-ops` and `bi-analytics` and uses the
-`substance not name` phrase verbatim. No gap was found; rev 1 remains as authored, unamended beyond
-this audit record.
+`substance not name` phrase verbatim. No gap was found against REQ-61/SC1 at rev 1; this table's
+row assignments are unchanged by the rev-2 edits §11 records — every ADOPTED finding is a
+within-section refinement, none moved content to a different section.
 
 ## §1 What this study tests, and what it does not
 
@@ -53,8 +56,14 @@ here; the study measures the property those documents already attribute to the m
 
 **What is tested.** A single, fixed-attempt, execution-feedback repair informed by a
 specification-versus-implementation failure split, applied once per failing candidate. This is a
-direct implementation of the mechanism SHORTLIST.md A-03/S-03 credits with the α>0
-injection/preservation claim — specification-vs-implementation-aware repair on a code artifact.
+local, single-attempt operationalization of the specification-vs-implementation distinction
+SHORTLIST.md A-03/S-03 and SURVEY-2026-08.md E-03 attribute to the DUALFIX mechanism —
+specification-vs-implementation-aware repair on a code artifact. It is NOT a claim of inheriting
+the α>0 injection/preservation claim those documents credit to the mechanism: that claim concerns
+the EVOLVED RULE SET's zero-shot cross-model transfer (rules "transfer... without any
+re-optimization"), which is the rule-evolution component the next paragraph states this study does
+not run. No rule set exists here to transfer, so no cross-model preservation claim is under test or
+inherited by running the repair component alone.
 
 **What is NOT tested.** This study does NOT run the published method's offline rule-evolution
 search. No corpus of natural-language transformation rules is evolved here; no rule set is
@@ -129,7 +138,11 @@ These are deliberately disjoint from every seed already used by the bi-analytics
 `BI_PRETEST_SEED` (999), the six stage-1 seeds (101, 202, 303, 404, 505, 606), and the three
 stage-2 fresh seeds (707, 808, 909) — so no candidate whose score is already published in
 `PRETEST-SCREEN.md` or any bi-analytics-pilot artifact can enter this study's corpus. This is
-RESEARCH.md Open Question 1's recommendation, adopted as a binding decision.
+RESEARCH.md Open Question 1's recommendation, adopted as a binding decision. Distinct seeds produce
+distinct task content, not merely distinct seed labels: `bi-warehouse.ts`'s task generation seeds a
+`mulberry32` pseudorandom stream from a SHA-256 hash of `${seed}|bi-tasks|${levelId}`
+(`deriveTaskSeed`) — the same deterministic, seed-keyed mechanism this project already relies on to
+treat the pretest/stage-1/stage-2/corridor seed sets as independent.
 
 **Draw order.** Seed order (1201 first, then 1202, ... 1206), then task index within each seed
 (ten L3 tasks per seed, following the BI battery's own per-seed task numbering). Candidates are
@@ -141,13 +154,18 @@ numeric predicate read directly from `categorize()`'s own return value (`BiCateg
 gradedScore`), never a category-name predicate. Explicit note: an `executes-but-wrong` result with
 partial row/column overlap (`0 < gradedScore < 1`) is NOT eligible — only a zero-overlap result
 qualifies. This keeps the corpus restricted to candidates that gained nothing from their baseline
-attempt, the cleanest test bed for a repair-rate measurement.
+attempt, the cleanest test bed for a repair-rate measurement. Throughout this document, "genuinely
+failing" refers exclusively to this zero-overlap predicate, never to the wider `gradedScore < 1`
+population that includes partial-credit `executes-but-wrong` results.
 
 **Target and minimum n.** Target corpus size `DUALFIX_CORPUS_TARGET_N = 30`; minimum
 `DUALFIX_CORPUS_MIN_N = 20` (§8 termination clause). Six fresh seeds at ten L3 tasks each yield
-sixty baseline candidates; at the pretest screen's observed mean 0.500 at L3, sixty candidates are
-expected to yield well above 30 eligible (`gradedScore === 0`) candidates, while 20 is the floor
-below which the study is declared underpowered rather than reporting an unsupportable rate.
+sixty baseline candidates; at the pretest screen's observed mean 0.500 at L3 (a single n=10 sample,
+seed 999 — not a stable population estimate), sixty candidates are projected to plausibly clear 30
+eligible (`gradedScore === 0`) candidates, while 20 is the floor below which the study is declared
+underpowered rather than reporting an unsupportable rate. If the observed eligible count falls
+short of 30, or below 20, §8's termination clause governs exactly as it would for any other
+underpowered outcome — this projection is not a guarantee the corpus construction step can lean on.
 
 **Construction route.** The corpus is built through a direct construction route — the baseline
 arm's own attempts are materialized and scored against the BI oracle's existing scoring path
@@ -177,10 +195,12 @@ class label computed from that prior attempt's zero-decomposition category, and 
 (the engine error text if the prior artifact was non-executable, or a statement that the query ran
 but returned the wrong result if it was executes-but-wrong). One repair attempt is generated.
 
-**The naive-retry control arm (D-01).** The candidate is shown: the same original task question,
-the same candidate's own failed artifact echoed verbatim under the identical omit-when-null rule as
-the DUALFIX arm, plus one fixed generic try-again line (e.g. "Your previous answer was incorrect.
-Please try again."). No failure-class label. No execution feedback. One repair attempt is
+**The naive-retry control arm (D-01).** The candidate is shown: the same original task (schema,
+business question, output contract) — identical to the DUALFIX arm's, drawn from the same
+`question` field, never a narrower text — the same candidate's own failed artifact echoed verbatim
+under the identical omit-when-null rule as the DUALFIX arm, plus one fixed generic try-again line,
+pinned verbatim as `NAIVE_RETRY_INSTRUCTION` in `_dualfix-arms.ts`: "Your previous answer was
+incorrect — try again." No failure-class label. No execution feedback. One repair attempt is
 generated.
 
 **Isolation rationale.** Echoing the artifact in BOTH arms is what makes the two arms' information
@@ -205,8 +225,15 @@ isolating the repair mechanism.
 (no arm-specific temperature or sampling parameter), the same timeout, the same prompt-length bound
 (`MAX_DUALFIX_PROMPT_CHARS`), the same single-attempt discipline (D-03 — exactly one repair attempt
 per arm per candidate), and the same scoring path (`categorize`/`gradedScore`, independently
-applied to each arm's repaired artifact). Any asymmetry beyond prompt content between the two arms
-is a confound and is not permitted by this design.
+applied to each arm's repaired artifact). The truncation policy that enforces the shared bound is
+also identical: `truncateDualfixSegment` is applied twice, in the same order, by both arms' prompt
+builders — once to each embedded segment (the echoed artifact; the engine-error text where present)
+and once to the fully assembled prompt — the same exported function, not a re-derived equivalent
+(D-09). Because the DUALFIX arm's prompt carries strictly more content (task, artifact, failure-
+class label, and execution feedback, versus the control's task, artifact, and one fixed line), it is
+the more likely of the two to reach either bound; this is an expected consequence of the mechanism
+under test, disclosed here rather than left implicit. Any asymmetry beyond prompt content between
+the two arms is a confound and is not permitted by this design.
 
 ## §6 Metric and per-task status discipline
 
@@ -230,11 +257,16 @@ engine error text, input/output tokens, and wall-clock time. Aggregates (repair 
 arithmetic) are derived from this per-task record, never computed ad hoc from a partial or
 in-memory-only tally.
 
-**Harness-fault retry is not a study outcome.** A candidate that dies to a harness fault
-(connection refused, server restart, kill) is retried exactly once per the study driver's own
-no-redraw discipline, and the retry is logged in state; this harness-level retry is a different
-thing entirely from the naive-retry CONTROL ARM (§5) and is never counted as, or confused with, a
-study outcome — it is infrastructure recovery, not a repair attempt.
+**Harness-fault retry is not a study outcome.** The retry rule is mechanical and uniform, with no
+discretionary classification step: any unit whose status is `error` — for any cause, including but
+not limited to connection refused, server restart, or kill — is retried exactly once
+(`onceWithHarnessRetry` in the study driver), and the retry is logged in state. The second attempt's
+result, even if it is also `error`, is the single, permanent, denominator-counted and
+error-budget-counted outcome for that unit — nothing is discarded, reclassified, or given a further
+pass after that point. This harness-level retry is a different thing entirely from the naive-retry
+CONTROL ARM (§5): the retry is a second chance for the SAME arm's SAME attempt to clear a
+transient fault, never a second scored condition, and it is never counted as, or confused with, a
+study outcome in its own right — only the final, once-retried result is.
 
 ## §7 The Stage-B trigger inequality
 
@@ -259,7 +291,11 @@ which, substituting the pinned literals, is:
 
 This is evaluated in pure integer arithmetic — no float comparison, no rounding, no tie-breaking
 policy is ever required at the decision point, because `20`, `3`, `kD`, `kC`, and `n` are all
-integers by construction (`kD`, `kC` are repaired counts; `n` is the common attempted count).
+integers by construction (`kD`, `kC` are repaired counts; `n` is the common attempted count). The
+shared-`n` assumption holds by construction of the study driver, not merely by assertion: every
+corpus entry yields exactly one final recorded outcome per arm (§6's harness-fault retry is
+absorbed transparently and never produces a missing or duplicate outcome), so `n` is always the
+pinned corpus size for both arms — the two arms' attempted counts cannot diverge.
 
 **Boundary behaviour, stated plainly.** The comparison operator is `>=` (greater than or equal):
 the boundary case is INCLUSIVE. An observed difference of exactly `0.15` — i.e. `20 * (kD - kC) ==
@@ -279,10 +315,15 @@ gradient floor to 0.15 from a naive, uncorrected ≈0.10–0.11 half-CI-width re
 reuses that same floor for its own two-arm (DUALFIX vs naive-retry) difference claim rather than
 deriving or asserting a fresh number.
 
-**Firing discipline.** The gate auto-fires or auto-refuses; it never auto-accepts on a miss. A
-miss — the inequality not holding — is a standalone finding, reported in `STUDY-RESULTS.md` exactly
-as a hit would be, never remedied by adjusting the threshold, the arms, n, or the seed list after
-observing data.
+**Firing discipline.** The inequality above is evaluated only when the study driver's own verdict
+artifact (`dualfix-study-verdict.json`, §8) records `outcome === "COMPLETE"`. An `"UNDERPOWERED"` or
+`"ERROR-BUDGET-EXCEEDED"` outcome means the study already terminated under §8, and Phase 12 reports
+that terminal state instead of ever evaluating this inequality — mirroring §8's own "a terminated
+study reports its terminal state... never an incomplete study" language. Subject to that
+precondition, the gate auto-fires or auto-refuses; it never auto-accepts on a miss. A miss — the
+inequality not holding on a `"COMPLETE"` run — is a standalone finding, reported in
+`STUDY-RESULTS.md` exactly as a hit would be, never remedied by adjusting the threshold, the arms,
+n, or the seed list after observing data.
 
 ## §8 Termination clause
 
@@ -296,7 +337,14 @@ D-11's two conditions, either of which terminates the study before a verdict is 
    of an arm's attempted units land in `error` status (as distinct from `timeout`, which is a
    measurement, not an error). An arm whose error rate exceeds this budget has its own run
    integrity in question, and the study terminates rather than reporting a rate built on an
-   unreliable run.
+   unreliable run. **Integer evaluation rule, matching §7's precision:** for an arm with
+   `errorCount` units in `error` status out of `attemptedCount` attempted units, the breach
+   condition is `errorCount * DUALFIX_ERROR_BUDGET_DEN > attemptedCount * DUALFIX_ERROR_BUDGET_NUM`
+   — i.e. `10 * errorCount > attemptedCount`. The boundary is exclusive: at the minimum corpus size
+   `attemptedCount = 20`, exactly 2 errors gives `10 * 2 = 20`, which is not greater than 20 — not a
+   breach; 3 errors gives `10 * 3 = 30 > 20` — a breach. This is evaluated once, per arm, after that
+   arm's full attempted-unit set is complete (a final evaluation, never a continuous per-unit one),
+   before §7's inequality is ever read.
 
 **Neither condition is ever remedied by extending the seed list, re-drawing the corpus, or
 re-running an arm mid-study.** A terminated study reports its terminal state as the result, exactly
@@ -329,10 +377,13 @@ This table mirrors those exports so a drift test (plan 11-05,
 - **Single-model, single-slot setting.** The study runs against one local model on one Ollama
   inference slot. No cross-model comparison exists in this design; a repair rate measured here is
   specific to that model and cannot be read as evidence about any other model.
-- **Small n and what it can/cannot resolve.** Target n=30 (minimum 20) is sized to resolve a
-  0.15 two-arm difference (§7) at the corresponding statistical floor; it is not sized to resolve
-  smaller differences, and a result near but below the threshold is reported as a miss, not as
-  "nearly a hit."
+- **Small n and what it can/cannot resolve.** Target n=30 (minimum 20) is sized around the 0.15
+  two-arm difference margin (§7), which this study REUSES from a prior six-seed cluster measurement
+  (ANALYSIS-REVIEWS.md F-08) as a deliberate heuristic rather than an independently-derived power
+  calculation for this study's own paired, candidate-count-based design — consistent with §7's own
+  "Where 0.15 comes from" disclosure that the margin is reused, not freshly derived. It is not sized
+  to resolve smaller differences, and a result near but below the threshold is reported as a miss,
+  not as "nearly a hit."
 - **Single instrument, single difficulty level.** The corpus is drawn from one instrument (the BI
   battery) at one difficulty level (L3). No claim is made about repair rates at other levels or on
   other task families.
@@ -349,12 +400,25 @@ This table mirrors those exports so a drift test (plan 11-05,
 
 ## §11 Adversarial review and freeze
 
-`PREREG-REVIEWS.md` (plan 11-04) is the record of this document's one adversarial review pass.
-Every finding raised there is adjudicated ADOPTED or REJECTED-with-reason; adopted-finding and
-rejected-finding counts reconcile against the panel's own finding count, the same discipline this
-project's other adversarial panels follow. The output of that review, incorporating every ADOPTED
-change, is committed as rev 2 — the frozen revision this study actually runs under. Rev 2's freeze
-commit is a strict git ancestor of Phase 12's corpus-pin commit, provable by `git merge-base
---is-ancestor`, per §0. This section is a placeholder in rev 1; plan 11-04 fills in the outcome and
-the freeze commit hash here, so rev 2 is an edit of this section rather than a restructure of the
-document.
+`PREREG-REVIEWS.md` (plan 11-04) is the full record of this document's one adversarial review pass
+over rev 1. Three lanes ran, all live, none dropped: gpt-sol-pro (verdict UNSOUND, 10 findings),
+kimi-k3 (verdict SOUND-WITH-CHANGES, 9 findings), qwen-max (verdict UNSOUND, 6 findings) — 25 raw
+findings, merged into 14 global findings (seven multi-lane clusters, seven single-lane findings).
+Every global finding was checked against the already-shipped Phase 11 code
+(`_dualfix-arms.ts`, `_dualfix-study.ts`, `dualfix.ts`), not assumed from prose alone, and
+adjudicated exactly once: **11 ADOPTED, 3 REJECTED, 14 total** (`11 + 3 = 14`). The three REJECTED
+findings — F-02 (byte-level prompt templates, already pinned in shipped code), F-11 (control-line
+truthfulness, holds by construction of §4's eligibility predicate), F-14 (post-freeze drift
+enforcement, already caught by the named 11-05 drift test) — are each rejected with a reason
+engaging that finding's specific claim, per `PREREG-REVIEWS.md`'s adjudication ledger. The eleven
+ADOPTED findings are reflected as edits in this rev-2 text: §1 (provenance overreach removed), §4
+(eligibility-predicate labelling, seed-to-task disjointness mechanism, power-projection hedging),
+§5 (control-arm task-block symmetry, truncation-policy disclosure), §6 (harness-fault-retry
+mechanical rule restated), §7 (gate evaluated only when the study has not terminated; shared-`n`
+holds by construction), §8 (error-budget integer evaluation rule, matching §7's precision). No
+pinned constant in §9 changed.
+
+This document is committed as rev 2 by this same edit — the frozen revision this study actually
+runs under. Rev 2's freeze commit is a strict git ancestor of Phase 12's corpus-pin commit, provable
+by `git merge-base --is-ancestor`, per §0; the freeze commit's SHA is recorded as a literal string
+in `docs/JOURNAL.md`, so Phase 12 can run that check without re-deriving anything.
