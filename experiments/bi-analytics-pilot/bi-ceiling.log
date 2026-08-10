@@ -1,0 +1,42 @@
+# BI CEILING GATE — §6 format-stability / ceiling probe
+model: qwen3.6:latest · seeds: 101, 202 · points: L1, L2, L3, L4
+taskTimeoutMs: 3600000 · state: bi-ceiling-state.json · target: no-artifact-or-non-executable=0 AND mean >= 0.95
+
+run config: {"ollamaVersion":"ollama version is 0.32.5","modelDigestLine":"qwen3.6:latest             07d35212591f    23 GB     3 months ago","samplerParams":"none sent (no temperature, no max_tokens override — provider/server default applies)","ollamaNumParallel":"<unset — server default>","clientConcurrency":1,"taskOrder":"battery order, sequential (grid level L1..L4, seed 101 then 202, task 0..9)","taskTimeoutMs":3600000,"systemPrompt":"You are a SQL assistant."}
+
+
+## ceiling-L1-s101 (10 tasks)
+  mean=1.000 exact=10/10 medianWallMs=10240
+
+## ceiling-L1-s202 (10 tasks)
+  mean=1.000 exact=10/10 medianWallMs=12053
+
+## ceiling-L2-s101 (10 tasks)
+  mean=1.000 exact=10/10 medianWallMs=11320
+
+## ceiling-L2-s202 (10 tasks)
+  mean=1.000 exact=10/10 medianWallMs=10537
+
+## ceiling-L3-s101 (10 tasks)
+  mean=1.000 exact=10/10 medianWallMs=6216
+
+## ceiling-L3-s202 (10 tasks)
+  mean=1.000 exact=10/10 medianWallMs=11706
+
+## ceiling-L4-s101 (10 tasks)
+  mean=1.000 exact=10/10 medianWallMs=12897
+
+## ceiling-L4-s202 (10 tasks)
+  mean=1.000 exact=10/10 medianWallMs=10745
+
+
+## CEILING VERDICT (§9 gate condition 1 — TWO conjuncts, never a bare mean)
+
+| point | n | no-artifact | non-executable | no-artifact-OR-non-executable | mean graded | exact rate | verdict |
+|---|---|---|---|---|---|---|---|
+| L1 | 20 | 0 | 0 | 0 | 1.000 | 1.000 | GATE PASS |
+| L2 | 20 | 0 | 0 | 0 | 1.000 | 1.000 | GATE PASS |
+| L3 | 20 | 0 | 0 | 0 | 1.000 | 1.000 | GATE PASS |
+| L4 | 20 | 0 | 0 | 0 | 1.000 | 1.000 | GATE PASS |
+
+=> At least one point passes both conjuncts — surviving points exist for the Phase-9 difficulty probe.
