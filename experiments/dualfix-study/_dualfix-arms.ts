@@ -273,7 +273,16 @@ export async function runArmOnCandidate(
       setTimeout(() => reject(new Error(`task timeout after ${taskTimeoutMs}ms`)), taskTimeoutMs).unref(),
     );
     const mutate = arm === "dualfix" ? dualfixMutate : naiveRetryMutate;
-    const res = await Promise.race([mutate(input, provider, model), timer]);
+    // WR-08: if `timer` wins the race, `attempt` keeps running in the
+    // background; a LATE rejection would otherwise have no attached handler
+    // by the time it fires, crashing the detached driver on Node's default
+    // unhandled-rejection behaviour. Race the ORIGINAL promise (so a
+    // pre-timeout rejection still rejects the race normally) and attach a
+    // separate no-op `.catch()` purely to mark a post-race late rejection as
+    // handled.
+    const attempt = mutate(input, provider, model);
+    attempt.catch(() => {});
+    const res = await Promise.race([attempt, timer]);
     rawText = res.repairedText;
     inputTokens = res.usage.inputTokens;
     outputTokens = res.usage.outputTokens;

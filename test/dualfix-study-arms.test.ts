@@ -170,6 +170,36 @@ describe("MAX_DUALFIX_PROMPT_CHARS — the UTF-16 code-unit bound", () => {
   });
 });
 
+describe("a late-rejecting provider.chat call that lost the timeout race is caught, not left unhandled (WR-08)", () => {
+  it("produces no unhandledRejection event once the background promise rejects after the race resolved", async () => {
+    let capturedUnhandled: unknown = null;
+    const onUnhandled = (reason: unknown): void => {
+      capturedUnhandled = reason;
+    };
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const lateProvider: Provider = {
+        kind: "openai",
+        baseUrl: "http://test-provider.invalid",
+        async chat(): Promise<ChatResponse> {
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          throw new Error("late network error, after the client already gave up");
+        },
+      };
+
+      const result = await runArmOnCandidate("dualfix", executesButWrongEntry, lateProvider, "test-model", { taskTimeoutMs: 5 });
+      expect(result.status).toBe("timeout");
+
+      // Give the background `attempt` promise time to reject; if it were
+      // unhandled, Node would emit `unhandledRejection` during this wait.
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+    expect(capturedUnhandled).toBeNull();
+  });
+});
+
 describe("one failing L3 candidate, both arms, end to end", () => {
   it("a stub returning the reference SQL drives both arms to gradedScore 1 / repaired true", async () => {
     const statePath = join(mkdtempSync(join(tmpdir(), "dualfix-arms-test-")), "state.json");
