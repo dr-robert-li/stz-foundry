@@ -627,3 +627,73 @@ working independent oracle, a knob with a validated granularity story, a noise b
 five adversarial passes instead of one, and a decision rule with nothing left to a judgment call.
 What it does not leave them: any obligation. The instrument isn't built. No generator id exists.
 Nothing here has run against real data, because nothing here was supposed to.
+
+## The design freezes before I write a line of generator code (2026-08-10)
+
+I am the future arm now, and Phase 7 had one job: turn last milestone's recommendation and draft
+prereg into an actual, buildable pre-registration, put it in front of five adversarial reviewers,
+and freeze whatever survives — before any generator code exists, provably, not on my say-so.
+
+The pinning was the hard part. `RECOMMENDATION.md` and `PREREG-DRAFT.md` gave me the shape — the
+SQL-execution oracle, the join/aggregation-depth knob, the corridor, the seed-clustered estimator —
+but a real pre-registration needs numbers a second implementer could build from without asking me
+anything. Six probe seeds, three fresh confirmation seeds, a single pretest seed, ten tasks per
+seed per point, a warehouse row scale, an engine (SQLite, ANSI-only), a drop budget — none of those
+were fixed upstream, so I pinned each one and marked it `derived:` with the actual reasoning rather
+than let it sit as a discretion for later. The constants table ended up with 37 rows, every one
+tracing to a cited section or an honest derivation, because an untraced number is exactly the
+defect that table exists to catch.
+
+Then the panel, and this one was rougher than Phase 6's. Five lanes again, no dead lanes, but two
+reviewers came back UNSOUND this time instead of one — gpt-sol-pro with 45 findings, gpt-oss with
+20. Sorting real defects from noise took longer than writing the design did. A good chunk of
+gpt-oss's findings were just wrong — it claimed a corridor citation pointed at the wrong section
+when I'd checked it twice, claimed the design asserted something §7 explicitly disclosed the
+opposite of, claimed a seed count that doesn't appear anywhere in the document. I rejected those on
+the facts, not on charity. But underneath the noise, gpt-sol-pro caught something genuinely
+embarrassing: I'd written the knob as "JOINs plus aggregations" and then built a concrete grid
+where the first level has zero of either and a knob value of one — the formula and the table
+disagreed with each other in my own document. Fixed to `1 + JOINs + aggregations`, matching the
+table I'd actually written. And two reviewers, independently, caught the panel's best finding: my
+independent oracle checks that the reference SQL computes correctly, but nothing checks that the
+natural-language question I hand the candidate actually describes that SQL. A misrendered question
+would sail through every check I'd built while scoring the candidate against the wrong thing
+entirely. I couldn't close that gap inside this phase — it needs real implementation — so I
+disclosed it as a named residual Phase 8 has to address, rather than leave it invisible.
+
+The gate conditions took the most rounds of tightening. Four separate reviewers found that my first
+gate condition dropped half of its own §6 ceiling rule — I'd written "the ceiling probe reads
+≥0.95" and quietly lost the "AND no-artifact count = 0" half on the way from §6 to §9. Four
+reviewers also caught that I'd used the word QUALIFIED in a gate condition without ever defining it
+anywhere in the document. Both fixed: the ceiling gate now requires the reading to belong to the
+specific point that qualifies, and QUALIFIED is now a real defined label in §6 that folds in the
+oracle's own equality-sweep obligation, so a fourth gate condition didn't need inventing.
+
+I rejected 28 findings, and the one that mattered most was the cluster arguing my design is the
+barred v3 line with different nouns — same qualification shape, same corridor numbers, same
+fenced-extraction discipline, just SQL instead of JSON. On the merits, not on scope, because the
+plan is explicit that a §6 substance finding doesn't get a scope exemption: the object under test,
+the check performed, and the failure modes available are genuinely different in kind between
+generating-and-executing a query and reconciling-and-recomputing an existing fact, and the shared
+qualification-gate shape is `RECOMMENDATION.md`'s own already-adjudicated decision to hold that one
+thing constant, not new drift I introduced here. But the finding wasn't worthless — kimi-k3's
+narrower version of the same concern was real: I'd claimed "no parsing machinery is reused from v3"
+in one place while stating two paragraphs earlier that my extraction rules mirror v3.1's own
+discipline. Both true, but contradictory as written. Fixed by saying precisely what's retained (the
+fenced-envelope structure) and what isn't (the value-reconciliation parsing itself).
+
+`experiments/bi-analytics-pilot/DESIGN-REVIEWS.md` carries the full record — 65 global findings,
+every one adjudicated, no bare rejections. The §6 substance gate reads CLEAR.
+
+The freeze is `c950e4d03bafa6595070b7fdd72e4a1117c4f30d`. That commit is the pre-registration of
+record for the BI analytical-query-answering instrument, permanently — no probe inference precedes
+it, no generator code precedes it, and the document is not edited after it. Phase 8's own proof
+obligation, verbatim:
+
+git merge-base --is-ancestor c950e4d03bafa6595070b7fdd72e4a1117c4f30d <first generator-code commit>
+
+That command has to succeed against the first commit that touches BI generator code, or the
+freeze-before-code claim this whole phase exists to establish doesn't hold. No commit in Phase 7
+touched `src/` at all — the freeze commit's own ancestry is `src/`-clean by construction, which is
+the Phase-7 half of the proof; Phase 8 running that command against its own first commit is the
+other half.

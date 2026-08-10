@@ -9,6 +9,27 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### BI battery design pre-registration, adversarial panel, and freeze (phase 7) — bi-analytics-pilot
+
+- `experiments/bi-analytics-pilot/BI-BATTERY-DESIGN.md` (REQ-48/49): the BI analytical-query-
+  answering instrument's pre-registration — battery construction, output contract, independent
+  oracle infrastructure, instrumentation, the join/aggregation-depth knob with its REQ-54 pretest
+  screen, the full pre-registered corridor probe (arms, six seeds, pinned seed-clustered estimator,
+  ceiling gate, six stage-1 clauses, gradient clause, selection, stage 2, pre-committed failure
+  branch), the two distinct noise mechanisms with the 0.15 resolvable-gradient derivation, a fully
+  provenanced 37-row constants table, the verbatim 2026-08-10 autonomy directive with the
+  `PREREG-DRAFT.md` §6 supersession and three gate conditions, one-shot termination, and five
+  pre-committed falsifiers. Rev 2 FROZEN after adjudication — see
+  `docs/development/dark-factory.md`-style mechanism detail in the design doc itself.
+- `experiments/bi-analytics-pilot/DESIGN-REVIEWS.md` (REQ-49): a five-lane adversarial panel on the
+  rev-1 design (gpt-sol-pro, kimi-k3, qwen-max, gemma4, gpt-oss — no dead lanes). 65 global
+  findings, 37 adopted, 28 rejected with reason. The §6 substance gate reads CLEAR — the cluster
+  alleging the design retains the barred v3 line's substantive identity is rejected on the merits.
+- Freeze proven by git ancestry: the adjudication commit is a strict ancestor of the freeze commit,
+  which is itself an ancestor of every subsequent commit in this phase, with `src/` untouched
+  throughout. Phase 8 verifies the freeze-before-code half against its own first generator-code
+  commit — see `docs/JOURNAL.md`.
+
 ### Task-family recommendation, second adversarial panel, and draft pre-registration (phase 6) — milestone close
 
 - `experiments/method-research/RECOMMENDATION.md` (REQ-42/43): recommends BI analytical-query
