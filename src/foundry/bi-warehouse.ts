@@ -421,7 +421,7 @@ export function composeReferenceSql(spec: BiQuerySpec): string {
 
   const whereClause =
     spec.filter.column === "order_month"
-      ? `SUBSTR(fo.order_date, 1, 7) = '${spec.filter.value.replace(/'/g, "''")}'`
+      ? `(SUBSTR(fo.order_date, 1, 4) || SUBSTR(fo.order_date, 6, 2)) = '${spec.filter.value.replace(/'/g, "''")}'`
       : `${qualify(spec.filter.column)} ${spec.filter.op} '${String(spec.filter.value).replace(/'/g, "''")}'`;
 
   const groupByClause =
@@ -438,9 +438,13 @@ export function composeReferenceSql(spec: BiQuerySpec): string {
  * and no expected value — the leak checks (Task 3) assert this over the
  * real prompt string.
  *
- * `test/fixtures/bi-question-fidelity.ts`'s `renderQuestionIndependent` is a
- * SEPARATE, independently-written implementation of this same rendering,
- * per design §3 F-20's Phase-8 fidelity obligation.
+ * A labeled footer (`Tables:`/`Filter:`/`Grouped by:`/`Aggregate:`/
+ * `Return columns:`) follows the natural-language sentence — the SAME
+ * machine-checkable convention `test/fixtures/bi-question-fidelity.ts`'s
+ * `renderQuestionIndependent` also emits (independently written, not a
+ * shared helper), so ONE strict `extractQuestionFields` can parse EITHER
+ * rendering. This is what design §3 F-20's Phase-8 fidelity check compares
+ * (Task 3).
  */
 export function renderQuestion(spec: BiQuerySpec): string {
   const month = spec.filter.value;
@@ -450,7 +454,16 @@ export function renderQuestion(spec: BiQuerySpec): string {
       ? `For orders placed in ${month}, what is the total ${spec.aggregate.column} ` +
         `(${spec.aggregate.fn}), broken down by ${spec.groupBy.join(" and ")}?`
       : `For orders placed in ${month}, list the ${columns} for each order.`;
-  return `${sentence} Return columns: ${columns}.`;
+
+  const footer = [
+    `Tables: ${spec.tables.join(", ")}.`,
+    `Filter: ${spec.filter.column} = ${spec.filter.value}.`,
+    `Grouped by: ${spec.groupBy ? spec.groupBy.join(", ") : "none"}.`,
+    `Aggregate: ${spec.aggregate ? `${spec.aggregate.fn}(${spec.aggregate.column}) as ${spec.aggregate.alias}` : "none"}.`,
+    `Return columns: ${columns}.`,
+  ].join(" ");
+
+  return `${sentence} ${footer}`;
 }
 
 /**
@@ -466,8 +479,25 @@ function deriveTaskSeed(seed: number, levelId: BiLevelId): number {
   return parseInt(h.slice(0, 8), 16);
 }
 
+/**
+ * A CONTIGUOUS `YYYYMM` code (`"202610"`, never `"2026-10"`) — deliberately
+ * unseparated. A hyphenated `"YYYY-MM"` filter value renders its 2-digit
+ * month suffix as its own digit-bounded token (`-10` is preceded by a
+ * non-digit and followed by a non-digit), which can coincidentally EQUAL a
+ * small `total_quantity` aggregate and false-positive the leak check —
+ * found empirically by the Task 3 sweep (seed 101, L4, task 3: an
+ * aggregate of `10` matched inside the literal `"2026-10"` filter text).
+ * A 6-digit contiguous code has no such internal digit boundary: every
+ * substring of it is digit-adjacent on at least one side except the whole
+ * 6-digit code itself, which no aggregate in this battery's row-scale
+ * range can ever reach.
+ */
+function monthCode(orderDate: string): string {
+  return orderDate.slice(0, 4) + orderDate.slice(5, 7);
+}
+
 function presentMonths(warehouse: BiWarehouse): string[] {
-  return [...new Set(warehouse.factOrders.map((o) => o.orderDate.slice(0, 7)))].sort();
+  return [...new Set(warehouse.factOrders.map((o) => monthCode(o.orderDate)))].sort();
 }
 
 /**

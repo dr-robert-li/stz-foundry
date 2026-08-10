@@ -19,7 +19,7 @@
  * `src/foundry/bi-warehouse.ts` or `src/foundry/bi-oracle.ts` — not a
  * helper, not a constant, and not a type. It declares its own duck types
  * for the warehouse arrays and the spec, and it never touches
- * `node:sqlite`: it walks the raw fact/dimension arrays directly and
+ * the SQL engine: it walks the raw fact/dimension arrays directly and
  * recomputes the same fact by an independently written implementation — a
  * single streaming reduce over the fact rows into a keyed `Map`, a
  * DIFFERENT shape from the generator's compose-SQL-then-execute. If you are
@@ -101,15 +101,20 @@ export interface RecomputedResult {
 }
 
 /** The one filter concept this battery's grid ever uses — a month-bucket
- *  equality on `order_date`'s `YYYY-MM` prefix. Written independently of
- *  `bi-warehouse.ts`'s `composeReferenceSql`, which does the SAME logical
- *  filter via `SUBSTR(fo.order_date, 1, 7) = ...` in SQL text; here it is a
- *  plain JS string slice over the raw array. */
+ *  equality on `order_date`'s year+month, as the CONTIGUOUS `YYYYMM` code
+ *  (never a hyphenated `YYYY-MM` — the hyphenated form's 2-digit month
+ *  suffix is its own digit-bounded token and can coincidentally equal a
+ *  small aggregate value). Written independently of `bi-warehouse.ts`'s
+ *  `composeReferenceSql`, which does the SAME logical filter via
+ *  `SUBSTR(fo.order_date, 1, 4) || SUBSTR(fo.order_date, 6, 2) = ...` in
+ *  SQL text; here it is a plain JS string slice-and-concat over the raw
+ *  array. */
 function passesFilter(order: DuckFactOrder, filter: DuckFilter): boolean {
   if (filter.column !== "order_month") {
     throw new Error(`[bi-reference-interpreter] unsupported filter column ${JSON.stringify(filter.column)}`);
   }
-  return order.orderDate.slice(0, 7) === filter.value;
+  const code = order.orderDate.slice(0, 4) + order.orderDate.slice(5, 7);
+  return code === filter.value;
 }
 
 function groupKeyValue(
