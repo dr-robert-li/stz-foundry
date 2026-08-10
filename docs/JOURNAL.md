@@ -918,3 +918,81 @@ before this milestone began; nothing here moves it forward, and nothing here is 
 under a different name. If someone wants to test whether search-based prompt evolution beats a
 hand-written baseline on a task family with a real capability cliff, the join/aggregation-depth
 diagnostic is the thing to carry forward — the barred hypothesis is not.
+
+## The DUALFIX prereg gets its one adversarial pass, and the gate learns to check its own pulse first (2026-08-11)
+
+Phase 11 of v1.24.0 is the light prereg REQ-61 asked for: pin the DUALFIX-vs-naive-retry repair-rate
+study before any of it runs, then put exactly one adversarial pass on the pin before I let it freeze.
+Plans 11-01 and 11-02 already shipped the code this study runs on — `dualfixMutate`, the naive-retry
+control, the two-arm driver, the checkpoint contract, 944 tests green — and 11-03 wrote rev 1 of
+`DUALFIX-STUDY-PREREG.md` and self-audited it clean against REQ-61's own checklist. Today's job was
+narrower and, it turned out, more useful than a rubber stamp: run gpt-sol-pro, kimi-k3, and qwen-max
+against rev 1 in one round, adjudicate every finding on its merits, apply what survives, and freeze
+rev 2 at a commit Phase 12 can prove precedes its own corpus.
+
+All three lanes came back live on the first attempt through the house review-lane seam — no dead
+lane, no fallback needed. Two called rev 1 UNSOUND (gpt-sol-pro, qwen-max), one called it
+SOUND-WITH-CHANGES (kimi-k3), and I want to be honest about what that verdict spread actually meant:
+not that the document's mechanics were wrong, but that its GOVERNING clauses — the ones an autonomous
+gate reads with nobody watching — had gaps a careful reader could walk through. Twenty-five raw
+findings came back; I merged them into fourteen global findings, and the merging itself told me
+something before I adjudicated a single one of them: three lanes independently, without seeing each
+other's work, converged on the same defect — §7's Stage-B inequality had no stated precondition that
+it only fires on a study §8 hasn't already terminated. An underpowered corpus or an error-budget
+breach could still produce numbers that satisfy `20 * (kD - kC) >= 3 * n`, and nothing in rev 1 said
+the gate has to check its own pulse before it opens. Three lanes also independently caught that §8's
+error-budget clause — "more than 1/10" — had no integer form, no stated evaluation checkpoint, while
+§7 a few paragraphs over walks its own boundary case in three worked examples. And three lanes
+independently caught that §1's narrower reading of the E-03 label didn't survive its own document:
+two sentences after disclaiming the whole-method reading, §1 credited the isolated repair component
+with the α>0 cross-model-transfer claim that belongs to the rule set this study explicitly does not
+evolve.
+
+What made the adjudication honest rather than a formality was going back to code I'd already shipped
+before this review ran, instead of trusting the prose on either side. Several findings turned out to
+already be correctly handled — `_dualfix-arms.ts`'s `NAIVE_RETRY_INSTRUCTION` is a pinned exported
+constant, not the "e.g." placeholder a finding assumed it was; `_dualfix-study.ts`'s
+`onceWithHarnessRetry` retries any `error`-status unit exactly once with zero discretionary
+classification, closing a gameability worry a finding raised about a reclassification path that
+simply doesn't exist in the code; `runStudyUnits` guarantees both arms attempt the identical corpus
+by construction, so the "what if n diverges between arms" finding was answerable, not open. I
+rejected those findings with the code cited, not with a wave. But others were real, and the code
+confirmed exactly how real: the driver already computes and records an `outcome` field
+(`UNDERPOWERED` / `ERROR-BUDGET-EXCEEDED` / `COMPLETE`) in its verdict artifact — everything Phase
+12's gate needs — but nothing in rev 1 told Phase 12 to read that field before evaluating the
+inequality. That's not a code gap; it's a missing sentence in the one document whose job is to say
+it. Eleven of fourteen findings landed ADOPTED on that basis. Three were REJECTED with the specific
+claim engaged, not sidestepped: the byte-level-prompt-template finding, the control-line-truthfulness
+finding (the "incorrect" framing holds for the entire eligible population by construction of the
+zero-overlap predicate — the informativeness gap between the two arms IS the mechanism under test,
+not a leak), and the post-freeze-drift finding (the mechanism it says is missing is 11-05's own named
+drift test, one plan ahead of this one).
+
+Rev 2 is frozen now. §7 gates on `outcome === "COMPLETE"` before it ever reads the inequality. §8
+gets an integer form matching §7's own precision, with the boundary spelled out the same exacting way
+— exactly 2 errors out of 20 is not a breach, 3 is. §1 no longer implies the repair component
+inherits a cross-model transfer claim that belongs to a rule set this study doesn't run. §4, §5, and
+§6 each gained a sentence that makes rev 2's prose match what the shipped code already does, rather
+than leaving a reader to trust that it does. Not one pinned constant in §9 moved — every adopted
+finding sharpened a description or closed an ordering gap, never touched a number the drift test
+checks. Both byte-frozen reference documents I read closely while writing all of this —
+`BI-BATTERY-DESIGN.md`, `PREREG-DRAFT.md` — are still exactly the blobs they were before I started,
+verified by hash both before I opened them and after I closed the freeze commit.
+
+**Freeze SHA:** `66c0ead9f99765a3347d8c683bf5389bd99008af`
+
+That is the commit that last touched `experiments/dualfix-study/DUALFIX-STUDY-PREREG.md`, confirmed
+both ways — `git rev-parse HEAD` and `git log -1 --format=%H -- experiments/dualfix-study/DUALFIX-STUDY-PREREG.md`
+agreed before I wrote this entry. Phase 12's corpus-pin commit must descend from it; the read-only
+check is `git merge-base --is-ancestor <freeze-sha> <corpus-pin-commit>`, substituting the SHA above
+for `<freeze-sha>` and Phase 12's own corpus-pin commit for the second argument — run that, don't
+re-derive the ancestry from commit timestamps or narrative. This is the same discipline the Phase 7
+design freeze and the Phase 9 pretest verification used, and it is the whole reason a REQ-61 freeze
+means something to a Phase 12 gate that runs with nobody watching it fire: the proof is a command
+anyone can run against the tree, not a sentence I wrote asking to be believed.
+
+`PREREG-REVIEWS.md` carries the full record — every lane's raw findings reproduced verbatim, the
+merge into fourteen global findings, and the adjudication ledger with a reason for every verdict. If
+a finding surfaces after this freeze that would have changed rev 2, it gets its own amendment entry
+in that same file, never a silent rev 3 — that's D-17's whole point, and it's the only door this
+freeze leaves open.
