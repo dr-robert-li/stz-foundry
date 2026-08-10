@@ -100,6 +100,26 @@ export const DATA_OPS_GENERATOR_V3_ID = "data-ops-fixture-warehouse-generator-v3
  */
 export const DATA_OPS_GENERATOR_V31_ID = "data-ops-fixture-warehouse-generator-v3.1";
 
+/**
+ * The BI-analytics fixture-warehouse generator id (Phase 8 — Admission +
+ * build, Plan 08-01, REQ-51; `experiments/bi-analytics-pilot/BI-BATTERY-DESIGN.md`
+ * rev 2, §9's supersession). The generator itself lives in
+ * `src/foundry/bi-warehouse.ts`; only its id lives here, on the v3/v3.1
+ * model — ids stay single-sourced in this module (the rule stated at
+ * `fixture-warehouse-v3.ts:30-35`).
+ *
+ * DELIBERATELY ABSENT from `ACCEPTED_GENERATORS` below. Every BI
+ * construction path therefore throws until the REQ-57 acceptance event. Per
+ * §9's supersession, that acceptance is NOT a human keystroke in session —
+ * it is a pre-authorized AUTOMATIC commit that fires iff the frozen gate
+ * conditions (§9 gate 1-3) all pass, and is refused automatically otherwise.
+ * It is never self-issued by this generator's own code: an agent adding its
+ * own generator to `ACCEPTED_GENERATORS` would make the acceptance event
+ * self-issued and worthless, exactly the reason v2/v3/v3.1 were each held
+ * unaccepted until a real acceptance event recorded them.
+ */
+export const BI_ANALYTICS_GENERATOR_ID = "bi-analytics-fixture-warehouse-generator-v1";
+
 /** The encoded human-acceptance event: generator id -> the human identity who
  *  accepted it. This map IS the acceptance event for this phase; a later
  *  phase's blocking checkpoint is where a human actually performs one for a

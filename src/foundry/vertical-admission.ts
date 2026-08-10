@@ -106,10 +106,12 @@ export const VERTICAL_ADMISSION: ReadonlyMap<Vertical, AdmissionRecord> = sealTa
     "bi-analytics",
     {
       vertical: "bi-analytics",
-      verdict: "pending",
-      oracleClass: "construction",
-      mechanism: "query results vs known fixture numbers on a frozen warehouse",
-      note: "Second",
+      verdict: "admitted",
+      oracleClass: "execution + construction",
+      mechanism:
+        "candidate SQL executed in-process against a frozen per-seed star-schema warehouse, result " +
+        "set diffed against the answer-first precomputed known answer",
+      note: "REQ-50 — admitted per the frozen BI-BATTERY-DESIGN.md rev 2 (freeze commit c950e4d)",
     },
   ],
   [

@@ -171,7 +171,7 @@ refused — stated in the product, not papered over with a judge.
 | Vertical | Oracle class | Concrete mechanism | Verdict |
 |---|---|---|---|
 | **Data-ops** | execution + construction | dbt tests, data-diff, SQL vs fixture warehouse | **Pilot — first** |
-| **BI / analytics** | construction | query results vs known fixture numbers on a frozen warehouse | Second |
+| **BI / analytics** | execution + construction | candidate SQL executed in-process against a frozen per-seed star-schema warehouse, result set diffed against the answer-first precomputed known answer | **Admitted** (REQ-50, `BI-BATTERY-DESIGN.md` rev 2, freeze commit `c950e4d`) |
 | **Performance marketing** | replay | replayed campaign logs vs held-out actuals | Later; horizon-capped |
 | **Customer support** | replay + construction | historical tickets w/ known resolutions; resolution-first ticket synthesis | Later; `rubricCalibrated` mandatory |
 | **RevOps / GTM / exec-strategy** | none fast | only **resolvable forecasts** (probabilistic predictions scored ex post, Brier) — exogenous but weeks-lagged | **Refused** until a forecast-mode oracle is built |

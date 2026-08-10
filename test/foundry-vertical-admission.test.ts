@@ -39,7 +39,6 @@ const ALL_VERTICALS: Vertical[] = [
 ];
 
 const NON_ADMITTED_VERTICALS: Vertical[] = [
-  "bi-analytics",
   "performance-marketing",
   "customer-support",
   "revops-gtm-exec-strategy",
@@ -81,10 +80,12 @@ describe("admitVertical — the five-row posture (docs/development/harness-facto
     expect(record.oracleClass).toContain("construction");
   });
 
-  it("bi-analytics: pending, oracle class names construction", () => {
+  it("bi-analytics: admitted, oracle class names execution + construction (REQ-50)", () => {
     const record = admitVertical("bi-analytics");
-    expect(record.verdict).toBe("pending");
-    expect(record.oracleClass).toBe("construction");
+    expect(record.verdict).toBe("admitted");
+    expect(record.oracleClass).toContain("execution");
+    expect(record.oracleClass).toContain("construction");
+    expect(record.note).toContain("REQ-50");
   });
 
   it("performance-marketing: pending, oracle class names replay, note records the horizon cap", () => {
@@ -127,12 +128,9 @@ describe("requireAdmitted — the separate throw step", () => {
     expect(record.verdict).toBe("admitted");
   });
 
-  it("throws VerticalRefusedError for bi-analytics, naming the vertical, its verdict, and its oracle class", () => {
-    const err = thrown(() => requireAdmitted("bi-analytics"));
-    expect(err).toBeInstanceOf(VerticalRefusedError);
-    expect(err.message).toContain("bi-analytics");
-    expect(err.message).toContain("pending");
-    expect(err.message).toContain("construction");
+  it("returns the record for bi-analytics (admitted, REQ-50)", () => {
+    const record = requireAdmitted("bi-analytics");
+    expect(record.verdict).toBe("admitted");
   });
 
   it("throws VerticalRefusedError for performance-marketing, naming the vertical, its verdict, and its oracle class", () => {
@@ -159,7 +157,7 @@ describe("requireAdmitted — the separate throw step", () => {
     expect(err.message).toContain("none fast");
   });
 
-  it("each of the four refusal messages names ONLY its own vertical's verdict — one message cannot cover all four", () => {
+  it("each of the three refusal messages names ONLY its own vertical's verdict — one message cannot cover all three", () => {
     const messages = NON_ADMITTED_VERTICALS.map((v) => thrown(() => requireAdmitted(v)).message);
     const uniqueMessages = new Set(messages);
     expect(uniqueMessages.size).toBe(NON_ADMITTED_VERTICALS.length);
@@ -193,10 +191,22 @@ describe("admitVerticalBattery — the refusal fires on the REAL construction pa
     expect(battery.tasks.length).toBe(draft.tasks.length);
   });
 
-  it("refuses bi-analytics too — a pending vertical is not silently treated as admitted", () => {
-    const err = thrown(() => admitVerticalBattery("bi-analytics", validDraft()));
+  it("refuses performance-marketing too — a pending vertical is not silently treated as admitted", () => {
+    const err = thrown(() => admitVerticalBattery("performance-marketing", validDraft()));
     expect(err).toBeInstanceOf(VerticalRefusedError);
-    expect(err.message).toContain("bi-analytics");
+    expect(err.message).toContain("performance-marketing");
+  });
+
+  it("refuses customer-support too — a pending vertical is not silently treated as admitted", () => {
+    const err = thrown(() => admitVerticalBattery("customer-support", validDraft()));
+    expect(err).toBeInstanceOf(VerticalRefusedError);
+    expect(err.message).toContain("customer-support");
+  });
+
+  it("admits bi-analytics through the real construction path now that it is admitted (REQ-50 activation)", () => {
+    const draft = validDraft();
+    const battery = admitVerticalBattery("bi-analytics", draft);
+    expect(battery.tasks.length).toBe(draft.tasks.length);
   });
 });
 
