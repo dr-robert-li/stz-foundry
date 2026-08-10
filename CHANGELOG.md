@@ -9,6 +9,34 @@ preserved verbatim.
 
 ## [Unreleased]
 
+### BI-analytics admission, generator/oracle build, and the ceiling gate (phase 8, v1.23.0) — bi-analytics-pilot
+
+- `bi-analytics` flipped `pending` -> `admitted` in `VERTICAL_ADMISSION` (REQ-50), oracle class
+  "execution + construction"; `BI_ANALYTICS_GENERATOR_ID` declared, deliberately absent from
+  `ACCEPTED_GENERATORS` so every BI construction path throws until Phase 9's pre-authorized
+  acceptance event (REQ-51).
+- `src/foundry/bi-warehouse.ts`: the BI fixture-warehouse generator, the full L1-L4 join/
+  aggregation-depth grid, the ten-task known-answer query set (answer-first construction), and
+  question rendering with a machine-parseable labeled footer.
+- `src/foundry/bi-oracle.ts`: the independent SQL execution+diff oracle — lazy `node:sqlite`,
+  §2 extraction/parsing (fenced-block rules, the single-read-only-SELECT pre-check), §3 graded
+  score (row-multiset comparison with a stated numeric tolerance), §4 zero-decomposition
+  categorization (REQ-52).
+- Independent reference interpreter, question-fidelity check (F-20), and a mechanically-enforced
+  no-shared-helpers independence guard (F-22), each with a discrimination control proving the
+  guard actually catches a violation; the nine-seed x four-level x ten-task equality sweep (360
+  comparisons) and leak checks enforced as tests.
+- `experiments/bi-analytics-pilot/CEILING-PROBE.md` (REQ-53): the §6 format-stability/ceiling-gate
+  readout — all four grid levels (L1-L4) pass both conjuncts of §9 gate condition 1 on their
+  20-task seed-101/202 sample (no-artifact-or-non-executable = 0, mean graded score = 1.000 at
+  every point), checkpointed to a completed state-file artifact via
+  `experiments/bi-analytics-pilot/_bi-ceiling.ts`/`_bi-score.ts`, launched detached through the
+  sole-instance-asserting `_launch-probe.sh`.
+- Three behavioural guards (admission real-path refusal, unaccepted-generator-id throw,
+  no-shared-helpers independence) mutation-proven; the freeze-before-code ancestry proof
+  (`c950e4d03bafa6595070b7fdd72e4a1117c4f30d` is a strict ancestor of the phase's first `src/`
+  commit) re-verified at every checkpoint.
+
 ### BI battery design pre-registration, adversarial panel, and freeze (phase 7) — bi-analytics-pilot
 
 - `experiments/bi-analytics-pilot/BI-BATTERY-DESIGN.md` (REQ-48/49): the BI analytical-query-

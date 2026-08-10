@@ -697,3 +697,94 @@ freeze-before-code claim this whole phase exists to establish doesn't hold. No c
 touched `src/` at all — the freeze commit's own ancestry is `src/`-clean by construction, which is
 the Phase-7 half of the proof; Phase 8 running that command against its own first commit is the
 other half.
+
+## Admission, the build, and the ceiling gate all clear (2026-08-10)
+
+The other half of that proof, first. `git merge-base --is-ancestor c950e4d03bafa6595070b7fdd72e4a1117c4f30d
+394ee34a47fba4c260962f437b3952e44ac2c17f; echo $?` — `394ee34` is Task 1's own commit, the phase's
+first commit that touches `src/`. Exit `0`. I re-ran it against the final HEAD after every task in
+08-01 and again after both commits in 08-02; it stayed `0` throughout. The freeze-before-code claim
+holds, provably, not on my say-so, which was the entire point of writing it as a runnable command
+instead of a sentence.
+
+Flipping `bi-analytics` from `pending` to `admitted` in `VERTICAL_ADMISSION` was the easy part —
+one row, one verdict string. What almost slipped past me was that the existing "a pending vertical
+is not silently admitted" test coverage was pinned to `bi-analytics` by name, because it used to be
+the only pending row worth testing against. Admitting it would have quietly deleted that coverage
+class rather than moved it. I retargeted those assertions onto `performance-marketing` and
+`customer-support` — still pending, still real refusals — so the guard keeps guarding something
+after the row it used to guard flips.
+
+`node:sqlite` over an external process seam: I went in-process for the same reason
+`execution-oracle.ts` did for its own engine choice — no subprocess lifecycle to manage, no
+serialization boundary between the candidate's SQL and the result set I need to diff. The import
+has to be lazy (`createRequire(import.meta.url)("node:sqlite")` inside a `try`/`catch`) because
+`package.json` declares `engines.node >= 20` and `node:sqlite` isn't stable-unflagged until Node 24
+— a top-level value import would crash module load for every consumer that never touches BI at all,
+which is exactly the failure this project's "detect, report, fail attributably, never a silent
+pass" posture exists to prevent. I found something I didn't expect while building the extraction
+guard: `node:sqlite`'s `prepare()` does not reject a semicolon-separated multi-statement string —
+it silently compiles and executes only the first statement. I'd assumed the engine would throw.
+Verified it directly against this repo's Node build before trusting it either way, and it doesn't,
+so `isSingleReadOnlySelect` does its own text-level, paren-depth-and-string-literal-aware scan for
+top-level semicolons, run before anything touches the engine. Trusting the engine there would have
+been a real gap, not a hypothetical one.
+
+Two constants the design left for me to derive rather than pin, because §8's own table is honest
+about which numbers are `derived:` and which are cited: the numeric tolerance for the multiset
+result-set comparison (§3 F-23 requires "a stated numeric tolerance," states none), and the §2
+rule-4 boundary case for a leading `WITH` clause (the design says "a single READ-ONLY SELECT
+statement," and doesn't say whether a CTE resolving to one SELECT counts). I pinned
+`BI_NUMERIC_TOLERANCE = 1e-6` as a rounded bucket-key rather than a true epsilon-ball pairwise
+match — a real simplification, but one I can defend: every aggregate in this battery sums integer
+`quantity` values (exact by construction), so the only drift the tolerance ever has to absorb is
+SQLite's own IEEE754 round-trip noise, several orders of magnitude inside the bucket. And I read the
+`WITH` case as: a leading `WITH [RECURSIVE] ... AS (subquery)` clause resolving to one top-level
+`SELECT` counts as single-statement; anything else doesn't. Both recorded, with reasoning, in
+08-01's own SUMMARY, the same discipline the constants table itself models. 08-02 added its own
+fifth Phase-8-derived pin on top: the ceiling gate's own system prompt, which the design specifies
+no content for at all beyond the user-prompt shape — I pinned it to the barest thing I could
+justify, `"You are a SQL assistant."`, on the theory that any engineering guidance in a gate meant
+to isolate extraction/execution from query-writing would measure the wrong thing.
+
+The nine-seed equality sweep (`precomputed === recomputed` across 9 seeds x 4 levels x 10 tasks, 360
+comparisons) and the F-20 question-fidelity check both passed clean by the time I ran the recorded
+sweep — no defect surfaced in the reference computation or in the two independently-written question
+renderers agreeing with each other and with the spec. But the leak-check sweep, which walks the same
+360-task set looking for the reference SQL or an expected cell value leaking into the candidate's
+prompt, did catch something real: a hyphenated `"2026-10"` month filter renders its own 2-digit month
+suffix as a digit-bounded token, and at seed 101, L4, task 3, that token happened to equal a small
+`total_quantity` aggregate. A genuine false positive, not a hypothetical one I was hunting for — the
+sweep found it because it actually ran against real generated data instead of me reasoning about
+whether it could happen. Fixed by switching to a contiguous `YYYYMM` code, which has no internal
+digit boundary for any aggregate in this battery's row-scale range to collide with.
+
+Three mutations, each applied, run, and reverted, each caught by a distinctly named failing test —
+this is the part of the phase I trust most, because "the guard exists" and "the guard actually
+fires" are different claims and only the second one is worth anything. Deleting the
+`requireAdmitted(vertical)` call inside `admitVerticalBattery` failed four tests by name, the
+`revops-gtm-exec-strategy`/`performance-marketing`/`customer-support` refusal-through-the-real-path
+assertions among them. Flipping `performance-marketing`'s row to `"admitted"` failed a different
+four, including the "each of the three refusal messages names ONLY its own vertical's verdict" test
+— a genuinely good catch, since a sloppier guard could have let one shared message paper over three
+distinct verdicts. Adding the deliberately-forbidden acceptance entry to `ACCEPTED_GENERATORS`
+failed the two `BI_ANALYTICS_GENERATOR_ID` tests by name. And importing `composeReferenceSql` into
+the reference interpreter — the exact shared-helper violation F-22 exists to catch — failed exactly
+one test, the mechanical import-graph check, while the discrimination-control test (which asserts
+the walker *does* report `bi-warehouse.ts` when it's supposed to) stayed green throughout, which is
+what tells me the guard discriminates rather than just always firing. 906 tests stayed green around
+every mutation; no tracked file was left modified after any revert.
+
+And the ceiling gate itself, stated as the measurement it is rather than dressed up: all four grid
+points — L1 through L4 — passed both conjuncts of §9 gate condition 1 on their first and only
+20-task sample each. Zero no-artifact-or-non-executable responses, mean graded score 1.000, exact
+rate 1.000, at every point, 80/80 tasks landing `correct`. Zero harness faults, zero timeouts, zero
+retries. This isn't a surprising result and I don't want to write it up as though it were — the gate
+hands the candidate the answer and asks it to transcribe that answer into a fence, which is about as
+low a bar as this battery has. What it tells me is narrower and still useful: extraction and
+execution are not the bottleneck at any of the four points, so none of them is excluded going into
+Phase 9, and whatever the corridor probe measures there will be measuring query-writing capability
+rather than a format confound. Falsifier 1 didn't fire, which was always a legitimate outcome either
+way — I want that stated as plainly as the alternative would have been. REQ-53 closes with this
+entry; the ceiling-probe half `CEILING-PROBE.md` records is the piece 08-01 explicitly left open for
+this plan.
