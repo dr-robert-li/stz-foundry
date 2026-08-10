@@ -31,9 +31,12 @@
  * top level, and `main()` itself only runs when this file is executed
  * directly (the `import.meta.url === file://process.argv[1]` guard at the
  * bottom, precedented in `experiments/swebench-pilot/eval-adapter.mjs:296`).
- * This keeps the module import-safe for `test/dualfix-study-driver.test.ts`,
- * which imports this file's pure helpers directly without setting either
- * env var.
+ * The checkpoint/ordering/accounting/termination logic is factored into
+ * exported pure functions below (`validateCorpusEntries`, `buildUnitOrder`,
+ * `onceWithHarnessRetry`, `runStudyUnits`, `computeArmAccounting`,
+ * `isUnderpowered`, `isErrorBudgetExceeded`) so this module stays
+ * import-safe for `test/dualfix-study-driver.test.ts`, which imports them
+ * directly without setting either env var and without a provider/process.
  */
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -53,6 +56,9 @@ import {
   once,
   runArmOnCandidate,
   buildNaiveRetryPrompt,
+  type DualfixArm,
+  type DualfixArmResult,
+  type DualfixState,
   type DualfixCorpusEntry,
 } from "./_dualfix-arms.js";
 
@@ -144,6 +150,8 @@ function captureRunConfig(corpusPath: string, corpusRaw: string, corpusEntryCoun
   };
 }
 
+// ── corpus loading + validation (pure; exported for the offline test) ──────
+
 const REQUIRED_CORPUS_SCALAR_FIELDS = [
   "seed",
   "levelId",
@@ -155,11 +163,12 @@ const REQUIRED_CORPUS_SCALAR_FIELDS = [
   "gradedScore",
 ] as const;
 
-/** Reads and validates `DUALFIX_CORPUS`. Refuses loudly on a malformed
- *  record rather than skipping it (T-11-06) — a skipped entry would silently
- *  shrink D-12's denominator, which the prereg forbids. */
-function loadCorpus(path: string): DualfixCorpusEntry[] {
-  const raw = JSON.parse(readFileSync(path, "utf8"));
+/** Validates a parsed JSON value against `DualfixCorpusEntry`'s shape.
+ *  Refuses loudly on a malformed record rather than skipping it (T-11-06) —
+ *  a skipped entry would silently shrink D-12's denominator, which the
+ *  prereg forbids. Pure — takes the already-parsed value, never touches the
+ *  filesystem, so a test can exercise it against an in-memory array. */
+export function validateCorpusEntries(raw: unknown): DualfixCorpusEntry[] {
   if (!Array.isArray(raw)) throw new Error(`[dualfix-study] DUALFIX_CORPUS must be a JSON array, got ${typeof raw}`);
   return raw.map((entry, i) => {
     if (typeof entry !== "object" || entry === null) throw new Error(`[dualfix-study] corpus entry ${i} is not an object`);
@@ -174,6 +183,129 @@ function loadCorpus(path: string): DualfixCorpusEntry[] {
     return e as unknown as DualfixCorpusEntry;
   });
 }
+
+/** Reads `DUALFIX_CORPUS` from disk, parses it, and validates it. */
+export function loadCorpus(path: string): DualfixCorpusEntry[] {
+  return validateCorpusEntries(JSON.parse(readFileSync(path, "utf8")));
+}
+
+// ── the deterministic, total, resumable unit order ──────────────────────
+// Corpus array order, then DUALFIX_ARMS order within each entry — never a
+// sort by any content field, so the array index IS the tie-break by
+// construction (no two ordered units can compare equal on "everything but
+// array position" without literally sharing that position).
+
+export interface OrderedUnit {
+  corpusIndex: number;
+  arm: DualfixArm;
+  taskId: string;
+  unitKey: string;
+}
+
+export function buildUnitOrder(corpus: DualfixCorpusEntry[]): OrderedUnit[] {
+  const order: OrderedUnit[] = [];
+  corpus.forEach((entry, corpusIndex) => {
+    for (const arm of DUALFIX_ARMS) {
+      order.push({ corpusIndex, arm, taskId: entry.taskId, unitKey: dualfixUnitKey(arm, entry.taskId) });
+    }
+  });
+  return order;
+}
+
+// ── D-08: the harness-fault retry, distinct from the naive-retry CONTROL
+// ARM. `state.retries` (the harness-fault ledger) and `dualfixUnitKey`'s
+// `"naive-retry"` arm literal (the control arm's identifier) are two
+// different fields/identifiers by construction — a harness retry NEVER
+// writes into `state.units` under a second key, and the control arm's own
+// unit is NEVER logged into `state.retries` just for being that arm. ───────
+
+/** Wraps `once()`'s work function with the D-08 harness-fault retry: a
+ *  `status === "error"` result is retried at MOST once, logged into
+ *  `state.retries`, and never appended to the unit's own result — the
+ *  checkpoint map still holds exactly one `DualfixArmResult` per key. A
+ *  `timeout` is a measurement, never retried. */
+export async function onceWithHarnessRetry(
+  statePath: string,
+  state: DualfixState,
+  key: string,
+  work: () => Promise<DualfixArmResult>,
+): Promise<DualfixArmResult> {
+  return once(statePath, state, key, async () => {
+    let result = await work();
+    if (result.status === "error") {
+      state.retries.push(`${key}: harness-fault retry (${result.failureReason ?? "unknown error"})`);
+      result = await work();
+    }
+    return result;
+  });
+}
+
+/** The main iteration loop, factored out so a test can drive it with a stub
+ *  `runUnit` and assert call order/resume behaviour without a provider. */
+export async function runStudyUnits(
+  statePath: string,
+  state: DualfixState,
+  corpus: DualfixCorpusEntry[],
+  runUnit: (arm: DualfixArm, entry: DualfixCorpusEntry) => Promise<DualfixArmResult>,
+): Promise<void> {
+  for (const entry of corpus) {
+    for (const arm of DUALFIX_ARMS) {
+      const key = dualfixUnitKey(arm, entry.taskId);
+      await onceWithHarnessRetry(statePath, state, key, () => runUnit(arm, entry));
+    }
+  }
+}
+
+// ── D-12: per-arm accounting — the denominator rule ─────────────────────
+
+export interface ArmAccounting {
+  arm: DualfixArm;
+  attempted: number;
+  ok: number;
+  timeout: number;
+  error: number;
+  repaired: number;
+  /** Primary rate (the pre-registered gate reads this): repaired over EVERY
+   *  attempted unit — a `timeout`/`error` unit counts as a non-repair,
+   *  never as an exclusion from the denominator. Recorded as an exact
+   *  integer pair, never a pre-rounded float. */
+  primaryRepairRate: { num: number; den: number };
+  /** `ok`-only sensitivity figure — reported alongside the primary rate,
+   *  never substituted for it. */
+  okRepairRate: { num: number; den: number };
+}
+
+export function computeArmAccounting(units: Record<string, DualfixArmResult>, arm: DualfixArm): ArmAccounting {
+  const results = Object.values(units).filter((r) => r.arm === arm);
+  const attempted = results.length;
+  const ok = results.filter((r) => r.status === "ok").length;
+  const timeout = results.filter((r) => r.status === "timeout").length;
+  const error = results.filter((r) => r.status === "error").length;
+  const repaired = results.filter((r) => r.repaired).length;
+  const okRepaired = results.filter((r) => r.status === "ok" && r.repaired).length;
+  return {
+    arm,
+    attempted,
+    ok,
+    timeout,
+    error,
+    repaired,
+    primaryRepairRate: { num: repaired, den: attempted },
+    okRepairRate: { num: okRepaired, den: ok },
+  };
+}
+
+// ── D-11: the termination clauses, driven by the pinned constants ───────
+
+export function isUnderpowered(corpusLength: number): boolean {
+  return corpusLength < DUALFIX_CORPUS_MIN_N;
+}
+
+export function isErrorBudgetExceeded(errorCount: number, attemptedCount: number): boolean {
+  return errorCount * DUALFIX_ERROR_BUDGET_DEN > attemptedCount * DUALFIX_ERROR_BUDGET_NUM;
+}
+
+// ══════════════════════════════════ main ════════════════════════════════
 
 async function main(): Promise<void> {
   const statePath = requireStatePath();
@@ -196,23 +328,15 @@ async function main(): Promise<void> {
   console.log(`run config: ${JSON.stringify(state.runConfig)}\n`);
 
   const provider = createProvider({ kind: "openai", baseUrl: DUALFIX_BASE_URL });
+  const runUnit = (arm: DualfixArm, entry: DualfixCorpusEntry) =>
+    runArmOnCandidate(arm, entry, provider, DUALFIX_MODEL, { taskTimeoutMs: DUALFIX_TIMEOUT_MS });
 
   if (DUALFIX_SMOKE) {
     const smokeEntry = corpus[0];
     if (!smokeEntry) throw new Error("[dualfix-study] SMOKE mode requires at least one corpus entry");
     for (const arm of DUALFIX_ARMS) {
       const key = dualfixUnitKey(arm, smokeEntry.taskId);
-      const result = await once(statePath, state, key, async () => {
-        let r = await runArmOnCandidate(arm, smokeEntry, provider, DUALFIX_MODEL, { taskTimeoutMs: DUALFIX_TIMEOUT_MS });
-        // D-08's harness-fault retry: distinct from the naive-retry CONTROL
-        // ARM above — a fault here is retried at most once and logged in
-        // `state.retries`, never appended to the unit's own result.
-        if (r.status === "error") {
-          state.retries.push(`${key}: harness-fault retry (${r.failureReason ?? "unknown error"})`);
-          r = await runArmOnCandidate(arm, smokeEntry, provider, DUALFIX_MODEL, { taskTimeoutMs: DUALFIX_TIMEOUT_MS });
-        }
-        return r;
-      });
+      const result = await onceWithHarnessRetry(statePath, state, key, () => runUnit(arm, smokeEntry));
       console.log(
         `  ${arm}: status=${result.status} category=${result.category} gradedScore=${result.gradedScore} repaired=${result.repaired}`,
       );
@@ -222,7 +346,7 @@ async function main(): Promise<void> {
   }
 
   // D-11's underpowered clause — checked BEFORE either arm runs.
-  if (corpus.length < DUALFIX_CORPUS_MIN_N) {
+  if (isUnderpowered(corpus.length)) {
     writeArtifact("dualfix-study-verdict.json", {
       complete: true,
       outcome: "UNDERPOWERED",
@@ -236,50 +360,21 @@ async function main(): Promise<void> {
 
   // The deterministic, total, resumable order: corpus array order, then
   // DUALFIX_ARMS order within each entry.
-  for (const entry of corpus) {
-    for (const arm of DUALFIX_ARMS) {
-      const key = dualfixUnitKey(arm, entry.taskId);
-      const result = await once(statePath, state, key, async () => {
-        let r = await runArmOnCandidate(arm, entry, provider, DUALFIX_MODEL, { taskTimeoutMs: DUALFIX_TIMEOUT_MS });
-        if (r.status === "error") {
-          state.retries.push(`${key}: harness-fault retry (${r.failureReason ?? "unknown error"})`);
-          r = await runArmOnCandidate(arm, entry, provider, DUALFIX_MODEL, { taskTimeoutMs: DUALFIX_TIMEOUT_MS });
-        }
-        return r;
-      });
-      console.log(`  [${key}] status=${result.status} category=${result.category} repaired=${result.repaired}`);
-    }
-  }
-
-  // Per-arm accounting, D-12's denominator rule: EVERY attempted unit
-  // (ok/timeout/error) is in the primary denominator; ok-only is recorded
-  // separately as a sensitivity figure, never substituted for the primary.
-  const armAccounting: Record<string, unknown> = {};
-  let outcome: "COMPLETE" | "ERROR-BUDGET-EXCEEDED" = "COMPLETE";
-  for (const arm of DUALFIX_ARMS) {
-    const results = Object.values(state.units).filter((r) => r.arm === arm);
-    const attempted = results.length;
-    const ok = results.filter((r) => r.status === "ok").length;
-    const timeout = results.filter((r) => r.status === "timeout").length;
-    const error = results.filter((r) => r.status === "error").length;
-    const repaired = results.filter((r) => r.repaired).length;
-    const okRepaired = results.filter((r) => r.status === "ok" && r.repaired).length;
-    // D-11's error-budget clause.
-    if (error * DUALFIX_ERROR_BUDGET_DEN > attempted * DUALFIX_ERROR_BUDGET_NUM) outcome = "ERROR-BUDGET-EXCEEDED";
-    armAccounting[arm] = {
-      attempted,
-      ok,
-      timeout,
-      error,
-      repaired,
-      primaryRepairRate: { num: repaired, den: attempted },
-      okRepairRate: { num: okRepaired, den: ok },
-    };
-  }
+  await runStudyUnits(statePath, state, corpus, runUnit);
 
   // Counts ONLY — the Stage-B inequality (REQ-66) is Phase 12's own gate,
   // read from STUDY-RESULTS.md's own recorded arithmetic, never evaluated
   // here.
+  const armAccounting = Object.fromEntries(DUALFIX_ARMS.map((arm) => [arm, computeArmAccounting(state.units, arm)])) as Record<
+    DualfixArm,
+    ArmAccounting
+  >;
+  const outcome: "COMPLETE" | "ERROR-BUDGET-EXCEEDED" = DUALFIX_ARMS.some((arm) =>
+    isErrorBudgetExceeded(armAccounting[arm].error, armAccounting[arm].attempted),
+  )
+    ? "ERROR-BUDGET-EXCEEDED"
+    : "COMPLETE";
+
   writeArtifact("dualfix-study-verdict.json", {
     complete: true,
     outcome,
