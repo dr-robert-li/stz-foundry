@@ -45,6 +45,7 @@ import { fileURLToPath } from "node:url";
 import { createProvider } from "../../src/foundry/provider.js";
 import { buildDualfixRepairPrompt, type DualfixInput } from "../../src/foundry/dualfix.js";
 import { BI_TASK_TIMEOUT_MS } from "../../src/foundry/bi-warehouse.js";
+import { BI_ZERO_DECOMPOSITION_CATEGORIES, type BiCategory } from "../../src/foundry/bi-oracle.js";
 import {
   DUALFIX_ARMS,
   DUALFIX_CORPUS_MIN_N,
@@ -180,6 +181,30 @@ export function validateCorpusEntries(raw: unknown): DualfixCorpusEntry[] {
     }
     if (!("artifact" in e)) throw new Error(`[dualfix-study] corpus entry ${i} missing "artifact" (string or null)`);
     if (!("engineError" in e)) throw new Error(`[dualfix-study] corpus entry ${i} missing "engineError" (string or null)`);
+
+    // WR-02: presence alone is not shape validity — check type/range too, so
+    // a wrong-typed or out-of-contract-value field is refused as loudly as a
+    // missing one, rather than flowing an `entry as unknown as ...` cast
+    // straight into the study.
+    if (typeof e.seed !== "number") {
+      throw new Error(`[dualfix-study] corpus entry ${i} field "seed" must be a number, got ${typeof e.seed}`);
+    }
+    if (typeof e.taskIndex !== "number" || e.taskIndex < 0) {
+      throw new Error(`[dualfix-study] corpus entry ${i} field "taskIndex" must be a non-negative number, got ${JSON.stringify(e.taskIndex)}`);
+    }
+    if (!BI_ZERO_DECOMPOSITION_CATEGORIES.includes(e.category as BiCategory)) {
+      throw new Error(`[dualfix-study] corpus entry ${i} field "category" is not a valid BiCategory: ${JSON.stringify(e.category)}`);
+    }
+    // §4's eligibility predicate: every corpus entry must be gradedScore === 0
+    // exactly — which, by construction (gradedScore 1 <=> category "correct"
+    // in bi-oracle.ts's own scoring), also rejects a hand-built
+    // `category: "correct"` entry the oracle itself would never produce.
+    if (typeof e.gradedScore !== "number" || e.gradedScore !== 0) {
+      throw new Error(`[dualfix-study] corpus entry ${i} field "gradedScore" must be exactly 0 (§4 eligibility), got ${JSON.stringify(e.gradedScore)}`);
+    }
+    if (e.category === "correct") {
+      throw new Error(`[dualfix-study] corpus entry ${i} has category "correct" — not a repair candidate, violates §4 eligibility`);
+    }
     return e as unknown as DualfixCorpusEntry;
   });
 }

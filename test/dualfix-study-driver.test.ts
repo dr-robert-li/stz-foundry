@@ -135,6 +135,31 @@ describe("corpus validation", () => {
     const good = [makeCorpusEntry({})];
     expect(validateCorpusEntries(good)).toEqual(good);
   });
+
+  // WR-02: type/value validity, not just field presence.
+  it("rejects a non-numeric seed", () => {
+    expect(() => validateCorpusEntries([makeCorpusEntry({ seed: "not-a-number" as unknown as number })])).toThrow(/"seed" must be a number/);
+  });
+
+  it("rejects a negative taskIndex", () => {
+    expect(() => validateCorpusEntries([makeCorpusEntry({ taskIndex: -1 })])).toThrow(/"taskIndex" must be a non-negative number/);
+  });
+
+  it("rejects a category outside BiCategory's four-member union", () => {
+    expect(() => validateCorpusEntries([makeCorpusEntry({ category: "banana" as unknown as DualfixCorpusEntry["category"] })])).toThrow(
+      /"category" is not a valid BiCategory/,
+    );
+  });
+
+  it("rejects a gradedScore other than exactly 0 (§4 eligibility)", () => {
+    expect(() => validateCorpusEntries([makeCorpusEntry({ gradedScore: 0.7 })])).toThrow(/"gradedScore" must be exactly 0/);
+  });
+
+  it("rejects a hand-built category:\"correct\" entry even if gradedScore were forced to 0", () => {
+    expect(() =>
+      validateCorpusEntries([makeCorpusEntry({ category: "correct" as unknown as DualfixCorpusEntry["category"], gradedScore: 0 })]),
+    ).toThrow(/category "correct"/);
+  });
 });
 
 // ── ordering helper — the total, stable, array-index tie-break ──────────
