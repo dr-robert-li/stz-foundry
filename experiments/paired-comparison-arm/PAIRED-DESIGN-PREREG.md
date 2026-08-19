@@ -149,3 +149,141 @@ One shared exposure this mapping does not erase, named rather than hidden (mirro
 to their analogous failure shapes. The `substantively different` verdicts above are about mechanism
 and role, not about immunity to that failure class — any quantified-disclosure ceiling this design
 needs against it is §2's own future obligation (plan 13-02), not resolved by this mapping.
+
+## §3 The two arms — W and B, pinned
+
+**W and B, pinned as concrete agent definitions (D-03).** Per the 2026-08-19 STATE.md orchestrator
+default: **W** is the tournament-selected winner agent definition — the agent configuration
+produced by this project's component-tournament machinery running GEPA-style bounded reflective
+mutation, from which the tournament's own selection rule already picks a single winning
+configuration. **B** is the baseline unevolved agent definition — the same underlying model, run
+against the same battery, with no search, no mutation, and no tournament selection applied: the
+configuration a human would hand-write without running the tournament machinery at all. Neither
+identity was defined anywhere in the prior record before this default was recorded
+(13-RESEARCH.md Open Question 2) — this section states plainly that it inherits, rather than
+invents, that gap.
+
+**Confirmed, not amended.** This document confirms the 2026-08-19 default rather than amending it.
+The reason: the tournament machinery (component-tournament, GEPA-style bounded reflective mutation)
+is the only search mechanism this project has actually built and run end-to-end at the
+harness-genome altitude; naming any other candidate as W would require inventing a second search
+mechanism this phase has no mandate, no code, and no evidence for. The DUALFIX repair arm was
+considered and rejected as a candidate for W: DUALFIX is a repair mechanism (post-hoc correction of
+an already-failing artifact), not a search mechanism (proposing and selecting among candidate agent
+definitions before any artifact exists) — and DUALFIX's own property study closed at Phase 12 with
+a NOT-MET Stage-B verdict, so re-proposing it under REQ-69's own W-vs-B naming would confuse "the
+line that already ran and missed its own margin" with "the mechanism this new paired round tests,"
+two different claims this document keeps separate rather than conflating.
+
+**Equal-treatment invariant.** Both arms are held identical on every axis except the one under
+test:
+
+- **Identical:** the underlying model and model digest, the timeout, the prompt-length bound, the
+  attempt discipline (exactly one resolution proposal per arm per pairing unit, mirroring the
+  single-attempt convention `DUALFIX-STUDY-PREREG.md` §5's equal-treatment invariant already
+  establishes for this project), and the scoring path (§4's independent replay-match oracle,
+  applied identically and independently to each arm's own proposed resolution).
+- **Deliberately different:** the presence or absence of the component-tournament search that
+  produced the agent definition under test. W's definition is the tournament's own selected output;
+  B's definition is written without running that search at all. This one axis is the entire
+  mechanism under measurement; every other axis above is held constant precisely so a measured
+  difference cannot be attributed to anything else.
+
+**Rejected alternative arm framings, named and dispositioned:**
+
+- **W = the DUALFIX repair arm.** Rejected, per the reasoning above: repair and search are
+  different mechanisms, and DUALFIX's own property study already closed NOT-MET under a different
+  hypothesis (a repair-rate improvement over naive retry, not a paired win-rate against an unevolved
+  baseline). Reusing its name for a different comparison here would misstate what was actually
+  measured in Phase 12.
+- **B = an s0-minimal floor arm** (mirroring `BI-BATTERY-DESIGN.md` §6's s0-minimal arm — a
+  deliberately impoverished prompt with engineering guidance stripped out). Rejected: an s0-minimal
+  arm tests prompt-engineering floor behaviour, not the "unevolved baseline" identity REQ-69 actually
+  names. B must be the best a human would write without the tournament, not the worst; conflating
+  the two would test a different, weaker hypothesis than the one this phase exists to measure.
+
+## §4 The pairing unit, battery construction, and per-task status discipline
+
+**The pairing unit.** Each task instance is a single historical support ticket, drawn from the
+`customer-support` vertical's replay-checkable subset (§1) — a ticket whose historical resolution
+is a matchable, verifiable fact. Both arms (W and B) attempt the identical ticket: same seed, same
+generated ticket content (the schema/context shown, the question posed), same warehouse/corpus
+state, so the paired comparison isolates the presence or absence of the tournament search (§3's one
+deliberately-differing axis) rather than any difference in what either arm was actually asked. A
+pairing unit is never re-drawn, re-worded, or regenerated once either arm has seen it.
+
+**Battery construction, answer-first, scoped to §1's narrow selection.** Following the
+answer-first fixture-warehouse pattern this project has proven twice (`fixture-warehouse-v3.ts` for
+data-ops, the BI star-schema generator for bi-analytics), each ticket is constructed by a
+deterministic, seeded generator: the known-correct resolution is composed FIRST, from the
+generator's own seeded stream, before any question is derived from it; the ticket's customer-facing
+question/complaint text is then generated FROM that resolution's own semantics (what the resolution
+actually fixed, referenced, or determined), rendered as a plausible support ticket a customer might
+file. The ground truth therefore never depends on, or is influenced by, either arm's own attempt —
+it exists before either arm ever sees the ticket, exactly as `BI-BATTERY-DESIGN.md` §1's fixture
+warehouse and known-answer query set were built ("produced ANSWER-FIRST... both the reference query
+and its answer exist BEFORE any candidate ever sees the question"). This construction is scoped
+exactly to §1's selection: the replay-checkable subset only — a ticket whose resolution is a
+matchable historical fact — never the full ticket-resolution task, which would lean on
+`rubricCalibrated` judgment and is explicitly out of scope (§1). No task shape wider than this
+subset is constructed by this design.
+
+**The independent oracle: replay-match scoring.** Each arm's proposed resolution is scored by
+comparing it, as a structured match (not a rubric, not a judge — see below), against the ticket's
+pre-composed known-correct resolution. The oracle computes a binary match: the proposed resolution
+either matches the known resolution's defining structured fact (the action taken, the resolution
+category, and any resolution-specific parameter the generator pinned when it composed the
+resolution) or it does not — there is no partial-credit or graded scale at this family's own
+scoring layer (the per-task status discipline below defines the categories this binary reduces
+from). The oracle shares zero helper functions with either arm's own resolution-construction path:
+the generator's answer-first composition step and the oracle's own match-evaluation step are two
+separately implemented code paths, mirroring `BI-BATTERY-DESIGN.md` §3's own zero-shared-helpers
+independence discipline.
+
+**What this independence does not cover, disclosed rather than implied** (mirroring
+`BI-BATTERY-DESIGN.md` §3's own F-20/F-21 disclosures): the independence claim above is scoped to
+the COMPUTATION of the match only. It does NOT cover the ticket's own text-rendering step — the same
+generator that composes the known-correct resolution also renders the customer-facing
+question/complaint text from that resolution's semantics, so a bug in that shared rendering logic
+(the ticket text failing to actually denote the resolution it was derived from) would leave the
+match computation intact while scoring candidates against a ticket that does not faithfully pose the
+question the resolution answers. This gap is named here, not closed by this design; Phase 14's own
+generator obligation must add whatever fidelity check closes it, exactly as `BI-BATTERY-DESIGN.md`
+§3 left its own analogous gap open for Phase 8. Independence is also not claimed over the DATA
+SOURCE: both the resolution-composition step and the match-evaluation step read the same seed's
+generated ticket state — independence is claimed in computation, never in data provenance.
+
+**No judge, no rubric, anywhere in the scoring path — a hard rule, not a preference.** The oracle
+above performs a structured match against a pre-composed known answer; it never invokes an LLM (or
+any other model) to judge, score, or rate either arm's proposed resolution, and it never applies a
+rubric of any kind. This is a hard rule, not a preference, because a judge or rubric is explicitly
+not an independent oracle under this project's own standing discipline (`PROJECT.md`'s
+"LLM-judge-only fitness for soft verticals" trap) — a paired win or loss decided by a model's
+opinion of which resolution looks better is not a measurement of anything except the judge's own
+biases, and would make this entire paired study's decision rule (§5) circular: the very thing under
+test (does the tournament-selected agent produce better resolutions) would be answered by another
+model's guess rather than by an independently verifiable fact. This is exactly why §1 scoped
+selection to the REPLAY-CHECKABLE subset of `customer-support` and explicitly excluded the full
+ticket-resolution task, which would have required exactly this disallowed judge/rubric step.
+
+**Per-task status discipline — the exhaustive, mutually-exclusive outcome categories.** Every
+attempt, in both arms, decomposes at scoring time into exactly one of four named categories, fixed
+here before any data exists (mirroring `BI-BATTERY-DESIGN.md` §4's zero-decomposition rule and
+`DUALFIX-STUDY-PREREG.md` §3's own explicit-sentence discipline):
+
+1. **no-artifact** — the candidate produced no extractable proposed-resolution artifact at all (an
+   empty response, or a response containing no identifiable resolution proposal in the required
+   output contract).
+2. **non-scoreable artifact** — the candidate produced a resolution proposal, but it is not in a
+   form the replay-match oracle can evaluate (e.g., it does not name a resolution category or
+   action the oracle's match step can compare against the known resolution's own structured fact).
+3. **resolution-mismatch** — the proposal is scoreable, and the oracle's match evaluates it against
+   the known resolution: it does not match (binary score 0).
+4. **resolution-match** — the proposal is scoreable and matches the known resolution's defining
+   structured fact exactly (binary score 1).
+
+Two readers presented with the same raw response and the same known resolution would classify it
+identically under these four categories: categories 1–2 turn only on whether a scoreable artifact
+exists at all (never on whether it is correct), and categories 3–4 turn only on the oracle's own
+binary match result once a scoreable artifact exists — no category depends on a judgement call
+between them.
