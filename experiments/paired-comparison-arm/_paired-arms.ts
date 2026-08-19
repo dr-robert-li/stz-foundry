@@ -25,6 +25,7 @@ import {
   generateCustomerSupportTicket,
   CUSTOMER_SUPPORT_ACTIONS,
   CUSTOMER_SUPPORT_CATEGORIES,
+  CUSTOMER_SUPPORT_ACTION_META,
   RESOLUTION_FIELD_LABELS,
   type CustomerSupportTicket,
 } from "../../src/foundry/customer-support-warehouse.js";
@@ -98,12 +99,26 @@ function truncatePairedPrompt(text: string): string {
  * step reads). Truncated at the pinned character bound.
  */
 export function buildPairedTaskPrompt(ticket: CustomerSupportTicket): { system: string; user: string } {
+  // WINDOWS.md entry 2 (14-06 fix): the "parameter" field is two structurally
+  // different shapes wearing one field name (`CUSTOMER_SUPPORT_ACTION_META`'s
+  // `parameterType`), not a dollar amount for every action — two of the six
+  // actions (`ship-catalog-replacement`, `escalate-repeat-defect`) declare a
+  // `lookup` parameter (a catalog item's NAME), not `monetary`. Derived from
+  // `CUSTOMER_SUPPORT_ACTION_META` rather than retyped, so this text can
+  // never drift from the taxonomy it describes. This wording is
+  // action-agnostic by construction — it names both shapes and which actions
+  // take each, never singling out the one shape THIS ticket's own resolution
+  // happens to need (that would leak the resolution's action/category, T-14-05).
+  const monetaryActions = CUSTOMER_SUPPORT_ACTIONS.filter((a) => CUSTOMER_SUPPORT_ACTION_META[a].parameterType === "monetary");
+  const lookupActions = CUSTOMER_SUPPORT_ACTIONS.filter((a) => CUSTOMER_SUPPORT_ACTION_META[a].parameterType === "lookup");
   const system =
     "You are a customer-support agent triaging a single support ticket. Respond with EXACTLY three " +
     "labelled lines, one per line, in this form and no other text: " +
     RESOLUTION_FIELD_LABELS.map((label) => `${label}: <value>`).join(", ") +
     `. Allowed "action" values: ${CUSTOMER_SUPPORT_ACTIONS.join(", ")}. Allowed "category" values: ` +
-    `${CUSTOMER_SUPPORT_CATEGORIES.join(", ")}. The "parameter" value is a dollar amount, two decimal places.`;
+    `${CUSTOMER_SUPPORT_CATEGORIES.join(", ")}. The "parameter" value's shape depends on the chosen ` +
+    `action: for ${monetaryActions.join(", ")} it is a dollar amount, two decimal places; for ` +
+    `${lookupActions.join(", ")} it is the exact name of the catalog item the ticket's stated SKU refers to.`;
 
   const user = truncatePairedPrompt(`Ticket:\n${ticket.ticketText}`);
   return { system, user };
