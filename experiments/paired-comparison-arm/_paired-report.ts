@@ -51,6 +51,14 @@ export interface PairedReportShapeOptions {
   /** The near-floor evidential-weight bound — defaults to
    *  `PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND`. */
   nearFloorEvidentialWeightBound?: number;
+  /** Report heading — defaults to the rev-2 pinned "# Paired-comparison
+   *  round — results (REQ-69)" heading (Plan 15-09, REQ-72: each round
+   *  states its own provenance in its own words without disturbing the
+   *  rev-2 report's own pinned default). */
+  title?: string;
+  /** Framing paragraph directly under the heading — defaults to the rev-2
+   *  pinned "2026-08-11 human override" paragraph (Plan 15-09, REQ-72). */
+  introParagraph?: string;
 }
 
 const TERMINATION_CLAUSE_NAMES: Record<Exclude<PairedStudyOutcome, "COMPLETE">, string> = {
@@ -75,6 +83,21 @@ function armBreachesDominantFailureMode(counts: PairedArmCategoryCounts, num: nu
   return mismatch * den >= scoreable * num;
 }
 
+/** Each arm's own mismatch rate over its own scoreable attempts (mismatch
+ *  plus match, the two unscoreable categories excluded) — arithmetic shown,
+ *  never hand-typed into a report. Rendered unconditionally (both COMPLETE
+ *  and every TERMINATED-* outcome): this is plain accounting over what
+ *  happened, distinct from the §8 item 3 CAVEAT itself, which stays scoped
+ *  to a completed run's own decision-rule verdict per §8 item 3's own text
+ *  ("alongside whatever verdict §5's decision rule produces"). */
+function armMismatchRateLine(arm: "W" | "B", counts: PairedArmCategoryCounts): string {
+  const mismatch = counts["resolution-mismatch"];
+  const scoreable = mismatch + counts["resolution-match"];
+  if (scoreable === 0) return `Arm ${arm} mismatch rate: undefined (zero scoreable attempts).`;
+  const pct = ((mismatch / scoreable) * 100).toFixed(1);
+  return `Arm ${arm} mismatch rate: ${mismatch}/${scoreable} (${pct}%) of its own scoreable attempts.`;
+}
+
 /**
  * Renders the paired round's results report as markdown, per §6's ordering
  * rule (per-unit records before any aggregate, aggregates before the
@@ -94,15 +117,17 @@ export function renderPairedResultsReport(
   const ceilingNum = opts.dominantFailureModeCeilingNum ?? PAIRED_DOMINANT_FAILURE_MODE_CEILING_NUM;
   const ceilingDen = opts.dominantFailureModeCeilingDen ?? PAIRED_DOMINANT_FAILURE_MODE_CEILING_DEN;
   const nearFloorBound = opts.nearFloorEvidentialWeightBound ?? PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND;
-  const lines: string[] = [];
-
-  lines.push("# Paired-comparison round — results (REQ-69)");
-  lines.push("");
-  lines.push(
+  const title = opts.title ?? "# Paired-comparison round — results (REQ-69)";
+  const introParagraph =
+    opts.introParagraph ??
     "This report executes under the 2026-08-11 human override as v1.25.0 human-directed follow-on " +
       "work. It is explicitly NOT a Stage-B trigger outcome and does not disturb the v1.24.0 " +
-      "milestone record.",
-  );
+      "milestone record.";
+  const lines: string[] = [];
+
+  lines.push(title);
+  lines.push("");
+  lines.push(introParagraph);
   lines.push("");
 
   lines.push("## Per-unit records");
@@ -141,6 +166,9 @@ export function renderPairedResultsReport(
   lines.push("## Pooled arithmetic");
   lines.push("");
   lines.push(`Tie count (recorded regardless of outcome, never entering the discordant numerator or denominator): ${accounting.tieCount}.`);
+  lines.push("");
+  lines.push(armMismatchRateLine("W", accounting.armW));
+  lines.push(armMismatchRateLine("B", accounting.armB));
   lines.push("");
 
   if (verdict.outcome !== "COMPLETE") {

@@ -134,6 +134,41 @@ describe("renderPairedResultsReport", () => {
     expect(report).toContain("v1.24.0");
   });
 
+  it("shows each arm's mismatch rate, as computed arithmetic, on both a completed and a terminated outcome (15-09, REQ-72)", () => {
+    const accounting = baseAccounting({
+      armW: categoryCounts({ "resolution-mismatch": 10, "resolution-match": 75 }),
+      armB: categoryCounts({ "resolution-mismatch": 10, "resolution-match": 73 }),
+    });
+    const termVerdict: PairedGateVerdict = { outcome: "TERMINATED-UNDERPOWERED", reason: "test" };
+    const termReport = renderPairedResultsReport(termVerdict, accounting, []);
+    expect(termReport).toContain("Arm W mismatch rate: 10/85 (11.8%)");
+    expect(termReport).toContain("Arm B mismatch rate: 10/83 (12.0%)");
+
+    const completeAcc = baseAccounting({ ...accounting, discordantCount: 20, winCount: 15 });
+    const completeVerdict: PairedGateVerdict = { outcome: "COMPLETE", decision: "W-SUPERIOR", reason: "test" };
+    const completeReport = renderPairedResultsReport(completeVerdict, completeAcc, []);
+    expect(completeReport).toContain("Arm W mismatch rate: 10/85 (11.8%)");
+  });
+
+  it("reports an undefined mismatch rate rather than dividing by zero when an arm has no scoreable attempts", () => {
+    const accounting = baseAccounting();
+    const verdict: PairedGateVerdict = { outcome: "TERMINATED-HEALTH-GATE-FAILED", reason: "test" };
+    const report = renderPairedResultsReport(verdict, accounting, []);
+    expect(report).toContain("Arm W mismatch rate: undefined (zero scoreable attempts).");
+  });
+
+  it("overrides the title and intro paragraph when supplied, without disturbing the rev-2 default for callers that pass nothing (15-09, REQ-72)", () => {
+    const accounting = baseAccounting();
+    const verdict: PairedGateVerdict = { outcome: "TERMINATED-UNDERPOWERED", reason: "test" };
+    const report = renderPairedResultsReport(verdict, accounting, [], {
+      title: "# Rev-3 report",
+      introParagraph: "Custom rev-3 framing paragraph.",
+    });
+    expect(report).toContain("# Rev-3 report");
+    expect(report).toContain("Custom rev-3 framing paragraph.");
+    expect(report).not.toContain("v1.25.0");
+  });
+
   it("the downgraded case names what the pooled verdict was downgraded from", () => {
     const blocks: PairedBlockClassification[] = ["W-majority", "W-majority", "W-majority", "B-majority", "B-majority", "block-tied"];
     const nd = 60;
