@@ -1917,3 +1917,65 @@ Full report at `experiments/paired-comparison-arm/CEILING-PROBE-REV3.md`. Rev-3 
 artifacts (`ceiling-probe-state.json`, `ceiling-probe-verdict.json`) are unchanged on disk. Because
 the probe passed, none of the failure-branch remedies (lower the floor, change the mode, change the
 seed, re-run) applied or were needed. The gate is passed; the phase proceeds to the search.
+
+## Phase 15, plan 15-08: the rev-3 search runs for real, and the incumbent survives real pressure (2026-08-20)
+
+I committed the rev-3 baseline (B) first and alone: `_b-arm-definition-rev3.md`, commit
+`90caee3bad14c781cd51671fa7f5e9c8708de9e1` — byte-identical to the rev-2 baseline's own operative
+prompt, confirmed programmatically before the commit, because nothing the amendment changed (the
+executor model, the battery size, the critical-value table) touches what the prompt itself states.
+
+Then I launched `_w-search.ts` through the sole-instance launcher (never directly) against the
+pinned rev-3 executor (`gpt-oss:latest`, full digest resolved via `GET /api/tags` and confirmed
+starting with the pinned `17052f91a42e` prefix — adjudication GF-27), the rev-3 search seeds
+(`1611, 1612, 1613`) and promotion seeds (`1614, 1615, 1616`). Launcher confirmed sole instance:
+`launched OK: node=1630704 (verified sole instance tree: pids 1630692 1630704)`. I waited on
+`w-search-rev3-verdict.json`'s own `complete: true` flag — never a log tail, never elapsed time —
+and read the verdict from that completed artifact once.
+
+**This search ran under real pressure, unlike rev-2's.** `gpt-oss:latest` is not saturated on this
+battery (§12's own calibration finding): `seed-baseline` scored 21/30 on the search half, generation
+0, meaning 9 of 30 units genuinely failed and were fed to `reflectMutate` as a real failure trace.
+The search ran 3 generations, halting on the search-horizon cap ("Two barren generations —
+converged; incumbent stands (anti-build null)."). Both lineages were mutated: `seed-baseline`'s own
+two mutations scored 20/30 and 20/30, both worse than its unmutated generation-0 text; `seed-alt`
+never exceeded 20/30 across any generation. Selection (highest search-half match count for a
+lineage across any generation it ran) therefore picked `seed-baseline` at generation 0 — its own
+unmutated text — as the winner. Promotion-half confirmation (30 fresh held-out tasks): 26/30 matched
+(28/30 scoreable), recorded and never gated. Disjointness of the search's own seeds from the rev-3
+paired battery's nine seeds (`1601`–`1609`) was checked by exact set computation over all 210
+checkpoint keys in `w-search-rev3-state.json`, not merely asserted: zero overlap.
+
+**The disclosure, again, but for a different reason this time.** I committed `_w-arm-definition-rev3.md`
+(commit `6cc48aafd3a2613fe40f4b6f314752c3b0c5eda0`, strictly after B —
+`git merge-base --is-ancestor 90caee3b... 6cc48aaf...` exits 0) with the winner text written verbatim
+from `w-search-rev3-verdict.json`'s own `winner.systemPrompt` field, round-trip verified byte-equal
+before the commit. That text is, once again, byte-identical to B's. But this is not rev-2's
+saturation artifact — rev-2's `seed-baseline` was never mutated at all because it produced zero
+failing units in every generation it ran. Rev-3's `seed-baseline` failed real units, was mutated
+twice against real failure traces drawn from `gpt-oss:latest`'s own actual mismatches, and both
+mutations came back worse than the original. This is an honest anti-build null: a real, pressured
+search that tried to improve on a competently hand-written baseline and could not, on this task, on
+this model, within the frozen caps (5 generations, 10 reflections).
+
+**Consequence, stated before the round runs, per the plan's own instruction.** With W and B carrying
+identical text, the paired round's outcome will be governed by model-sampling variance alone — an
+INDISTINGUISHABLE (or near-INDISTINGUISHABLE) result is the *expected* outcome given this search's
+own finding, not evidence against search in general on this task family. Whatever the round's verdict
+turns out to be, it should be read alongside the fact that this search applied genuine pressure and
+the incumbent held anyway — a different, stronger disclosure than rev-2's "there was nothing to
+search over."
+
+`paired-runconfig-rev3.json` pins both arm commits, the resolved model, both the 12-character pinned
+digest and the full 64-character digest read back live, the rev-3 battery shape (90 units, seeds
+`1601`–`1609`, health-gate floor 72, drop-budget ceiling 9, 6-of-9 concordance), and all three seed
+blocks. It also records, by evidence rather than by re-pinning (§12's own discipline clause forbids
+revising a pin once rev-3 inference data exists — adjudication GF-20): the timeout and prompt-length
+bound carried forward from `qwen3.6:latest` proved adequate for `gpt-oss:latest` across all 320 real
+calls made across the rev-3 probe, search and promotion runs so far — zero timeouts, zero
+prompt-length truncations.
+
+Full suite (90 files, 1279 tests) and `tsc --noEmit` stayed green after every commit. Rev-2 arm
+definitions and search artifacts (`_b-arm-definition.md`, `_w-arm-definition.md`,
+`w-search-state.json`, `w-search-verdict.json`) are unchanged on disk. Both rev-3 arm identities are
+now pinned, provably ordered, and ready for the 90-pair paired round — the next plan's work.

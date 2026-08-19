@@ -1,0 +1,78 @@
+{
+  "revision": "rev 3",
+  "freezeCommit": "8279159aa28885bf0f95afe59db43eceb7921746",
+  "bArmCommit": "90caee3bad14c781cd51671fa7f5e9c8708de9e1",
+  "wArmCommit": "6cc48aafd3a2613fe40f4b6f314752c3b0c5eda0",
+  "arms": {
+    "B": {
+      "role": "baseline unevolved agent definition",
+      "definitionFile": "_b-arm-definition-rev3.md",
+      "commit": "90caee3bad14c781cd51671fa7f5e9c8708de9e1",
+      "textStatus": "byte-identical to the rev-2 baseline (_b-arm-definition.md, commit ac3f452efc1b2580db8cae802649d7c8defacc0e) — the amendment touches only the executor model, battery size, and critical-value table, none of which the operative prompt text depends on"
+    },
+    "W": {
+      "role": "tournament-selected winner agent definition",
+      "definitionFile": "_w-arm-definition-rev3.md",
+      "commit": "6cc48aafd3a2613fe40f4b6f314752c3b0c5eda0",
+      "producedBy": "experiments/paired-comparison-arm/_w-search.ts (receipt-free bounded search, PD-1) against the rev-3 executor pin",
+      "searchVerdict": "w-search-rev3-verdict.json"
+    }
+  },
+  "ancestry": {
+    "note": "B strictly precedes W in git history — proven by git, not asserted in prose",
+    "verifyCommand": "git merge-base --is-ancestor 90caee3bad14c781cd51671fa7f5e9c8708de9e1 6cc48aafd3a2613fe40f4b6f314752c3b0c5eda0",
+    "shaInequality": "90caee3bad14c781cd51671fa7f5e9c8708de9e1 != 6cc48aafd3a2613fe40f4b6f314752c3b0c5eda0"
+  },
+  "model": "gpt-oss:latest",
+  "modelDigestLine": "gpt-oss:latest             17052f91a42e    13 GB     2 weeks ago",
+  "modelDigestPinned": "17052f91a42e",
+  "modelDigestFull": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+  "modelDigestFullVerification": "adjudication GF-27 — resolved via GET /api/tags against the local Ollama daemon before the rev-3 search launched; the full 64-char content digest was confirmed to start with the pinned 17052f91a42e prefix, never a prefix match alone",
+  "ollamaVersion": "ollama version is 0.32.5",
+  "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+  "taskTimeoutMs": 3600000,
+  "promptBoundChars": 2000,
+  "equalTreatmentReexaminationDisclosure": "adjudication GF-20 — the timeout (3,600,000ms) and prompt-length bound (2000 chars) pins were calibrated for qwen3.6:latest and carried forward unchanged for gpt-oss:latest. Re-examined by evidence rather than re-pinned: the rev-3 ceiling probe (15-07, 20 real calls) and the rev-3 search+promotion run (300 real calls total) both completed with zero timeouts and zero prompt-length truncations recorded in either state file's own retries/failure accounting, at real per-call latencies far under the timeout ceiling. Both pins are adequate by run evidence; neither is revised, consistent with §12's own discipline clause forbidding any pin revision once rev-3 inference data exists.",
+  "attemptDiscipline": "exactly one resolution proposal per arm per pairing unit (PAIRED_ATTEMPT_DISCIPLINE=1)",
+  "equalTreatmentInvariant": "model, model digest, timeout, prompt-length bound, and attempt discipline are held identical between W and B; only the presence or absence of the search that produced the agent definition differs (PAIRED-DESIGN-PREREG.md rev 3 §3, unchanged by the amendment)",
+  "batteryShapeRev3": {
+    "batterySize": 90,
+    "seeds": [1601, 1602, 1603, 1604, 1605, 1606, 1607, 1608, 1609],
+    "tasksPerSeed": 10,
+    "healthGateFloor": 72,
+    "minDiscordantFloor": 20,
+    "dropBudgetCeiling": 9,
+    "tieRateDisclosureThreshold": 71,
+    "concordanceBlockCount": 9,
+    "concordanceAgreeThreshold": 6,
+    "nearFloorEvidentialWeightBound": 25
+  },
+  "seedBlocks": {
+    "pairedBattery": {
+      "seeds": [1601, 1602, 1603, 1604, 1605, 1606, 1607, 1608, 1609],
+      "tasksPerSeed": 10,
+      "note": "the rev-3 paired round's own nine seeds — drawn only by the paired-round driver, never referenced by _w-search.ts (confirmed: none of these nine numbers appears in any checkpoint key of w-search-rev3-state.json)"
+    },
+    "tournamentSearch": {
+      "seeds": [1611, 1612, 1613],
+      "tasksPerSeed": 10,
+      "note": "disjoint from the paired battery's own seeds per PAIRED-DESIGN-PREREG.md §3/§12 — the data used to select W. Disjointness checked by exact set computation over all 210 checkpoint keys in w-search-rev3-state.json, not merely asserted."
+    },
+    "tournamentPromotion": {
+      "seeds": [1614, 1615, 1616],
+      "tasksPerSeed": 10,
+      "note": "disjoint from both the search-set and the paired battery's own seeds — the held-out confirmation run"
+    }
+  },
+  "searchOutcome": {
+    "winnerCandidateId": "seed-baseline",
+    "winnerGeneration": 0,
+    "searchMatchCount": "21/30",
+    "generationsRun": 3,
+    "haltSource": "search-horizon",
+    "haltNote": "Two barren generations — converged; incumbent stands (anti-build null).",
+    "fitnessLogSummary": "seed-baseline: gen0 21/30 (unmutated) > gen1 20/30 (mutated) > gen2 20/30 (mutated); seed-alt: gen0 20/30 > gen1 20/30 (mutated) > gen2 19/30 (mutated). seed-baseline's own best-ever fitness is its unmutated generation-0 text, which is why it is the winner.",
+    "promotionConfirmation": "26/30 matched, 28/30 scoreable, 30/30 attempted",
+    "disclosedFact": "W's committed text is byte-identical to B's — but unlike rev-2 (where seed-baseline was never mutated, zero failing units in every generation), rev-3's seed-baseline WAS genuinely mutated twice on real failure traces and both mutations scored worse than the original. This is an honest anti-build null: a real, pressured search that could not beat a competently hand-written baseline on this task, on this model, within the frozen caps. See _w-arm-definition-rev3.md sections 0-1 for the full disclosure."
+  }
+}
