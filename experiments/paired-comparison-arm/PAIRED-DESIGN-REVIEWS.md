@@ -617,6 +617,106 @@ finding ids in a merge:
 - gemma4 (2, F1–F2): both walked into global findings below.
 - gpt-oss (7, F1–F7): all 7 walked into global findings below.
 
+## Disposition
+
+**27 of 34 global findings adopted, 7 rejected with reason: `27 + 7 = 34`.** This reconciles against
+the raw pre-merge base per the Merge arithmetic section above: 64 raw findings, 47 absorbed into 17
+multi-source global findings (a reduction of 30, `47 - 17 = 30`), 17 raised by exactly one lane and
+carried 1:1, `64 - 30 = 34` global findings — the same 34 this disposition adjudicates. These figures
+were verified by counting the ledger itself (every `- F-NN (...)` entry and its one `**Verdict:**`
+line, walked lane by lane against the raw table in the section above), not carried forward from
+Task 1's or Task 2's own commit messages; no disagreement was found between the ledger and the
+figures stated here.
+
+**Headline rev-2 changes, grouped by the design section they land on:**
+
+- **§2 (substance mapping):** gains an explicit clause, mirroring `DUALFIX-STUDY-PREREG.md` §2's own
+  precedent, stating that no verdict from this study may be cited as evidence in Phase 14's REQ-68
+  `customer-support` admission decision (F-19 — the panel's strongest substance-drift finding, and
+  the one real gap in an otherwise-sound four-axis mapping); and has its framing prose corrected so
+  the tasks are described as constructed in the shape of a replay-checkable historical ticket rather
+  than as literal historical replay (F-20).
+- **§3 (arm identities):** W gains a requirement that its selected configuration be recorded as a
+  committed, hashable artifact before the battery runs (F-15); B gains a requirement for a committed
+  artifact with a named author, a commit timestamp preceding W's tournament run, and a stated
+  ordinary-competence bar distinguishing it from the already-rejected s0-minimal floor arm (F-16); a
+  statement is added that W's definition is frozen and disjoint from the data that selected it among
+  tournament candidates, before this battery is drawn (F-08); and a disclosure is added naming that
+  "presence or absence of search" bundles several sub-factors (candidate count, compute, iterative
+  refinement) rather than isolating one clean axis (F-17).
+- **§5 (statistical machinery, the design's own most-attacked and most-open section):** Option 3 is
+  renamed away from the misleading "blocking factor" framing (F-04); a required integer-pinned
+  block-level concordance check is added alongside the pooled decision — six seed-blocks each
+  classified W-majority/B-majority/tied, at least four of six required to agree with the pooled
+  decision's direction or the reported result downgrades to INDISTINGUISHABLE — superseding §5's
+  current "the decision rule stays the plain pooled comparison regardless of the diagnostic" line
+  (F-05, folding in F-06's severity language and F-26's per-seed-diagnostic fix); a sentence is added
+  naming that seed-pooling's and tie-discarding's anti-conservative biases compound (F-07); a
+  disclosure is added scoping the W-SUPERIOR/B-SUPERIOR label to relative discordant-pair frequency,
+  never absolute accuracy (F-09); the false integer-arithmetic objection to split-tie handling is
+  dropped, leaving only the valid evidential reason (F-12); split-tie handling is described accurately
+  as a different estimand rather than a "stricter variant" (F-13); and alpha=0.05's provenance is
+  relabelled as an honestly-stated chosen conventional value rather than an implied citation (F-29).
+- **§6/§7 (qualification and termination):** the closing declaration is reworded to state the real
+  distinguishing principle between a data-sufficiency count gate and D-05's barred outcome-location
+  corridor, rather than a blanket "never a rate" claim (F-01); one sentence is added naming that
+  Clause 2 can terminate specifically because both arms performed similarly well, not only because
+  data was unusable (F-03); a harness-fault carve-out mirroring `DUALFIX-STUDY-PREREG.md` §6's
+  `onceWithHarnessRetry` is added so a single transient inference-slot fault cannot alone trigger
+  permanent termination (F-22); and §7's null-result canonization gains a caveat that an
+  INDISTINGUISHABLE result landing near the 20-pair floor carries markedly less evidential weight than
+  one landing near the battery's full size (F-14, alongside §6/§9's power-profile rewording).
+- **§8/§9 (disclosures and constants):** the tie-rate boundary is corrected from 40 to 41 (F-23); the
+  90%-mismatch threshold is reworded as a rate over each arm's own scoreable attempts rather than a
+  fixed 54-of-60 count (F-24); a breach of that threshold now requires an explicit caveat on the
+  reported verdict, closing its previously decorative status (F-25); §9 gains rows for the model
+  digest, timeout, prompt-length bound, one-attempt discipline (F-27), and the literal constant 40
+  (F-28); §9 gains a stated drift-guard obligation for Phase 14's transcription of the 41-row
+  critical-value table (F-11); and §6 Clause 2's floor gains its own derived power-profile row rather
+  than only the "not independently derived" admission (F-14).
+- **§4 (oracle and construction):** the rendering-fidelity disclosure gains an explicit addition
+  naming the asymmetric-exploitability risk that W, tournament-selected against the same generator
+  family, may be better positioned than B to exploit generator tells rather than genuine task
+  competence (F-32 — the panel's most novel finding); and the structured-match equivalence relation
+  is pinned with a stated tolerance and extraction contract, rather than left to Phase 14's undefined
+  discretion (F-33).
+
+**No recorded 2026-08-19 STATE.md orchestrator default is superseded by this ledger.** D-02 (the
+`customer-support` family selection) is untouched — no finding in this panel argued for a different
+family. D-03 (the W = tournament-winner / B = unevolved-baseline identities) is untouched in what W
+and B *denote* — F-15 and F-16 add pinning *mechanisms* around those identities (a committed artifact
+for each, with timing and authorship requirements) without changing who or what either arm is. One
+adoption, F-05, does supersede a design choice — but it supersedes §5's own pooled-decision-rule
+text, a statistical-machinery choice this phase's own 13-02 plan authored in the same phase this
+panel reviews, not a 2026-08-19 STATE.md orchestrator default; D-07's adjudication authority, not
+D-02/D-03's supersession clause, is what licenses that change.
+
+**§6/§10 substance gate: CLEAR, after adoption.** This phase's own excluded hypothesis, per §2 and
+the standing §6/§10 bar: prompt-search vs. hand-written baseline, run as the phase-5 promotion gate,
+on `data-ops` or `bi-analytics` specifically, under any label. Per axis: task semantics, oracle
+implementation, and parser/scoring machinery each read substantively different in kind, not merely in
+vertical content — F-18 (REJECTED) tested the claim that this pattern is trivially evadable by
+changing verticals, against `RECOMMENDATION.md` §2's own already-adjudicated in-kind standard (itself
+panel-tested via `BI-BATTERY-DESIGN.md`'s F-27 disposition), and found §2's table here supplies a
+genuine mechanism-class difference (no execution or interpreter-recomputation step at all in the
+replay-match oracle, versus `data-ops`/`bi-analytics`'s execution+construction oracle class) rather
+than merely different vertical content. The fourth axis — promotion-gate role — is where the panel
+found the mapping's one real, load-bearing gap: F-19 (ADOPTED) found the "not a promotion gate" claim
+asserted but unenforced, with no clause preventing Phase 14's REQ-68 admission decision from citing
+this study's verdict; that gap is now closed by the explicit no-verdict-feeds-a-gate clause F-19
+requires. F-20 (ADOPTED) additionally corrects the oracle-implementation axis's own honesty, so the
+"replay + construction" framing this mapping leans on is not overstated by the document's own prose
+before the fix. F-21 (REJECTED) — the one finding asserting the pairwise shape alone places this
+design under the barred class regardless of vertical — does not engage the mapping's own specific
+claims and does not survive contact with F-18's disposition. With F-19's firewall clause and F-20's
+honest replay-language fix applied, the mapping clears on all four axes, with its previously weakest
+axis (4) now enforced rather than merely asserted.
+
+**This ledger is complete.** All 64 raw findings from `experiments/paired-comparison-arm/PAIRED-DESIGN-REVIEWS.md`'s
+five-lane panel round are accounted for in the 34 global findings above, each carrying exactly one
+adjudicated verdict. Plan 13-05 applies exactly the 27 adoptions named in this disposition and no
+other change to `PAIRED-DESIGN-PREREG.md`; the 7 rejections require no rev-2 edit.
+
 ## Findings, adjudicated
 
 - F-01 (gpt-sol-pro F1, F2, F3): §6 Clause 1 (48/60 pairing units jointly scoreable), Clause 2
