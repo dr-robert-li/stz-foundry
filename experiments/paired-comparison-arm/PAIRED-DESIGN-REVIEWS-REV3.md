@@ -302,3 +302,138 @@ All 41 shared rows (`n_d` 20–60) match the frozen rev-2 table byte-for-byte.
 **F10** (§12, missing power-profile extension for widened battery). The amendment widens the battery to 90 but does not extend §6 Clause 2's F-14 power-profile disclosure beyond `n_d=40`. The rev-2 design provided power at `n_d=20` and `n_d=40` — two reference points spanning the floor to the full battery (60). At 90 pairing units, the battery can produce `n_d` values up to 90, and a reader evaluating an `INDISTINGUISHABLE` result at, say, `n_d=55` or `n_d=70` has no design-time power context for those `n_d` values. At `p=0.70`, power at `n_d=60` (`c(60)=39`) is approximately 84%, and at `n_d=80` (`c(80)=50`) approximately 94% — substantially more informative than the rev-2 reference points. The widened battery needs at least one additional power reference point (e.g., `n_d=60`) to maintain the same level of reader guidance the rev-2 disclosure provided.
 
 **Raw finding count — qwen-max: 10 (F1–F10).**
+
+## Task 2 — Two locally-hosted lanes, sequential, watchdog-supervised
+
+**Invocation-path note.** Both lanes ran via a direct HTTP POST to Ollama's **native** `/api/chat`
+endpoint (`http://localhost:11434/api/chat`), never the OpenAI-compat `/v1/chat/completions`
+endpoint — the compatibility path does not reliably honour a `num_ctx` override on a packet this
+size, and a silently truncated prompt would produce a review of a document the reviewer never fully
+saw. `options.num_ctx: 32000` was set on both requests (the ~58KB / ~14,500-token estimated packet
+comfortably fits under that ceiling).
+
+`experiments/dataops-agent-pilot/_memory-watchdog.sh` (`WATCHDOG_CEILING_GB=109`) was started
+detached before `gemma4:31b`'s request began and stopped only after `gpt-oss:latest`'s request
+completed and was confirmed unloaded; its own log shows only the start line and no breach event,
+confirming the ceiling was never crossed for the whole local-model window.
+
+The two models ran **strictly sequentially**: `ollama ps` confirmed empty before `gemma4:31b`
+loaded; `gemma4:31b` was explicitly unloaded (`ollama stop gemma4:31b`) and `ollama ps` confirmed
+empty again before `gpt-oss:latest` loaded; `gpt-oss:latest` was then unloaded and `ollama ps`
+confirmed empty a third time before the watchdog was stopped. At no point were both models resident
+together.
+
+**Ingestion check, per lane (never assumed from the fact that a response came back):**
+
+| Lane | Resolved model id | Reported `prompt_eval_count` | Packet estimate (chars/4) | Verdict |
+|---|---|---|---|---|
+| `gemma4` | `gemma4:31b` | 16,929 | ~14,532 | sound-with-changes |
+| `gpt-oss` | `gpt-oss:latest` (digest `17052f91a42e`) | 15,320 | ~14,532 | unsound |
+
+Both reported ingestion counts exceed the packet's own character-based token estimate (the
+difference is the chat-template/role-wrapping overhead Ollama's own tokenizer adds on top of the
+raw packet text) — neither lane's reported ingestion is materially below the estimate, so neither
+lane is judged to have truncated the packet. Both responses carried `done: true`.
+
+## Lane: gemma4
+
+**Verdict: sound-with-changes**
+
+### 1. The model swap's own evidence
+
+**F1: Calibration gradient ≠ Paired gradient (§12).** The justification for the swap relies on `gpt-oss:latest` showing a "real, measured gradient" in calibration dry-runs. However, calibration measures W against a fixed baseline/configuration. It does not measure the relative distance between W and B. If both W and B shift their performance upward or downward on `gpt-oss:latest` in tandem, the "gradient" observed in calibration will not translate to a gradient in the paired round, potentially leading to another `TERMINATED-UNDERPOWERED` result. The dry-run proves the model is not saturated, but it does not prove that W and B are sufficiently separated on this specific executor.
+
+**F2: Reviewer/Executor conflict (§12).** The amendment proposes using `gpt-oss:latest` as the executor model while the same model (or its family) is acting as a reviewer in the adversarial panel for this amendment. This creates a structural blind spot: the model may be biased toward approving an instrument design that favors its own operational characteristics or failure modes, or it may fail to identify risks inherent to its own inference patterns.
+
+### 2. The battery-widening arithmetic
+
+**F3: Opaque "expected harvest" assumptions (§12).** The claim that widening the battery to 90 pairs raises the expected discordant harvest to "roughly 27" is presented without the underlying probability of discordance P(d). If B's accuracy is ≈70%, a harvest of 18/60 (the rev-2 case) implies P(d) ≈ 0.3. For this to occur, W must be nearly perfect (≈100% accuracy), as any decrease in W's accuracy actually *increases* the number of discordant pairs (by increasing LOSSes). By basing the justification on a "worst-case" harvest (where W is so strong it minimizes discordance), the author may be masking the fact that if W is only marginally better than B, the harvest will be much higher, making the widening to 90 potentially excessive or unnecessary.
+
+### 3. The three recomputed values
+
+No findings.
+
+### 4. The widened critical-value table
+
+No findings.
+
+### 5. Open decision 1 — the seed-block shape
+
+**F4: Insufficient justification for 6×15 alternative (§12).** The argument for the 6×15 shape is "zero gate-code change." This is a developer convenience, not a scientific or statistical justification. Breaking the house convention of ten tasks per seed (used in `DUALFIX` and `BI`) introduces an unquantified risk: if the "difficulty" or "noise" of seeds is non-uniform, increasing the units per seed to 15 may increase intra-block variance, potentially making the concordance check less reliable.
+
+**F5: Outlier risk in 9×10 default (§12).** While the worst-case bound for 9×10 (50.78%) is lower than rev-2's, increasing the number of seeds from 6 to 9 increases the probability that the battery includes a "poison" seed (an outlier that systematically favors one arm). The amendment focuses on the *perfect correlation* bound but ignores the *increased sample of seeds* risk.
+
+**Preference:** I prefer the **9×10 default**, provided F5 is acknowledged. The lower worst-case bound and adherence to house convention outweigh the trivial cost of updating a single integer in `_paired-gate.ts`.
+
+### 6. Open decision 2 — the near-floor evidential-weight bound
+
+**F6: Incentive for "Null-Result Inflation" (§12).** The recommended default to keep the bound at 24 is indefensible. As noted in the draft's own counter-argument, 24 represents a much smaller fraction of the new range (20–90) than it did of the old range (20–60). Keeping the bound at 24 allows Robert Li to label more `INDISTINGUISHABLE` results as "strong" nulls rather than "near-floor" (weak) nulls. This creates an incentive to avoid re-deriving the bound to keep the result's evidential weight appearing higher than it is.
+
+**Preference:** I strongly disagree with the recommended default. The bound should be re-anchored to ≈34 (a fifth of the floor-to-90 range) to preserve the original intent of flagging results that lack sufficient discordant mass.
+
+### 7. What this amendment does NOT touch, verified rather than assumed
+
+**F7: Latency/Timeout omission (§12).** The amendment swaps the executor model but explicitly states that timeouts are "pinned by Phase 14's instrument commit." It fails to address whether `gpt-oss:latest` has a different latency profile than `qwen3.6:latest`. If the new model is slower, the existing timeout pins (carried over from rev-2) may trigger an increase in no-artifact/non-scoreable results, potentially causing a breach of Clause 3 (drop-budget ceiling) that would not have occurred with the previous model.
+
+### 8. Anything else in §12 that would let this amendment survive review unchanged that shouldn't
+
+No findings.
+
+**Raw finding count — gemma4: 7 (F1–F7).**
+
+## Lane: gpt-oss
+
+**Verdict: unsound**
+
+### Lane 1 – Model swap evidence
+
+**F1. Insufficient justification for swapping the executor model** – The amendment cites a calibration dry‑run on six micro‑configurations (C0–C5) to claim that `gpt-oss:latest` exhibits a "real, measured gradient." This evidence is limited to a handful of synthetic tickets and does not demonstrate that the new model will produce discordant pairs in the full paired‑comparison battery. The calibration scores may be inflated by prompt or token‑limit effects that do not translate to the actual `customer-support` replay‑match oracle, so the claim that the swap will enable a statistically detectable effect is unsubstantiated.
+
+**F2. Conflict of interest** – The reviewer panel includes an instance of `gpt-oss:latest`, which is also proposed as the executor model for the amendment. This dual role creates a potential bias in the review process, as the same model that will be evaluated is being used to assess its own suitability.
+
+### Lane 2 – Battery‑widening arithmetic
+
+**F3. Unverified expected discordant harvest** – The amendment states that "expected harvest of roughly 18 discordant pairs at 60 and ~27 at 90" based on a baseline accuracy of ≈70%. This calculation implicitly assumes independence between W and B outcomes and identical accuracy across all tickets, yet no derivation is provided. If the true probability of discordance differs (e.g., due to correlated errors or varying per‑ticket accuracies), the floor‑margin argument collapses, potentially leaving the study underpowered even with 90 units.
+
+### Lane 3 – Recomputed constants
+
+**F4. No issue** – The instrument‑health gate floor (72/90), drop‑budget ceiling (9/90), and tie‑rate threshold (71/90) are correctly recomputed from §9's provenance formulas; they preserve the same qualitative properties as their 60‑unit counterparts.
+
+### Lane 4 – Widened critical‑value table
+
+**F5. Lack of verification for n_d > 60 entries** – The 71‑row table extends the critical‑value mapping to n_d = 90, but no audit or test is shown that each row satisfies the combinatorial condition `40·Σ_{i=c}^{n_d} C(n_d,i) ≤ 2^{n_d}`. A single arithmetic error in any of these rows would invalidate the decision rule for a non‑trivial portion of the battery, potentially producing false positives or negatives.
+
+### Lane 5 – Seed‑block shape (open decision 1)
+
+**F6. Inadequate block‑concordance threshold** – The draft proposes a 9×10 default with a 6/9 agreement requirement, yielding a worst‑case rejection probability of ≈50.8% under perfect intra‑seed correlation. While lower than the rev‑2 bound (68.75%), this still represents a high false‑positive risk and does not account for imperfect but non‑trivial correlation that may arise in practice. A stricter threshold (e.g., 7/9) would reduce this risk, yet the draft offers no justification for choosing 6/9.
+
+**F7. Unnecessary code change** – The alternative 6×15 block shape preserves the existing 4/6 threshold but violates the house convention of ten tasks per seed. The draft claims "zero gate‑code change," but this ignores the downstream impact on task scheduling, timeout adequacy, and potential bias introduced by longer blocks.
+
+### Lane 6 – Near‑floor evidential‑weight bound (open decision 2)
+
+**F8. Misaligned scaling** – Keeping the near‑floor bound at 24 when the battery expands to 90 units effectively shrinks its relative position from "four units above the floor" to only ≈1/17 of the new discordant‑pair range (20–90). The draft's rationale for retaining 24 is based on a comparison with the rev‑2 floor‑to‑40 window, which no longer applies. A re‑anchored bound (≈34) would better preserve the intended notion that "near the floor" tracks a stable fraction of the available range.
+
+### Lane 7 – Untouched components
+
+**F9. No issue** – The amendment explicitly states that the oracle, ticket generator, equal‑treatment invariant, and pairing‑unit discipline remain unchanged; no hidden side effects are introduced by the model or battery changes.
+
+### Lane 8 – Other undisclosed pins / potential issues
+
+**F10. Timeout and prompt‑length bounds not revisited** – The amendment introduces a larger battery (90 units) but does not reassess whether the existing timeout or maximum prompt length remain adequate for all runs, especially under the new `gpt-oss:latest` model which may have different latency characteristics.
+
+**F11. Seed disjointness claim unverified** – While the draft asserts that the new seed set (1601–1609) is disjoint from all prior seeds, no formal proof or reference to a seed‑registry lookup is provided; accidental overlap could compromise reproducibility.
+
+**Raw finding count — gpt-oss: 11 (F1–F11).**
+
+**Numbering note, recorded rather than silently normalised.** `gpt-oss`'s own local numbering assigns
+a finding number to two "No issue" lane dispositions (F4 under Lane 3, F9 under Lane 7) rather than
+leaving those lanes unnumbered the way `gemma4`'s "No findings." convention does. This is a
+between-lane inconsistency in how "nothing to report" is recorded, not a claim about either lane's
+substance; it is noted here as an observation for 15-04's merge, not adjudicated.
+
+## Task 2 close
+
+Five of five target lanes produced output; no lane was dropped, substituted, or silently re-run.
+Both local lanes' full-packet ingestion is evidenced above by their own reported `prompt_eval_count`
+against the packet's estimated token count. No finding in this section carries an adjudication, a
+merge marker, or a dismissal.
