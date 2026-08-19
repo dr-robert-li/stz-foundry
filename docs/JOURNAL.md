@@ -1218,3 +1218,84 @@ property on this corpus, not as a milestone that ran out of time.
 
 I am pushing this commit to origin once, at this gate — the milestone-ending push REQ-70
 authorizes here since Phase 12 is where the milestone actually ends on this branch.
+
+## Third-family paired design frozen at rev 2: 27 ADOPTED / 7 REJECTED, substance gate CLEAR (2026-08-19)
+
+This entry closes Phase 13 under the **2026-08-11 human override** — v1.25.0 follow-on work, not a
+Stage-B trigger outcome and not a continuation of milestone v1.24.0. The v1.24.0 terminal record
+(`experiments/dualfix-study/TERMINAL-REPORT.md`, `STUDY-RESULTS.md`) is closed, pushed, and I have
+not touched it anywhere in this phase.
+
+**The family.** I selected `customer-support`, scoped to its replay-checkable subset only, over
+`performance-marketing`. The grounds are buildability, not expected outcome: `customer-support`'s
+oracle class includes construction — the answer-first pattern this project has already proven twice
+(the BI star-schema warehouse, the data-ops fixture warehouse) builds a replay-checkable ticket
+without any external dataset. `performance-marketing` requires harvested campaign actuals that do
+not exist anywhere in this repository; manufacturing them would violate the standing "exogeneity is
+harvested, not manufactured" constraint, so that path stayed closed, not merely disfavoured. This
+confirms, not amends, the 2026-08-19 STATE.md default — no finding in the panel below argued for a
+different family.
+
+**The design's shape.** W is the tournament-selected winner agent definition (component-tournament,
+GEPA-style bounded reflective mutation); B is the unevolved baseline a human would hand-write
+without running that search. Both attempt the identical historical-shaped ticket; a binary
+replay-match oracle scores each arm's proposal against a pre-composed known resolution; the decision
+rule is a two-sided integer sign test over discordant pairs, evaluated once from a completed
+artifact against a pinned critical-value table computed at design time — no live float computation
+anywhere in the decision path. This statistical machinery — a paired win/loss/tie sign test over
+discordant pairs — has no predecessor anywhere in this project's history; every prior design here
+(DUALFIX's margin, the BI battery's clauses) is a single-arm rate or a two-arm rate difference, never
+a per-task paired test. §10 states this plainly, and the five-lane panel below exists precisely
+because of it.
+
+**The panel.** Five lanes ran per D-06, all live: `gpt-sol-pro` (UNSOUND, 38 raw findings), `kimi-k3`
+(SOUND-WITH-CHANGES, 12), `qwen-max` (SOUND-WITH-CHANGES, 5), `gemma4` (UNSOUND, 2), `gpt-oss`
+(UNSOUND, 7) — 64 raw findings total. I merged these into 34 globally numbered findings (47 absorbed
+into 17 multi-source clusters, 17 raised by exactly one lane, `17+17=34`, reconciled `64-30=34`) and
+adjudicated each exactly once: **27 ADOPTED, 7 REJECTED-with-reason** (`27+7=34`). The strongest
+single adoption (F-05) added a required integer-pinned block-level concordance check alongside the
+pooled decision — six seed-blocks each classified W-majority/B-majority/tied, at least four of six
+required to agree with the pooled decision's own direction or the reported result downgrades to
+INDISTINGUISHABLE — closing the panel's most consequential seed-clustering objection without
+reintroducing a live float computation anywhere. The seven rejections (F-02, F-10, F-18, F-21, F-30,
+F-31, F-34) each engage the finding's own specific claim against a named decision, standing
+precedent, or already-frozen text, per `PAIRED-DESIGN-REVIEWS.md`'s own adjudication ledger.
+
+**The substance gate reads CLEAR, after adoption.** The excluded hypothesis — prompt-search vs.
+hand-written baseline, run as the phase-5 promotion gate, on `data-ops` or `bi-analytics`
+specifically, under any label — was tested against this design's own four-axis mapping (§2). Three
+axes read substantively different in kind (F-18 REJECTED, tested against `RECOMMENDATION.md` §2's
+own already-adjudicated in-kind standard and found genuine); the fourth axis, promotion-gate role,
+carried the panel's one real gap: F-19 (ADOPTED) found the "not a promotion gate" claim asserted but
+unenforced, with nothing preventing Phase 14's REQ-68 admission decision from citing this study's
+verdict. Rev 2 closes that gap with an explicit clause — no verdict this study produces may be cited
+as evidence in that admission decision — mirroring `DUALFIX-STUDY-PREREG.md` §2's own precedent.
+
+**The freeze.** I applied all 27 adoptions to `PAIRED-DESIGN-PREREG.md`, walked the rev-1-to-rev-2
+diff hunk by hunk against the adoption list to confirm nothing unreviewed slipped in, resolved both
+overridable defaults in the document's own text (D-02 confirmed; D-03 confirmed, with pinning
+mechanisms added around W and B without changing what either denotes), filled §11 with the panel
+outcome, and committed rev 2 alone, on its own, as the freeze commit. No instrument code, generator,
+oracle, or run data exists anywhere under `experiments/paired-comparison-arm/` at this freeze — the
+directory holds only the two markdown documents, confirmed before writing this entry. That is what
+makes the freeze mean anything: Phase 14 builds its instrument after this document, never the other
+way around.
+
+**Freeze SHA:** `2f9e6095dc6e20bcc8196a293397f7ec07f8c704`
+
+That is the commit that last touched `experiments/paired-comparison-arm/PAIRED-DESIGN-PREREG.md`,
+confirmed both ways — `git rev-parse HEAD` and
+`git log -1 --format=%H -- experiments/paired-comparison-arm/PAIRED-DESIGN-PREREG.md` agreed before I
+wrote this entry. Phase 14's first instrument-code commit must descend from it; the read-only check
+is `git merge-base --is-ancestor <freeze-sha> <phase-14-instrument-commit>`, substituting the SHA
+above for `<freeze-sha>` and Phase 14's own first instrument commit for the second argument — run
+that, don't re-derive the ancestry from commit timestamps or narrative. This is the same discipline
+the Phase 11 freeze used for Phase 12's corpus-pin commit.
+
+`PAIRED-DESIGN-REVIEWS.md` carries the full record — every lane's raw findings reproduced verbatim,
+the merge into 34 global findings, and the adjudication ledger with a reason for every verdict. The
+three byte-frozen precedent documents (`DUALFIX-STUDY-PREREG.md`, `BI-BATTERY-DESIGN.md`,
+`PREREG-DRAFT.md`) are unchanged by this phase, confirmed by hash. `package.json`,
+`.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` all still read `1.24.0`; the
+1.25.0 manifest sync lands at Phase 14's close, per D-08, not here. Full suite and typecheck stayed
+green through both commits in this plan.

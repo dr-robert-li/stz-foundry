@@ -7,6 +7,31 @@ and the project aims to follow [Semantic Versioning](https://semver.org/).
 Entries at 0.9.6 and below are the upstream slice-tournament-zoo record,
 preserved verbatim.
 
+## [1.25.0] — Third-family paired-comparison design frozen (Phase 13); manifest sync deferred to Phase 14 close
+
+### Phase 13 — Third-family paired prereg
+
+This work executes under the **2026-08-11 human override** by Dr. Robert Li as v1.25.0 follow-on
+work, not a Stage-B trigger outcome and not a continuation of milestone v1.24.0 (whose closed,
+pushed terminal record — `experiments/dualfix-study/TERMINAL-REPORT.md` and `STUDY-RESULTS.md` —
+stands untouched throughout this phase).
+
+- `experiments/paired-comparison-arm/PAIRED-DESIGN-PREREG.md` (REQ-67): the third-family
+  paired-comparison design — `customer-support`'s replay-checkable subset, a tournament-selected
+  winner (W) versus an unevolved baseline (B), scored by a binary replay-match oracle and decided by
+  a two-sided integer sign test over discordant pairs, corridor-free per D-05 — frozen at rev 2 after
+  a five-lane adversarial panel (`gpt-sol-pro`, `kimi-k3`, `qwen-max`, `gemma4`, `gpt-oss`, D-06):
+  64 raw findings merged into 34 global findings, 27 ADOPTED / 7 REJECTED-with-reason. Freeze SHA
+  recorded once in `docs/JOURNAL.md`.
+- `experiments/paired-comparison-arm/PAIRED-DESIGN-REVIEWS.md` (REQ-67): the full panel and
+  adjudication record — every lane's raw findings, the merge into 34 global findings, and the
+  reasoned verdict for each finding.
+- **Version sync deferred, per D-08.** `package.json`, `.claude-plugin/plugin.json`, and
+  `.claude-plugin/marketplace.json` all still read `1.24.0` at the close of this phase — the 1.25.0
+  manifest sync lands at Phase 14's close (ROADMAP Phase 14 SC4, the 2026-08-19 STATE decision), not
+  here, so the version record is not split across two phases mid-milestone. The drift guard stays
+  green throughout.
+
 ## [1.24.0] — DUALFIX repair mechanism + two-arm study driver; pre-registration frozen before data (Phase 11)
 
 ### Phase 11 — Study prereg + build
