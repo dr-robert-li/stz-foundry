@@ -7,6 +7,37 @@ and the project aims to follow [Semantic Versioning](https://semver.org/).
 Entries at 0.9.6 and below are the upstream slice-tournament-zoo record,
 preserved verbatim.
 
+## [1.26.0] — Rev-3 amendment (executor-model swap, battery widened to 90) frozen (Phase 15); manifest sync deferred to phase close
+
+### Phase 15 — Amended paired run, calibrated instrument
+
+This work continues under the **2026-08-11 human override** by Dr. Robert Li as v1.25.0/v1.26.0
+follow-on work, not a Stage-B trigger outcome. The v1.24.0 terminal record
+(`experiments/dualfix-study/TERMINAL-REPORT.md`, `STUDY-RESULTS.md`) stands untouched throughout.
+
+- `experiments/paired-comparison-arm/PAIRED-DESIGN-PREREG.md` §12 (REQ-71): the rev-3 amendment —
+  executor model swapped to `gpt-oss:latest` (from `qwen3.6:latest`, which saturated the rev-2
+  calibration battery), the battery widened 60→90 pairing units, the three derived qualification
+  values recomputed, and the critical-value table widened to 71 rows — carried a five-lane
+  adversarial panel over §12 alone (`gpt-sol-pro`, `kimi-k3`, `qwen-max`, `gemma4`, `gpt-oss`), 54
+  raw findings merged into 31 global findings, **26 ADOPTED / 5 REJECTED-with-reason**
+  (`PAIRED-DESIGN-REVIEWS-REV3.md`). The two decisions the draft left open were settled: the
+  seed-block shape (9 blocks of ten, six-of-nine concordance agreement threshold) and the
+  near-floor evidential-weight bound (re-derived to 25 via a power-anchored criterion). §7's frozen
+  one-shot termination clause was engaged explicitly rather than left unaddressed — both readings of
+  whether an executor-model swap after a `TERMINATED-UNDERPOWERED` outcome is permitted are stated
+  in §12's own text, and the checkpoint accepted the instrument-identity reading before the freeze.
+  Freeze SHA recorded once in `docs/JOURNAL.md`, ancestry proven against the rev-2 freeze commit by
+  `git merge-base --is-ancestor`.
+- `test/paired-rev2-freeze.test.ts` (REQ-71): binds the rev-2 byte-freeze claim to the rev-2 freeze
+  commit's own blob hash, read from git rather than the working tree.
+- `test/paired-rev3-table-drift.test.ts` (REQ-71): binds §12's transcribed 71-row critical-value
+  table to its own derivation function, row by row.
+- **Version sync deferred.** `package.json`, `.claude-plugin/plugin.json`, and
+  `.claude-plugin/marketplace.json` all still read `1.25.0` at this entry — the 1.26.0 manifest sync
+  lands at this phase's close, not here, mirroring D-08's precedent from Phase 13. The drift guard
+  stays green throughout.
+
 ## [1.25.0] — Third-family paired-comparison design frozen (Phase 13); manifest sync deferred to Phase 14 close
 
 ### Phase 13 — Third-family paired prereg

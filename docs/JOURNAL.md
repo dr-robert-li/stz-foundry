@@ -1769,3 +1769,72 @@ block as a fact about the panel's composition — not something I judged or fixe
 
 No instrument, search, or paired-round inference has run under this amendment. This plan recorded;
 it did not decide.
+
+## Phase 15, plan 15-04: rev 3 frozen — 26 ADOPTED / 5 REJECTED, §7 engaged, checkpoint accepted the instrument-identity reading (2026-08-20)
+
+**Adjudication.** I merged the panel's 54 raw findings (`PAIRED-DESIGN-REVIEWS-REV3.md`) into 31
+globally numbered findings and judged each exactly once: **26 ADOPTED, 5 REJECTED-with-reason**
+(26+5=31), reconciled against the raw base fixed by plan 15-03 (14 gpt-sol-pro + 12 kimi-k3 + 10
+qwen-max + 7 gemma4 + 11 gpt-oss = 54, every raw finding absorbed exactly once). No rejection cited
+cost, effort, or schedule — each names a stated precedent, an already-adjudicated sibling finding's
+refutation, or a factual correction. Both decisions the draft left open were settled, not deferred:
+**seed-block shape — 9 blocks of ten, six-of-nine concordance agreement threshold** (worst-case bound
+under perfect intra-seed correlation 50.78%, LOWER than rev-2's own 68.75%; false-concordance
+probability under the null 25.39%, stricter than rev-2's 34.38%); **near-floor evidential-weight
+bound — re-derived to 25**, via a power-anchored criterion (the smallest `n_d` at which power against
+`p=0.70` first reaches 50%: `P(Bin(24,0.70)>=18)≈38.9%`, `P(Bin(25,0.70)>=18)≈51.2%`), a criterion
+that is battery-invariant by construction — it never references the battery's total capacity, unlike
+the draft's own rejected proportional-scaling counter-argument.
+
+**§7 — the panel's most load-bearing finding, engaged rather than closed quietly.** Two lanes
+(`gpt-sol-pro` F11, `kimi-k3` F3) independently raised whether §7's frozen one-shot termination
+clause — which bars "changing the qualification thresholds, the battery construction, the oracle, or
+the decision rule" for the same hypothesis after a termination — bars this amendment outright, since
+rev-2 terminated `TERMINATED-UNDERPOWERED` and this amendment changes both the battery construction
+and the derived qualification thresholds. I adjudicated this finding at minimum (ADOPTED) to require
+§12 engage §7 explicitly, stating both readings honestly: (a) the instrument-identity argument —
+rev-2's termination bound the `qwen3.6`-instantiated instrument specifically, so an executor-model
+swap constructs a new instrument whose widened battery is its own from-scratch construction, not a
+redraw of the terminated one; against (b) the plain-text reading — §7 enumerates "battery
+construction" as barred independent of executor identity and states termination is "never remedied
+by... redrawing the battery." I did not resolve this unilaterally; it was raised as the primary
+go/no-go item at the Task 2 checkpoint.
+
+**Checkpoint resolution.** Dr. Robert Li selected `freeze-as-adjudicated`, accepting reading (a).
+§12 now records both readings in full, honestly, with the accepted reading and the resolution
+recorded as the freeze's own governing text — reading (b) is not erased, it stands as the reading
+this freeze rejects, so a future reader evaluates the same choice rather than a summary of it.
+
+**Applying the adoptions.** I walked the ledger in order and applied exactly the 26 adopted findings
+to §12 — nothing else: the calibration-scope disclosure (what the dry-run does and does not
+establish, GF-01/02/03), the `gpt-oss:latest` dual-role disclosure (GF-05), the battery-topology
+correction (GF-22), the §7 engagement paragraph (GF-25), the harvest assurance-probability and
+seed-uniformity disclosures (GF-06/07/08), digest-verification and deferred-timeout-reexamination
+additions to the executor-model pin (GF-27/GF-20), the tie-rate-drift consequence (GF-31), the
+critical-value-table drift-guard citation (GF-11), the seed-provenance and disjointness-computation
+citations (GF-29/GF-30), the ceiling-probe scope cross-reference (GF-28), the operational-exposure
+and oracle/extraction-contract-brittleness disclosures (GF-21/GF-23), the settled seed-block-shape
+and near-floor-bound rewrites (GF-12/13/14/15/17/19/24), and the discipline-clause scope correction
+(GF-26). I then walked the ledger a second time and confirmed each adoption is present in the text.
+`git diff 2f9e6095dc6e20bcc8196a293397f7ec07f8c704 -- .../PAIRED-DESIGN-PREREG.md` touches only the
+title's revision line and everything from the §12 heading onward — confirmed before committing, not
+asserted afterward.
+
+**The freeze.** Rev 3, carrying all 26 adoptions, is committed and FROZEN.
+
+**Freeze SHA:** `8279159aa28885bf0f95afe59db43eceb7921746`
+
+Ancestry, provable rather than asserted: `git merge-base --is-ancestor
+2f9e6095dc6e20bcc8196a293397f7ec07f8c704 8279159aa28885bf0f95afe59db43eceb7921746` exits 0 — rev 3
+descends from the rev-2 freeze commit. Rev 2 stays byte-retrievable at its own freeze commit,
+proven by `test/paired-rev2-freeze.test.ts` reading the blob hash out of git rather than the working
+tree; `test/paired-rev3-table-drift.test.ts` binds §12's own transcribed 71-row table to
+`deriveRev3Table()` row by row. The revision-line guard in `test/paired-constants.test.ts` moved
+from asserting rev 2 to asserting rev 3, still requiring the frozen marker. Full suite (1226 tests)
+and typecheck stayed green through this commit.
+
+`package.json`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` all still read
+`1.25.0` — the 1.26.0 manifest sync lands at this phase's close, not here, per the same
+version-sync-deferred discipline D-08 established. No instrument, search, or paired-round inference
+has run against these frozen pins as of this entry; the pins the rest of this phase runs against are
+fixed as of this commit — a one-way door, not a draft that keeps moving.
