@@ -1299,3 +1299,96 @@ three byte-frozen precedent documents (`DUALFIX-STUDY-PREREG.md`, `BI-BATTERY-DE
 `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` all still read `1.24.0`; the
 1.25.0 manifest sync lands at Phase 14's close, per D-08, not here. Full suite and typecheck stayed
 green through both commits in this plan.
+
+## Phase 14 opens: the instrument's tracer slice, strict freeze ancestry proven (2026-08-19)
+
+This is v1.25.0 human-directed follow-on work under Dr. Li's 2026-08-11 override. It is not a
+Stage-B trigger outcome and not a retroactive pass of the gate that recorded NOT-MET
+(`20*(19-17)=40 < 3*24=72`, `experiments/dualfix-study/STUDY-RESULTS.md`). The v1.24.0 terminal
+record — `TERMINAL-REPORT.md`, `STUDY-RESULTS.md` — stays untouched and read-only throughout this
+phase, exactly as Phase 13's own entry stated it; I have not opened either file this session.
+
+**What I built.** One module holding every §9 constant the frozen design (rev 2, freeze
+`2f9e6095dc6e20bcc8196a293397f7ec07f8c704`) pins — the battery shape, the three qualification
+clauses, the quantified disclosures, the full 41-row critical-value table, the F-05 concordance
+check's own two numbers (six blocks, four-of-six agreement), and the three rows the design
+explicitly deferred to this commit (model `qwen3.6:latest` digest `07d35212591f`, timeout
+3,600,000ms, prompt bound 2000 chars) — plus this phase's own build-gate seeds (ceiling probe 1399;
+tournament search 1401-1403; tournament promotion 1404-1406), disjoint from every seed block any
+prior study in this project has used. A drift-guard test reads the frozen document off disk and
+fails if the module diverges from it; that test is green.
+
+Then the whole instrument's thinnest complete path, at production quality — the same files 14-02
+through 14-06 expand, never rewrite: `customer-support-warehouse.ts` composes a three-field
+resolution (action, category, a derivable-but-unstated dollar parameter) from a seeded stream
+FIRST, then renders the customer-facing ticket text from that resolution's own semantics, one
+action/category pair for the tracer (14-02 widens both vocabularies without touching this file's
+shape). `customer-support-oracle.ts` implements the extraction contract and normalized-equality
+match rule exactly as §4/F-33 states them — labelled-line extraction, four-category classification,
+zero shared helpers with the generator beyond the three field-name literals. `_paired-arms.ts` is
+the arm-slot/checkpoint core: the identical task prompt for both slots, `runArmOnPairingUnit` as the
+sole call site for the oracle, `classifyPair`'s plain integer win/loss/tie, and
+`loadState`/`saveState`/`once` copied in shape from `_dualfix-arms.ts` (tmp+rename, corrupt JSON
+rethrown, never swallowed into empty state). `test/paired-tracer.test.ts` drives one seeded ticket
+through both arm slots against a stub provider end to end and confirms a resumed run over the same
+state file issues no second inference call — the checkpoint holds.
+
+No module here constructs an `OracleReceipt` or a branded battery value (PD-1 below); nothing
+touches `ACCEPTED_GENERATORS` or `battery-types.ts`. Full suite (1047 tests, 74 files) and
+`tsc --noEmit` stayed green through both commits.
+
+**The three pinned plan decisions, adjudicated in `14-01-PLAN.md` and carried forward:**
+
+- **PD-1 — the receipt-free route (research Open Question 5, route (b)).** No module this phase
+  writes constructs an oracle receipt or a branded battery value. `docs/development/harness-factory.md`
+  states the human α arrives in one lump *at acceptance of the generator*, and REQ-68 requires this
+  generator to stay unaccepted. A hand-constructed receipt literal would have to name a human
+  acceptor for an acceptance event that never happened — under this phase's autonomous directive
+  there is no human in the loop to perform it, so an agent would be forging exactly the signature
+  `AGENT_ROLE_IDENTITIES` exists to refuse. `validateReceipt`'s three structural checks are the
+  floor; the α→0 constraint is the intent, and the receipt-literal alternative satisfies the floor
+  while violating the intent — rejected for that reason, not for effort. The cost is stated honestly
+  rather than hidden: W (14-05) is produced by the shipped tournament machinery's own bounded
+  reflective-mutation and budget-FSM primitives, orchestrated fresh, rather than by the
+  `runComponentTournament` entry point itself.
+- **PD-2 — search-battery seeds (research Open Question 3).** Ceiling probe `1399`; tournament
+  search half `1401, 1402, 1403`; tournament promotion half `1404, 1405, 1406`. Disjoint from the
+  paired battery's own pinned `1301-1306` (§9), from DUALFIX's `1201-1206`, and from BI's
+  `101/202/303/404/505/606`, `707/808/909`, `999` — confirmed by `test/paired-constants.test.ts`'s
+  own pairwise-disjointness assertion, not merely stated in a comment.
+- **PD-4 — the ceiling probe's role (research Open Question 1, recommendation (b)).** A small
+  pre-round instrument-health probe on seed 1399 with a single neutral diagnostic arm — not W, not
+  B, neither of which exists at REQ-68 time. Its constants are Phase-14 build-gate constants, kept
+  separate from §9's frozen table. §6 Clause 1 proper (48 of 60) is still evaluated by the paired-
+  round driver itself and can still terminate the study; the probe is a cheap format-confound catch,
+  never a substitute for it.
+
+**Strict freeze ancestry, proven not asserted.** The is-ancestor check alone exits 0 when the two
+commits are the same object, so I ran the inequality check first and the ancestry check second —
+both load-bearing:
+
+```
+$ FIRST=$(git log --format=%H -- src/foundry/customer-support-warehouse.ts | tail -1)
+$ FREEZE=2f9e6095dc6e20bcc8196a293397f7ec07f8c704
+$ test "$FREEZE" != "$FIRST" && echo "distinct: OK"
+distinct: OK
+$ git merge-base --is-ancestor "$FREEZE" "$FIRST" && echo "ANCESTOR: OK"
+ANCESTOR: OK
+```
+
+`$FIRST` resolved to `ff053479b1cdee4cc8c4bd3c2b76bd0a425510a5` — the commit that added
+`src/foundry/customer-support-warehouse.ts`, `src/foundry/customer-support-oracle.ts`,
+`experiments/paired-comparison-arm/_paired-arms.ts`, and `test/paired-tracer.test.ts`, immediately
+after the constants-module commit (`605a354100a662ff5a6854bbcf7b6bf9e1085dbf`). Both commits descend
+from the freeze commit `2f9e6095dc6e20bcc8196a293397f7ec07f8c704`, confirmed above, not by
+timestamp or narrative.
+
+**First instrument commit:** `ff053479b1cdee4cc8c4bd3c2b76bd0a425510a5`
+
+The three byte-frozen precedent documents (`DUALFIX-STUDY-PREREG.md`, `BI-BATTERY-DESIGN.md`,
+`PREREG-DRAFT.md`) and `PAIRED-DESIGN-PREREG.md` itself are all unchanged by this plan, confirmed by
+`git diff --name-only` against the four pinned blob SHAs before this entry was written.
+`ACCEPTED_GENERATORS` and `VERTICAL_ADMISSION` are both untouched — the admission-table edit is
+REQ-68's own separate obligation, not this plan's. `package.json`, `.claude-plugin/plugin.json`, and
+`.claude-plugin/marketplace.json` all still read `1.24.0`; the 1.25.0 manifest sync lands at this
+phase's close, same as Phase 13's entry already stated.
