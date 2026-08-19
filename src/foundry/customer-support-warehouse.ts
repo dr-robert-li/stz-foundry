@@ -100,9 +100,14 @@ export function generateCustomerSupportTicket(seed: number, taskIndex: number): 
   // the ticket text below. The resolution's own parameter (the correction
   // amount) is their difference, computed here but never itself stated in
   // the rendered text — an arm must derive it from the two facts shown.
-  const chargedCents = 1000 + Math.floor(rng() * 9000); // $10.00 – $99.99
+  // `correctCents` is drawn FIRST and `chargedCents` derived as its sum
+  // with the discrepancy, so `chargedCents > correctCents` holds by
+  // construction for every draw — never a negative "correct total" (a
+  // Rule-1 fix: composing `chargedCents` first and subtracting let the
+  // discrepancy exceed the charge on ~18% of the draw space).
+  const correctCents = 1000 + Math.floor(rng() * 9000); // $10.00 – $99.99
   const discrepancyCents = 100 + Math.floor(rng() * 4900); // $1.00 – $49.99
-  const correctCents = chargedCents - discrepancyCents;
+  const chargedCents = correctCents + discrepancyCents;
   const orderNumber = 100000 + Math.floor(rng() * 900000);
 
   const parameter = centsToDollarString(discrepancyCents);

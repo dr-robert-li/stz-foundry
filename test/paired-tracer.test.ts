@@ -26,7 +26,7 @@ import {
   once,
   type PairedAgentDefinition,
 } from "../experiments/paired-comparison-arm/_paired-arms.js";
-import { PAIRED_SEEDS } from "../experiments/paired-comparison-arm/_paired-constants.js";
+import { PAIRED_SEEDS, CEILING_PROBE_SEED } from "../experiments/paired-comparison-arm/_paired-constants.js";
 import type { ChatRequest, ChatResponse, Provider } from "../src/foundry/provider.js";
 
 function makeRecordingProvider(replyText: string): { provider: Provider; calls: ChatRequest[] } {
@@ -65,6 +65,15 @@ describe("generateCustomerSupportTicket — determinism and structure", () => {
     expect(typeof ticket.resolution.action).toBe("string");
     expect(typeof ticket.resolution.category).toBe("string");
     expect(typeof ticket.resolution.parameter).toBe("string");
+  });
+
+  it("across the full pinned-seed x task-index sweep (plus the ceiling-probe seed), the rendered ticket never states a negative dollar amount", () => {
+    for (const seed of [...PAIRED_SEEDS, CEILING_PROBE_SEED]) {
+      for (let taskIndex = 0; taskIndex < 10; taskIndex++) {
+        const ticket = generateCustomerSupportTicket(seed, taskIndex);
+        expect(ticket.ticketText).not.toContain("$-");
+      }
+    }
   });
 });
 
@@ -175,5 +184,43 @@ describe("one seeded ticket, both arm slots, one recorded pair — end to end", 
 
     expect(Object.keys(state.units).sort()).toEqual([bKey, wKey].sort());
     expect(calls.length).toBe(2);
+  });
+
+  it("Task 2's own composite gate: one seed, both arm slots, one state file, WIN read from the persisted units, re-run costs zero extra calls", async () => {
+    const statePath = join(mkdtempSync(join(tmpdir(), "paired-tracer-test-")), "state.json");
+    const state = loadState(statePath);
+    const ticket = generateCustomerSupportTicket(SEED, TASK_INDEX);
+
+    // A queue stub: W's call gets the matching response, B's call gets a
+    // mismatching one — so the persisted pair reads WIN unambiguously.
+    const replies = [matchingResponse(ticket.resolution), "action: wrong\ncategory: wrong\nparameter: 0.00"];
+    const calls: ChatRequest[] = [];
+    const provider: Provider = {
+      kind: "openai",
+      baseUrl: "http://test-provider.invalid",
+      async chat(req: ChatRequest): Promise<ChatResponse> {
+        calls.push(req);
+        const text = replies.shift();
+        if (text === undefined) throw new Error("queue stub exhausted — more than 2 calls issued");
+        return { text, model: req.model, usage: { inputTokens: 5, outputTokens: 9, cacheReadInputTokens: 0 } };
+      },
+    };
+
+    const wKey = pairedUnitKey("W", UNIT_ID);
+    const bKey = pairedUnitKey("B", UNIT_ID);
+    await once(statePath, state, wKey, () => runArmOnPairingUnit(ticket, UNIT_ID, "W", AGENT_DEFINITION, provider));
+    await once(statePath, state, bKey, () => runArmOnPairingUnit(ticket, UNIT_ID, "B", AGENT_DEFINITION, provider));
+    expect(calls.length).toBe(2);
+
+    // Re-run: reload state from disk (the driver's own resume path) and run
+    // both once() calls again — the checkpoint must short-circuit both.
+    const reloaded = loadState(statePath);
+    await once(statePath, reloaded, wKey, () => runArmOnPairingUnit(ticket, UNIT_ID, "W", AGENT_DEFINITION, provider));
+    await once(statePath, reloaded, bKey, () => runArmOnPairingUnit(ticket, UNIT_ID, "B", AGENT_DEFINITION, provider));
+    expect(calls.length).toBe(2); // exactly twice IN TOTAL, across both passes
+
+    // The recorded pair, read from the persisted state artifact, reads WIN.
+    const outcome = classifyPair(reloaded.units[wKey]!.score, reloaded.units[bKey]!.score);
+    expect(outcome).toBe("WIN");
   });
 });
