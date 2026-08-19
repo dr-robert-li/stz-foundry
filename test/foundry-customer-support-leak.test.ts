@@ -72,7 +72,11 @@ describe("leak check — no ticket states its own resolution's action, category,
       expect(fieldLeaked(ticket.ticketText, ticket.resolution.parameter)).toBe(false);
       checked++;
     }
-    expect(checked).toBe(PAIRED_SEEDS.length * PAIRED_TASKS_PER_SEED + CEILING_PROBE_TASK_COUNT + 6 * PAIRED_TASKS_PER_SEED);
+    expect(checked).toBe(
+      PAIRED_SEEDS.length * PAIRED_TASKS_PER_SEED +
+        CEILING_PROBE_TASK_COUNT +
+        (TOURNAMENT_SEARCH_SEEDS.length + TOURNAMENT_PROMOTION_SEEDS.length) * PAIRED_TASKS_PER_SEED,
+    );
   });
 
   it("POSITIVE CONTROL: a deliberately leaky ticket text (containing its own parameter value verbatim) IS caught — the assertion above is not vacuously true", () => {
