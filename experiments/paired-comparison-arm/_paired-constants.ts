@@ -203,3 +203,16 @@ export const TOURNAMENT_SEARCH_SEEDS: readonly number[] = Object.freeze([1401, 1
 /** The component-tournament's promotion-set half — disjoint from the
  *  search-set half above and from every other seed block in this file. */
 export const TOURNAMENT_PROMOTION_SEEDS: readonly number[] = Object.freeze([1404, 1405, 1406]);
+
+// ── Phase-15 rev-3 pins (Plan 15-01) — pinned by THIS COMMIT under the
+// confirmed Phase-15 pins (`.planning/HANDOVER-phase15-amended-run.md` §3,
+// STATE.md 2026-08-19 decision), NOT a transcription of any frozen §12
+// table — the frozen-§12 binding for these two symbols arrives in Plan
+// 15-05, once rev 3 is frozen. Additive only: every rev-2 export above
+// stays exactly as it stands, value and order both. ─────────────────────────
+
+/** The rev-3 executor model — the only local model the calibration
+ *  dry-runs found with a measured, prompt-addressable gradient; qwen3.6
+ *  (`PAIRED_MODEL` above) saturated every calibration configuration. */
+export const PAIRED_MODEL_REV3 = "gpt-oss:latest";
+export const PAIRED_MODEL_DIGEST_REV3 = "17052f91a42e";

@@ -126,14 +126,19 @@ export function buildPairedTaskPrompt(ticket: CustomerSupportTicket): { system: 
 
 export interface RunArmOnPairingUnitOptions {
   taskTimeoutMs?: number;
+  /** The executor model for this call. Omitted (or `{}`) resolves to the
+   *  rev-2 pinned constant `PAIRED_MODEL` — every existing caller that never
+   *  sets this field keeps rev-2 behaviour byte-for-byte (Plan 15-01). */
+  model?: string;
 }
 
 /**
  * Runs ONE arm slot on ONE pairing unit: builds the identical task prompt
- * (both slots, one call each), passes the pinned model explicitly (never a
- * provider default), truncates at the pinned character bound, then scores
- * the raw response through the independent oracle — the sole call site for
- * `classifyCustomerSupportResponse` in this file.
+ * (both slots, one call each), resolves the model to call explicitly (the
+ * `model` option if given, else the rev-2 pinned `PAIRED_MODEL` constant —
+ * never a provider default), truncates at the pinned character bound, then
+ * scores the raw response through the independent oracle — the sole call
+ * site for `classifyCustomerSupportResponse` in this file.
  */
 export async function runArmOnPairingUnit(
   ticket: CustomerSupportTicket,
@@ -144,6 +149,7 @@ export async function runArmOnPairingUnit(
   opts: RunArmOnPairingUnitOptions = {},
 ): Promise<PairedArmResult> {
   const taskTimeoutMs = opts.taskTimeoutMs ?? PAIRED_TIMEOUT_MS;
+  const model = opts.model ?? PAIRED_MODEL;
   const { user } = buildPairedTaskPrompt(ticket);
 
   const startedAt = Date.now();
@@ -158,7 +164,7 @@ export async function runArmOnPairingUnit(
       setTimeout(() => reject(new Error(`task timeout after ${taskTimeoutMs}ms`)), taskTimeoutMs).unref(),
     );
     const attempt = provider.chat({
-      model: PAIRED_MODEL,
+      model,
       system: agentDefinition.systemPrompt,
       messages: [{ role: "user", content: user }],
     });
