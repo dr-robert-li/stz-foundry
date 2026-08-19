@@ -69,6 +69,34 @@ export interface PairedGateVerdict {
   reason: string;
 }
 
+/**
+ * The battery-shape surface this module accepts as explicit input (Plan
+ * 15-06, REQ-72). Every field is optional and resolves to its rev-2 pinned
+ * constant when omitted — a caller that passes nothing (every existing
+ * caller) gets exactly today's behaviour. Resolved once per call, never
+ * read from a module-level mutable, so `evaluatePairedGate`/
+ * `accountPairedUnits` stay pure.
+ */
+export interface PairedGateShapeOptions {
+  /** Seeds driving block order and the accounting's per-block grouping —
+   *  defaults to the rev-2 pinned `PAIRED_SEEDS`. */
+  seeds?: readonly number[];
+  /** Required block-classification count — defaults to
+   *  `PAIRED_CONCORDANCE_BLOCK_COUNT`. */
+  blockCount?: number;
+  /** Block-concordance agreement threshold — defaults to
+   *  `PAIRED_CONCORDANCE_AGREE_THRESHOLD`. */
+  agreeThreshold?: number;
+  /** Battery size — the discordant-count range's own upper bound —
+   *  defaults to `PAIRED_BATTERY_SIZE`. */
+  batterySize?: number;
+  /** Discordant-pairs floor — the range's own lower bound — defaults to
+   *  `PAIRED_MIN_DISCORDANT_FLOOR`. */
+  discordantFloor?: number;
+  /** `c(n_d)` lookup table — defaults to `PAIRED_CRITICAL_VALUE_TABLE`. */
+  criticalValueTable?: Readonly<Record<number, number>>;
+}
+
 function requireValidCount(value: number, name: string): void {
   if (!Number.isInteger(value) || value < 0) {
     throw new Error(`[paired-gate] ${name} must be a non-negative integer, got ${JSON.stringify(value)}`);
@@ -100,6 +128,7 @@ export function evaluatePairedGate(
   discordantCount: number,
   winCount: number,
   blocks: readonly PairedBlockClassification[],
+  opts: PairedGateShapeOptions = {},
 ): PairedGateVerdict {
   if (!KNOWN_OUTCOMES.has(outcome)) {
     throw new Error(`[paired-gate] unrecognised outcome ${JSON.stringify(outcome)}`);
@@ -112,24 +141,28 @@ export function evaluatePairedGate(
     };
   }
 
+  const batterySize = opts.batterySize ?? PAIRED_BATTERY_SIZE;
+  const discordantFloor = opts.discordantFloor ?? PAIRED_MIN_DISCORDANT_FLOOR;
+  const blockCount = opts.blockCount ?? PAIRED_CONCORDANCE_BLOCK_COUNT;
+  const agreeThreshold = opts.agreeThreshold ?? PAIRED_CONCORDANCE_AGREE_THRESHOLD;
+  const criticalValueTable = opts.criticalValueTable ?? PAIRED_CRITICAL_VALUE_TABLE;
+
   requireValidCount(discordantCount, "discordantCount");
   requireValidCount(winCount, "winCount");
-  if (discordantCount < PAIRED_MIN_DISCORDANT_FLOOR || discordantCount > PAIRED_BATTERY_SIZE) {
+  if (discordantCount < discordantFloor || discordantCount > batterySize) {
     throw new Error(
-      `[paired-gate] discordantCount ${discordantCount} outside the pinned critical-value table's own range ` +
-        `[${PAIRED_MIN_DISCORDANT_FLOOR}, ${PAIRED_BATTERY_SIZE}]`,
+      `[paired-gate] discordantCount ${discordantCount} outside the supplied critical-value table's own range ` +
+        `[${discordantFloor}, ${batterySize}]`,
     );
   }
   if (winCount > discordantCount) {
     throw new Error(`[paired-gate] winCount ${winCount} cannot exceed discordantCount ${discordantCount}`);
   }
-  if (blocks.length !== PAIRED_CONCORDANCE_BLOCK_COUNT) {
-    throw new Error(
-      `[paired-gate] expected exactly ${PAIRED_CONCORDANCE_BLOCK_COUNT} block classifications, got ${blocks.length}`,
-    );
+  if (blocks.length !== blockCount) {
+    throw new Error(`[paired-gate] expected exactly ${blockCount} block classifications, got ${blocks.length}`);
   }
 
-  const c = PAIRED_CRITICAL_VALUE_TABLE[discordantCount];
+  const c = criticalValueTable[discordantCount];
   if (c === undefined) {
     throw new Error(`[paired-gate] no pinned critical value for discordantCount ${discordantCount}`);
   }
@@ -154,23 +187,21 @@ export function evaluatePairedGate(
   const agreeingMajority: PairedBlockClassification = pooled === "W-SUPERIOR" ? "W-majority" : "B-majority";
   const agreeing = blocks.filter((block) => block === agreeingMajority).length;
 
-  if (agreeing < PAIRED_CONCORDANCE_AGREE_THRESHOLD) {
+  if (agreeing < agreeThreshold) {
     return {
       outcome,
       decision: "INDISTINGUISHABLE",
       downgradedFrom: pooled,
       reason:
-        `block-concordance downgrade: only ${agreeing} of ${PAIRED_CONCORDANCE_BLOCK_COUNT} blocks agree with pooled ` +
-        `${pooled}, below the ${PAIRED_CONCORDANCE_AGREE_THRESHOLD}-block threshold — this check can only downgrade, never upgrade`,
+        `block-concordance downgrade: only ${agreeing} of ${blockCount} blocks agree with pooled ` +
+        `${pooled}, below the ${agreeThreshold}-block threshold — this check can only downgrade, never upgrade`,
     };
   }
 
   return {
     outcome,
     decision: pooled,
-    reason:
-      `pooled ${pooled} stands: ${agreeing} of ${PAIRED_CONCORDANCE_BLOCK_COUNT} blocks agree, ` +
-      `meeting the ${PAIRED_CONCORDANCE_AGREE_THRESHOLD}-block threshold`,
+    reason: `pooled ${pooled} stands: ${agreeing} of ${blockCount} blocks agree, meeting the ${agreeThreshold}-block threshold`,
   };
 }
 
@@ -227,11 +258,15 @@ export interface PairedAccounting {
  * recorded... never silently absorbed into either the numerator or the
  * denominator of the discordant-pair statistic").
  */
-export function accountPairedUnits(units: readonly PairedUnitAccountingInput[]): PairedAccounting {
+export function accountPairedUnits(
+  units: readonly PairedUnitAccountingInput[],
+  opts: Pick<PairedGateShapeOptions, "seeds"> = {},
+): PairedAccounting {
+  const seeds = opts.seeds ?? PAIRED_SEEDS;
   const armW = zeroCategoryCounts();
   const armB = zeroCategoryCounts();
   const blockBySeed = new Map<number, PairedSeedBlockCounts>(
-    PAIRED_SEEDS.map((seed) => [seed, { seed, discordantWins: 0, discordantLosses: 0 }]),
+    seeds.map((seed) => [seed, { seed, discordantWins: 0, discordantLosses: 0 }]),
   );
 
   let winCount = 0;
@@ -244,7 +279,7 @@ export function accountPairedUnits(units: readonly PairedUnitAccountingInput[]):
 
     const block = blockBySeed.get(unit.seed);
     if (!block) {
-      throw new Error(`[paired-gate] unit references seed ${unit.seed}, not one of the pinned PAIRED_SEEDS`);
+      throw new Error(`[paired-gate] unit references seed ${unit.seed}, not one of the supplied seeds`);
     }
 
     const scoreW = categoryScore(unit.categoryW);
@@ -267,6 +302,6 @@ export function accountPairedUnits(units: readonly PairedUnitAccountingInput[]):
     lossCount,
     tieCount,
     discordantCount: winCount + lossCount,
-    blocks: PAIRED_SEEDS.map((seed) => blockBySeed.get(seed)!),
+    blocks: seeds.map((seed) => blockBySeed.get(seed)!),
   };
 }
