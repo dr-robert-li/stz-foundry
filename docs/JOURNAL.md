@@ -1392,3 +1392,35 @@ The three byte-frozen precedent documents (`DUALFIX-STUDY-PREREG.md`, `BI-BATTER
 REQ-68's own separate obligation, not this plan's. `package.json`, `.claude-plugin/plugin.json`, and
 `.claude-plugin/marketplace.json` all still read `1.24.0`; the 1.25.0 manifest sync lands at this
 phase's close, same as Phase 13's entry already stated.
+
+## Pre-round ceiling probe clears its own health gate against the real slot (2026-08-19)
+
+Same v1.25.0 human-override framing as every other entry this phase: not a Stage-B trigger outcome,
+not a retroactive pass of the gate that recorded NOT-MET, not a continuation of v1.24.0.
+
+**What I ran.** `_ceiling-probe.ts`, launched detached through `_launch-probe.sh` — never a bare
+backgrounded process — against ten tickets drawn from the probe seed (1399, disjoint from the paired
+battery's own 1301-1306 per §4's no-redraw rule), each run in two modes (`answer-visible`,
+`normal`) against the real local Ollama slot. Launcher's own sole-instance confirmation, quoted
+verbatim: `launched OK: node=680505 (verified sole instance tree: pids 680493 680505)`. I waited by
+polling `ceiling-probe-verdict.json` for its own completion flag, never by sleeping an estimated
+duration and never by reading the log for a hopeful line; the run completed in a few minutes, zero
+harness-fault retries, zero timeouts.
+
+**The result, read only from the completed artifact.** `ceiling-probe-verdict.json`:
+`complete: true`, `pass: true`. The answer-visible mode's own scoreable count against the pinned
+floor, the plain integer comparison the pass decision is: `10 >= 8`. The resolved model digest
+`ollama list` reported: `qwen3.6:latest             07d35212591f    23 GB     4 months ago` —
+matching `PAIRED_MODEL_DIGEST` pinned in `_paired-constants.ts`. Normal mode is reported in the
+committed `CEILING-PROBE.md` as an unqualified reading (0/10 matched — every attempt named the
+correct action/category but missed the derived parameter) with no pass/fail attached, per D-05.
+
+**What this does and does not mean.** The instrument's extraction contract is satisfiable by the
+pinned model under the pinned timeout and prompt bound — a format or extraction confound is not
+what would sink the real round if it fails. This does NOT pre-empt or substitute for §6 Clause 1
+proper (48 of the real 60-unit battery, both real arms), which 14-06's driver still evaluates
+independently and can still terminate the study — `CEILING-PROBE.md` §7 states this explicitly.
+
+Full artifact: `experiments/paired-comparison-arm/CEILING-PROBE.md`, `ceiling-probe-verdict.json`,
+`ceiling-probe-state.json`, `ceiling-probe.log`. All four frozen-doc blob hashes re-verified
+unchanged before this entry was written.

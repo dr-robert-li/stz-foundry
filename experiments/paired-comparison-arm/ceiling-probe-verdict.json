@@ -1,0 +1,47 @@
+{
+  "complete": true,
+  "pass": true,
+  "seed": 1399,
+  "taskCount": 10,
+  "scoreableFloor": 8,
+  "accounting": {
+    "answerVisible": {
+      "mode": "answer-visible",
+      "attempted": 10,
+      "byCategory": {
+        "no-artifact": 0,
+        "non-scoreable": 0,
+        "resolution-mismatch": 0,
+        "resolution-match": 10
+      },
+      "scoreable": 10,
+      "matched": 10
+    },
+    "normal": {
+      "mode": "normal",
+      "attempted": 10,
+      "byCategory": {
+        "no-artifact": 0,
+        "non-scoreable": 0,
+        "resolution-mismatch": 10,
+        "resolution-match": 0
+      },
+      "scoreable": 10,
+      "matched": 0
+    }
+  },
+  "retries": [],
+  "runConfig": {
+    "model": "qwen3.6:latest",
+    "modelDigestLine": "qwen3.6:latest             07d35212591f    23 GB     4 months ago",
+    "ollamaVersion": "ollama version is 0.32.5",
+    "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+    "timeoutMs": 3600000,
+    "promptBoundChars": 2000,
+    "seed": 1399,
+    "taskCount": 10,
+    "clientConcurrency": 1,
+    "startedAt": "2026-08-19T05:46:54.350Z",
+    "taskOrder": "task index 0..N-1, answer-visible mode then normal mode within each task index — deterministic, total, stable"
+  }
+}

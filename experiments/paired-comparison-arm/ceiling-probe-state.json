@@ -1,0 +1,238 @@
+{
+  "units": {
+    "answer-visible:1399:0": {
+      "arm": "W",
+      "unitId": "1399:0",
+      "status": "ok",
+      "rawText": "action: refund-duplicate-charge\ncategory: order-total-discrepancy\nparameter: 70.60",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 187,
+      "outputTokens": 1221,
+      "wallMs": 25936
+    },
+    "normal:1399:0": {
+      "arm": "W",
+      "unitId": "1399:0",
+      "status": "ok",
+      "rawText": "action: refund-duplicate-charge\ncategory: order-total-discrepancy\nparameter: 154576",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 199,
+      "outputTokens": 1465,
+      "wallMs": 21471
+    },
+    "answer-visible:1399:1": {
+      "arm": "W",
+      "unitId": "1399:1",
+      "status": "ok",
+      "rawText": "action: escalate-repeat-defect\ncategory: product-quality\nparameter: Desk Lamp",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 178,
+      "outputTokens": 1559,
+      "wallMs": 22850
+    },
+    "normal:1399:1": {
+      "arm": "W",
+      "unitId": "1399:1",
+      "status": "ok",
+      "rawText": "action: escalate-repeat-defect\ncategory: product-quality\nparameter: order=309745; defectSku=3006; defectCount=2",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 203,
+      "outputTokens": 1488,
+      "wallMs": 21617
+    },
+    "answer-visible:1399:2": {
+      "arm": "W",
+      "unitId": "1399:2",
+      "status": "ok",
+      "rawText": "action: refund-duplicate-charge\ncategory: order-total-discrepancy\nparameter: 39.16",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 187,
+      "outputTokens": 1728,
+      "wallMs": 25175
+    },
+    "normal:1399:2": {
+      "arm": "W",
+      "unitId": "1399:2",
+      "status": "ok",
+      "rawText": "action: refund-duplicate-charge\ncategory: order-total-discrepancy\nparameter: order-145899",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 197,
+      "outputTokens": 2033,
+      "wallMs": 29612
+    },
+    "answer-visible:1399:3": {
+      "arm": "W",
+      "unitId": "1399:3",
+      "status": "ok",
+      "rawText": "action: refund-duplicate-charge\ncategory: order-total-discrepancy\nparameter: 33.63",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 187,
+      "outputTokens": 1348,
+      "wallMs": 19688
+    },
+    "normal:1399:3": {
+      "arm": "W",
+      "unitId": "1399:3",
+      "status": "ok",
+      "rawText": "action: refund-duplicate-charge\ncategory: order-total-discrepancy\nparameter: 950437",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 198,
+      "outputTokens": 1640,
+      "wallMs": 23897
+    },
+    "answer-visible:1399:4": {
+      "arm": "W",
+      "unitId": "1399:4",
+      "status": "ok",
+      "rawText": "action: adjust-charge\ncategory: order-total-discrepancy\nparameter: 2.43",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 184,
+      "outputTokens": 1670,
+      "wallMs": 24420
+    },
+    "normal:1399:4": {
+      "arm": "W",
+      "unitId": "1399:4",
+      "status": "ok",
+      "rawText": "action: adjust-charge\ncategory: order-total-discrepancy\nparameter: 850509",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 218,
+      "outputTokens": 1233,
+      "wallMs": 18184
+    },
+    "answer-visible:1399:5": {
+      "arm": "W",
+      "unitId": "1399:5",
+      "status": "ok",
+      "rawText": "action: escalate-repeat-defect\ncategory: product-quality\nparameter: Yoga Mat",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 178,
+      "outputTokens": 778,
+      "wallMs": 11593
+    },
+    "normal:1399:5": {
+      "arm": "W",
+      "unitId": "1399:5",
+      "status": "ok",
+      "rawText": "action: escalate-repeat-defect\ncategory: product-quality\nparameter: 520205",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 203,
+      "outputTokens": 1135,
+      "wallMs": 16743
+    },
+    "answer-visible:1399:6": {
+      "arm": "W",
+      "unitId": "1399:6",
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: Bluetooth Speaker",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 179,
+      "outputTokens": 864,
+      "wallMs": 12813
+    },
+    "normal:1399:6": {
+      "arm": "W",
+      "unitId": "1399:6",
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: order=143253",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 192,
+      "outputTokens": 2423,
+      "wallMs": 35153
+    },
+    "answer-visible:1399:7": {
+      "arm": "W",
+      "unitId": "1399:7",
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: Bluetooth Speaker",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 179,
+      "outputTokens": 1053,
+      "wallMs": 15590
+    },
+    "normal:1399:7": {
+      "arm": "W",
+      "unitId": "1399:7",
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: replacementSku=3005",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 193,
+      "outputTokens": 1704,
+      "wallMs": 24920
+    },
+    "answer-visible:1399:8": {
+      "arm": "W",
+      "unitId": "1399:8",
+      "status": "ok",
+      "rawText": "action: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 31.15",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 187,
+      "outputTokens": 1180,
+      "wallMs": 17404
+    },
+    "normal:1399:8": {
+      "arm": "W",
+      "unitId": "1399:8",
+      "status": "ok",
+      "rawText": "action: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 463816",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 210,
+      "outputTokens": 2565,
+      "wallMs": 37046
+    },
+    "answer-visible:1399:9": {
+      "arm": "W",
+      "unitId": "1399:9",
+      "status": "ok",
+      "rawText": "action: refund-shipping-upgrade\ncategory: shipping-service-mismatch\nparameter: 28.53",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 185,
+      "outputTokens": 554,
+      "wallMs": 8449
+    },
+    "normal:1399:9": {
+      "arm": "W",
+      "unitId": "1399:9",
+      "status": "ok",
+      "rawText": "action: refund-shipping-upgrade\ncategory: shipping-service-mismatch\nparameter: 576201",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 217,
+      "outputTokens": 1629,
+      "wallMs": 23632
+    }
+  },
+  "retries": [],
+  "runConfig": {
+    "model": "qwen3.6:latest",
+    "modelDigestLine": "qwen3.6:latest             07d35212591f    23 GB     4 months ago",
+    "ollamaVersion": "ollama version is 0.32.5",
+    "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+    "timeoutMs": 3600000,
+    "promptBoundChars": 2000,
+    "seed": 1399,
+    "taskCount": 10,
+    "clientConcurrency": 1,
+    "startedAt": "2026-08-19T05:46:54.350Z",
+    "taskOrder": "task index 0..N-1, answer-visible mode then normal mode within each task index — deterministic, total, stable"
+  }
+}
