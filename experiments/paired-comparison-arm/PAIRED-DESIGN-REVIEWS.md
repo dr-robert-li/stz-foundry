@@ -93,12 +93,12 @@ quoted verbatim, never executed, never auto-applied to any document (D-07). No f
 adjudicated in this plan — adjudication is 13-04's job, exactly once, `ADOPTED` or
 `REJECTED-with-reason` per finding.
 
-**Panel (Task 2 of 3 — all five lanes now run):** gpt-sol-pro (UNSOUND), kimi-k3
-(SOUND-WITH-CHANGES), qwen-max (SOUND-WITH-CHANGES), gemma4 (UNSOUND), gpt-oss (UNSOUND). 5 of 5
-target lanes have produced output. Task 3 closes the header's own panel line and totals against the
-findings actually reproduced below; this line is Task 2's own interim record of the same fact.
+**Panel:** gpt-sol-pro (UNSOUND), kimi-k3 (SOUND-WITH-CHANGES), qwen-max (SOUND-WITH-CHANGES),
+gemma4 (UNSOUND), gpt-oss (UNSOUND). 5 of 5 target lanes produced output; no lane was dropped.
 
-**Dead lanes (Task 2):** None. All five lanes attempted; all five answered on the first attempt.
+**Dead lanes:** None. All five lanes attempted; all five answered on the first attempt — three
+openrouter lanes through the house seam (Task 1), two local Ollama lanes through the direct HTTP
+fallback (Task 2).
 
 **Invocation-path note (Task 1 — three openrouter lanes).** All three ran through the house seam —
 `node ~/.claude/gsd-core/bin/gsd-tools.cjs query review-lane invoke --slug opencode --model <id from
@@ -552,3 +552,34 @@ No findings.
 **Location:** §4, paragraph beginning "What this independence does not cover…"
 
 **Raw finding count — gpt-oss: 7 (F1–F7).**
+
+## Raw finding counts — the pre-merge base for 13-04's adjudication ledger
+
+Every one of the five lanes named in D-06 is accounted for above, live, with a stated verdict and a
+per-lane count verified against the numbered findings actually reproduced under that lane's own
+heading in this document (not against memory or a running tally kept elsewhere):
+
+| Lane | Verdict | Raw findings | Verified against |
+|---|---|---|---|
+| gpt-sol-pro | UNSOUND | 38 (F1–F38) | 38 numbered findings reproduced under "Lane: gpt-sol-pro" above |
+| kimi-k3 | SOUND-WITH-CHANGES | 12 (F1–F12) | 12 numbered findings reproduced under "Lane: kimi-k3" above |
+| qwen-max | SOUND-WITH-CHANGES | 5 (F1–F5) | 5 numbered findings reproduced under "Lane: qwen-max" above |
+| gemma4 | UNSOUND | 2 (F1–F2) | 2 numbered findings reproduced under "Lane: gemma4" above |
+| gpt-oss | UNSOUND | 7 (F1–F7) | 7 numbered findings reproduced under "Lane: gpt-oss" above |
+
+**Raw total: 38 + 12 + 5 + 2 + 7 = 64.**
+
+This total is the **raw pre-merge base** plan 13-04's adjudication ledger must reconcile against
+after merges are recorded — the two documents cannot disagree silently about how many findings
+existed before merging began. 13-04 will merge overlapping findings across lanes into a smaller
+global finding list (mirroring `DESIGN-REVIEWS.md`'s own 65-raw-into-a-merged-set precedent) and
+adjudicate each global finding exactly once, `ADOPTED` or `REJECTED-with-reason`; the arithmetic
+identity that ledger owes this document is that every one of these 64 raw findings traces to at
+least one global finding it was merged into, not that the merged count equals 64.
+
+**No finding has been adjudicated anywhere in this plan (13-03).** Every verdict, every finding, and
+every "No findings." statement reproduced above is lane output, captured as DATA per D-07 — quoted
+verbatim, never executed, never auto-applied to `PAIRED-DESIGN-PREREG.md` or to any other file.
+Adjudication happens exactly once, in plan 13-04, which reads this document and produces the
+adjudication ledger; nothing in this document constitutes, implies, or anticipates that ledger's
+outcome.
