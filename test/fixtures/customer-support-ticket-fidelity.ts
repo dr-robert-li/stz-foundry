@@ -15,9 +15,9 @@
  * obligation and REQ-68 require.
  *
  * IMPORT-CLEAN with respect to the generator's OWN RENDERER: this file
- * imports only TYPES from `src/foundry/customer-support-warehouse.ts` — the
- * renderer function `generateCustomerSupportTicket` is never imported or
- * called here. `CUSTOMER_SUPPORT_ACTION_META` and
+ * imports only TYPES from `src/foundry/customer-support-warehouse.ts` (the
+ * resolution record's own shape) — the generator's ticket-rendering
+ * function itself is never imported or called here. `CUSTOMER_SUPPORT_ACTION_META` and
  * `CUSTOMER_SUPPORT_ITEM_CATALOG` are duplicated below as literal data
  * rather than imported: a shared mapping object would let a mapping typo
  * canonicalize as truth on both the generator's and this fixture's paths —
@@ -41,23 +41,23 @@
  * independently-written arithmetic/lookup, never by reading a resolution
  * value out of the ticket text (there is none to read).
  */
+import type {
+  CustomerSupportAction,
+  CustomerSupportCategoryLabel,
+  CustomerSupportResolution,
+} from "../../src/foundry/customer-support-warehouse.js";
 
-/** Duck-typed action/category/parameter-type union — structurally
- *  identical to `CustomerSupportAction`/`CustomerSupportCategoryLabel`,
- *  never imported as a value from the generator module. */
-export type FidelityAction =
-  | "adjust-charge"
-  | "refund-duplicate-charge"
-  | "refund-shipping-upgrade"
-  | "credit-late-delivery-fee"
-  | "ship-catalog-replacement"
-  | "escalate-repeat-defect";
+/** `FidelityAction` is `CustomerSupportAction` under a fixture-local name —
+ *  the TYPE ONLY import above ("imports the resolution record from the
+ *  generator") is the whole of this fixture's dependency on the generator
+ *  module; nothing else, and never a value/function import. */
+export type FidelityAction = CustomerSupportAction;
 
-export interface ExtractedSituationFields {
-  action: FidelityAction;
-  category: string;
-  parameter: string;
-}
+/** Structurally identical to `CustomerSupportResolution` — re-declared
+ *  under this fixture's own name so a caller reads the return type as
+ *  belonging to THIS file's own extraction logic, not a re-export of the
+ *  generator's type. */
+export type ExtractedSituationFields = CustomerSupportResolution;
 
 /**
  * A SEPARATE, independently-maintained copy of the generator's own
@@ -67,7 +67,7 @@ export interface ExtractedSituationFields {
  * unit of that action, which is the whole point of keeping two copies
  * rather than one shared table.
  */
-const ACTION_CATEGORY: Readonly<Record<FidelityAction, string>> = Object.freeze({
+const ACTION_CATEGORY: Readonly<Record<FidelityAction, CustomerSupportCategoryLabel>> = Object.freeze({
   "adjust-charge": "order-total-discrepancy",
   "refund-duplicate-charge": "order-total-discrepancy",
   "refund-shipping-upgrade": "shipping-service-mismatch",
