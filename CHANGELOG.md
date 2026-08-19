@@ -32,6 +32,49 @@ stands untouched throughout this phase).
   here, so the version record is not split across two phases mid-milestone. The drift guard stays
   green throughout.
 
+### Phase 14 — Instrument build + paired round + close
+
+Same 2026-08-11 human override framing as Phase 13: this work is v1.25.0 human-directed follow-on
+work, not a Stage-B trigger outcome, and the v1.24.0 record — `experiments/dualfix-study/TERMINAL-REPORT.md`
+and `STUDY-RESULTS.md` — stands untouched throughout.
+
+- `experiments/paired-comparison-arm/_paired-constants.ts` + the tracer slice (REQ-67/68): the
+  frozen §9 table's constants pinned as code, with strict freeze ancestry proven by git (never
+  asserted in prose) against the rev-2 freeze commit `2f9e6095dc6e20bcc8196a293397f7ec07f8c704`.
+- `src/foundry/customer-support-warehouse.ts` + `customer-support-oracle.ts` (REQ-68): the
+  answer-first generator and independently implemented replay-match oracle for the third instrument
+  family's replay-checkable subset, built with per-action leak-safety proofs and mutation-proven
+  fidelity/independence/leak guards.
+- `experiments/paired-comparison-arm/CEILING-PROBE.md` + `ceiling-probe-verdict.json` (REQ-68): the
+  pre-round instrument-health probe against the real `qwen3.6:latest` slot, `complete: true,
+  pass: true` (10/10 answer-visible scoreable, floor 8). `customer-support` admitted in
+  `VERTICAL_ADMISSION` on this build evidence alone — no paired-round result cited, per the frozen
+  design's own axis-4 bar (F-19).
+- `experiments/paired-comparison-arm/_b-arm-definition.md` (commit `ac3f452`) and
+  `_w-arm-definition.md` (commit `c4e7b22`) (REQ-68): B (hand-written baseline) committed first and
+  alone; `_w-search.ts`'s receipt-free bounded search then ran for real and selected `seed-baseline`
+  as W — byte-identical to B, since the search never mutated a lineage that scored a perfect 30/30
+  from generation 0. Both arms pinned by literal commit SHA in `paired-runconfig.json`, strict git
+  ancestry proven (B precedes W).
+- `experiments/paired-comparison-arm/_paired-study.ts` (REQ-69): the detached, checkpointed
+  paired-round driver — deterministic total order, §6's three qualification clauses evaluated in a
+  fixed documented order with multi-breach precedence, harness-fault-only retry. Run for real against
+  `qwen3.6:latest`: all 120 arm-on-unit results final, zero harness-fault retries.
+- **The real round's outcome, exactly as `paired-study-verdict.json` states it:**
+  `TERMINATED-UNDERPOWERED` — §6 Clause 2 (minimum discordant-pairs floor) breached
+  (`discordantCount=1` vs. the pinned 20-pair floor; `winCount=1, lossCount=0, tieCount=59`, 59 of 60
+  units concordant). §5's decision rule was never evaluated; no critical value applies. Consistent
+  with W and B's byte-identical prompt text: with textually identical arms, the round's outcome was
+  always governed by model-sampling variance alone, and that variance proved near-zero on this
+  battery. This is one of the four outcome shapes the frozen design named as legitimate before the
+  round ran, not a failure of the phase.
+  `experiments/paired-comparison-arm/PAIRED-STUDY-RESULTS.md` renders the report from the verdict
+  artifact alone.
+- Version 1.25.0 synced across `package.json`, `.claude-plugin/plugin.json`, and
+  `.claude-plugin/marketplace.json` (drift guard green); full suite and typecheck green. REQ-70's
+  record and version discipline for this override branch closes here; the v1.24.0 milestone record
+  (its terminal report and study results) is unamended by anything in Phase 13 or Phase 14.
+
 ## [1.24.0] — DUALFIX repair mechanism + two-arm study driver; pre-registration frozen before data (Phase 11)
 
 ### Phase 11 — Study prereg + build
