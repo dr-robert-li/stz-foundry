@@ -1450,3 +1450,21 @@ is the specific ordering that clause forbids — which is why the edit lands her
 it (PD-1); admission and acceptance remain two independent axes, proven by a test, not merely
 claimed. The other four `VERTICAL_ADMISSION` rows are byte-identical to their pre-edit state. Full
 suite (1137 tests, 81 files) and `tsc --noEmit` both green.
+
+## Baseline arm (B) committed — first, and alone (2026-08-19)
+
+`experiments/paired-comparison-arm/_b-arm-definition.md`, commit `ac3f452efc1b2580db8cae802649d7c8defacc0e`.
+One path in that commit — the definition file only; this entry is a deliberate follow-up commit, kept
+out of the baseline commit itself, so the isolation check `PAIRED-DESIGN-PREREG.md` §3's causal
+argument leans on ("B is committed... a named author and a commit timestamp that precedes the
+tournament run producing W") can assert a single-path commit with nothing riding along.
+
+Authoring rationale, in one sentence: B is the ordinary-competitive-effort hand-written prompt §3
+requires (never the rejected s0-minimal floor arm) — it states both closed vocabularies verbatim, both
+parameter-derivation paths (monetary arithmetic AND the six-row lookup catalog, the two lookup actions
+being the exact gap the ceiling probe's real run found unreached), and the three-line output contract
+as an unconditional instruction, because `_paired-arms.ts`'s `runArmOnPairingUnit` sends only
+`agentDefinition.systemPrompt` — this file is the whole contract the model receives, not a supplement.
+
+This commit precedes the search run that produces W — no search driver exists in the repository at
+this commit (`_w-search.ts` is authored next, in Task 2), and no inference toward W has run.
