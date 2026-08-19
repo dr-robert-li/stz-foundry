@@ -408,14 +408,16 @@ describe("_paired-study.ts — resolution point (Task 3, REQ-72)", () => {
     const resolved = resolvePairedStudyRunOptions({});
     expect(resolved.model).toBe(PAIRED_MODEL);
     expect(resolved.verdictFile).toBe("paired-study-verdict.json");
+    expect(resolved.runconfigFile).toBe("paired-runconfig.json");
     expect([...resolved.shape.seeds]).toEqual([...PAIRED_SEEDS]);
     expect(resolved.shape.tasksPerSeed).toBe(PAIRED_TASKS_PER_SEED);
     expect(resolved.shape.healthGateFloor).toBe(PAIRED_HEALTH_GATE_FLOOR);
     expect(resolved.shape.dropBudgetCeiling).toBe(PAIRED_DROP_BUDGET_CEILING);
   });
 
-  it("PAIRED_STUDY_SHAPE=rev3 resolves the whole battery shape to the rev-3 bundle in one flag", () => {
+  it("PAIRED_STUDY_SHAPE=rev3 resolves the whole battery shape to the rev-3 bundle in one flag, including its own arm-commit file", () => {
     const resolved = resolvePairedStudyRunOptions({ PAIRED_STUDY_SHAPE: "rev3" });
+    expect(resolved.runconfigFile).toBe("paired-runconfig-rev3.json");
     expect([...resolved.shape.seeds]).toEqual([...PAIRED_SEEDS_REV3]);
     expect(resolved.shape.tasksPerSeed).toBe(PAIRED_TASKS_PER_SEED_REV3);
     expect(resolved.shape.healthGateFloor).toBe(PAIRED_HEALTH_GATE_FLOOR_REV3);

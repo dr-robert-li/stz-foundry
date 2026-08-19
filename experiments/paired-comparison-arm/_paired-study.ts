@@ -155,13 +155,22 @@ export interface ResolvedPairedStudyRunOptions {
   model: string;
   verdictFile: string;
   shape: Required<PairedStudyShapeOptions>;
+  /** Which committed arms file (paired-runconfig*.json) to read B/W commit
+   *  hashes from — derived from the SAME PAIRED_STUDY_SHAPE flag as the
+   *  battery shape, never a separate env var (Plan 15-06's "single named
+   *  bundle" decision, extended here to close a gap it left open: rev-3
+   *  needs its own arm identities, not rev-2's, and there was no seam for
+   *  that until this plan's Task 1 (Rule 3 auto-fix, 15-09)). */
+  runconfigFile: string;
 }
 
 export function resolvePairedStudyRunOptions(env: NodeJS.ProcessEnv = process.env): ResolvedPairedStudyRunOptions {
+  const isRev3 = env.PAIRED_STUDY_SHAPE === "rev3";
   return {
     model: env.PAIRED_STUDY_MODEL || PAIRED_MODEL,
     verdictFile: env.PAIRED_STUDY_VERDICT_FILE || "paired-study-verdict.json",
-    shape: env.PAIRED_STUDY_SHAPE === "rev3" ? REV3_SHAPE : REV2_SHAPE,
+    shape: isRev3 ? REV3_SHAPE : REV2_SHAPE,
+    runconfigFile: isRev3 ? "paired-runconfig-rev3.json" : "paired-runconfig.json",
   };
 }
 
@@ -402,8 +411,8 @@ export function validatePairedRunConfigArms(raw: unknown): PairedRunConfigArms {
   return result;
 }
 
-function loadArmCommitsFromRunConfigFile(): PairedRunConfigArms {
-  const raw = JSON.parse(readFileSync(join(SCRIPT_DIR, "paired-runconfig.json"), "utf8"));
+function loadArmCommitsFromRunConfigFile(filename: string): PairedRunConfigArms {
+  const raw = JSON.parse(readFileSync(join(SCRIPT_DIR, filename), "utf8"));
   return validatePairedRunConfigArms(raw);
 }
 
@@ -494,7 +503,7 @@ async function main(): Promise<void> {
       `tasks/seed: ${resolved.shape.tasksPerSeed} · verdict: ${resolved.verdictFile}`,
   );
 
-  const runConfigArms = loadArmCommitsFromRunConfigFile();
+  const runConfigArms = loadArmCommitsFromRunConfigFile(resolved.runconfigFile);
   const state = loadState(statePath);
   if (!state.runConfig) {
     state.runConfig = captureRunConfig(runConfigArms, resolved);
