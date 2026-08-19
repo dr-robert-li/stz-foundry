@@ -22,6 +22,28 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PREREG_REL_PATH = "experiments/paired-comparison-arm/PAIRED-DESIGN-PREREG.md";
 const preregText = readFileSync(join(repoRoot, PREREG_REL_PATH), "utf8");
 
+/**
+ * Plan 15-01, Task 3 (T-15-04): the document-row scan below must read ONLY
+ * §9's own pinned-constants table, not the whole document. A later amendment
+ * (Phase 15's own rev-3 §12) adds a SECOND three-integer-column table to this
+ * same document; an unscoped whole-file scan would then count rows from both
+ * tables and fail here reporting a phantom drift that does not exist. Fixing
+ * the scope now, in its own commit, separates this mechanical correction from
+ * the amendment that will need it — so if the amendment text is later
+ * revised, this correction never has to be re-litigated with it. Reuses the
+ * same locate-heading/stop-at-next-heading approach
+ * `test/paired-constants.test.ts`'s `extractSection` already uses for the
+ * sibling constants guard.
+ */
+function extractSection(text: string, heading: string, nextHeading: string): string {
+  const start = text.indexOf(heading);
+  if (start === -1) throw new Error(`[paired-critical-value-drift] heading not found: ${heading}`);
+  const end = text.indexOf(nextHeading, start);
+  return end === -1 ? text.slice(start) : text.slice(start, end);
+}
+
+const section9 = extractSection(preregText, "## §9 Pinned constants", "## §10");
+
 const RECIPROCAL = BigInt(PAIRED_PER_TAIL_SIGNIFICANCE_RECIPROCAL);
 const FLOOR = PAIRED_MIN_DISCORDANT_FLOOR;
 const SIZE = PAIRED_BATTERY_SIZE;
@@ -83,7 +105,7 @@ describe("paired critical-value table drift guard (F-11)", () => {
     const rowPattern = /^\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*$/gm;
     const docRows: Array<{ nd: number; c: number; ndMinusC: number }> = [];
     let match: RegExpExecArray | null;
-    while ((match = rowPattern.exec(preregText)) !== null) {
+    while ((match = rowPattern.exec(section9)) !== null) {
       docRows.push({ nd: Number(match[1]), c: Number(match[2]), ndMinusC: Number(match[3]) });
     }
 
