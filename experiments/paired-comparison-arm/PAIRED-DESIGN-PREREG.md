@@ -1,4 +1,4 @@
-# Third-family paired-comparison design — pre-registration
+# Third-family paired-comparison design — pre-registration — **Revision:** rev 3 — DRAFT (§12 only; §0–§11 below are the byte-frozen rev-2 text, unchanged since the freeze)
 
 **Revision:** rev 2 — **FROZEN — THIS COMMIT IS THE PRE-REGISTRATION.** Frozen 2026-08-19, after
 plan 13-03's five-lane adversarial panel round and plan 13-04's adjudication of every finding it
@@ -819,3 +819,237 @@ document is the record.
 §0. The freeze commit's SHA is recorded as a literal string, exactly once, in `docs/JOURNAL.md`,
 together with the exact `git merge-base --is-ancestor` command a verifier re-runs rather than
 invents, so Phase 14's instrument code can prove ancestry against it without re-deriving anything.
+
+## §12 Amendment (rev 3) — DRAFT
+
+**Ancestry, cited as the amendment's own parent (D-09).** This amendment's parent is the rev-2
+freeze commit `2f9e6095dc6e20bcc8196a293397f7ec07f8c704`, whose blob for this exact path
+(`experiments/paired-comparison-arm/PAIRED-DESIGN-PREREG.md`) is
+`d68eebb7d47e389745f919d8f975bcd8b45d6349`. Rev 2 stays retrievable byte-for-byte at that commit
+forever — that retrievability, not an inability to edit this file, is the sense in which rev 2 is
+frozen. §0 through §11 above are byte-identical to that blob, proven by a mechanical check that
+strips only this document's own title line (line 1, where this amendment's revision marker now
+lives) and requires everything after it to match the frozen blob's own content, word for word.
+
+**Why this amendment exists.** The rev-2 round terminated `TERMINATED-UNDERPOWERED`
+(`experiments/paired-comparison-arm/PAIRED-STUDY-RESULTS.md`, `discordantCount=1` against the
+pinned 20-pair floor, 59 of 60 units concordant) — but not because the instrument itself was
+unhealthy: W shipped byte-identical to B because the seed baseline (B) already scored 30/30 on the
+tournament's own search battery, leaving no gradient for a component search to climb. Before
+drafting any amendment, a 2026-08-19 diagnostic dry-run (`docs/JOURNAL.md`, "Phase 15 opens" entry)
+measured that saturation directly, on the exact unmodified `customer-support` battery this design
+already uses, against two models:
+
+- `experiments/paired-comparison-arm/calibration-dryrun-verdict.qwen36.json` — the rev-2 pinned
+  model (`qwen3.6:latest`) saturated every calibration configuration, 60/60 matched, including
+  footer-stripped, distractor, two-step-arithmetic, and compound-ticket variants. No gradient is
+  available for any search mechanism to climb against this model on this family.
+- `experiments/paired-comparison-arm/calibration-dryrun-verdict.gptoss.json` — a second local model
+  (`gpt-oss:latest`) measured C0 70%, C1 90%, C2 80%, C3 70%, C4 100%, C5 70% on the same six
+  configurations — a real, measured gradient.
+- `experiments/paired-comparison-arm/calibration-dryrun-verdict.gptoss-c6.json` — a further
+  micro-check (C6, combining the two-step, stripped-footer, and distractor variants under an
+  explicit output-contract prompt) cleared 10/10 on `gpt-oss:latest`, indicating the misses above
+  are format/vocabulary near-misses (e.g. `elevate-repeat-defect` for `escalate-repeat-defect`,
+  unicode hyphens, bold labels breaking extraction), not arithmetic failures — exactly the kind of
+  gap a prompt search can climb.
+
+This amendment re-parameterises the same methodology rather than replacing it: **§4's pairing unit,
+battery construction, and per-task status discipline; §4's independent replay-match oracle; the
+customer-support ticket generator; §3's equal-treatment invariant; and Phase 14's
+`VERTICAL_ADMISSION` — every one of these stays unchanged by this amendment.** A reviewer should
+understand this amendment as touching exactly three surfaces — the executor model, the battery size
+(and its two derived qualification constants plus one disclosure threshold), and the critical-value
+table's domain — and nothing else in the design.
+
+**Rev-3 pins, each stated as a concrete value a reviewer can disagree with:**
+
+- **Executor model:** `gpt-oss:latest`, digest `17052f91a42e` — replacing the rev-2 pin
+  (`qwen3.6:latest`, digest `07d35212591f`) for rev-3 runs only. The rev-2 pin is untouched in
+  `_paired-constants.ts` (`PAIRED_MODEL`/`PAIRED_MODEL_DIGEST`); the rev-3 pin exists as a new,
+  additive pair of exported symbols (`PAIRED_MODEL_REV3`/`PAIRED_MODEL_DIGEST_REV3`), already
+  committed in Plan 15-01.
+- **Battery size:** 90 pairing units, replacing 60.
+- **Minimum discordant-pairs floor:** 20, unchanged. Floor-margin arithmetic, shown rather than
+  asserted: at B's measured baseline accuracy (≈70% on the unmodified battery), the rev-2 battery
+  size (60) yields an expected harvest of roughly 18 discordant pairs — borderline under the floor
+  of 20. Widening the battery to 90 pairs, with the floor held at 20, raises the expected harvest to
+  roughly 27 — a comfortable margin above the same, deliberately unlowered, bar. Margin comes from
+  more pairs, never from a lower floor.
+- **Instrument-health gate floor (§9/§6 Clause 1), recomputed from §9's own provenance formula
+  applied to the new battery size:** `battery_size × (1 − 2 × 0.10) = 90 × 0.8 = 72` (of 90),
+  replacing 48 (of 60).
+- **Per-arm drop-budget ceiling (§9/§6 Clause 3), recomputed the same way:**
+  `battery_size × 0.10 = 90 × 0.1 = 9` (of 90), replacing 6 (of 60).
+- **Tie-rate ceiling disclosure threshold (§9/§8 item 1), recomputed the same way:** the smallest
+  tie count whose complement (discordant pairs) falls strictly below the Clause 2 floor of 20 —
+  `battery_size − 19 = 90 − 19 = 71` (of 90), replacing 41 (of 60).
+- **The critical-value table**, pasted verbatim from `_rev3-critical-values.ts`'s own stdout
+  (Plan 15-02, Task 1; test-proven identical to the frozen rev-2 table on the range they share,
+  `test/paired-rev3-derivation.test.ts`). The condition, restated verbatim from §5, unchanged: `c(n_d)`
+  is the smallest integer `c` such that `40 · Σ_{i=c}^{n_d} C(n_d, i) ≤ 2^{n_d}` — the exact
+  combinatorial condition for a per-tail probability not exceeding 0.025 under `Binomial(n_d, 0.5)`,
+  evaluated in exact integer arithmetic over binomial coefficients, computed once at design time,
+  never approximated or recomputed at data-time. `W-superior` fires iff `k_w >= c(n_d)`; `B-superior`
+  fires iff `k_w <= n_d - c(n_d)` (the third column, shown for direct lookup); otherwise
+  indistinguishable. Covers `n_d` 20 through 90, 71 rows:
+
+| n_d | c(n_d) (W-superior at or above) | n_d − c(n_d) (B-superior at or below) |
+|---|---|---|
+| 20 | 15 | 5 |
+| 21 | 16 | 5 |
+| 22 | 17 | 5 |
+| 23 | 17 | 6 |
+| 24 | 18 | 6 |
+| 25 | 18 | 7 |
+| 26 | 19 | 7 |
+| 27 | 20 | 7 |
+| 28 | 20 | 8 |
+| 29 | 21 | 8 |
+| 30 | 21 | 9 |
+| 31 | 22 | 9 |
+| 32 | 23 | 9 |
+| 33 | 23 | 10 |
+| 34 | 24 | 10 |
+| 35 | 24 | 11 |
+| 36 | 25 | 11 |
+| 37 | 25 | 12 |
+| 38 | 26 | 12 |
+| 39 | 27 | 12 |
+| 40 | 27 | 13 |
+| 41 | 28 | 13 |
+| 42 | 28 | 14 |
+| 43 | 29 | 14 |
+| 44 | 29 | 15 |
+| 45 | 30 | 15 |
+| 46 | 31 | 15 |
+| 47 | 31 | 16 |
+| 48 | 32 | 16 |
+| 49 | 32 | 17 |
+| 50 | 33 | 17 |
+| 51 | 33 | 18 |
+| 52 | 34 | 18 |
+| 53 | 35 | 18 |
+| 54 | 35 | 19 |
+| 55 | 36 | 19 |
+| 56 | 36 | 20 |
+| 57 | 37 | 20 |
+| 58 | 37 | 21 |
+| 59 | 38 | 21 |
+| 60 | 39 | 21 |
+| 61 | 39 | 22 |
+| 62 | 40 | 22 |
+| 63 | 40 | 23 |
+| 64 | 41 | 23 |
+| 65 | 41 | 24 |
+| 66 | 42 | 24 |
+| 67 | 42 | 25 |
+| 68 | 43 | 25 |
+| 69 | 44 | 25 |
+| 70 | 44 | 26 |
+| 71 | 45 | 26 |
+| 72 | 45 | 27 |
+| 73 | 46 | 27 |
+| 74 | 46 | 28 |
+| 75 | 47 | 28 |
+| 76 | 48 | 28 |
+| 77 | 48 | 29 |
+| 78 | 49 | 29 |
+| 79 | 49 | 30 |
+| 80 | 50 | 30 |
+| 81 | 50 | 31 |
+| 82 | 51 | 31 |
+| 83 | 51 | 32 |
+| 84 | 52 | 32 |
+| 85 | 53 | 32 |
+| 86 | 53 | 33 |
+| 87 | 54 | 33 |
+| 88 | 54 | 34 |
+| 89 | 55 | 34 |
+| 90 | 55 | 35 |
+
+- **Fresh seed blocks, proposed in the 1600 range, disjoint from the full prior union** (101, 202,
+  303, 404, 505, 606, 707, 808, 909, 999, 1201–1206, 1301–1306, 1399, 1401–1406, 1501–1503 —
+  disjointness checked and recorded in this plan's own SUMMARY.md, none of the sixteen numbers
+  below coincide with any number in that union):
+  - Battery seeds (nine, under the recommended 9×10 default below; the first six of these — 1601,
+    1602, 1603, 1604, 1605, 1606 — double as the six seeds if the panel instead selects the 6×15
+    alternative): `1601, 1602, 1603, 1604, 1605, 1606, 1607, 1608, 1609`.
+  - Probe seed (one): `1610`.
+  - Search seeds (three): `1611, 1612, 1613`.
+  - Promotion seeds (three): `1614, 1615, 1616`.
+- **The rev-3 ceiling probe's own parameters:** `answer-visible` mode (unchanged from rev-2), probe
+  seed `1610`, task count 10 (`CEILING_PROBE_TASK_COUNT`, unchanged — the probe's own ten-task
+  format-confound check is not battery-size-dependent), scoreable floor 8
+  (`CEILING_PROBE_SCOREABLE_FLOOR`, unchanged, same reasoning). What this probe does and does not
+  measure, stated plainly: the rev-2 probe cleared an answer-visible instrument-health check — can
+  the pinned model satisfy the three-labelled-line extraction contract at all, shown its own correct
+  answer verbatim — not an accuracy check. At B's measured baseline accuracy (≈70%), an
+  accuracy-shaped probe floor (asking the probe to solve, not merely restate, a ticket) would fail
+  often by construction and would be measuring the wrong thing: format satisfiability, not
+  correctness. Rev 3 keeps the `answer-visible` mode for exactly this reason, so the panel reviews
+  the actual gate this design relies on rather than a different, stricter one it never adopted.
+
+**Open decisions, named as open — not settled — for the panel:**
+
+1. **The seed-block shape for 90 units.** Two options, neither pre-selected:
+   - **9 blocks of ten** (this draft's recommended default), preserving the ten-tasks-per-seed
+     convention every prior study in this project has used (`DUALFIX-STUDY-PREREG.md`,
+     `BI-BATTERY-DESIGN.md`, rev 2 of this document). Consequence: `_paired-gate.ts`'s
+     `PAIRED_CONCORDANCE_BLOCK_COUNT` (currently hardcoded 6) must change to 9, and its own
+     agreement threshold must be re-derived — it cannot simply carry over rev-2's "4" literal
+     unchanged. This draft's recommended re-derivation, preserving the same fraction rev-2's
+     four-of-six threshold used (4/6 ≈ 66.7%): **six of nine** (6/9 ≈ 66.7%, the same fraction,
+     exactly analogous). Its own worst-case bound, computed the same way §5's F-06 computed rev-2's
+     68.75% figure — under perfect intra-seed correlation, the ninety pairing units collapse to nine
+     independent seed-level draws `X ~ Binomial(9, 0.5)` (the count of seeds favouring W), each
+     contributing all ten of its own units to one direction, so `k_w = 10·X`; at the full battery
+     (`n_d = 90`, `c(90) = 55`, lower bound `35`), the pooled decision fires at `10·X >= 55`, i.e.
+     `X >= 6`, or `10·X <= 35`, i.e. `X <= 3`. Computed exactly in 512ths (`2^9 = 512`,
+     `C(9,k)` for `k=0..9`: 1, 9, 36, 84, 126, 126, 84, 36, 9, 1):
+     `P(X>=6) = (84+36+9+1)/512 = 130/512`, `P(X<=3) = (1+9+36+84)/512 = 130/512`,
+     `P(X>=6) + P(X<=3) = 260/512 ≈ 50.78%` — a worst-case two-sided rejection probability under
+     perfect correlation, LOWER than rev-2's own 68.75% bound at the same nominal fraction, because
+     tail mass concentrates more tightly around the mean as the number of independent blocks grows
+     from six to nine. This bound is disclosed here so the panel can pressure-test the proposed
+     6-of-9 threshold on its own arithmetic, not merely on analogy to rev-2's fraction.
+   - **6 blocks of fifteen**, preserving the six-block concordance check unmodified —
+     `PAIRED_CONCORDANCE_BLOCK_COUNT` stays 6, no gate-code parameterisation is required at all. Its
+     own worst-case bound, computed the same way: under perfect correlation, `X ~ Binomial(6, 0.5)`,
+     `k_w = 15·X`; the pooled decision fires at `15·X >= 55`, i.e. `X >= 4` (`15·4=60>=55`), or
+     `15·X <= 35`, i.e. `X <= 2` (`15·2=30<=35`) — the SAME threshold pair as rev-2's own worked
+     example (`X>=4` or `X<=2`), so this option's worst-case bound is unchanged from rev-2's own
+     68.75%, not merely a new number that happens to be close to it. The cost of this option is
+     breaking the ten-tasks-per-seed house convention every prior study used, in exchange for zero
+     gate-code change.
+
+   Both options' consequence is stated in full above so the panel can adjudicate the actual
+   trade-off (house-convention consistency plus a lower, re-derived worst-case bound, vs. zero
+   code change plus an unchanged, already-reviewed bound) rather than a summary of it.
+
+2. **Whether the near-floor evidential-weight bound (`PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND`,
+   pinned at 24 by Plan 14-03) keeps its rev-2 value or is re-derived at the new battery size.**
+   This draft's recommended default: keep 24 unchanged. Its own rev-2 derivation reasoning (Plan
+   14-03: "roughly a quarter of the way through the gap" between the Clause 2 floor, `n_d=20`, and
+   §6 Clause 2's own worked power-comparison point, `n_d=40`) never referenced the full battery size
+   (60) at all — only the floor and that one comparison point, both of which are unchanged at rev 3
+   (the floor stays 20; §6 Clause 2's own worked power table would need its own comparison point
+   restated for `n_d=90`, but that restatement is independent of this bound). Counter-argument,
+   stated rather than suppressed: 24 is 4 units above the floor of 20, roughly a fifth of the
+   distance from the floor (20) to the new full battery size (90) — a substantially SMALLER
+   proportion of the new available range than the 4-unit gap represented of rev-2's own floor-to-40
+   comparison window (4 of 20, one fifth of that narrower window, versus 4 of 70 here, one
+   seventeenth of the wider one). If "near the floor" is meant to track a stable fraction of the
+   instrument's own available discordant-pair range rather than a fixed absolute distance from the
+   floor, an unchanged 24 may now under-cover what a reader would call "near the floor" at the wider
+   battery size, and a wider bound (e.g. re-anchored to a fifth of the floor-to-90 range, roughly
+   `20 + 14 = 34`) may better preserve the original intent. Both the recommended default and this
+   counter-argument are stated so the panel adjudicates the actual choice, not an implied one.
+
+**This amendment's own discipline clause, mirroring §0.** This amendment is itself frozen once
+adjudicated: once any rev-3 inference data exists (ceiling probe, search, or paired round), no pin,
+seed, floor, or battery shape stated above may be revised. All four outcome shapes named by §7 —
+`W-SUPERIOR`, `B-SUPERIOR`, `INDISTINGUISHABLE`, and any of the three `TERMINATED-*` states — remain
+legitimate terminal results under this amendment exactly as they were under rev 2. No instrument,
+search, or paired-round inference runs under this amendment until it is adjudicated and frozen; this
+draft authors text only.

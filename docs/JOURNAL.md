@@ -1658,3 +1658,34 @@ session's transcript — `test/paired-calibration-evidence.test.ts` binds each c
 artifact and fails if they ever disagree. Same house discipline as every prior amendment cycle: no
 inference of any kind runs again until the rev-3 freeze lands, panel-reviewed, ancestry-proven against
 rev 2.
+
+## Phase 15, plan 15-02: the rev-3 amendment draft exists (§12) (2026-08-20)
+
+I re-derived the widened critical-value table first, in exact BigInt arithmetic
+(`experiments/paired-comparison-arm/_rev3-critical-values.ts`), and proved it against the frozen
+rev-2 table on the 41 rows the two tables share (`test/paired-rev3-derivation.test.ts`) before
+trusting it anywhere new — 71 rows, `n_d` 20 through 90. Then I appended §12 to
+`PAIRED-DESIGN-PREREG.md`, bumping only the document's title line to `rev 3 — DRAFT`; every line of
+§0 through §11 stays byte-identical to the rev-2 freeze blob (`d68eebb7d47e389745f919d8f975bcd8b45d6349`
+at commit `2f9e6095dc6e20bcc8196a293397f7ec07f8c704`), checked mechanically before I wrote a word of
+§12's own text.
+
+§12 states every rev-3 pin as a concrete value — the model and digest, the widened battery, the two
+derived qualification constants and the tie-rate disclosure threshold (each recomputed from §9's own
+provenance formula applied to 90, never invented), the 71-row table pasted from the script's own
+stdout, sixteen fresh seeds in the 1600 range (checked disjoint against the full 32-number prior
+union: none coincide), and the rev-3 ceiling probe's own parameters (`answer-visible` mode, unchanged,
+with the reasoning why an accuracy-shaped floor would measure the wrong thing at B's ≈70% baseline).
+
+I deliberately left two decisions open for the panel rather than picking silently: (1) the seed-block
+shape for 90 units — 9 blocks of ten (this draft's recommended default, preserving the house
+ten-tasks-per-seed convention, with a re-derived 6-of-9 concordance threshold and its own worked
+worst-case bound, 50.78%) against 6 blocks of fifteen (zero gate-code change, and its own worst-case
+bound turns out identical to rev-2's own 68.75%, computed rather than assumed); (2) whether the
+near-floor evidential-weight bound (pinned 24 at rev 2) keeps its value or is re-derived for the wider
+battery — I gave a recommended default (keep 24) and the counter-argument against it (24 is now a
+narrower proportion of the floor-to-battery-size range than it was at rev 2) rather than resolving it
+myself. Neither decision is presented as settled.
+
+No instrument, search, or paired-round inference has run under this amendment. This is a draft only;
+the next plan runs the five-lane panel over it.
