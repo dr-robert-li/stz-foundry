@@ -1689,3 +1689,43 @@ myself. Neither decision is presented as settled.
 
 No instrument, search, or paired-round inference has run under this amendment. This is a draft only;
 the next plan runs the five-lane panel over it.
+
+## Phase 15, plan 15-02, Task 3: lane reachability check (2026-08-20)
+
+Before committing to the full five-lane panel round, I ran a cheap reachability check on all five
+lanes — a throwaway prompt only ("This is a reachability probe only. Reply with exactly: OK"), never
+the §12 draft itself, so nothing under review leaks into a probe response.
+
+**The three externally-hosted lanes**, each invoked once via the house review-lane seam
+(`gsd-tools.cjs review-lane invoke --slug opencode --as <name> --model <model-id>`), resolved from
+`.planning/config.json`'s `review.reviewer_instances`:
+
+| Lane | Resolved model id | Verdict |
+|---|---|---|
+| `gpt-sol-pro` | `openrouter/openai/gpt-5.6-sol-pro` | REACHABLE — non-empty response ("OK") |
+| `kimi-k3` | `openrouter/moonshotai/kimi-k3` | REACHABLE — non-empty response ("OK") |
+| `qwen-max` | `openrouter/qwen/qwen3.7-max` | REACHABLE — non-empty response ("OK") |
+
+**The two local Ollama lanes**, each sent one short request to the daemon's NATIVE `/api/chat`
+endpoint (never the OpenAI-compat `/v1/chat/completions` endpoint, which does not reliably honour a
+context-window override on a large prompt and can silently truncate — Phase 13's own load-bearing
+correction, reused here), run STRICTLY SEQUENTIALLY, one at a time, with
+`experiments/dataops-agent-pilot/_memory-watchdog.sh` started before the first local lane and stopped
+after the second:
+
+| Lane | Resolved model id | `prompt_eval_count` | Verdict |
+|---|---|---|---|
+| `gemma4` | `gemma4:31b` | 29 | REACHABLE — non-empty response ("OK"), `done: true` |
+| `gpt-oss` | `gpt-oss:latest` (digest `17052f91a42e`) | 80 | REACHABLE — non-empty response ("OK"), `done: true` |
+
+Sequencing, recorded rather than assumed: the memory watchdog started before `gemma4:31b`'s request;
+`gemma4:31b` was explicitly unloaded (`ollama stop gemma4:31b`, confirmed empty via `ollama ps`)
+before `gpt-oss:latest`'s request began; `gpt-oss:latest` was then unloaded and `ollama ps` confirmed
+empty again; the watchdog was stopped only after both local lanes had completed. No two local models
+were resident at once.
+
+**All five lanes answered reachable. None was substituted, dropped, or replaced by a different
+model.** `gpt-oss` plays two distinct roles across this phase — one of the five panel reviewer lanes
+here, and the executor model the paired round itself will run against later — a duality already
+named and disposed of in the phase research, not a conflict: this reachability check confirms only
+that the model answers, not anything about its independence as a reviewer.
