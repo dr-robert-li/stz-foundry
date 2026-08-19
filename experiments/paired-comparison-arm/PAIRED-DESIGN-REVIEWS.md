@@ -583,3 +583,214 @@ verbatim, never executed, never auto-applied to `PAIRED-DESIGN-PREREG.md` or to 
 Adjudication happens exactly once, in plan 13-04, which reads this document and produces the
 adjudication ledger; nothing in this document constitutes, implies, or anticipates that ledger's
 outcome.
+
+---
+
+# Global adjudication ledger (plan 13-04)
+
+This section merges the 64 raw findings recorded above into one globally numbered ledger, one entry
+per global finding, following the shape `experiments/bi-analytics-pilot/DESIGN-REVIEWS.md` lines
+13-30 established (a global id, every contributing lane's own finding id cited in parentheses, then
+a neutral restatement) and reconciling its arithmetic the way `experiments/dualfix-study/PREREG-REVIEWS.md`'s
+own "11+3=14" merge did. Two or more lanes are merged into one global finding only where they raise
+substantively the same claim against the same location; two findings attacking the same section from
+different angles remain two global findings. Each restatement below states the claim neutrally, in
+the document's own terms — no evaluation, no verdict, appears in this section. Adjudication is
+Task 2's job.
+
+## Merge arithmetic
+
+**Raw total (from the table above): 38 + 12 + 5 + 2 + 7 = 64.**
+
+Of the 64, 47 raw findings merge into 17 global findings (a reduction of 30, since each cluster of
+size *n* contributes only 1 global finding in place of its *n* raw sources: `47 - 17 = 30`); the
+remaining 17 raw findings are raised by exactly one lane each and become 17 global findings 1:1.
+**Global count: `17 + 17 = 34`. Reconciliation: `64 - 30 = 34`.**
+
+Every one of the 64 raw finding ids from the table above is walked below, lane by lane, into exactly
+one global finding — either as that global finding's sole source, or cited alongside other lanes'
+finding ids in a merge:
+
+- gpt-sol-pro (38, F1–F38): all 38 walked into global findings F-01 through F-34 below.
+- kimi-k3 (12, F1–F12): all 12 walked into global findings below.
+- qwen-max (5, F1–F5): all 5 walked into global findings below.
+- gemma4 (2, F1–F2): both walked into global findings below.
+- gpt-oss (7, F1–F7): all 7 walked into global findings below.
+
+## Findings (restated, not yet adjudicated)
+
+- F-01 (gpt-sol-pro F1, F2, F3): §6 Clause 1 (48/60 pairing units jointly scoreable), Clause 2
+  (20 discordant-pair floor), and Clause 3 (6/60 per-arm unscoreable ceiling) are each arithmetically
+  expressible as a percentage — 80%, one-third, and 10% respectively — which the closing declaration's
+  blanket statement that none of the three clauses is "ever" a bound on a rate does not, on its face,
+  account for.
+- F-02 (gpt-sol-pro F4): the closing declaration distinguishes a one-sided count threshold from a
+  two-sided corridor window and treats that distinction as sufficient to establish the barred corridor
+  mechanism (D-05) has been removed at the root, rather than merely relabelled.
+- F-03 (kimi-k3 F1): Clause 2's discordant-pair floor gates on a population size ($n_d$) that is
+  itself jointly determined by both arms' own tie behaviour, not solely by data availability — a
+  battery where both arms are genuinely strong can terminate as UNDERPOWERED specifically because the
+  arms performed similarly well, a different kind of termination cause than "could not run," which the
+  closing declaration's framing does not distinguish.
+- F-04 (gpt-sol-pro F5, F9): the Binomial($n_d$, 0.5) null underlying §5's decision rule requires
+  independent pairing units; §5 pools ten tasks per seed across six seeds without any block-level
+  statistic, adjustment, or correction, and names this pooling "seed as a blocking factor" despite
+  applying no block-level treatment to the pooled counts.
+- F-05 (gpt-sol-pro F10; kimi-k3 F3): §5 states that Options 1 and 2 (cluster-robust adjustment;
+  stratified/CMH combination) were rejected because they require a data-time floating-point
+  computation that the design's integer-arithmetic discipline forbids, and that Option 3 (pooling) is
+  therefore the only alternative compatible with that discipline; an integer-compatible seed-level
+  (block-level) sign test — computing each seed's own directional majority and comparing that count
+  against a pinned integer table — is not named or considered as a fourth alternative.
+- F-06 (gpt-sol-pro F11, F12; qwen-max F1; gemma4 F1; gpt-oss F2): §5's cost disclosure states the
+  pooled test will reject the null "MORE OFTEN" than nominal $\alpha$ under real intra-seed
+  correlation, without stating a bound on how much more often; §8 item 4's per-seed diagnostic is
+  recorded and reported but carries no decision-rule consequence — §5 states plainly that "the
+  decision rule itself stays the plain pooled integer comparison regardless of what the diagnostic
+  shows."
+- F-07 (qwen-max F2): §5's cost disclosure names seed-pooling as a source of anti-conservative
+  bias and separately names tie-discarding (Lane 5) as reducing $n_d$ and concentrating directional
+  signal, but does not state whether or how the two sources compound when both apply to the same run.
+- F-08 (gpt-sol-pro F6, F7): §5 interprets a W-SUPERIOR or B-SUPERIOR decision-rule outcome as
+  evidence that the tournament search mechanism outperforms the unevolved baseline; §3 does not state
+  whether this paired battery's own seeds, tasks, or generator distribution overlap with whatever data
+  was used to select W among the tournament's candidate configurations, nor does it state that W's
+  definition is fixed prior to this battery being drawn.
+- F-09 (gpt-sol-pro F8, F15): the decision rule's null concerns only the relative frequency of
+  winning among discordant pairs; §10 discloses that the design detects direction, not magnitude, but
+  does not separately state that a population in which both arms mostly fail (producing many
+  concordant both-0 ties, which are discarded from $n_d$) can still yield a clean W-SUPERIOR or
+  B-SUPERIOR label despite neither arm's absolute resolution accuracy being established.
+- F-10 (gpt-oss F1): §5's null assumes each arm is equally likely to win a given discordant pair;
+  the finding claims this assumption is invalid when the two arms have different overall rates of
+  producing scoreable resolutions, because a higher overall scoreable rate changes the opportunities
+  for ties and the effective probability that an observed win reflects true superiority.
+- F-11 (kimi-k3 F2): §9's 41-row critical-value table was spot-checked and found correct at every
+  row checked, but the document names no regeneration script or drift-guard mechanism (contrasted with
+  `DUALFIX-STUDY-PREREG.md`'s own `test/dualfix-study-prereg-sync.test.ts` precedent) that would catch
+  a hand-transcription error in any of the 41 pinned integers once Phase 14 transcribes the table into
+  code.
+- F-12 (gpt-sol-pro F13; kimi-k3 F4; qwen-max F3; gpt-oss F3): §5 gives two reasons for rejecting
+  the split-tie alternative — (1) a tie carries no directional information, and (2) splitting a tie
+  would credit a fractional 0.5 win, reintroducing a non-integer value into $k_w$ that the decision
+  rule's own integer-arithmetic discipline forbids. Doubling every count in the decision path
+  (crediting each tie as exactly 1 in a doubled win count compared against a doubled critical-value
+  table) keeps every quantity an exact integer throughout.
+- F-13 (gpt-sol-pro F14): §5 characterizes the split-tie alternative as "a stricter sign-test
+  variant" of the adopted discard-tie rule, rather than as a procedure with a different estimand and a
+  different null distribution from the adopted rule.
+- F-14 (gpt-sol-pro F16, F17; kimi-k3 F5; qwen-max F4; gpt-oss F4): §6 Clause 2's 20-discordant-pair
+  floor and §9's provenance for that constant both state plainly that the value is reused from
+  `DUALFIX_CORPUS_MIN_N` for house-convention consistency and is "not independently derived from a
+  power calculation specific to this paired design"; the design does not separately state what power
+  that floor actually provides against any stated plausible true discordant-win probability, nor does
+  §7's canonization of an INDISTINGUISHABLE outcome as "a standalone, legitimate finding" distinguish
+  a result landing near the floor from one landing near the battery's full size.
+- F-15 (gpt-sol-pro F18): §3 describes W as "the tournament-selected winner agent definition"
+  without naming a configuration identifier, an immutable artifact digest, a tournament commit, or a
+  selected-agent hash that would pin which specific agent configuration W denotes at any given time.
+- F-16 (gpt-sol-pro F19, F20; kimi-k3 F6; gemma4 F2; gpt-oss F5): §3 describes B as "the
+  configuration a human would hand-write without running the tournament machinery" and "the best a
+  human would write without the tournament," rejecting the s0-minimal floor arm as too weak a
+  baseline; §3 does not name an author, a committed config artifact, a config hash, a drafting
+  deadline, a requirement that B be written before W's tournament output is observed, or a requirement
+  that B reflect ordinary competitive human prompt-engineering effort rather than a first-draft
+  minimum.
+- F-17 (gpt-sol-pro F21): §3 names "the presence or absence of the component-tournament search" as
+  the one axis deliberately left to differ between W and B, holding every other axis (model, timeout,
+  prompt-length bound, attempt discipline, scoring path) constant; "presence or absence of search"
+  itself bundles several sub-factors — the number of candidate configurations evaluated, the compute
+  spent, and the opportunity for iterative refinement — that W's arm receives and B's arm does not,
+  under that single named axis.
+- F-18 (gpt-sol-pro F22, F23): §2's four-axis mapping reads task semantics, oracle implementation,
+  and parser/scoring machinery as "substantively different," attributing the difference to the
+  vertical, task object, oracle mechanism, and scoring path all changing between the barred hypothesis
+  (`data-ops`/`bi-analytics`) and this design (`customer-support`); those three axes will differ
+  whenever the same underlying comparison (prompt-search agent versus hand-written baseline) is moved
+  to a different vertical, and the mapping does not separately state what, if anything, distinguishes
+  a genuine substantive difference in mechanism from an inevitable engineering difference produced
+  merely by changing the vertical.
+- F-19 (gpt-sol-pro F24; kimi-k3 F7): §2's promotion-gate-role axis states this design is "not a
+  promotion gate" for `customer-support`'s admission, because `VERTICAL_ADMISSION`'s verdict for
+  `customer-support` stays `pending` regardless of this study's outcome and because admission is "Phase
+  14's separate REQ-68 decision, made on different evidence." Unlike `DUALFIX-STUDY-PREREG.md` §2's
+  own explicit clause stating no verdict from that study feeds any gate, this document contains no
+  comparable clause stating that no verdict from this study may be cited as evidence in Phase 14's
+  REQ-68 admission decision.
+- F-20 (gpt-sol-pro F25): §§1, 2, and 4 repeatedly describe the pairing units as "historical
+  support tickets" with "historical resolutions," while §4 discloses that both the ticket text and its
+  resolution are composed by the same seeded generator, before either arm sees the ticket — not
+  replayed from an independently recorded historical outcome.
+- F-21 (gpt-oss F6): §2's four-axis mapping concludes the exclusion of `data-ops`/`bi-analytics`
+  holds on substance; the finding states that a pairwise win-loss comparison of a prompt-search agent
+  (W) against a hand-written baseline (B) is, on its face, the shape of the hypothesis §6/§10 bar, and
+  that changing the vertical does not change that shape.
+- F-22 (kimi-k3 F8): §7's one-shot termination applies uniformly to any breach of §6's three
+  clauses, with no distinction drawn between a pairing unit that failed because an arm's own attempt
+  failed and one that failed because the single local inference slot itself faulted (connection
+  refused, process kill, server restart); `DUALFIX-STUDY-PREREG.md` §6 names a distinct harness-fault
+  category (`onceWithHarnessRetry`) that is retried once before counting against that document's own
+  drop-budget ceiling, and this design does not carry a comparable carve-out.
+- F-23 (gpt-sol-pro F26, F33; kimi-k3 F9): §8 item 1 states "if the observed tie rate reaches or
+  exceeds 40 of the 60 pairing units (66.7%), this design is disclosed IN ADVANCE as likely
+  UNDERPOWERED: a tie rate at or above that level leaves fewer than 20 discordant pairs"; §9's
+  provenance for the same 40 constant states it is derived as "60 − 20, the arithmetic complement of
+  the Clause 2 discordant-pairs floor." A tie count of exactly 40 leaves exactly 20 discordant pairs,
+  which is Clause 2's floor value itself, not a count below it.
+- F-24 (gpt-sol-pro F27, F32): §8 item 3 defines the per-arm dominant-failure-mode threshold as a
+  rate — "resolution-mismatch rate (excluding no-artifact/non-scoreable)" — but expresses the trigger
+  as a fixed count, "54 of 60 attempts (90%)"; if any attempts for that arm are excluded from the rate
+  as the definition states, the relevant denominator is that arm's own count of scoreable attempts,
+  not 60, and the two readings can produce different disclosures. §9's provenance for the same
+  constant restates the fixed-count reading.
+- F-25 (gpt-sol-pro F28; kimi-k3 F10): §8 item 3 is stated as "a disclosure, not a qualification
+  gate" — §6 does not gate on the resolution-mismatch-rate number, and no other section states a
+  required consequence (a verdict qualifier, a mandated annotation on the reported result, or a
+  sensitivity re-computation) that follows once the threshold is reached.
+- F-26 (gpt-sol-pro F29): §8 item 4 requires the six per-seed discordant win/loss counts to be
+  "recorded and reported," described as letting a reviewer "inspect whether the pooled result is
+  driven disproportionately by one or two seeds"; the item does not state a numeric heterogeneity or
+  dominance threshold, or any other checkable rule, for what "disproportionately" means.
+- F-27 (gpt-sol-pro F30; kimi-k3 F11): §9's table is introduced as covering "every constant §3
+  through §8 rely on"; §3 names the model digest, the timeout, and the prompt-length bound as pinned
+  and identical across both arms, and separately names the one-attempt-per-arm discipline; none of
+  these has a corresponding row with a literal value and provenance in §9. §9's own closing sentence
+  states "a constant used above and missing here is the defect this table exists to catch; none is
+  left out."
+- F-28 (qwen-max F5): the literal constant `40` (the reciprocal of the per-tail significance level,
+  1/0.025) appears directly in §5's combinatorial condition for the critical-value table and in §9's
+  own provenance text for that formula, without its own row in the §9 constants table.
+- F-29 (gpt-sol-pro F31): §9's provenance for $\alpha = 0.05$ reads "cited: the standard two-sided
+  sign-test significance level"; the significance level is a value this design chooses, not a
+  mathematical consequence the sign-test framework forces, and no specific external source is named
+  for the word "standard."
+- F-30 (gpt-sol-pro F34): §4 states that the answer-first construction pattern establishes the
+  ground truth "does not depend on, or [is] influenced by, either arm's own attempt" and that the
+  oracle "shares zero helper functions" with either arm's resolution-construction path; the same
+  generative system (the seeded generator) composes the known-correct resolution, derives the ticket
+  from that resolution, and supplies the state the oracle checks proposed resolutions against.
+- F-31 (gpt-sol-pro F35; gpt-oss F7): §4's own "What this independence does not cover" paragraph
+  discloses that the same generator that composes the known-correct resolution also renders the
+  customer-facing ticket text from that resolution's semantics, and that a bug in that shared
+  rendering step could produce a ticket whose text does not faithfully denote the resolution it was
+  derived from; §4 states this gap "is named here, not closed by this design" and defers a fidelity
+  check to "Phase 14's own generator obligation," without stating how a malformed or ambiguous
+  generated task would be detected, excluded, or counted once Phase 14 builds that check.
+- F-32 (kimi-k3 F12): if the generator's shared rendering step (§4's own disclosed gap, above)
+  leaves surface regularities in ticket phrasing that correlate with the resolution's structured
+  fields (a templated phrasing per resolution category, for example), an arm could score a match by
+  recognizing those regularities rather than by solving the ticket on its merits; §4's own disclosure
+  of the rendering-fidelity gap does not separately state whether W — having been tournament-selected
+  against batteries drawn from the same generator family — would be differently positioned than B to
+  exploit such regularities, were they to exist.
+- F-33 (gpt-sol-pro F36, F38): §4's replay-match oracle compares a candidate's proposed resolution
+  against the known resolution's "action taken, resolution category, and any resolution-specific
+  parameter," calling this a "structured match"; §4 does not state what counts as a match at that
+  structured-field level (exact string equality, normalized equality, or set inclusion, for example),
+  nor does it name an extraction grammar, ambiguity rule, or precedence rule governing when a raw
+  response is classified as scoreable (§4 categories 1–2) versus not.
+- F-34 (gpt-sol-pro F37): §4's oracle scores a proposed resolution as matching or not matching the
+  generator's own single pinned resolution tuple for that ticket; the finding states that a real
+  support ticket can admit more than one effective resolution, parameterization, or action, and that
+  exact matching to the generator's own chosen tuple does not, on its own, establish that a
+  differently-worded but equally valid resolution would be scored as correct.
