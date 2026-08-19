@@ -1518,3 +1518,55 @@ resolved model digest read back from `ollama list`, the pinned timeout (3,600,00
 (2000 chars), the attempt discipline, and all three seed blocks (paired battery 1301-1306, tournament
 search 1401-1403, tournament promotion 1404-1406) — never a content-addressed identifier in place of
 a commit hash.
+
+## Paired round run to a completed verdict — TERMINATED-UNDERPOWERED (2026-08-19)
+
+REQ-69's own paired round, `_paired-study.ts`, launched detached through `_launch-probe.sh`
+(sole-instance confirmed: `node=848360`, verified sole instance tree, pids `848348 848360`) against
+the real `qwen3.6:latest` slot, digest `07d35212591f`, matching `PAIRED_MODEL_DIGEST`. All 120
+arm-on-unit results (60 pairing units × 2 arms) ran to completion, zero harness-fault retries.
+`paired-study-verdict.json` reads `complete: true`.
+
+**The outcome, exactly as the artifact states it.** `TERMINATED-UNDERPOWERED` — §6 Clause 2 (the
+minimum-discordant-pairs floor) was breached: `winCount=1`, `lossCount=0`, `tieCount=59`, so
+`discordantCount=1`, far below the pinned floor of 20. No `decision` field is populated — §5's
+decision rule was **never evaluated**, per §7's own firing discipline; there is consequently no
+critical value to look up (`discordantCount=1` sits outside the pinned critical-value table's own
+domain, `[20, 60]`, which begins only at the Clause 2 floor itself). The per-arm accounting: W
+60/60 `resolution-match` (zero unscoreable, zero mismatches); B 59/60 `resolution-match`, 1/60
+`non-scoreable` (zero mismatches) — `jointScoreableCount=59`, comfortably clearing Clause 1's
+48-unit floor. The seed-block concordance table (computed and reported regardless, per §5/§8 item
+4) shows five of six seed-blocks `block-tied` (zero discordant pairs each) and one, seed 1302,
+`W-majority` (the single discordant win) — not evaluated against the four-of-six agreement
+threshold, since the pooled comparison itself never ran under a termination.
+
+**Why, read plainly.** 14-05's own disclosure predicted exactly this shape: W's committed text is
+byte-identical to B's (the receipt-free search never mutated the winning `seed-baseline` lineage —
+it scored a perfect 30/30 on the search half from generation 0 and had nothing to reflect on). With
+textually identical system prompts driving both arms, the paired round's outcome was always going
+to be governed by model-sampling variance alone, never a genuine search-vs-no-search difference.
+What the real run shows is that this model's sampling variance on this task, at this temperature
+default, is close to zero: 59 of 60 pairing units resolved identically between the two arms (58
+concordant matches plus one concordant non-scoreable pair on B), leaving only a single discordant
+unit — nowhere near the 20-pair floor §6 requires before the sign test can say anything at all.
+This is one of the four legitimate outcome shapes the frozen design names, not a failed run, not an
+instrument defect, and not evidence for or against the tournament-search mechanism in general: with
+identical prompts, there was structurally nothing for a sign test to detect either way.
+
+**Report.** `experiments/paired-comparison-arm/PAIRED-STUDY-RESULTS.md`, rendered through
+`renderPairedResultsReport` (`_paired-report.ts`, built at 14-03) from the verdict artifact only —
+no number in it is hand-derived. It opens with the v1.25.0 human-override framing, states the
+per-unit records before any aggregate, the per-arm accounting, the six-row seed-block concordance
+table, the tie count, and closes by naming Clause 2 and stating plainly that the decision rule was
+never evaluated.
+
+**What this result does and does not claim.** It claims nothing about direction — W was not shown
+superior to B, B was not shown superior to W, and the sign test that would answer that question
+never ran. It claims nothing about either arm's absolute resolution-match accuracy either (both
+scored at or near ceiling on this battery, but §5's own scope note applies regardless: this
+instrument is built to detect a directional difference among discordant pairs, never a magnitude or
+an absolute-accuracy figure). The only thing this run demonstrates is that, given W and B's
+byte-identical prompts, this model's outputs on this battery were too consistent between the two
+arms to produce the 20 discordant pairs the frozen design requires before it will render a verdict
+either way — precisely the `n_d`-collapse scenario §6 Clause 2's own prose names as a legitimate,
+distinct-from-instrument-failure termination cause (F-03).
