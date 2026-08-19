@@ -2040,3 +2040,60 @@ clause; the frozen amendment's own one-shot-termination discipline forbids all f
 Full suite (90 files, 1282 tests after this plan's own two additions) and `tsc --noEmit` stayed green
 after every commit. REQ-72's third and final clause (the 90-pair round to a verdict) closes here; all
 three of REQ-72's clauses are now closed across 15-07/15-08/15-09.
+
+## Phase 15, plan 15-10: the phase closes — version 1.26.0, REQ-73 closed (2026-08-20)
+
+**What this phase set out to measure.** The rev-2 paired-comparison round (Phase 14, `qwen3.6:latest`)
+saturated its own battery to near-total ties (59 of 60 units) and terminated `TERMINATED-UNDERPOWERED`
+before its decision rule ever ran — not because the instrument was broken, but because that executor
+could not be shown to discriminate this task family at all. This phase existed to answer one question
+honestly: does a calibrated executor change that outcome, or does the underlying task family itself
+resist paired discrimination regardless of which model runs it?
+
+**What the amendment changed and why.** §12 swapped the executor to `gpt-oss:latest`, widened the
+battery 60→90 pairing units, recomputed the three qualification values and widened the critical-value
+table to 71 rows — a five-lane adversarial panel adjudicated the draft (26 ADOPTED / 5 REJECTED) before
+any of this round's own data existed, and §7's frozen one-shot-termination clause was read and engaged
+explicitly rather than assumed. The freeze was proven a strict git descendant of the rev-2 freeze before
+anything ran.
+
+**What the round returned.** The ceiling probe (15-07) cleared its gate against the real slot — the
+calibrated executor can discriminate this family at all. The bounded W search (15-08) applied genuine
+pressure to the incumbent baseline — 9 of 30 promotion-half units failed, both mutations scored worse
+than the unmutated baseline — and the baseline held: W is byte-identical to B, an honest anti-build
+null, disclosed before the paired round ran that its outcome would therefore be governed by
+model-sampling variance alone. The 90-pair round (15-09) then ran for real, 180 arm attempts, zero
+harness-fault retries, and terminated `TERMINATED-UNDERPOWERED` — `discordantCount` 14 against the
+20-pair floor, six short; §5's decision rule was never evaluated. Two additive, artifact-sourced
+factors explain the shortfall: 10 of 90 units dropped from joint consideration (still well above the
+instrument-health floor), and the byte-identical W/B prompt text meant the only source of per-unit
+difference was decoding variance — consistent with the round's own 76/90 tie rate.
+
+**What this does and does not license.** A calibrated executor and a real, pressured search were both
+necessary and both applied; the instrument itself is now proven capable of discrimination (the ceiling
+probe, both arms' sub-90%-ceiling mismatch rates). What the amended round could not do, on this task
+family, with this search's own bounded horizon, was produce two prompts different enough from each
+other to generate the 20 discordant pairs the decision rule needs to speak at all. This is this
+project's third pre-registered terminal or null outcome (Phase 9's failure branch, Phase 14's
+`TERMINATED-UNDERPOWERED`, and now this one) — none of the three is a confession, and dressing any of
+them up as a partial success would cost more credibility than the outcome itself. Nothing here licenses
+re-running an arm, extending the seed list, or redrawing the battery outside a fresh pre-registration.
+
+**Record and version discipline, closing REQ-73.** Version 1.26.0 synced across `package.json`,
+`.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` (both `metadata.version` and the
+`stz-f` plugin entry's own `version`) in one commit, drift guard green. `CHANGELOG.md`'s already-open
+1.26.0 heading (opened at the 15-04 freeze) carries this phase's remaining work — the calibrated
+executor, the widened battery, the probe, the search, and the round's outcome — as additional entries
+under that same heading; no second heading opened. Every commit this phase is attributed to
+`dr-robert-li` with no trailer lines. REQ-71 (amendment frozen), REQ-72 (calibrated re-run, all three
+clauses), and REQ-73 (this record/version/push discipline) are marked complete in
+`.planning/REQUIREMENTS.md`, `requirements.mark-complete` having returned `not_found` for this file's
+format at two prior phase closes — edited directly again here, the same known, precedented handling.
+The full suite and typecheck are green on the tree this entry commits; the four previously-frozen
+documents (`DUALFIX-STUDY-PREREG.md`, `BI-BATTERY-DESIGN.md`, `PREREG-DRAFT.md`,
+`PAIRED-DESIGN-PREREG.md` at the rev-2 freeze commit) and both the v1.24.0 and v1.25.0 run records are
+re-verified byte-identical to their pre-phase state by blob hash, not asserted. The milestone is pushed
+at this gate, matching the v1.23.0/v1.24.0/v1.25.0 precedent. Two open items predate this phase and stay
+open, named rather than absorbed: the v1.24.0 milestone's own completion entry (closed independently at
+Phase 12) and the parameter-description ledger item flagged at 14-02 for `_paired-arms.ts`'s task
+prompt.

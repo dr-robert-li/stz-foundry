@@ -37,6 +37,38 @@ follow-on work, not a Stage-B trigger outcome. The v1.24.0 terminal record
   `.claude-plugin/marketplace.json` all still read `1.25.0` at this entry — the 1.26.0 manifest sync
   lands at this phase's close, not here, mirroring D-08's precedent from Phase 13. The drift guard
   stays green throughout.
+- `experiments/paired-comparison-arm/_probe-rev3.ts` (REQ-72, 15-07): the rev-3 ceiling probe ran for
+  real against `gpt-oss:latest` (digest `17052f91a42e`), seed 1610, rev-2's task count and floor left
+  unchanged per §12's own explicit text — `complete:true, pass:true`, answer-visible scoreable 10/10
+  against a floor of 8. The freeze commit (`8279159aa2888...`) confirmed a strict ancestor; rev-2's own
+  probe artifacts untouched. Gate passed; the calibrated executor can discriminate this task family.
+- `experiments/paired-comparison-arm/_w-search.ts` (REQ-72, 15-08): the bounded W search ran for real
+  against `gpt-oss:latest` under genuine pressure — 9 of 30 promotion-half units failed against the
+  unmutated baseline, and both reflective mutations attempted against the real failure traces scored
+  worse (20/30, 20/30 vs. the baseline's own 21/30). The search halted after 3 generations; W
+  (`6cc48aafd3a2613fe40f4b6f314752c3b0c5eda0`) is byte-identical to B
+  (`90caee3bad14c781cd51671fa7f5e9c8708de9e1`) — an honest anti-build null distinct from rev-2's
+  saturation artifact, since this baseline was mutated twice and held anyway. Both arms pinned by
+  commit SHA in `paired-runconfig-rev3.json`; disjointness of the search/promotion seeds from the
+  paired battery's own nine seeds (1601–1609) checked by exact set computation over all 210 checkpoint
+  keys, not asserted. Disclosed before the round ran: with W and B carrying identical prompt text, the
+  round's outcome would be governed by sampling variance alone.
+- `experiments/paired-comparison-arm/paired-study-rev3-verdict.json` (REQ-72, 15-09): the 90-pair
+  rev-3 round ran for real, 180 arm attempts (90 units × 2 arms) against `gpt-oss:latest`, all landing
+  `status: ok`, zero harness-fault retries. Verdict: `TERMINATED-UNDERPOWERED` — §6 Clause 1
+  (instrument-health floor 72) passed at `jointScoreableCount` 80, but §6 Clause 2 (minimum
+  discordant-pairs floor 20) did not — `discordantCount` 14, six short — so the study terminated and
+  §5's decision rule was never evaluated. `winCount` 8, `lossCount` 6, `tieCount` 76. Two additive,
+  artifact-sourced factors explain the shortfall (`PAIRED-STUDY-RESULTS-REV3.md`): 10 of 90 units
+  dropped from joint consideration, and W/B's byte-identical prompt text this round means the only
+  source of per-unit difference is decoding variance, consistent with the round's own 76/90 tie rate.
+  A legitimate pre-registered outcome, not a failed phase — REQ-72's third and final clause closes
+  here; all three of REQ-72's clauses (ceiling probe, W search, 90-pair round) are now closed. The
+  v1.24.0 milestone record and the v1.25.0 round (`PAIRED-STUDY-RESULTS.md`) both stand untouched.
+- **Version 1.26.0 synced** (REQ-73, 15-10): `package.json`, `.claude-plugin/plugin.json`, and
+  `.claude-plugin/marketplace.json` (both `metadata.version` and the `stz-f` plugin entry's own
+  `version`) bumped together in one commit; the drift guard stays green. This closes REQ-73 and the
+  phase.
 
 ## [1.25.0] — Third-family paired-comparison design frozen (Phase 13); manifest sync deferred to Phase 14 close
 
