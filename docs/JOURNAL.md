@@ -1468,3 +1468,53 @@ as an unconditional instruction, because `_paired-arms.ts`'s `runArmOnPairingUni
 
 This commit precedes the search run that produces W — no search driver exists in the repository at
 this commit (`_w-search.ts` is authored next, in Task 2), and no inference toward W has run.
+
+## Winner arm (W) committed — the receipt-free search's real result, and an honest surprise (2026-08-19)
+
+`experiments/paired-comparison-arm/_w-arm-definition.md`, commit
+`c4e7b22515f303b794f9bba21d1e15b6e22c9c02`. Strict ancestry confirmed: `git merge-base --is-ancestor
+ac3f452efc1b2580db8cae802649d7c8defacc0e c4e7b22515f303b794f9bba21d1e15b6e22c9c02` exits 0, and the
+two hashes are unequal — B precedes W, proven by git, not asserted in prose.
+
+**What actually ran.** `_w-search.ts`, launched detached through `_launch-probe.sh` (reused as-is;
+its own header already documents itself as the sole sanctioned launcher for "probe/tournament
+scripts" in this directory) against the real `qwen3.6:latest` slot, digest `07d35212591f` — matching
+`PAIRED_MODEL_DIGEST`. Launcher's own sole-instance confirmation: `launched OK: node=731289 (verified
+sole instance tree: pids 731277 731289)`. Waited by polling `w-search-verdict.json` for its own
+`complete: true` flag across two turns (the run outlived one interactive turn; resumed cleanly, zero
+re-run units, per the checkpoint core's own resumability proof in `test/paired-w-search.test.ts`).
+Two candidate lineages ran: `seed-baseline` (B's own committed text, extracted verbatim) and
+`seed-alt` (a second, independently hand-written starting variant embedded in the driver). Search ran
+3 generations, halted on the search-horizon cap: `"Two barren generations — converged; incumbent
+stands (anti-build null)."` The reflection-budget cap (10) never fired — only 2 of 10 reflections were
+ever spent, both on `seed-alt`; `seed-baseline` was never mutated because it scored a perfect 30/30 on
+the search half in generation 0 and had nothing to reflect on in any generation it ran.
+
+**The honest surprise.** The search's own selected winner, by the highest search-half match count
+(`seed-baseline`, 30/30, vs. `seed-alt`'s 28→29→30 across its own mutations), is `seed-baseline` —
+which was never mutated. **W's committed text is therefore byte-identical to B's**, confirmed
+programmatically (`extractAgentSystemPromptFromDefinitionFile` applied to both files yields the same
+string). This is a legitimate result, not a build defect: the frozen design requires B to be a
+competent, non-impoverished baseline precisely so this outcome is possible, and this run demonstrates
+the search machinery genuinely could not beat a well-authored hand-written prompt on this task's
+search half. The promotion-half confirmation (30 fresh tasks, seeds 1404-1406, never seen during
+search) came back 30/30 matched as well — recorded, never gated, since the frozen design pins no
+numeric threshold for the search.
+
+**What this means for 14-06.** With textually identical prompts driving both arms, the paired round's
+outcome will be governed by model-sampling variance alone, not by any genuine search-vs-no-search
+difference. `_w-arm-definition.md` §3 states this plainly for 14-06/14-07 to read before
+characterizing whatever the paired round's own verdict turns out to be — an INDISTINGUISHABLE result
+under these conditions would be the EXPECTED outcome, not evidence against search in general. The
+causal-independence ordering §3's decision-rule argument leans on is still fully honored regardless:
+W's identity was fixed by this commit before the paired battery is ever drawn (14-06's job), and the
+search never saw the battery's own seeds — confirmed by the comment-stripped negative grep
+(`grep -qE '\b130[1-6]\b'` against `_w-search.ts` exits 1) and by `paired-runconfig.json`'s own seed
+blocks below.
+
+**Pinning.** `paired-runconfig.json` carries both arms' literal commit hashes (B
+`ac3f452efc1b2580db8cae802649d7c8defacc0e`, W `c4e7b22515f303b794f9bba21d1e15b6e22c9c02`), the
+resolved model digest read back from `ollama list`, the pinned timeout (3,600,000ms) and prompt bound
+(2000 chars), the attempt discipline, and all three seed blocks (paired battery 1301-1306, tournament
+search 1401-1403, tournament promotion 1404-1406) — never a content-addressed identifier in place of
+a commit hash.

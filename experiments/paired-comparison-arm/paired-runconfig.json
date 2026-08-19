@@ -1,0 +1,56 @@
+{
+  "arms": {
+    "B": {
+      "role": "baseline unevolved agent definition",
+      "definitionFile": "_b-arm-definition.md",
+      "commit": "ac3f452efc1b2580db8cae802649d7c8defacc0e"
+    },
+    "W": {
+      "role": "tournament-selected winner agent definition",
+      "definitionFile": "_w-arm-definition.md",
+      "commit": "c4e7b22515f303b794f9bba21d1e15b6e22c9c02",
+      "producedBy": "experiments/paired-comparison-arm/_w-search.ts (receipt-free bounded search, PD-1)",
+      "searchVerdict": "w-search-verdict.json"
+    }
+  },
+  "ancestry": {
+    "note": "B strictly precedes W in git history — proven by git, not asserted in prose",
+    "verifyCommand": "git merge-base --is-ancestor ac3f452efc1b2580db8cae802649d7c8defacc0e c4e7b22515f303b794f9bba21d1e15b6e22c9c02",
+    "shaInequality": "ac3f452efc1b2580db8cae802649d7c8defacc0e != c4e7b22515f303b794f9bba21d1e15b6e22c9c02"
+  },
+  "model": "qwen3.6:latest",
+  "modelDigestLine": "qwen3.6:latest             07d35212591f    23 GB     4 months ago",
+  "modelDigestPinned": "07d35212591f",
+  "ollamaVersion": "ollama version is 0.32.5",
+  "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+  "taskTimeoutMs": 3600000,
+  "promptBoundChars": 2000,
+  "attemptDiscipline": "exactly one resolution proposal per arm per pairing unit (PAIRED_ATTEMPT_DISCIPLINE=1)",
+  "equalTreatmentInvariant": "model, model digest, timeout, prompt-length bound, and attempt discipline are held identical between W and B; only the presence or absence of the search that produced the agent definition differs (PAIRED-DESIGN-PREREG.md rev 2 §3)",
+  "seedBlocks": {
+    "pairedBattery": {
+      "seeds": [1301, 1302, 1303, 1304, 1305, 1306],
+      "tasksPerSeed": 10,
+      "note": "the paired round's own six seeds — drawn only by 14-06's driver, never referenced by _w-search.ts"
+    },
+    "tournamentSearch": {
+      "seeds": [1401, 1402, 1403],
+      "tasksPerSeed": 10,
+      "note": "disjoint from the paired battery's own seeds per PAIRED-DESIGN-PREREG.md §3 — the data used to select W"
+    },
+    "tournamentPromotion": {
+      "seeds": [1404, 1405, 1406],
+      "tasksPerSeed": 10,
+      "note": "disjoint from both the search-set and the paired battery's own seeds — the held-out confirmation run"
+    }
+  },
+  "searchOutcome": {
+    "winnerCandidateId": "seed-baseline",
+    "searchMatchCount": "30/30",
+    "generationsRun": 3,
+    "haltSource": "search-horizon",
+    "haltNote": "Two barren generations — converged; incumbent stands (anti-build null).",
+    "promotionConfirmation": "30/30 matched, 30/30 scoreable, 30/30 attempted",
+    "disclosedFact": "W's committed text is byte-identical to B's — seed-baseline was never mutated (zero failing search-half units in any generation it ran). See _w-arm-definition.md §3 for the full disclosure."
+  }
+}
