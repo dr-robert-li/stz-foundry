@@ -1,0 +1,938 @@
+{
+  "complete": true,
+  "outcome": "TERMINATED-UNDERPOWERED",
+  "reason": "§7 firing discipline: the decision rule is never evaluated on a non-completing outcome (TERMINATED-UNDERPOWERED)",
+  "jointScoreableCount": 59,
+  "accounting": {
+    "armW": {
+      "no-artifact": 0,
+      "non-scoreable": 0,
+      "resolution-mismatch": 0,
+      "resolution-match": 60
+    },
+    "armB": {
+      "no-artifact": 0,
+      "non-scoreable": 1,
+      "resolution-mismatch": 0,
+      "resolution-match": 59
+    },
+    "winCount": 1,
+    "lossCount": 0,
+    "tieCount": 59,
+    "discordantCount": 1,
+    "blocks": [
+      {
+        "seed": 1301,
+        "discordantWins": 0,
+        "discordantLosses": 0,
+        "classification": "block-tied"
+      },
+      {
+        "seed": 1302,
+        "discordantWins": 1,
+        "discordantLosses": 0,
+        "classification": "W-majority"
+      },
+      {
+        "seed": 1303,
+        "discordantWins": 0,
+        "discordantLosses": 0,
+        "classification": "block-tied"
+      },
+      {
+        "seed": 1304,
+        "discordantWins": 0,
+        "discordantLosses": 0,
+        "classification": "block-tied"
+      },
+      {
+        "seed": 1305,
+        "discordantWins": 0,
+        "discordantLosses": 0,
+        "classification": "block-tied"
+      },
+      {
+        "seed": 1306,
+        "discordantWins": 0,
+        "discordantLosses": 0,
+        "classification": "block-tied"
+      }
+    ]
+  },
+  "unitRecords": [
+    {
+      "unitId": "1301:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1301:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "non-scoreable",
+      "score": 0
+    },
+    {
+      "unitId": "1302:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1302:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1303:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1304:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1305:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1306:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    }
+  ],
+  "retries": [],
+  "armCommits": {
+    "W": "c4e7b22515f303b794f9bba21d1e15b6e22c9c02",
+    "B": "ac3f452efc1b2580db8cae802649d7c8defacc0e"
+  },
+  "runConfig": {
+    "model": "qwen3.6:latest",
+    "modelDigestLine": "qwen3.6:latest             07d35212591f    23 GB     4 months ago",
+    "ollamaVersion": "ollama version is 0.32.5",
+    "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+    "timeoutMs": 3600000,
+    "promptBoundChars": 2000,
+    "seeds": [
+      1301,
+      1302,
+      1303,
+      1304,
+      1305,
+      1306
+    ],
+    "tasksPerSeed": 10,
+    "attemptDiscipline": 1,
+    "armCommits": {
+      "W": "c4e7b22515f303b794f9bba21d1e15b6e22c9c02",
+      "B": "ac3f452efc1b2580db8cae802649d7c8defacc0e"
+    },
+    "armDefinitionFiles": {
+      "W": "_w-arm-definition.md",
+      "B": "_b-arm-definition.md"
+    },
+    "startedAt": "2026-08-19T08:01:50.769Z",
+    "taskOrder": "seed block ascending (PAIRED_SEEDS order), then task index within seed, then arm slot within pairing unit (W then B, PAIRED_ARM_SLOTS order) — deterministic, total, stable",
+    "executionOrder": "one request in flight at a time — no batching, no second execution stream, no override"
+  }
+}
