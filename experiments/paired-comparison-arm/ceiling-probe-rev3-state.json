@@ -1,0 +1,238 @@
+{
+  "units": {
+    "answer-visible:1610:0": {
+      "arm": "W",
+      "unitId": "1610:0",
+      "status": "ok",
+      "rawText": "action: adjust-charge\ncategory: order-total-discrepancy\nparameter: 7.17",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 238,
+      "outputTokens": 119,
+      "wallMs": 8667
+    },
+    "normal:1610:0": {
+      "arm": "W",
+      "unitId": "1610:0",
+      "status": "ok",
+      "rawText": "action: adjust-charge\ncategory: order-total-discrepancy\nparameter: difference-7.17",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 256,
+      "outputTokens": 423,
+      "wallMs": 7766
+    },
+    "answer-visible:1610:1": {
+      "arm": "W",
+      "unitId": "1610:1",
+      "status": "ok",
+      "rawText": "action: refund-duplicate-charge\ncategory: order-total-discrepancy\nparameter: 16.30",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 240,
+      "outputTokens": 126,
+      "wallMs": 2817
+    },
+    "normal:1610:1": {
+      "arm": "W",
+      "unitId": "1610:1",
+      "status": "ok",
+      "rawText": "action: refund-duplicate-charge\ncategory: order-total-discrepancy\nparameter: chargeCount=3",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 241,
+      "outputTokens": 1141,
+      "wallMs": 20488
+    },
+    "answer-visible:1610:2": {
+      "arm": "W",
+      "unitId": "1610:2",
+      "status": "ok",
+      "rawText": "action:  escalation‑repeat‑defect\ncategory: product‑quality\nparameter: Wireless Mouse",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 234,
+      "outputTokens": 342,
+      "wallMs": 6357
+    },
+    "normal:1610:2": {
+      "arm": "W",
+      "unitId": "1610:2",
+      "status": "ok",
+      "rawText": "action: elevate‑repeat‑defect, category: product‑quality, parameter: 3002",
+      "oracleCategory": "non-scoreable",
+      "score": 0,
+      "inputTokens": 244,
+      "outputTokens": 404,
+      "wallMs": 7505
+    },
+    "answer-visible:1610:3": {
+      "arm": "W",
+      "unitId": "1610:3",
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 235,
+      "outputTokens": 123,
+      "wallMs": 2641
+    },
+    "normal:1610:3": {
+      "arm": "W",
+      "unitId": "1610:3",
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: 3003",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 233,
+      "outputTokens": 208,
+      "wallMs": 3978
+    },
+    "answer-visible:1610:4": {
+      "arm": "W",
+      "unitId": "1610:4",
+      "status": "ok",
+      "rawText": "action: elevate-repeat-defect\ncategory: product-quality\nparameter: Blue Ceramic Mug",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 235,
+      "outputTokens": 143,
+      "wallMs": 2903
+    },
+    "normal:1610:4": {
+      "arm": "W",
+      "unitId": "1610:4",
+      "status": "ok",
+      "rawText": "action: elevate-repeat-defect\ncategory: product-quality\nparameter: defectSku=3001",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 244,
+      "outputTokens": 222,
+      "wallMs": 4198
+    },
+    "answer-visible:1610:5": {
+      "arm": "W",
+      "unitId": "1610:5",
+      "status": "ok",
+      "rawText": "action: elevate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 234,
+      "outputTokens": 194,
+      "wallMs": 3825
+    },
+    "normal:1610:5": {
+      "arm": "W",
+      "unitId": "1610:5",
+      "status": "ok",
+      "rawText": "action: escalated-repeat-defect, category: product-quality, parameter: 3003",
+      "oracleCategory": "non-scoreable",
+      "score": 0,
+      "inputTokens": 243,
+      "outputTokens": 211,
+      "wallMs": 4072
+    },
+    "answer-visible:1610:6": {
+      "arm": "W",
+      "unitId": "1610:6",
+      "status": "ok",
+      "rawText": "action: refund-shipping-upgrade\ncategory: shipping-service-mismatch\nparameter: 19.03",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 239,
+      "outputTokens": 191,
+      "wallMs": 3888
+    },
+    "normal:1610:6": {
+      "arm": "W",
+      "unitId": "1610:6",
+      "status": "ok",
+      "rawText": "action: adjust-charge  \ncategory: shipping-service-mismatch  \nparameter: 18.03",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0,
+      "inputTokens": 258,
+      "outputTokens": 483,
+      "wallMs": 8785
+    },
+    "answer-visible:1610:7": {
+      "arm": "W",
+      "unitId": "1610:7",
+      "status": "ok",
+      "rawText": "action: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 7.64",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 241,
+      "outputTokens": 396,
+      "wallMs": 7305
+    },
+    "normal:1610:7": {
+      "arm": "W",
+      "unitId": "1610:7",
+      "status": "ok",
+      "rawText": "action: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 7.64",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 255,
+      "outputTokens": 591,
+      "wallMs": 10742
+    },
+    "answer-visible:1610:8": {
+      "arm": "W",
+      "unitId": "1610:8",
+      "status": "ok",
+      "rawText": "action: refund-shipping-upgrade\ncategory: shipping-service-mismatch\nparameter: 30.45",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 239,
+      "outputTokens": 168,
+      "wallMs": 3371
+    },
+    "normal:1610:8": {
+      "arm": "W",
+      "unitId": "1610:8",
+      "status": "ok",
+      "rawText": "action: refund-shipping-upgrade, category: shipping-service-mismatch, parameter: 30.45",
+      "oracleCategory": "non-scoreable",
+      "score": 0,
+      "inputTokens": 258,
+      "outputTokens": 159,
+      "wallMs": 3302
+    },
+    "answer-visible:1610:9": {
+      "arm": "W",
+      "unitId": "1610:9",
+      "status": "ok",
+      "rawText": "action: adjust-charge\ncategory: order-total-discrepancy\nparameter: 6.90",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 238,
+      "outputTokens": 133,
+      "wallMs": 2676
+    },
+    "normal:1610:9": {
+      "arm": "W",
+      "unitId": "1610:9",
+      "status": "ok",
+      "rawText": "action: adjust-charge  \ncategory: order-total-discrepancy  \nparameter: 6.90",
+      "oracleCategory": "resolution-match",
+      "score": 1,
+      "inputTokens": 257,
+      "outputTokens": 359,
+      "wallMs": 6736
+    }
+  },
+  "retries": [],
+  "runConfig": {
+    "model": "gpt-oss:latest",
+    "modelDigestLine": "gpt-oss:latest             17052f91a42e    13 GB     2 weeks ago     ",
+    "ollamaVersion": "ollama version is 0.32.5",
+    "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+    "timeoutMs": 3600000,
+    "promptBoundChars": 2000,
+    "seed": 1610,
+    "taskCount": 10,
+    "clientConcurrency": 1,
+    "startedAt": "2026-08-19T20:31:29.494Z",
+    "taskOrder": "task index 0..N-1, answer-visible mode then normal mode within each task index — deterministic, total, stable"
+  }
+}

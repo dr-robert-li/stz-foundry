@@ -1,0 +1,47 @@
+{
+  "complete": true,
+  "pass": true,
+  "seed": 1610,
+  "taskCount": 10,
+  "scoreableFloor": 8,
+  "accounting": {
+    "answerVisible": {
+      "mode": "answer-visible",
+      "attempted": 10,
+      "byCategory": {
+        "no-artifact": 0,
+        "non-scoreable": 0,
+        "resolution-mismatch": 3,
+        "resolution-match": 7
+      },
+      "scoreable": 10,
+      "matched": 7
+    },
+    "normal": {
+      "mode": "normal",
+      "attempted": 10,
+      "byCategory": {
+        "no-artifact": 0,
+        "non-scoreable": 3,
+        "resolution-mismatch": 5,
+        "resolution-match": 2
+      },
+      "scoreable": 7,
+      "matched": 2
+    }
+  },
+  "retries": [],
+  "runConfig": {
+    "model": "gpt-oss:latest",
+    "modelDigestLine": "gpt-oss:latest             17052f91a42e    13 GB     2 weeks ago     ",
+    "ollamaVersion": "ollama version is 0.32.5",
+    "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+    "timeoutMs": 3600000,
+    "promptBoundChars": 2000,
+    "seed": 1610,
+    "taskCount": 10,
+    "clientConcurrency": 1,
+    "startedAt": "2026-08-19T20:31:29.494Z",
+    "taskOrder": "task index 0..N-1, answer-visible mode then normal mode within each task index — deterministic, total, stable"
+  }
+}
