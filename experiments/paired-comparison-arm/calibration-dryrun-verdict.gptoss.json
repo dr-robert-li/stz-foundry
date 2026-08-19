@@ -1,0 +1,64 @@
+{
+  "complete": true,
+  "accounting": [
+    {
+      "config": "C0",
+      "attempted": 10,
+      "scoreable": 9,
+      "matched": 7,
+      "matchRate": 0.7
+    },
+    {
+      "config": "C1",
+      "attempted": 10,
+      "scoreable": 9,
+      "matched": 9,
+      "matchRate": 0.9
+    },
+    {
+      "config": "C2",
+      "attempted": 10,
+      "scoreable": 10,
+      "matched": 8,
+      "matchRate": 0.8
+    },
+    {
+      "config": "C3",
+      "attempted": 10,
+      "scoreable": 8,
+      "matched": 7,
+      "matchRate": 0.7
+    },
+    {
+      "config": "C4",
+      "attempted": 10,
+      "scoreable": 10,
+      "matched": 10,
+      "matchRate": 1
+    },
+    {
+      "config": "C5",
+      "attempted": 10,
+      "scoreable": 10,
+      "matched": 7,
+      "matchRate": 0.7
+    }
+  ],
+  "retries": [],
+  "runConfig": {
+    "model": "gpt-oss:latest",
+    "modelDigestLine": "gpt-oss:latest             17052f91a42e    13 GB     2 weeks ago     ",
+    "ollamaVersion": "ollama version is 0.32.5",
+    "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+    "timeoutMs": 3600000,
+    "seeds": {
+      "base": 1501,
+      "c4": 1502,
+      "distractor": 1503
+    },
+    "tasksPerConfig": 10,
+    "clientConcurrency": 1,
+    "startedAt": "2026-08-19T12:13:41.121Z",
+    "unitOrder": "C0..C5, task index 0..9 within each config — deterministic, total, stable"
+  }
+}

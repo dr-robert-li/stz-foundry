@@ -1,0 +1,1325 @@
+{
+  "units": {
+    "C0:1501:0": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 0,
+      "status": "ok",
+      "rawText": "action: adjust-charge\ncategory: order-total-discrepancy\nparameter: 3.41",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 852,
+      "outputTokens": 249,
+      "wallMs": 11118
+    },
+    "C1:1501:0": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 0,
+      "status": "ok",
+      "rawText": "The ticket reports a difference between the amount charged ($30.02) and the total shown on receipt ($26.61). This is an *order-total-discrepancy* that requires adjusting the charge to credit back the excess. The correct action is **adjust-charge** in the category **order-total-discrepancy**. The monetary difference is calculated as $30.02 – $26.61 = $3.41.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 3.41",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 832,
+      "outputTokens": 423,
+      "wallMs": 9302
+    },
+    "C2:1501:0": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 0,
+      "status": "ok",
+      "rawText": "action: adjust-charge\ncategory: order-total-discrepancy\nparameter: 3.41",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 894,
+      "outputTokens": 265,
+      "wallMs": 5179
+    },
+    "C3:1501:0": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 0,
+      "status": "ok",
+      "rawText": "The ticket reports an overcharge of $30.02 on the actual bill while the receipt indicates the correct total should have been $26.61. This is a discrepancy in the order total; the appropriate response is an **adjust-charge** to correct the amount.\n\nTo compute the parameter for the monetary action, we take the difference between the charged amount and the correct total:  \n$30.02 – $26.61 = $3.41.  \n\nThus the system should adjust by a dollar value of 3.41.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 3.41",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 855,
+      "outputTokens": 804,
+      "wallMs": 14430
+    },
+    "C0:1501:1": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 1,
+      "status": "ok",
+      "rawText": "(action and reasoning omitted due to instructions, only final format below)\n\n行动: <value> ... Actually per instruction we must output exactly 3 lines with exact format\n\nSo let's output correctly.action: escalte-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": null,
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "non-scoreable",
+      "match": false,
+      "inputTokens": 839,
+      "outputTokens": 175,
+      "wallMs": 3511
+    },
+    "C1:1501:1": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 1,
+      "status": "ok",
+      "rawText": "action: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 820,
+      "outputTokens": 261,
+      "wallMs": 4940
+    },
+    "C2:1501:1": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 1,
+      "status": "ok",
+      "rawText": "The customer reports that they have received the same defective item (SKU 3003) four times in a row, which indicates a repeated product defect problem. The appropriate operation specified for handling such an issue is **escalate-repeat-defect**, which falls under the **product-quality** category.\n\nFor an escalation action, the parameter required is the name of the catalog item corresponding to the SKU provided. Looking up SKU 3003 in the given catalog yields “Phone Case” as the correct item name.\n\naction: elevate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "elevate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-mismatch",
+      "match": false,
+      "inputTokens": 881,
+      "outputTokens": 395,
+      "wallMs": 7286
+    },
+    "C3:1501:1": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 1,
+      "status": "ok",
+      "rawText": "The customer is reporting that the same item (#3003) has been delivered defective multiple times, which falls under a repeated defect issue—this maps to the **product-quality** category and requires escalation with the action **escalate-repeat-defect**. For this lookup‑type action, we need to provide the full catalog name of the SKU in question. SKU #3003 corresponds to **Phone Case**.\n\naction: elevate... Wait I realize I must use correct spelling! The allowed action is **escalate-repeat-defect**, category **product-quality**, and parameter **Phone Case**.\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": null,
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "non-scoreable",
+      "match": false,
+      "inputTokens": 843,
+      "outputTokens": 787,
+      "wallMs": 14059
+    },
+    "C0:1501:2": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 2,
+      "status": "ok",
+      "rawText": "REASONING: (a) The ticket is about a late delivery fee; the customer references the company’s policy of $3.80 per day late and states their order was 3 days late. The appropriate response is to credit them for the late‑delivery fee, which uses the action “credit-late-delivery-fee” that falls under the category “shipping-service-mismatch”. (b) The parameter is a monetary amount calculated as the daily fee multiplied by the number of late days: 3.80 × 3 = 11.40.\n\naction: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 11.40",
+      "extracted": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "expected": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 851,
+      "outputTokens": 445,
+      "wallMs": 8104
+    },
+    "C1:1501:2": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 2,
+      "status": "ok",
+      "rawText": "reasoning: The customer is requesting a credit for late delivery fees; the policy states $3.80 for each day an order arrives after its promised date, and their order was 3 days late. This matches the “credit-late-delivery-fee” action in the shipping-service-mismatch category. The parameter amount is calculated as $3.80 × 3 = $11.40.\n\naction: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 11.40",
+      "extracted": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "expected": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 830,
+      "outputTokens": 274,
+      "wallMs": 5198
+    },
+    "C2:1501:2": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 2,
+      "status": "ok",
+      "rawText": "The customer is requesting credit for late delivery, which matches the *credit-late-delivery-fee* action in the **shipping-service-mismatch** category.  \nThe fee is calculated as $3.80 per day × 3 days = $11.40, derived directly from the facts stated.\n\naction: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 11.40",
+      "extracted": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "expected": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 893,
+      "outputTokens": 589,
+      "wallMs": 10633
+    },
+    "C3:1501:2": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 2,
+      "status": "ok",
+      "rawText": "action: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 11.40",
+      "extracted": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "expected": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 853,
+      "outputTokens": 459,
+      "wallMs": 8334
+    },
+    "C0:1501:3": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 3,
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 829,
+      "outputTokens": 140,
+      "wallMs": 2846
+    },
+    "C1:1501:3": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 3,
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 815,
+      "outputTokens": 149,
+      "wallMs": 2883
+    },
+    "C2:1501:3": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 3,
+      "status": "ok",
+      "rawText": "The customer reports a missing item (SKU 3003).  \nThis fits the “missing‑item” category and requires a replacement shipment, so we use the action **ship-catalog-replacement**.  \nFor the parameter, look up SKU 3003 in the catalog: it maps to \"Phone Case\".\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 871,
+      "outputTokens": 287,
+      "wallMs": 5363
+    },
+    "C3:1501:3": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 3,
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 838,
+      "outputTokens": 229,
+      "wallMs": 4299
+    },
+    "C0:1501:4": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 4,
+      "status": "ok",
+      "rawText": "The customer is reporting a repeated defect (defectCount = 4) for the item with SKU #3003, indicating a product‑quality issue rather than a pricing or shipping problem. Therefore the appropriate action is **escalate-repeat-defect**, which falls under the **product-quality** category. The parameter required for this lookup action is the catalog name that corresponds to SKU #3003; consulting the catalog table yields “Phone Case”.\n\naction: elevate‑repeat‑defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "elevate‑repeat‑defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-mismatch",
+      "match": false,
+      "inputTokens": 838,
+      "outputTokens": 350,
+      "wallMs": 6526
+    },
+    "C1:1501:4": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 4,
+      "status": "ok",
+      "rawText": "The ticket involves a defect that has occurred repeatedly on the same item, so it belongs to the product‑quality issue category and should be addressed by escalating the repeat defect.\n\nACTION: **escalate-repeat-defect**  \nCATEGORY: **product-quality**  \nPARAMETER (lookup of SKU #3003): **Phone Case**",
+      "extracted": null,
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "non-scoreable",
+      "match": false,
+      "inputTokens": 819,
+      "outputTokens": 194,
+      "wallMs": 3847
+    },
+    "C2:1501:4": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 4,
+      "status": "ok",
+      "rawText": "action: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 880,
+      "outputTokens": 188,
+      "wallMs": 3688
+    },
+    "C3:1501:4": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 4,
+      "status": "ok",
+      "rawText": "The customer reports that the same item (SKU 3003) has arrived defected four times. This is a repeat defect issue, which requires escalation of the quality problem.\n\nAction: **escalate-repeat-defect** – this action addresses repeat defects.\nCategory: **product-quality** – the problem is with product condition.\nParameter: The parameter for lookup actions is the catalog item name corresponding to the SKU.  \n- SKU 3003 → **Phone Case**\n\nThus:\n\naction: elevate? Wait must be exact \"escalate-repeat-defect\". \n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": null,
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "non-scoreable",
+      "match": false,
+      "inputTokens": 842,
+      "outputTokens": 527,
+      "wallMs": 9440
+    },
+    "C0:1501:5": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 5,
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: Desk Lamp",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 829,
+      "outputTokens": 216,
+      "wallMs": 4177
+    },
+    "C1:1501:5": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 5,
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: Desk Lamp",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 815,
+      "outputTokens": 101,
+      "wallMs": 2154
+    },
+    "C2:1501:5": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 5,
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement  \ncategory: missing-item  \nparameter: Desk Lamp",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 871,
+      "outputTokens": 295,
+      "wallMs": 5558
+    },
+    "C3:1501:5": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 5,
+      "status": "ok",
+      "rawText": "The customer reports that an item with SKU #3006 (a Desk Lamp) was missing from their delivered order. This falls under a **missing-item** issue, so we should use the action *ship-catalog-replacement*. The parameter is obtained by looking up SKU 3006 in the provided catalog.\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Desk Lamp",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 838,
+      "outputTokens": 394,
+      "wallMs": 7227
+    },
+    "C0:1501:6": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 6,
+      "status": "ok",
+      "rawText": "The ticket is about a repeated defect on an order, so the appropriate task is to escalate this issue as it falls under product quality.\n\nFor “escalate‑repeat‑defect” we must provide the catalog name of the defective SKU. The ticket references SKU #3003, which corresponds to “Phone Case”.\n\naction: escalte-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalte-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-mismatch",
+      "match": false,
+      "inputTokens": 838,
+      "outputTokens": 252,
+      "wallMs": 4779
+    },
+    "C1:1501:6": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 6,
+      "status": "ok",
+      "rawText": "The ticket reports the item has been defective on all three deliveries, indicating a repeated product quality defect with SKU 3003. The appropriate action is to elevate this repeat defect case. Escalation actions require a catalog lookup of the item name; SKU 3003 maps to \"Phone Case\".\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 819,
+      "outputTokens": 285,
+      "wallMs": 5290
+    },
+    "C2:1501:6": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 6,
+      "status": "ok",
+      "rawText": "action: elevate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "elevate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-mismatch",
+      "match": false,
+      "inputTokens": 880,
+      "outputTokens": 263,
+      "wallMs": 4968
+    },
+    "C3:1501:6": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 6,
+      "status": "ok",
+      "rawText": "action: elevate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "elevate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-mismatch",
+      "match": false,
+      "inputTokens": 842,
+      "outputTokens": 479,
+      "wallMs": 8696
+    },
+    "C0:1501:7": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 7,
+      "status": "ok",
+      "rawText": "The customer reports that an item identified by SKU 3003 did not arrive, which is a case of a missing item in their order shipment.  \n- The appropriate action for a missing inventory item is **ship-catalog-replacement**.  \n- This action belongs to the **missing-item** category.  \n- The parameter required is the name of the catalog item that matches SKU 3003; referring to the provided lookup list, SKU 3003 corresponds to “Phone Case”.\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 828,
+      "outputTokens": 224,
+      "wallMs": 4547
+    },
+    "C1:1501:7": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 7,
+      "status": "ok",
+      "rawText": "The ticket states that an item with SKU #3003 was not received in the package, indicating a “missing‑item” issue. According to the action–category mapping, a missing item is resolved by the **ship-catalog-replacement** action and belongs to the **missing-item** category.\n\nSince ship-catalog-replacement is a lookup action, we must find the catalog name for SKU #3003:\n- SKU 3003 → Phone Case\n\nThus the parameter to return is \"Phone Case\".\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 814,
+      "outputTokens": 238,
+      "wallMs": 4449
+    },
+    "C2:1501:7": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 7,
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 870,
+      "outputTokens": 220,
+      "wallMs": 4240
+    },
+    "C3:1501:7": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 7,
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 837,
+      "outputTokens": 242,
+      "wallMs": 4620
+    },
+    "C0:1501:8": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 8,
+      "status": "ok",
+      "rawText": "The ticket describes an over‑charge: the customer was billed $97.08 while the correct total should be $87.41—this is a clear order‑total discrepancy. The appropriate resolution action is **adjust-charge**, which belongs to the **order-total-discrepancy** category.  \nTo compute the adjustment amount, subtract the correct total from the charged amount: 97.08 – 87.41 = 9.67.  \n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 9.67",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 852,
+      "outputTokens": 671,
+      "wallMs": 12010
+    },
+    "C1:1501:8": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 8,
+      "status": "ok",
+      "rawText": "action: adjust-charge\ncategory: order-total-discrepancy\nparameter: 9.67",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 832,
+      "outputTokens": 596,
+      "wallMs": 10869
+    },
+    "C2:1501:8": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 8,
+      "status": "ok",
+      "rawText": "action: adjust-charge\ncategory: order-total-discrepancy\nparameter: 9.67",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 894,
+      "outputTokens": 656,
+      "wallMs": 11787
+    },
+    "C3:1501:8": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 8,
+      "status": "ok",
+      "rawText": "The ticket describes a mismatch between the amount charged ($97.08) and the total shown on the receipt ($87.41), indicating an overcharge of $9.67 (difference 97.08 – 87.41). This is an order‑total discrepancy, so we should use the `adjust-charge` action to credit the difference back to the customer.\n\n**Parameter calculation:**  \n$97.08 (charged) – $87.41 (expected) = $9.67.  \n\naction: adjust-charge  \ncategory: order-total-discrepancy  \nparameter: 9.67",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 855,
+      "outputTokens": 1073,
+      "wallMs": 19117
+    },
+    "C0:1501:9": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 9,
+      "status": "ok",
+      "rawText": "The customer was overcharged by $35.25 instead of the correct amount of $30.15, so this is an order‑total discrepancy where we need to adjust the charge back by the difference between the two amounts. The appropriate action in that category is “adjust-charge.”  \nThe arithmetic derived from the ticket facts:  $35.25 – $30.15 = $5.10.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 5.10",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 852,
+      "outputTokens": 562,
+      "wallMs": 10146
+    },
+    "C1:1501:9": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 9,
+      "status": "ok",
+      "rawText": "The issue is an **order total discrepancy** – the customer was charged $35.25 but the correct amount should be $30.15.  \nTo correct this, we need to *adjust the charge down* by the over‑charged amount.\n\nThe monetary parameter equals the difference between the billed and expected amounts:\n$35.25 − $30.15 = $5.10.\n\naction: adjust-charge  \ncategory: order-total-discrepancy  \nparameter: 5.10",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 832,
+      "outputTokens": 601,
+      "wallMs": 10679
+    },
+    "C2:1501:9": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 9,
+      "status": "ok",
+      "rawText": "The ticket reports a discrepancy between the amount charged ($35.25) and the correct total ($30.15).  \nThis is an order‑total‑discrepancy, so the appropriate fix is to adjust the charge. The adjustment amount is the difference: 35.25 – 30.15 = 5.10.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 5.10",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 894,
+      "outputTokens": 519,
+      "wallMs": 9506
+    },
+    "C3:1501:9": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 9,
+      "status": "ok",
+      "rawText": "action: adjust-charge\ncategory: order-total-discrepancy\nparameter: 5.10",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 855,
+      "outputTokens": 451,
+      "wallMs": 8132
+    },
+    "C4:1502:0": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 0,
+      "status": "ok",
+      "rawText": "action: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 29.18",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "29.18"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "29.18"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1012,
+      "outputTokens": 208,
+      "wallMs": 4145
+    },
+    "C4:1502:1": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 1,
+      "status": "ok",
+      "rawText": "action: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 81.66",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "81.66"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "81.66"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 986,
+      "outputTokens": 307,
+      "wallMs": 5730
+    },
+    "C4:1502:2": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 2,
+      "status": "ok",
+      "rawText": "action: capped-late-fee-credit  \ncategory: shipping-service-mismatch  \nparameter: 20.80",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "20.80"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "20.80"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1012,
+      "outputTokens": 246,
+      "wallMs": 4752
+    },
+    "C4:1502:3": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 3,
+      "status": "ok",
+      "rawText": "action: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 38.81",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "38.81"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "38.81"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 986,
+      "outputTokens": 363,
+      "wallMs": 6675
+    },
+    "C4:1502:4": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 4,
+      "status": "ok",
+      "rawText": "action: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 20.04",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "20.04"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "20.04"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1012,
+      "outputTokens": 209,
+      "wallMs": 4017
+    },
+    "C4:1502:5": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 5,
+      "status": "ok",
+      "rawText": "action: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 46.23",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "46.23"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "46.23"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 986,
+      "outputTokens": 483,
+      "wallMs": 8864
+    },
+    "C4:1502:6": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 6,
+      "status": "ok",
+      "rawText": "action: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 11.92",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.92"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.92"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1012,
+      "outputTokens": 220,
+      "wallMs": 4280
+    },
+    "C4:1502:7": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 7,
+      "status": "ok",
+      "rawText": "action: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 66.86",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "66.86"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "66.86"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 986,
+      "outputTokens": 197,
+      "wallMs": 3844
+    },
+    "C4:1502:8": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 8,
+      "status": "ok",
+      "rawText": "action: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 10.59",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "10.59"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "10.59"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1012,
+      "outputTokens": 282,
+      "wallMs": 5440
+    },
+    "C4:1502:9": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 9,
+      "status": "ok",
+      "rawText": "action: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 60.23",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "60.23"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "60.23"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 986,
+      "outputTokens": 292,
+      "wallMs": 5398
+    },
+    "C5:1501:0": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 0,
+      "status": "ok",
+      "rawText": "The first issue is a discrepancy in the order total: the customer was charged $30.02, but the correct amount per the receipt is $26.61. This requires adjusting the charge to reflect the correct total, not a duplicate or shipping credit. The monetary adjustment needed equals the difference between the charged and correct amounts: $30.02 – $26.61 = $3.41.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 3.41",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 923,
+      "outputTokens": 510,
+      "wallMs": 9409
+    },
+    "C5:1501:1": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 1,
+      "status": "ok",
+      "rawText": "action: elevate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "elevate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-mismatch",
+      "match": false,
+      "inputTokens": 910,
+      "outputTokens": 210,
+      "wallMs": 3978
+    },
+    "C5:1501:2": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 2,
+      "status": "ok",
+      "rawText": "The ticket first addresses a late‑delivery fee claim for order #966527. The policy states $3.80 is credited per day of delay; the customer was 3 days late, so an adjustment of $3.80 × 3 = $11.40 applies. This falls under the shipping-service-mismatch category with the corresponding action “credit‑late‑delivery‑fee”.\n\nThe parameter value for this monetary action is derived by multiplying the daily fee ($3.80) by the number of late days (3), resulting in `11.40`.\n\naction: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 11.40",
+      "extracted": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "expected": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 909,
+      "outputTokens": 428,
+      "wallMs": 7942
+    },
+    "C5:1501:3": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 3,
+      "status": "ok",
+      "rawText": "The ticket reports that SKU 3003 was missing from order 399113, which is a classic “missing-item” issue. The correct action for missing items is **ship-catalog-replacement**, and the associated category is **missing‑item**.  \nThe parameter required for a lookup action is the catalog name of SKU 3003; according to the provided catalog this SKU corresponds to **Phone Case**.\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 878,
+      "outputTokens": 439,
+      "wallMs": 8069
+    },
+    "C5:1501:4": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 4,
+      "status": "ok",
+      "rawText": "Reasoning:\n(a) The first issue is a repeated defect with item SKU #3003, which falls under the product‑quality category and requires the action “escalate-repeat-defect.”  \n(b) For LOOKUP actions the parameter must be the catalog name of the SKU. SKU 3003 corresponds to \"Phone Case\" in the provided catalog.\n\naction: elevate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "elevate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-mismatch",
+      "match": false,
+      "inputTokens": 895,
+      "outputTokens": 300,
+      "wallMs": 5586
+    },
+    "C5:1501:5": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 5,
+      "status": "ok",
+      "rawText": "The ticket first states that the item with SKU #3006 was missing from order #597868, which is a missing-item complaint. The appropriate action for resolving a missing catalog item is **ship-catalog-replacement**, which falls under the **missing-item** category. Since this is a lookup action, we must find the exact name of the catalog item associated with SKU 3006. The provided catalog lists: SKU 3006 → *Desk Lamp*. Therefore, the action is to ship a replacement *Desk Lamp*.\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Desk Lamp",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 903,
+      "outputTokens": 325,
+      "wallMs": 6015
+    },
+    "C5:1501:6": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 6,
+      "status": "ok",
+      "rawText": "The ticket’s first issue is a repeated defect (three times) of SKU 3003.  \nThis maps to the action **escalate-repeat-defect** in the *product-quality* category.  \nFor lookup actions we use the supplied SKU: 3003 → “Phone Case”.\n\naction: es­calate‑repeat‑defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "es­calate‑repeat‑defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-mismatch",
+      "match": false,
+      "inputTokens": 887,
+      "outputTokens": 454,
+      "wallMs": 8249
+    },
+    "C5:1501:7": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 7,
+      "status": "ok",
+      "rawText": "action: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 899,
+      "outputTokens": 307,
+      "wallMs": 5769
+    },
+    "C5:1501:8": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 8,
+      "status": "ok",
+      "rawText": "action: adjust-charge\ncategory: order-total-discrepancy\nparameter: 9.67",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 924,
+      "outputTokens": 525,
+      "wallMs": 9557
+    },
+    "C5:1501:9": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 9,
+      "status": "ok",
+      "rawText": "action: adjust-charge\ncategory: order-total-discrepancy\nparameter: 5.10",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 911,
+      "outputTokens": 192,
+      "wallMs": 3728
+    }
+  },
+  "retries": [],
+  "runConfig": {
+    "model": "gpt-oss:latest",
+    "modelDigestLine": "gpt-oss:latest             17052f91a42e    13 GB     2 weeks ago     ",
+    "ollamaVersion": "ollama version is 0.32.5",
+    "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+    "timeoutMs": 3600000,
+    "seeds": {
+      "base": 1501,
+      "c4": 1502,
+      "distractor": 1503
+    },
+    "tasksPerConfig": 10,
+    "clientConcurrency": 1,
+    "startedAt": "2026-08-19T12:13:41.121Z",
+    "unitOrder": "C0..C5, task index 0..9 within each config — deterministic, total, stable"
+  }
+}

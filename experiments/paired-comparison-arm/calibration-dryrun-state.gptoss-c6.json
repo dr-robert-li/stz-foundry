@@ -1,0 +1,241 @@
+{
+  "units": {
+    "C6:1502:0": {
+      "config": "C6",
+      "seed": 1502,
+      "taskIndex": 0,
+      "status": "ok",
+      "rawText": "action: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 29.18",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "29.18"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "29.18"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1007,
+      "outputTokens": 430,
+      "wallMs": 14412
+    },
+    "C6:1502:1": {
+      "config": "C6",
+      "seed": 1502,
+      "taskIndex": 1,
+      "status": "ok",
+      "rawText": "action: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 81.66",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "81.66"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "81.66"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 986,
+      "outputTokens": 444,
+      "wallMs": 8477
+    },
+    "C6:1502:2": {
+      "config": "C6",
+      "seed": 1502,
+      "taskIndex": 2,
+      "status": "ok",
+      "rawText": "action: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 20.80",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "20.80"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "20.80"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1007,
+      "outputTokens": 375,
+      "wallMs": 7296
+    },
+    "C6:1502:3": {
+      "config": "C6",
+      "seed": 1502,
+      "taskIndex": 3,
+      "status": "ok",
+      "rawText": "action: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 38.81",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "38.81"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "38.81"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 986,
+      "outputTokens": 496,
+      "wallMs": 9362
+    },
+    "C6:1502:4": {
+      "config": "C6",
+      "seed": 1502,
+      "taskIndex": 4,
+      "status": "ok",
+      "rawText": "action: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 20.04",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "20.04"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "20.04"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1007,
+      "outputTokens": 424,
+      "wallMs": 8135
+    },
+    "C6:1502:5": {
+      "config": "C6",
+      "seed": 1502,
+      "taskIndex": 5,
+      "status": "ok",
+      "rawText": "action: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 46.23",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "46.23"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "46.23"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 986,
+      "outputTokens": 447,
+      "wallMs": 8494
+    },
+    "C6:1502:6": {
+      "config": "C6",
+      "seed": 1502,
+      "taskIndex": 6,
+      "status": "ok",
+      "rawText": "The ticket is a request for a credit due to a late delivery, matching the \"capped-late-fee-credit\" action in the shipping-service-mismatch category because it involves a per‑day late fee capped at a maximum amount.  \nWe calculate the credit as dailyLateFee × daysLate = $5.96 × 2 = **$11.92** and compare this to the stated cap of $14.20; the smaller value is $11.92, which is the parameter.\n\naction: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 11.92",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.92"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.92"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1007,
+      "outputTokens": 616,
+      "wallMs": 11625
+    },
+    "C6:1502:7": {
+      "config": "C6",
+      "seed": 1502,
+      "taskIndex": 7,
+      "status": "ok",
+      "rawText": "action: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 66.86",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "66.86"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "66.86"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 986,
+      "outputTokens": 414,
+      "wallMs": 7936
+    },
+    "C6:1502:8": {
+      "config": "C6",
+      "seed": 1502,
+      "taskIndex": 8,
+      "status": "ok",
+      "rawText": "action: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 10.59",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "10.59"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "10.59"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1007,
+      "outputTokens": 456,
+      "wallMs": 8634
+    },
+    "C6:1502:9": {
+      "config": "C6",
+      "seed": 1502,
+      "taskIndex": 9,
+      "status": "ok",
+      "rawText": "action: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 60.23",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "60.23"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "60.23"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 986,
+      "outputTokens": 374,
+      "wallMs": 7258
+    }
+  },
+  "retries": [],
+  "runConfig": {
+    "model": "gpt-oss:latest",
+    "modelDigestLine": "gpt-oss:latest             17052f91a42e    13 GB     2 weeks ago     ",
+    "ollamaVersion": "ollama version is 0.32.5",
+    "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+    "timeoutMs": 3600000,
+    "seeds": {
+      "base": 1501,
+      "c4": 1502,
+      "distractor": 1503
+    },
+    "tasksPerConfig": 10,
+    "clientConcurrency": 1,
+    "startedAt": "2026-08-19T12:29:19.181Z",
+    "unitOrder": "C0..C5, task index 0..9 within each config — deterministic, total, stable"
+  }
+}

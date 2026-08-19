@@ -1,0 +1,1341 @@
+{
+  "units": {
+    "C0:1501:0": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 0,
+      "status": "ok",
+      "rawText": "The ticket indicates that the customer was overcharged for order #349063: they were charged $30.02, but the official receipt shows the correct total should be $26.61. This is a classic billing discrepancy where the customer needs the excess amount removed, which aligns with the `adjust-charge` action and falls under the `order-total-discrepancy` category. \n\nTo derive the parameter for this monetary action, I calculated the difference between the charged amount and the correct receipt total: $30.02 - $26.61 = $3.41. Following the formatting rules, this is expressed as a two-decimal-place dollar amount without the symbol.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 3.41",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 851,
+      "outputTokens": 1027,
+      "wallMs": 22712
+    },
+    "C1:1501:0": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 0,
+      "status": "ok",
+      "rawText": "The ticket describes a discrepancy where the customer was charged $30.02, but their receipt indicates the correct total should have been $26.61. This falls under an order-total-discrepancy issue, so the appropriate action is `adjust-charge`. The monetary parameter needed is the exact difference between what was charged and what should have been charged: $30.02 - $26.61 = $3.41.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 3.41",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 822,
+      "outputTokens": 1068,
+      "wallMs": 15325
+    },
+    "C2:1501:0": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 0,
+      "status": "ok",
+      "rawText": "The ticket describes a billing discrepancy on order #349063, where the customer was charged $30.02 instead of the correct total of $26.61 shown on their receipt. This points to an overcharge that needs to be corrected, which corresponds to the `adjust-charge` action under the `order-total-discrepancy` category. For monetary actions, the parameter must be derived from the ticket's stated figures. Subtracting the correct total from the charged amount ($30.02 - $26.61) yields a discrepancy of $3.41. Following the formatting rules, the parameter is written as a two-decimal-place dollar amount without symbols.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 3.41",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 907,
+      "outputTokens": 1908,
+      "wallMs": 26908
+    },
+    "C3:1501:0": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 0,
+      "status": "ok",
+      "rawText": "The customer reports that they were charged $30.02 for order #349063, but their official receipt shows the correct total should have been $26.61. This is a straightforward overcharge discrepancy on the final order total. The appropriate resolution is to adjust the charge back to the customer by the difference amount. \n\nTo derive the parameter: subtract the expected receipt total from the amount actually charged: $30.02 - $26.61 = 3.41. This is a monetary difference, so it falls under the `adjust-charge` action in the `order-total-discrepancy` category. The parameter must be formatted as a dollar amount with exactly two decimal places.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 3.41",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 850,
+      "outputTokens": 1167,
+      "wallMs": 16671
+    },
+    "C0:1501:1": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 1,
+      "status": "ok",
+      "rawText": "The ticket reports that an item with SKU #3003 has arrived defective four times consecutively (\"defective 4 times in a row\"). This persistent recurring issue requires an escalation to address the ongoing failure rather than a standard refund or adjustment. Based on the rules, this situation calls for the `escalate-repeat-defect` action, which falls under the `product-quality` category. \n\nFor LOOKUP actions like this one, the parameter must be the name of the catalog item associated with the stated SKU number. Consulting the provided catalog lookup list:\n- SKU 3001 -> Blue Ceramic Mug\n- SKU 3002 -> Wireless Mouse\n- SKU 3003 -> Phone Case\n- SKU 3004 -> Yoga Mat\n- SKU 3005 -> Bluetooth Speaker\n- SKU 3006 -> Desk Lamp\n\nSKU 3003 corresponds to the item name \"Phone Case\".\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 834,
+      "outputTokens": 791,
+      "wallMs": 11495
+    },
+    "C1:1501:1": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 1,
+      "status": "ok",
+      "rawText": "The ticket reports that an item has arrived defective four consecutive times, which is a recurring quality issue rather than a billing or shipping problem. This directly calls for the `escalate-repeat-defect` action, which maps to the `product-quality` category. \n\nFor lookup actions, the parameter must be the exact catalog name corresponding to the SKU provided in the ticket. The customer specifies SKU #3003. Referencing the provided catalog lookup list, SKU 3003 corresponds exactly to \"Phone Case\". Therefore, the parameter value is the item name itself.\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 807,
+      "outputTokens": 1276,
+      "wallMs": 18406
+    },
+    "C2:1501:1": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 1,
+      "status": "ok",
+      "rawText": "Reasoning: The ticket explicitly reports that an item with SKU #3003 has arrived defective four consecutive times, which points directly to a recurring product quality issue rather than a missing item, shipping error, or charge discrepancy. Therefore, the correct action is `escalate-repeat-defect` under the `product-quality` category. For LOOKUP-type actions, the parameter must be derived by looking up the stated SKU in the provided catalog. Mapping SKU 3003 to the catalog yields the exact item name \"Phone Case\", which becomes the parameter value.\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 888,
+      "outputTokens": 1408,
+      "wallMs": 20151
+    },
+    "C3:1501:1": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 1,
+      "status": "ok",
+      "rawText": "The customer reports that SKU #3003 has arrived defective four consecutive times, which directly points to a recurring quality issue requiring escalation rather than a one-time refund or adjustment. This maps to the `escalate-repeat-defect` action, which belongs to the `product-quality` category. For lookup actions, the parameter must be the exact catalog name corresponding to the stated SKU. Consulting the provided catalog, SKU 3003 corresponds to \"Phone Case\". The subtotal and loyalty credit figures in the ticket are irrelevant to this specific action.\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 834,
+      "outputTokens": 1141,
+      "wallMs": 16434
+    },
+    "C0:1501:2": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 2,
+      "status": "ok",
+      "rawText": "(a) The ticket describes an order arriving late and requests compensation based on a stated daily credit policy. This directly corresponds to the `credit-late-delivery-fee` action, which belongs to the `shipping-service-mismatch` category per the provided mapping.\n(b) For the parameter, I used the two facts provided in the ticket: a daily late fee of $3.80 and a delay of 3 days. Multiplying these gives $11.40 (3.80 × 3 = 11.40). Following the requirement for exactly two decimal places, the value is written as \"11.40\".\n\naction: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 11.40",
+      "extracted": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "expected": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 843,
+      "outputTokens": 1389,
+      "wallMs": 19902
+    },
+    "C1:1501:2": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 2,
+      "status": "ok",
+      "rawText": "The ticket describes a late delivery and cites a specific compensation policy: $3.80 credited for each day the order arrives past the promised date. The customer states their order was 3 days late, so the owed credit is calculated as $3.80 × 3 = $11.40. This scenario calls for applying a late delivery credit, which corresponds to the `credit-late-delivery-fee` action and falls under the `shipping-service-mismatch` category.\n\naction: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 11.40",
+      "extracted": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "expected": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 816,
+      "outputTokens": 1249,
+      "wallMs": 17915
+    },
+    "C2:1501:2": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 2,
+      "status": "ok",
+      "rawText": "The ticket describes a delayed shipment and explicitly references the company's policy that provides a credit of $3.80 for each day an order arrives late. This clearly indicates the need to apply a late-delivery compensation, which maps to the `credit-late-delivery-fee` action under the `shipping-service-mismatch` category. \n\nTo calculate the parameter value, I multiply the stated per-day credit rate ($3.80) by the number of days the order was late (3). The arithmetic is 3.80 × 3 = 11.40. The subtotal, loyalty credit balance, and reference to a previous order are irrelevant distractors for this specific policy calculation.\n\naction: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 11.40",
+      "extracted": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "expected": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 899,
+      "outputTokens": 1572,
+      "wallMs": 22282
+    },
+    "C3:1501:2": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 2,
+      "status": "ok",
+      "rawText": "The customer is requesting compensation for a late delivery based on their stated policy of $3.80 per day, and they confirm the order arrived 3 days late. The relevant monetary action here is `credit-late-delivery-fee`, which belongs to the `shipping-service-mismatch` category. The parameter is calculated by multiplying the daily credit amount by the number of delayed days: $3.80 × 3 = $11.40. (The subtotal and loyalty credit are unrelated to this specific late-fee calculation.)\n\naction: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 11.40",
+      "extracted": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "expected": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 844,
+      "outputTokens": 1062,
+      "wallMs": 15381
+    },
+    "C0:1501:3": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 3,
+      "status": "ok",
+      "rawText": "Reasoning:\n(a) The ticket states that SKU #3003 never arrived, which indicates a missing item rather than a billing error, shipping service issue, or product defect. The appropriate action to resolve a missing item is `ship-catalog-replacement`, which belongs to the `missing-item` category.\n(b) For lookup actions like `ship-catalog-replacement`, the parameter must be derived by looking up the provided SKU in the catalog. The ticket provides SKU 3003, which corresponds exactly to \"Phone Case\" in the reference list. Therefore, the parameter value is \"Phone Case\".\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 824,
+      "outputTokens": 564,
+      "wallMs": 8534
+    },
+    "C1:1501:3": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 3,
+      "status": "ok",
+      "rawText": "The ticket reports that an item (SKU #3003) was not included in the delivered package. This indicates a missing item issue, which maps to the `missing-item` category and requires the `ship-catalog-replacement` action. For lookup actions like this one, the parameter is determined by matching the stated SKU number to the provided catalog list. SKU 3003 corresponds exactly to \"Phone Case\".\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 802,
+      "outputTokens": 910,
+      "wallMs": 13132
+    },
+    "C2:1501:3": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 3,
+      "status": "ok",
+      "rawText": "Reasoning:\n(a) The customer reports that a specific item (SKU #3003) \"never arrived in my package,\" which directly points to a missing item issue. Among the allowed actions, `ship-catalog-replacement` is the correct choice, and it belongs to the `missing-item` category.\n(b) For LOOKUP actions like this one, the parameter must be the catalog name corresponding to the provided SKU, not a monetary figure. The ticket provides SKU #3003. Following the catalog mapping (SKU 3003 -> Phone Case), the parameter is exactly \"Phone Case\". The subtotal and loyalty credit are irrelevant distractors for this action type.\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 880,
+      "outputTokens": 1575,
+      "wallMs": 22405
+    },
+    "C3:1501:3": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 3,
+      "status": "ok",
+      "rawText": "The customer reports that an item with SKU #3003 failed to arrive in their package. This directly calls for the `ship-catalog-replacement` action under the `missing-item` category, as the goal is to send a replacement for an undelivered product rather than process a monetary refund or adjust a charge.\n\nFor lookup-type actions like this one, the parameter must be the exact catalog name corresponding to the SKU provided in the ticket. Referencing the catalog list supplied in the instructions, SKU 3003 maps to \"Phone Case\". The subtotal and loyalty credit figures mentioned by the customer are extraneous financial details that do not factor into resolving a missing-item replacement.\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 830,
+      "outputTokens": 1240,
+      "wallMs": 17855
+    },
+    "C0:1501:4": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 4,
+      "status": "ok",
+      "rawText": "The ticket describes a recurring product quality issue where the customer has received a defective item four consecutive times. This clearly falls under the `product-quality` category, and the appropriate resolution is to use the `escalate-repeat-defect` action, as repeated defects require escalation rather than simple replacements or refunds.\n\nFor the parameter, since `escalate-repeat-defect` is a LOOKUP action, I need to find the catalog name corresponding to the stated SKU (#3003). According to the provided lookup table, SKU 3003 corresponds to \"Phone Case\".\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 833,
+      "outputTokens": 826,
+      "wallMs": 12110
+    },
+    "C1:1501:4": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 4,
+      "status": "ok",
+      "rawText": "Reasoning:\n(a) The ticket reports that the same item has arrived defective four consecutive times for order #929985. This explicitly points to a recurring product issue, making `escalate-repeat-defect` the correct action, which falls under the `product-quality` category.\n(b) For LOOKUP actions, the parameter is the catalog item name corresponding to the SKU mentioned in the ticket. The ticket specifies SKU #3003. Consulting the provided catalog mapping, SKU 3003 corresponds exactly to \"Phone Case\". Therefore, the parameter value is \"Phone Case\".\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 806,
+      "outputTokens": 809,
+      "wallMs": 11931
+    },
+    "C2:1501:4": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 4,
+      "status": "ok",
+      "rawText": "The ticket describes a product arriving defective four times consecutively (SKU #3003). This clearly indicates a repeating manufacturing or quality issue tied to the customer, which falls under the `product-quality` category and requires the `escalate-repeat-defect` action. For lookup actions, the parameter must be the catalog item name corresponding to the stated SKU. According to the provided catalog, SKU 3003 corresponds directly to `Phone Case`.\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 889,
+      "outputTokens": 579,
+      "wallMs": 8714
+    },
+    "C3:1501:4": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 4,
+      "status": "ok",
+      "rawText": "Based on the ticket details, the customer is reporting that SKU #3003 has arrived defective four consecutive times. This clearly points to a repeated product quality issue rather than a billing or shipping discrepancy. Therefore, the appropriate action is `escalate-repeat-defect`, which falls under the `product-quality` category. \n\nFor this lookup-type action, the parameter requires the catalog name corresponding to the stated SKU. The ticket identifies SKU #3003, which maps in the provided catalog to \"Phone Case.\" (Note: The subtotal and loyalty credit figures are incidental to this specific product-defect escalation and do not influence the parameter.)\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 834,
+      "outputTokens": 959,
+      "wallMs": 13777
+    },
+    "C0:1501:5": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 5,
+      "status": "ok",
+      "rawText": "Based on the ticket, the customer states that an item with SKU #3006 never arrived in their package. This indicates a missing-item issue, which maps to the `ship-catalog-replacement` action under the `missing-item` category. \n\nFor the parameter, since this is a LOOKUP action, I need to find the catalog name corresponding to SKU 3006. According to the provided catalog list, SKU 3006 corresponds exactly to \"Desk Lamp\". No arithmetic is needed; it's a direct lookup.\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Desk Lamp",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 825,
+      "outputTokens": 586,
+      "wallMs": 8897
+    },
+    "C1:1501:5": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 5,
+      "status": "ok",
+      "rawText": "The ticket indicates that item with SKU #3006 did not arrive in the package, which constitutes a missing-item issue. This aligns with the 'missing-item' category and requires the 'ship-catalog-replacement' action. Since this is a LOOKUP action, I refer to the provided catalog mapping for SKU 3006, which corresponds exactly to \"Desk Lamp\".\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Desk Lamp",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 803,
+      "outputTokens": 641,
+      "wallMs": 9515
+    },
+    "C2:1501:5": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 5,
+      "status": "ok",
+      "rawText": "The ticket describes a situation where the customer states that item SKU #3006 never arrived with their package. This indicates a missing-item issue, which warrants sending out a replacement according to the provided action list. The correct action is `ship-catalog-replacement`, which falls under the `missing-item` category. \n\nFor the parameter, we follow the lookup rule for catalog-based actions. The ticket provides SKU #3006. Referring to the provided catalog mapping (SKU 3006 -> Desk Lamp), the required parameter value is the exact item name: \"Desk Lamp\". Monetary figures in the ticket are irrelevant here since this is a product replacement, not a financial adjustment.\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Desk Lamp",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 881,
+      "outputTokens": 643,
+      "wallMs": 9551
+    },
+    "C3:1501:5": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 5,
+      "status": "ok",
+      "rawText": "The ticket states that an item with SKU #3006 \"never arrived,\" which directly indicates a missing-item issue rather than a billing or shipping service discrepancy. This requires the `ship-catalog-replacement` action, which maps to the `missing-item` category. The financial details (subtotal and loyalty credit) are extraneous context for this specific resolution type. For lookup actions, I must derive the parameter by looking up the provided SKU in the reference list. According to the catalog mapping, SKU 3006 corresponds exactly to \"Desk Lamp.\"\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Desk Lamp",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 831,
+      "outputTokens": 1384,
+      "wallMs": 19684
+    },
+    "C0:1501:6": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 6,
+      "status": "ok",
+      "rawText": "The ticket reports that an item (SKU #3003) has arrived defective three consecutive times. This indicates a recurring quality issue that requires escalation rather than a standard refund or replacement. Therefore, the correct action is `escalate-repeat-defect`, which maps to the `product-quality` category per the instructions.\n\nFor the parameter, this is a LOOKUP action, so I must map the stated SKU number to its catalog name. According to the provided lookup table, SKU 3003 corresponds exactly to \"Phone Case\".\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 833,
+      "outputTokens": 842,
+      "wallMs": 12327
+    },
+    "C1:1501:6": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 6,
+      "status": "ok",
+      "rawText": "The ticket describes a recurring quality problem where the same item has arrived defective three consecutive times. This clearly points to an escalation for repeated defects rather than a billing or shipping adjustment, so the appropriate action is `escalate-repeat-defect`, which falls under the `product-quality` category. For LOOKUP actions, the parameter must be the exact catalog name corresponding to the stated SKU. The ticket provides SKU #3003, and looking it up in the provided catalog gives the item name \"Phone Case\".\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 806,
+      "outputTokens": 896,
+      "wallMs": 13272
+    },
+    "C2:1501:6": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 6,
+      "status": "ok",
+      "rawText": "The ticket describes an item with SKU #3003 that has arrived defective three consecutive times. This clearly indicates a recurring product quality issue rather than a shipping or order total problem. Therefore, the correct action is `escalate-repeat-defect`, which maps to the `product-quality` category. For lookup actions, the parameter must be the catalog name corresponding to the stated SKU. According to the provided catalog lookup table, SKU 3003 corresponds to \"Phone Case\".\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 889,
+      "outputTokens": 598,
+      "wallMs": 9027
+    },
+    "C3:1501:6": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 6,
+      "status": "ok",
+      "rawText": "Reasoning:\n(a) The ticket reports that an item (SKU #3003) has arrived defective three consecutive times, which is a recurring quality problem requiring management intervention rather than a simple refund or replacement. This directly calls for the action `escalate-repeat-defect`, which falls under the `product-quality` category.\n(b) Because this is a LOOKUP action, the parameter must be the catalog name corresponding to the provided SKU. The ticket explicitly states SKU #3003. Consulting the provided lookup list, SKU 3003 corresponds to \"Phone Case\". The subtotal and loyalty credit figures are irrelevant to this specific action since no monetary calculation is required.\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 834,
+      "outputTokens": 1239,
+      "wallMs": 17750
+    },
+    "C0:1501:7": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 7,
+      "status": "ok",
+      "rawText": "REASONING:\n(a) The ticket states that an item with SKU #3003 \"never arrived in my package,\" which clearly indicates a missing-item scenario. According to the mapping rules, missing-item issues are resolved with the `ship-catalog-replacement` action under the `missing-item` category.\n(b) For LOOKUP actions like `ship-catalog-replacement`, the parameter must be the exact catalog name corresponding to the provided SKU. The ticket gives SKU #3003. Looking up SKU 3003 in the provided catalog yields \"Phone Case\". Therefore, the parameter value is \"Phone Case\".\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 823,
+      "outputTokens": 1068,
+      "wallMs": 15464
+    },
+    "C1:1501:7": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 7,
+      "status": "ok",
+      "rawText": "The ticket indicates that the customer did not receive their ordered item (SKU #3003), which constitutes a missing-item issue. To resolve this, the appropriate action is ship-catalog-replacement, mapping to the missing-item category. For LOOKUP actions, the parameter must be derived by cross-referencing the SKU number provided in the ticket with the catalog lookup list. The ticket states SKU #3003, and according to the provided catalog, 3003 corresponds exactly to \"Phone Case\".\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 801,
+      "outputTokens": 1386,
+      "wallMs": 19718
+    },
+    "C2:1501:7": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 7,
+      "status": "ok",
+      "rawText": "Reasoning: (a) The customer's primary issue is that the item with SKU #3003 never arrived in their package. This clearly indicates a missing item, which resolves using the `ship-catalog-replacement` action under the `missing-item` category. The provided monetary figures ($124.95 subtotal and $19.42 loyalty credit) are irrelevant context/distractors for this specific request.\n(b) For LOOKUP actions like `ship-catalog-replacement`, the parameter is the exact catalog name corresponding to the stated SKU. The ticket states SKU #3003. Referring to the provided catalog lookup list, SKU 3003 maps directly to \"Phone Case\".\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 879,
+      "outputTokens": 1505,
+      "wallMs": 21577
+    },
+    "C3:1501:7": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 7,
+      "status": "ok",
+      "rawText": "Reasoning:\nThe ticket reports that SKU #3003 was not delivered, indicating a missing item. Per the allowed actions and categories, this requires `ship-catalog-replacement`, which belongs to the `missing-item` category. Because this is a LOOKUP action, the parameter must be the exact catalog name for the given SKU. Looking up SKU 3003 in the provided list yields \"Phone Case\". The dollar amounts mentioned ($124.95 subtotal and $19.42 loyalty credit) are unrelated to deriving the parameter for this specific lookup action.\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 829,
+      "outputTokens": 828,
+      "wallMs": 12181
+    },
+    "C0:1501:8": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 8,
+      "status": "ok",
+      "rawText": "The customer reports an overcharge on order #978782. The charged amount ($97.08) exceeds the correct total listed on the receipt ($87.41). This is a price discrepancy that needs to be corrected by adjusting the charge, placing it in the `order-total-discrepancy` category. \n\nTo find the parameter, I calculate the difference between what was charged and what should have been charged: $97.08 - $87.41 = $9.67.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 9.67",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 851,
+      "outputTokens": 1074,
+      "wallMs": 15589
+    },
+    "C1:1501:8": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 8,
+      "status": "ok",
+      "rawText": "The customer reports being charged $97.08 for order #978782, while their official receipt shows a total of $87.41. This indicates an incorrect billing amount on the same order, which falls under the `order-total-discrepancy` category. The appropriate action to correct a billing overcharge is `adjust-charge`. \n\nTo find the parameter value, I calculate the difference between the amount charged and the correct receipt total: $97.08 - $87.41 = $9.67. This is the exact dollar amount that needs to be adjusted/refunded.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 9.67",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 822,
+      "outputTokens": 727,
+      "wallMs": 10804
+    },
+    "C2:1501:8": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 8,
+      "status": "ok",
+      "rawText": "Reasoning: The customer reports being overcharged on order #978782. They were charged $97.08, but the correct total should have been $87.41. This is a clear billing discrepancy, which falls under the `order-total-discrepancy` category. The appropriate action is `adjust-charge`. To find the parameter, I subtract the correct total from the charged amount: $97.08 - $87.41 = $9.67. This dollar difference becomes the resolution parameter.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 9.67",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 907,
+      "outputTokens": 1197,
+      "wallMs": 17190
+    },
+    "C3:1501:8": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 8,
+      "status": "ok",
+      "rawText": "The customer reported a discrepancy in the total charged for order #978782: they were billed $97.08 but expected to pay $87.41 according to their receipt. This indicates an incorrect charge on a single order, which falls under the `order-total-discrepancy` category and is resolved with the `adjust-charge` action. The resolution parameter should be the difference between what was charged and what was owed: $97.08 - $87.41 = $9.67.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 9.67",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 850,
+      "outputTokens": 1008,
+      "wallMs": 14662
+    },
+    "C0:1501:9": {
+      "config": "C0",
+      "seed": 1501,
+      "taskIndex": 9,
+      "status": "ok",
+      "rawText": "The customer is reporting that they were billed $35.25 on their order, but the official receipt shows the correct total should have been $30.15. This indicates an overcharge on the final order total, which requires a partial refund or account adjustment to fix the billing discrepancy. Therefore, the appropriate action is `adjust-charge`, which belongs to the `order-total-discrepancy` category. The parameter is derived by subtracting the correct receipt total from the amount actually charged: $35.25 - $30.15 = $5.10.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 5.10",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 850,
+      "outputTokens": 1213,
+      "wallMs": 17543
+    },
+    "C1:1501:9": {
+      "config": "C1",
+      "seed": 1501,
+      "taskIndex": 9,
+      "status": "ok",
+      "rawText": "The ticket describes a billing discrepancy where the customer was charged $35.25, but their receipt confirms the order total should have been $30.15. This clearly falls under the `order-total-discrepancy` category, as it involves an incorrect final charge on an order. The appropriate action is `adjust-charge`, since the issue is a pricing/total correction rather than a duplicate transaction or a shipping/product defect. To derive the required parameter, I subtract the correct receipt total ($30.15) from the amount actually charged ($35.25), yielding an overcharged difference of $5.10. As this is a monetary action, the parameter must be formatted as a two-decimal-place dollar amount without currency symbols.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 5.10",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 821,
+      "outputTokens": 1543,
+      "wallMs": 21999
+    },
+    "C2:1501:9": {
+      "config": "C2",
+      "seed": 1501,
+      "taskIndex": 9,
+      "status": "ok",
+      "rawText": "Reasoning:\n(a) The customer reports being charged $35.25 when the receipt indicates the total should have been $30.15. This is a straightforward billing error where the final account total was higher than it should be, placing it in the \"order-total-discrepancy\" category. The appropriate action to correct this specific overcharge is \"adjust-charge\".\n(b) The parameter is computed by taking the difference between the amount actually charged ($35.25) and the correct amount stated on the receipt ($30.15). $35.25 - $30.15 = $5.10.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 5.10",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 904,
+      "outputTokens": 1376,
+      "wallMs": 19832
+    },
+    "C3:1501:9": {
+      "config": "C3",
+      "seed": 1501,
+      "taskIndex": 9,
+      "status": "ok",
+      "rawText": "**Reasoning:**\n(a) The customer reports an overcharge on their order ($35.25 actual charge vs. $30.15 expected total per the receipt). This points directly to a billing discrepancy, which falls under the `order-total-discrepancy` category. The appropriate corrective action is `adjust-charge` to credit back the excess amount.\n(b) For monetary actions, the parameter must be derived via arithmetic from the ticket's figures. The excess charge is the difference between what was billed and what should have been charged: $35.25 - $30.15 = $5.10. Following the required formatting (exactly two decimal places, no currency symbol), the parameter is \"5.10\".\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 5.10",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 848,
+      "outputTokens": 1445,
+      "wallMs": 20700
+    },
+    "C4:1502:0": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 0,
+      "status": "ok",
+      "rawText": "Based on the ticket facts and the overridden action list, this is a late-delivery issue that requires a daily credit capped at a maximum amount. This maps to the `capped-late-fee-credit` action under the `shipping-service-mismatch` category. \n\nTo derive the parameter:\n1. Calculate the raw late fee: $9.95 (dailyLateFee) × 3 (daysLate) = $29.85\n2. Compare to the stated cap: feeCap = $29.18\n3. The instruction specifies using whichever of the two amounts is SMALLER. Since $29.18 < $29.85, the correct parameter is 29.18.\n\naction: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 29.18",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "29.18"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "29.18"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1014,
+      "outputTokens": 916,
+      "wallMs": 13412
+    },
+    "C4:1502:1": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 1,
+      "status": "ok",
+      "rawText": "Reasoning: (a) The ticket describes a returned item with a stated item price of $91.22 and a charged restocking fee of $9.56, which directly matches the `net-refund-after-restocking` action specified in the prompt's note. This action belongs to the `order-total-discrepancy` category. (b) To derive the parameter, I perform the subtraction explicitly defined for this action: item price ($91.22) minus restocking fee ($9.56), which equals $81.66. Formatted to exactly two decimal places without a dollar sign as instructed, the value is 81.66.\n\naction: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 81.66",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "81.66"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "81.66"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 988,
+      "outputTokens": 1353,
+      "wallMs": 19492
+    },
+    "C4:1502:2": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 2,
+      "status": "ok",
+      "rawText": "The ticket describes a late delivery issue where the customer is owed a credit calculated as `dailyLateFee × daysLate`, subject to a stated maximum cap (`feeCap`). Using the facts provided: `5.20 × 4 = 20.80`. Comparing this calculated amount ($20.80) to the policy maximum ($21.31), the smaller value is $20.80. This matches the instructions for the `capped-late-fee-credit` action, which belongs to the `shipping-service-mismatch` category.\n\naction: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 20.80",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "20.80"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "20.80"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1014,
+      "outputTokens": 1230,
+      "wallMs": 17783
+    },
+    "C4:1502:3": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 3,
+      "status": "ok",
+      "rawText": "**Reasoning:**\n1. **Identify Action & Category:** The ticket describes a product return where a restocking fee was deducted from the original item price, and the customer is requesting a refund. This directly aligns with the restricted action `net-refund-after-restocking`, which belongs to the `order-total-discrepancy` category per the override instructions.\n2. **Derive Parameter:** The ticket explicitly states the item price as $47.61 and the restocking fee as $8.80. Following the formula for this action (item price minus restocking fee), we calculate: 47.61 - 8.80 = 38.81. The parameter must be formatted to exactly two decimal places.\n\naction: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 38.81",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "38.81"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "38.81"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 988,
+      "outputTokens": 643,
+      "wallMs": 9926
+    },
+    "C4:1502:4": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 4,
+      "status": "ok",
+      "rawText": "The ticket describes a late delivery where the customer is owed a daily credit capped at a maximum amount. This directly matches the `capped-late-fee-credit` action, which is paired with the `shipping-service-mismatch` category per the override instructions. To derive the parameter, I calculate the uncapped credit: 5 days × $4.24/day = $21.20. The ticket states a maximum cap of $20.04. Taking the smaller of the two values yields $20.04. Formatted to exactly two decimal places as required, the parameter is `20.04`.\n\naction: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 20.04",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "20.04"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "20.04"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1014,
+      "outputTokens": 1378,
+      "wallMs": 19751
+    },
+    "C4:1502:5": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 5,
+      "status": "ok",
+      "rawText": "The ticket describes a returned item with a stated price of $53.69 and a restocking fee of $7.46, requesting a refund. This matches the `net-refund-after-restocking` action, which falls under the `order-total-discrepancy` category per your override instructions. The parameter is derived by subtracting the restocking fee from the item price: 53.69 - 7.46 = 46.23.\n\naction: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 46.23",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "46.23"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "46.23"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 988,
+      "outputTokens": 1154,
+      "wallMs": 16806
+    },
+    "C4:1502:6": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 6,
+      "status": "ok",
+      "rawText": "The ticket describes an order that arrived 2 days late and requests a credit based on the company's stated late-delivery policy. This directly calls for the custom action `capped-late-fee-credit`, which is categorized under `shipping-service-mismatch`.\n\nTo compute the parameter, I multiply the daily late fee ($5.96) by the number of days late (2), yielding $11.92. The policy also states a maximum credit cap of $14.20. Since the action specifies using whichever amount is SMALLER, I compare $11.92 and $14.20. The smaller value is $11.92, which formatted to two decimal places is 11.92.\n\naction: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 11.92",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.92"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.92"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1014,
+      "outputTokens": 1509,
+      "wallMs": 21632
+    },
+    "C4:1502:7": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 7,
+      "status": "ok",
+      "rawText": "The ticket describes a product return where the customer was charged a restocking fee against the original item price and is asking for their refund to be processed. This directly aligns with the `net-refund-after-restocking` action, which falls under the `order-total-discrepancy` category. \n\nTo derive the parameter value, I follow the instruction to subtract the restocking fee from the item price:\nItem price ($70.82) − Restocking fee ($3.96) = $66.86.\n\naction: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 66.86",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "66.86"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "66.86"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 988,
+      "outputTokens": 1537,
+      "wallMs": 21946
+    },
+    "C4:1502:8": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 8,
+      "status": "ok",
+      "rawText": "The ticket describes a late delivery scenario where the customer is owed a daily credit for each day the order was delayed. The policy states a daily fee of $5.79 multiplied by 2 days late equals $11.58. However, there is an explicit maximum cap of $10.59 per order. Following the instruction to use whichever amount is smaller, the resolution requires crediting the capped amount. This action falls under the shipping-service-mismatch category.\n\naction: capped-late-fee-credit\ncategory: shipping-service-mismatch\nparameter: 10.59",
+      "extracted": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "10.59"
+      },
+      "expected": {
+        "action": "capped-late-fee-credit",
+        "category": "shipping-service-mismatch",
+        "parameter": "10.59"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 1014,
+      "outputTokens": 1110,
+      "wallMs": 16118
+    },
+    "C4:1502:9": {
+      "config": "C4",
+      "seed": 1502,
+      "taskIndex": 9,
+      "status": "ok",
+      "rawText": "The ticket describes a customer returning an item and being charged a restocking fee against the original item price, which directly maps to the `net-refund-after-restocking` action under the `order-total-discrepancy` category. To derive the parameter, I subtract the stated restocking fee ($4.48) from the stated item price ($64.71): $64.71 - $4.48 = $60.23.\n\naction: net-refund-after-restocking\ncategory: order-total-discrepancy\nparameter: 60.23",
+      "extracted": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "60.23"
+      },
+      "expected": {
+        "action": "net-refund-after-restocking",
+        "category": "order-total-discrepancy",
+        "parameter": "60.23"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 988,
+      "outputTokens": 1174,
+      "wallMs": 16991
+    },
+    "C5:1501:0": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 0,
+      "status": "ok",
+      "rawText": "Reasoning: The first issue in the ticket concerns order #349063, where the customer was charged $30.02 but the correct total should have been $26.61. This is a straightforward charge discrepancy that requires an adjustment to the order total. Therefore, the appropriate action is adjust-charge, which maps to the order-total-discrepancy category. For the parameter, I calculate the overcharged amount by subtracting the correct total from the charged amount: $30.02 - $26.61 = $3.41. As this is a monetary action, the parameter is formatted to exactly two decimal places without a dollar sign.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 3.41",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "3.41"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 934,
+      "outputTokens": 1670,
+      "wallMs": 23871
+    },
+    "C5:1501:1": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 1,
+      "status": "ok",
+      "rawText": "The first issue in the ticket states that an item with SKU #3003 has arrived defective four consecutive times. This pattern of repeated product faults directly matches the **escalate-repeat-defect** action, which falls under the **product-quality** category. Because this is a LOOKUP action, the parameter must be the catalog name corresponding to the stated SKU number. Consulting the provided catalog lookup list, SKU 3003 corresponds exactly to \"Phone Case\". \n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 917,
+      "outputTokens": 1259,
+      "wallMs": 18291
+    },
+    "C5:1501:2": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 2,
+      "status": "ok",
+      "rawText": "Reasoning:\n(a) The first issue in the ticket requests a credit for a late delivery (\"Your stated policy credits $3.80 for every day an order arrives late, and my order arrived 3 days after the promised date\"). This directly calls for the `credit-late-delivery-fee` action, which is categorized under `shipping-service-mismatch`.\n(b) The parameter must be a monetary amount derived from the ticket's facts. The stated daily credit is $3.80 and the order was 3 days late. Multiplying these figures gives: $3.80 × 3 = $11.40. Formatted with exactly two decimal places, the parameter value is `11.40`.\n\naction: credit-late-delivery-fee\ncategory: shipping-service-mismatch\nparameter: 11.40",
+      "extracted": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "expected": {
+        "action": "credit-late-delivery-fee",
+        "category": "shipping-service-mismatch",
+        "parameter": "11.40"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 915,
+      "outputTokens": 1502,
+      "wallMs": 21514
+    },
+    "C5:1501:3": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 3,
+      "status": "ok",
+      "rawText": "The first issue in the ticket concerns Order #399113, which reports that item SKU #3003 \"never arrived\". A missing item falls under the `missing-item` category, which maps to the `ship-catalog-replacement` action. For lookup actions, the parameter must be the exact catalog name corresponding to the stated SKU. Consulting the provided catalog, SKU 3003 corresponds to \"Phone Case\". Therefore, that is the required parameter.\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 887,
+      "outputTokens": 915,
+      "wallMs": 13362
+    },
+    "C5:1501:4": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 4,
+      "status": "ok",
+      "rawText": "Reasoning:\n(a) The ticket presents two separate issues, but the instructions explicitly direct me to resolve the first one stated: \"The item with SKU #3003 has now arrived defective 4 times in a row.\" This pattern of repeated failures is handled by the `escalate-repeat-defect` action, which maps to the `product-quality` category.\n(b) For LOOKUP actions, the parameter must be the exact catalog item name tied to the stated SKU. Using the provided lookup reference, SKU 3003 corresponds exactly to \"Phone Case\".\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 904,
+      "outputTokens": 2144,
+      "wallMs": 30420
+    },
+    "C5:1501:5": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 5,
+      "status": "ok",
+      "rawText": "The ticket contains two separate issues, but the instructions explicitly state to resolve the FIRST issue stated. The first issue reports that an item with SKU #3006 did not arrive in order #597868. This corresponds to a missing-item scenario, which requires the `ship-catalog-replacement` action under the `missing-item` category. Because this is a LOOKUP action, the parameter must be the catalog name for SKU 3006. Consulting the provided catalog mapping shows that SKU 3006 corresponds to \"Desk Lamp\".\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Desk Lamp",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Desk Lamp"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 915,
+      "outputTokens": 1465,
+      "wallMs": 21037
+    },
+    "C5:1501:6": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 6,
+      "status": "ok",
+      "rawText": "**Reasoning:**\n(a) The first issue in the ticket states that \"The item with SKU #3003 has now arrived defective 3 times in a row.\" This describes a recurring quality problem, which directly matches the `escalate-repeat-defect` action and falls under the `product-quality` category.\n(b) For `escalate-repeat-defect`, the parameter requires a catalog item name lookup based on the SKU provided. The ticket explicitly states SKU #3003. According to the provided catalog list, SKU 3003 corresponds exactly to \"Phone Case\". Therefore, the parameter value is \"Phone Case\".\n\naction: escalate-repeat-defect\ncategory: product-quality\nparameter: Phone Case",
+      "extracted": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "escalate-repeat-defect",
+        "category": "product-quality",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 896,
+      "outputTokens": 1577,
+      "wallMs": 22530
+    },
+    "C5:1501:7": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 7,
+      "status": "ok",
+      "rawText": "The first issue raised in the ticket is that an item with SKU #3003 never arrived in the package, indicating a missing-item problem. According to the allowed action mappings, resolving a missing-item issue requires the `ship-catalog-replacement` action, which belongs to the `missing-item` category. \n\nFor lookup actions, the parameter must be the exact catalog item name corresponding to the SKU provided in the ticket. The ticket states SKU 3003, and the reference catalog maps SKU 3003 to \"Phone Case\". Therefore, the parameter is exactly \"Phone Case\". I ignore the second issue regarding late-delivery fees as instructed to resolve only the first issue.\n\naction: ship-catalog-replacement\ncategory: missing-item\nparameter: Phone Case",
+      "extracted": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "expected": {
+        "action": "ship-catalog-replacement",
+        "category": "missing-item",
+        "parameter": "Phone Case"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 905,
+      "outputTokens": 1537,
+      "wallMs": 22069
+    },
+    "C5:1501:8": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 8,
+      "status": "ok",
+      "rawText": "The ticket describes an overcharge for order #978782: the customer was billed $97.08 when the receipt indicates the correct total should have been $87.41. This is a billing disagreement where the final order total does not match the expected amount, placing it in the `order-total-discrepancy` category. The appropriate corrective step is to adjust the charge to recover the overpaid difference. \n\nTo derive the parameter, I subtract the correct receipt total from the actual charged amount: $97.08 - $87.41 = $9.67.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 9.67",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "9.67"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 940,
+      "outputTokens": 1117,
+      "wallMs": 16472
+    },
+    "C5:1501:9": {
+      "config": "C5",
+      "seed": 1501,
+      "taskIndex": 9,
+      "status": "ok",
+      "rawText": "The first issue in the ticket involves Order #229199, where the customer states they were overcharged $35.25 while the receipt shows the correct total should have been $30.15. This discrepancy requires the adjust-charge action, which falls under the order-total-discrepancy category. To derive the monetary parameter, I subtracted the stated correct total from the actually charged amount using the facts provided: 35.25 - 30.15 = 5.10. This yields a dollar difference of $5.10, formatted to exactly two decimal places.\n\naction: adjust-charge\ncategory: order-total-discrepancy\nparameter: 5.10",
+      "extracted": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "expected": {
+        "action": "adjust-charge",
+        "category": "order-total-discrepancy",
+        "parameter": "5.10"
+      },
+      "oracleCategory": "resolution-match",
+      "match": true,
+      "inputTokens": 923,
+      "outputTokens": 1384,
+      "wallMs": 19861
+    }
+  },
+  "retries": [],
+  "runConfig": {
+    "model": "qwen3.6:latest",
+    "modelDigestLine": "qwen3.6:latest             07d35212591f    23 GB     4 months ago",
+    "ollamaVersion": "ollama version is 0.32.5",
+    "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+    "timeoutMs": 3600000,
+    "seeds": {
+      "base": 1501,
+      "c4": 1502,
+      "distractor": 1503
+    },
+    "tasksPerConfig": 10,
+    "clientConcurrency": 1,
+    "startedAt": "2026-08-19T11:50:12.188Z",
+    "unitOrder": "C0..C5, task index 0..9 within each config — deterministic, total, stable"
+  }
+}
