@@ -28,7 +28,9 @@ import {
   buildTasks,
   acceptedGeneratorReceipt,
   DATA_OPS_GENERATOR_ID,
+  ACCEPTED_GENERATORS,
 } from "../src/foundry/fixture-warehouse.js";
+import { CUSTOMER_SUPPORT_GENERATOR_ID } from "../src/foundry/customer-support-warehouse.js";
 
 const ALL_VERTICALS: Vertical[] = [
   "data-ops",
@@ -38,11 +40,9 @@ const ALL_VERTICALS: Vertical[] = [
   "revops-gtm-exec-strategy",
 ];
 
-const NON_ADMITTED_VERTICALS: Vertical[] = [
-  "performance-marketing",
-  "customer-support",
-  "revops-gtm-exec-strategy",
-];
+// customer-support is admitted as of Phase 14 Plan 04 (REQ-68) — it is no
+// longer a NON_ADMITTED vertical for the purposes of this array-driven sweep.
+const NON_ADMITTED_VERTICALS: Vertical[] = ["performance-marketing", "revops-gtm-exec-strategy"];
 
 function thrown(fn: () => unknown): Error {
   try {
@@ -95,12 +95,16 @@ describe("admitVertical — the five-row posture (docs/development/harness-facto
     expect(record.note.toLowerCase()).toContain("horizon");
   });
 
-  it("customer-support: pending, oracle class names replay + construction, note records rubricCalibrated is mandatory", () => {
+  it("customer-support: admitted (REQ-68), oracle class still names replay + construction, note cites the freeze commit and the replay-checkable scoping — never a study verdict label", () => {
     const record = admitVertical("customer-support");
-    expect(record.verdict).toBe("pending");
+    expect(record.verdict).toBe("admitted");
     expect(record.oracleClass).toContain("replay");
     expect(record.oracleClass).toContain("construction");
-    expect(record.note).toContain("rubricCalibrated");
+    expect(record.note).toContain("REQ-68");
+    expect(record.note).toContain("2f9e6095dc6e20bcc8196a293397f7ec07f8c704");
+    expect(record.note).toContain("replay-checkable subset only");
+    expect(record.note).toContain("never the full ticket-resolution task");
+    expect(record.note).not.toMatch(/SUPERIOR|INDISTINGUISHABLE|paired round|paired-round/);
   });
 
   it("revops-gtm-exec-strategy: refused, oracle class records no fast oracle and that only resolvable forecasts would qualify", () => {
@@ -141,12 +145,9 @@ describe("requireAdmitted — the separate throw step", () => {
     expect(err.message).toContain("replay");
   });
 
-  it("throws VerticalRefusedError for customer-support, naming the vertical, its verdict, and its oracle class", () => {
-    const err = thrown(() => requireAdmitted("customer-support"));
-    expect(err).toBeInstanceOf(VerticalRefusedError);
-    expect(err.message).toContain("customer-support");
-    expect(err.message).toContain("pending");
-    expect(err.message).toContain("replay");
+  it("returns the record for customer-support (admitted, REQ-68)", () => {
+    const record = requireAdmitted("customer-support");
+    expect(record.verdict).toBe("admitted");
   });
 
   it("throws VerticalRefusedError for revops-gtm-exec-strategy, naming the vertical, its verdict, and its oracle class", () => {
@@ -197,11 +198,16 @@ describe("admitVerticalBattery — the refusal fires on the REAL construction pa
     expect(err.message).toContain("performance-marketing");
   });
 
-  it("refuses customer-support too — a pending vertical is not silently treated as admitted", () => {
-    const err = thrown(() => admitVerticalBattery("customer-support", validDraft()));
-    expect(err).toBeInstanceOf(VerticalRefusedError);
-    expect(err.message).toContain("customer-support");
-  });
+  // customer-support is admitted as of Phase 14 Plan 04 (REQ-68); its own
+  // refusal-through-the-real-path case no longer applies here — see the
+  // `admitVertical`/`requireAdmitted` describe blocks above for its
+  // admitted-state coverage. No `admitVerticalBattery("customer-support", ...)`
+  // success-path test is added: constructing a customer-support battery would
+  // require an `OracleReceipt`, and this phase's own generator is
+  // deliberately unaccepted (PD-1, `CUSTOMER_SUPPORT_GENERATOR_ID` absent
+  // from `ACCEPTED_GENERATORS`, asserted below) — exercising that path here
+  // would brush the "no acceptance-requiring route" prohibition for no
+  // must-have this plan states.
 
   it("admits bi-analytics through the real construction path now that it is admitted (REQ-50 activation)", () => {
     const draft = validDraft();
@@ -261,5 +267,45 @@ describe("the admission table is sealed at RUNTIME, not merely typed readonly", 
       (record as { verdict: string }).verdict = "admitted";
     }).toThrow();
     expect(admitVertical("revops-gtm-exec-strategy").verdict).toBe("refused");
+  });
+});
+
+describe("customer-support admission (Phase 14 Plan 04, REQ-68) — build evidence only, F-19", () => {
+  it("the other four rows are byte-identical to their pre-edit state — this plan touches ONLY the customer-support row", () => {
+    expect(admitVertical("data-ops")).toEqual({
+      vertical: "data-ops",
+      verdict: "admitted",
+      oracleClass: "execution + construction",
+      mechanism: "dbt tests, data-diff, SQL vs fixture warehouse",
+      note: "Pilot — first",
+    });
+    expect(admitVertical("bi-analytics")).toEqual({
+      vertical: "bi-analytics",
+      verdict: "admitted",
+      oracleClass: "execution + construction",
+      mechanism:
+        "candidate SQL executed in-process against a frozen per-seed star-schema warehouse, result " +
+        "set diffed against the answer-first precomputed known answer",
+      note: "REQ-50 — admitted per the frozen BI-BATTERY-DESIGN.md rev 2 (freeze commit c950e4d)",
+    });
+    expect(admitVertical("performance-marketing")).toEqual({
+      vertical: "performance-marketing",
+      verdict: "pending",
+      oracleClass: "replay",
+      mechanism: "replayed campaign logs vs held-out actuals",
+      note: "Later; horizon-capped",
+    });
+    expect(admitVertical("revops-gtm-exec-strategy")).toEqual({
+      vertical: "revops-gtm-exec-strategy",
+      verdict: "refused",
+      oracleClass: "none fast",
+      mechanism:
+        "only resolvable forecasts (probabilistic predictions scored ex post, Brier) — exogenous but weeks-lagged",
+      note: "Refused until a forecast-mode oracle is built",
+    });
+  });
+
+  it("the acceptance table (ACCEPTED_GENERATORS) still does not contain the new generator id — admission and acceptance are independent axes", () => {
+    expect(ACCEPTED_GENERATORS.has(CUSTOMER_SUPPORT_GENERATOR_ID)).toBe(false);
   });
 });

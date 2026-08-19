@@ -1424,3 +1424,29 @@ independently and can still terminate the study — `CEILING-PROBE.md` §7 state
 Full artifact: `experiments/paired-comparison-arm/CEILING-PROBE.md`, `ceiling-probe-verdict.json`,
 `ceiling-probe-state.json`, `ceiling-probe.log`. All four frozen-doc blob hashes re-verified
 unchanged before this entry was written.
+
+## customer-support admitted — on the build's own evidence, no paired-round result cited (2026-08-19)
+
+REQ-68's own admission decision, made independently of, and before, the paired round that has not
+run. `VERTICAL_ADMISSION`'s `customer-support` row now reads `verdict: "admitted"` — its mechanism
+text now describes what this phase actually built (the answer-first `customer-support-warehouse.ts`
+generator, scored by the independently implemented `customer-support-oracle.ts` replay-match oracle
+over three labelled structured fields), and its note states three things: `REQ-68`; the frozen
+design's freeze commit as a literal string, `2f9e6095dc6e20bcc8196a293397f7ec07f8c704`; and the
+explicit scoping that only the replay-checkable subset is admitted, never the full ticket-resolution
+task, which stays out of scope under this project's independent-oracle discipline.
+
+**The evidence this rests on, and nothing else.** The generator/oracle test suites
+(`test/foundry-customer-support-generator.test.ts`, `test/foundry-customer-support-oracle.test.ts`),
+the independent fidelity check (`test/fixtures/customer-support-ticket-fidelity.ts`), the leak check
+(`test/foundry-customer-support-leak.test.ts`), and the pre-round instrument-health probe this plan
+just committed (`CEILING-PROBE.md`, `ceiling-probe-verdict.json`). **No paired-round result was, or
+could be, cited** — the paired round has not run, and `PAIRED-DESIGN-PREREG.md` rev 2 §2's own axis
+4 bars any of its three verdict labels from ever feeding this admission decision (F-19). Deferring
+this edit until after the round, on the reasoning that the round would confirm the instrument works,
+is the specific ordering that clause forbids — which is why the edit lands here, before the round.
+
+`ACCEPTED_GENERATORS` is untouched — `CUSTOMER_SUPPORT_GENERATOR_ID` stays deliberately absent from
+it (PD-1); admission and acceptance remain two independent axes, proven by a test, not merely
+claimed. The other four `VERTICAL_ADMISSION` rows are byte-identical to their pre-edit state. Full
+suite (1137 tests, 81 files) and `tsc --noEmit` both green.

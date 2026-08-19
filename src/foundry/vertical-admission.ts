@@ -128,10 +128,21 @@ export const VERTICAL_ADMISSION: ReadonlyMap<Vertical, AdmissionRecord> = sealTa
     "customer-support",
     {
       vertical: "customer-support",
-      verdict: "pending",
+      verdict: "admitted",
       oracleClass: "replay + construction",
-      mechanism: "historical tickets w/ known resolutions; resolution-first ticket synthesis",
-      note: "Later; rubricCalibrated mandatory",
+      mechanism:
+        "a deterministic seeded generator (customer-support-warehouse.ts) composing the ticket's " +
+        "resolution first, then rendering the ticket text from that resolution's own semantics; scored " +
+        "by a separately implemented replay-match oracle (customer-support-oracle.ts) over three " +
+        "labelled structured fields (action, category, parameter) — zero shared helpers beyond the " +
+        "field-name literals",
+      note:
+        "REQ-68 — admitted on the build's own evidence (generator/oracle tests, the independent " +
+        "fidelity check, the leak check, and the pre-round instrument-health probe) per the frozen " +
+        "PAIRED-DESIGN-PREREG.md rev 2 (freeze commit 2f9e6095dc6e20bcc8196a293397f7ec07f8c704). " +
+        "Scoped to the replay-checkable subset only — never the full ticket-resolution task, which " +
+        "stays out of scope under this project's independent-oracle discipline (no judge, no rubric " +
+        "substitutes for a missing oracle).",
     },
   ],
   [
