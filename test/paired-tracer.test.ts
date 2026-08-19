@@ -111,10 +111,10 @@ describe("classifyCustomerSupportResponse — the four-category extraction/equiv
 
 describe("classifyPair — win/loss/tie by plain integer comparison", () => {
   it("W:1 B:0 classifies as win; W:0 B:1 as loss; equal scores as tie", () => {
-    expect(classifyPair(1, 0)).toBe("win");
-    expect(classifyPair(0, 1)).toBe("loss");
-    expect(classifyPair(1, 1)).toBe("tie");
-    expect(classifyPair(0, 0)).toBe("tie");
+    expect(classifyPair(1, 0)).toBe("WIN");
+    expect(classifyPair(0, 1)).toBe("LOSS");
+    expect(classifyPair(1, 1)).toBe("TIE");
+    expect(classifyPair(0, 0)).toBe("TIE");
   });
 });
 
@@ -131,7 +131,7 @@ describe("one seeded ticket, both arm slots, one recorded pair — end to end", 
     expect(wResult.score).toBe(1);
     expect(bResult.oracleCategory).toBe("resolution-mismatch");
     expect(bResult.score).toBe(0);
-    expect(classifyPair(wResult.score, bResult.score)).toBe("win");
+    expect(classifyPair(wResult.score, bResult.score)).toBe("WIN");
   });
 
   it("running the driver twice over the same state file performs the inference call once — the second pass reads the cached unit", async () => {

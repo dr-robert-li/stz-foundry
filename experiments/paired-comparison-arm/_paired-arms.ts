@@ -179,14 +179,16 @@ export async function runArmOnPairingUnit(
 
 // ── the pair classifier — §5's win/loss/tie rule, plain integer comparison ─
 
-export type PairOutcome = "win" | "loss" | "tie";
+/** §5's own literal vocabulary — WIN/LOSS/TIE, uppercase, exactly as the
+ *  frozen design states it, never a re-cased or re-worded equivalent. */
+export type PairOutcome = "WIN" | "LOSS" | "TIE";
 
 /** §5: WIN iff W scores 1 and B scores 0; LOSS iff W scores 0 and B scores
  *  1; TIE iff both score identically. Plain integer equality — the score
  *  type is binary, never a graded value, so no tolerance clause applies. */
 export function classifyPair(scoreW: 0 | 1, scoreB: 0 | 1): PairOutcome {
-  if (scoreW === scoreB) return "tie";
-  return scoreW > scoreB ? "win" : "loss";
+  if (scoreW === scoreB) return "TIE";
+  return scoreW > scoreB ? "WIN" : "LOSS";
 }
 
 // ── the checkpoint contract (copied in shape from `_dualfix-arms.ts`, state
