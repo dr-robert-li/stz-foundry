@@ -1979,3 +1979,64 @@ Full suite (90 files, 1279 tests) and `tsc --noEmit` stayed green after every co
 definitions and search artifacts (`_b-arm-definition.md`, `_w-arm-definition.md`,
 `w-search-state.json`, `w-search-verdict.json`) are unchanged on disk. Both rev-3 arm identities are
 now pinned, provably ordered, and ready for the 90-pair paired round — the next plan's work.
+
+## Phase 15, plan 15-09: the 90-pair rev-3 round runs for real — TERMINATED-UNDERPOWERED, REQ-72's third clause closes (2026-08-20)
+
+Before launching anything, I found `_paired-study.ts`'s own rev-3 resolution seam was incomplete:
+`PAIRED_STUDY_SHAPE=rev3` selected the rev-3 battery shape but `loadArmCommitsFromRunConfigFile()`
+was still hardcoded to read `paired-runconfig.json` — rev-2's arm commits. Left as-is, the round
+would have silently scored the rev-2 arms under the rev-3 shape and stamped rev-2 commit hashes into
+a rev-3-labelled verdict. I closed the gap the same way 15-06 closed every other one: `runconfigFile`
+now derives from the same `PAIRED_STUDY_SHAPE` flag (`paired-runconfig.json` |
+`paired-runconfig-rev3.json`), pinned by two new test cases, committed before anything launched.
+
+I launched `_paired-study.ts` through `_launch-probe.sh` (never directly) with
+`PAIRED_STUDY_MODEL=gpt-oss:latest`, `PAIRED_STUDY_VERDICT_FILE=paired-study-rev3-verdict.json`,
+`PAIRED_STUDY_SHAPE=rev3`. Launcher confirmed sole instance: `launched OK: node=1730180 (verified
+sole instance tree: pids 1730168 1730180)`. Before trusting the run, I read the printed run config
+off the log: model `gpt-oss:latest`, digest `17052f91a42e`, seeds `1601`-`1609`, `armCommits.W`
+= `6cc48aaf...`, `armCommits.B` = `90caee3b...` — the fix took effect. I then waited on
+`paired-study-rev3-verdict.json`'s own `complete: true` flag alone — never the log tail, never
+elapsed time.
+
+**The verdict: `TERMINATED-UNDERPOWERED`.** All 180 arm attempts (90 pairing units × 2 arms) landed
+`status: ok`, zero harness-fault retries. §6 Clause 1 (instrument-health gate, floor 72) passed —
+`jointScoreableCount` 80. §6 Clause 2 (minimum discordant-pairs floor, 20) did not — `discordantCount`
+14, six short — so the study terminated there and §5's decision rule was never evaluated: no critical
+value was looked up, because none applies to a count below the floor. `winCount` 8, `lossCount` 6,
+`tieCount` 76. Per-block concordance (informational only here, since the decision rule never ran):
+1601 tied, 1602/1603/1605/1607 W-majority, 1604/1609 B-majority, 1606/1608 tied — four W-majority
+blocks against two B-majority, on a battery that never reached the point where that pattern would be
+tested against anything.
+
+**Why, honestly, without retuning anything.** Two additive factors, both read straight from the
+artifact's own accounting: (1) 10 of the 90 units dropped from joint consideration because at least
+one arm landed `no-artifact`/`non-scoreable` on that unit (`armW`: 5 non-scoreable; `armB`: 2
+no-artifact + 5 non-scoreable) — still comfortably above the health floor, never the breach; (2) W and
+B carry byte-identical system-prompt text this round (15-08's honest anti-build null), so the only
+source of any per-unit difference between them is decoding variance on a single shared prompt, not a
+genuine two-prompt comparison — consistent with a 76/90 tie rate far above what a real prompt-vs-prompt
+battery would be expected to produce. Both arms' mismatch rates confirm the oracle itself was not the
+problem: W 10/85 (11.8%), B 10/83 (12.0%), both far under the 90% dominant-failure-mode ceiling — no
+oracle-discrimination caveat applies.
+
+`PAIRED-STUDY-RESULTS-REV3.md` renders all of this from the artifact alone, through
+`renderPairedResultsReport` (which needed two small additions to say it honestly: an
+`introParagraph`/`title` override seam, since the module's own default intro is rev-2's "v1.25.0
+human override" text, and an unconditional per-arm mismatch-rate line, previously computed only on a
+`COMPLETE` outcome). No number in the report is hand-typed — every count traces to the verdict
+artifact's own `accounting`/`runConfig` fields. The report states plainly: this is not a Stage-B
+outcome, the v1.24.0 milestone record and the v1.25.0 round (`PAIRED-STUDY-RESULTS.md`, confirmed
+`git status --porcelain` clean) both stand untouched, and the rev-3 result is a second, independent
+measurement — not a correction of rev-2's — since rev-2's own saturated battery (59/60 ties) is what
+motivated running a calibrated executor in the first place.
+
+**TERMINATED-UNDERPOWERED is a pre-registered, legitimate outcome, not a failed phase.** §7 draws this
+distinction explicitly: termination means the qualification clauses were not met and the decision rule
+was never evaluated — the study could not run, and reports its terminal state as the result. Nothing
+here licenses re-running an arm, extending the seed list, redrawing the battery, or adjusting any
+clause; the frozen amendment's own one-shot-termination discipline forbids all four, and none was done.
+
+Full suite (90 files, 1282 tests after this plan's own two additions) and `tsc --noEmit` stayed green
+after every commit. REQ-72's third and final clause (the 90-pair round to a verdict) closes here; all
+three of REQ-72's clauses are now closed across 15-07/15-08/15-09.
