@@ -30,6 +30,29 @@ export interface PairedReportUnitRecord {
   score: 0 | 1;
 }
 
+/**
+ * The battery-shape surface this module accepts as explicit input (Plan
+ * 15-06, REQ-72). Every field is optional and resolves to its rev-2 pinned
+ * constant when omitted, so a caller that passes nothing (every existing
+ * caller) gets byte-identical output for the same verdict input. The
+ * concordance table's own row count/keys follow `accounting.blocks` — that
+ * shape arrives through the accounting the caller already built via
+ * `_paired-gate.ts`'s own shape options, never re-supplied here.
+ */
+export interface PairedReportShapeOptions {
+  /** `c(n_d)` lookup table — defaults to `PAIRED_CRITICAL_VALUE_TABLE`. */
+  criticalValueTable?: Readonly<Record<number, number>>;
+  /** §8 item 3's dominant-failure-mode ceiling numerator — defaults to
+   *  `PAIRED_DOMINANT_FAILURE_MODE_CEILING_NUM`. */
+  dominantFailureModeCeilingNum?: number;
+  /** §8 item 3's dominant-failure-mode ceiling denominator — defaults to
+   *  `PAIRED_DOMINANT_FAILURE_MODE_CEILING_DEN`. */
+  dominantFailureModeCeilingDen?: number;
+  /** The near-floor evidential-weight bound — defaults to
+   *  `PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND`. */
+  nearFloorEvidentialWeightBound?: number;
+}
+
 const TERMINATION_CLAUSE_NAMES: Record<Exclude<PairedStudyOutcome, "COMPLETE">, string> = {
   "TERMINATED-HEALTH-GATE-FAILED": "Clause 1 (instrument-health gate)",
   "TERMINATED-UNDERPOWERED": "Clause 2 (minimum discordant-pairs floor)",
@@ -39,16 +62,17 @@ const TERMINATION_CLAUSE_NAMES: Record<Exclude<PairedStudyOutcome, "COMPLETE">, 
 /**
  * §8 item 3's dominant-failure-mode ceiling, evaluated as an integer
  * cross-multiplication — never a live float: an arm breaches when its
- * mismatch count multiplied by the pinned denominator is at least its own
+ * mismatch count multiplied by the supplied denominator is at least its own
  * scoreable-attempt count (mismatch plus match, the two unscoreable
- * categories excluded) multiplied by the pinned numerator. An arm with zero
- * scoreable attempts cannot be evaluated against a rate and never breaches.
+ * categories excluded) multiplied by the supplied numerator. An arm with
+ * zero scoreable attempts cannot be evaluated against a rate and never
+ * breaches.
  */
-function armBreachesDominantFailureMode(counts: PairedArmCategoryCounts): boolean {
+function armBreachesDominantFailureMode(counts: PairedArmCategoryCounts, num: number, den: number): boolean {
   const mismatch = counts["resolution-mismatch"];
   const scoreable = counts["resolution-mismatch"] + counts["resolution-match"];
   if (scoreable === 0) return false;
-  return mismatch * PAIRED_DOMINANT_FAILURE_MODE_CEILING_DEN >= scoreable * PAIRED_DOMINANT_FAILURE_MODE_CEILING_NUM;
+  return mismatch * den >= scoreable * num;
 }
 
 /**
@@ -64,7 +88,12 @@ export function renderPairedResultsReport(
   verdict: PairedGateVerdict,
   accounting: PairedAccounting,
   unitRecords: readonly PairedReportUnitRecord[],
+  opts: PairedReportShapeOptions = {},
 ): string {
+  const criticalValueTable = opts.criticalValueTable ?? PAIRED_CRITICAL_VALUE_TABLE;
+  const ceilingNum = opts.dominantFailureModeCeilingNum ?? PAIRED_DOMINANT_FAILURE_MODE_CEILING_NUM;
+  const ceilingDen = opts.dominantFailureModeCeilingDen ?? PAIRED_DOMINANT_FAILURE_MODE_CEILING_DEN;
+  const nearFloorBound = opts.nearFloorEvidentialWeightBound ?? PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND;
   const lines: string[] = [];
 
   lines.push("# Paired-comparison round — results (REQ-69)");
@@ -123,7 +152,7 @@ export function renderPairedResultsReport(
     return lines.join("\n");
   }
 
-  const c = PAIRED_CRITICAL_VALUE_TABLE[accounting.discordantCount]!;
+  const c = criticalValueTable[accounting.discordantCount]!;
   lines.push(
     `Discordant count n_d=${accounting.discordantCount}; win count k_w=${accounting.winCount}; ` +
       `looked-up critical value c(n_d)=${c}; W-superior bound (k_w>=c) is ${c}; B-superior bound ` +
@@ -131,8 +160,8 @@ export function renderPairedResultsReport(
   );
   lines.push("");
 
-  const breachW = armBreachesDominantFailureMode(accounting.armW);
-  const breachB = armBreachesDominantFailureMode(accounting.armB);
+  const breachW = armBreachesDominantFailureMode(accounting.armW, ceilingNum, ceilingDen);
+  const breachB = armBreachesDominantFailureMode(accounting.armB, ceilingNum, ceilingDen);
 
   lines.push("## Verdict");
   lines.push("");
@@ -145,7 +174,7 @@ export function renderPairedResultsReport(
     );
   } else {
     verdictLines.push(`The qualification clauses were met and the decision rule was evaluated: ${verdict.decision}.`);
-    if (verdict.decision === "INDISTINGUISHABLE" && accounting.discordantCount <= PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND) {
+    if (verdict.decision === "INDISTINGUISHABLE" && accounting.discordantCount <= nearFloorBound) {
       verdictLines.push(
         `Near-the-floor evidential-weight caveat: n_d=${accounting.discordantCount} sits in the low twenties — this ` +
           `INDISTINGUISHABLE result carries markedly less evidential weight than one landing near the battery's full size.`,
@@ -157,8 +186,8 @@ export function renderPairedResultsReport(
     const breachingArms = [breachW ? "W" : null, breachB ? "B" : null].filter(Boolean).join(" and ");
     verdictLines.push(
       `ORACLE-DISCRIMINATION CAVEAT: ${breachingArms} reached the dominant-failure-mode ceiling ` +
-        `(mismatch times ${PAIRED_DOMINANT_FAILURE_MODE_CEILING_DEN} at or above scoreable times ` +
-        `${PAIRED_DOMINANT_FAILURE_MODE_CEILING_NUM}) — this paired comparison may be uninformative ` +
+        `(mismatch times ${ceilingDen} at or above scoreable times ` +
+        `${ceilingNum}) — this paired comparison may be uninformative ` +
         `regardless of the verdict stated above.`,
     );
   }

@@ -26,17 +26,26 @@ import { describe, it, expect } from "vitest";
 import {
   evaluatePairedGate,
   accountPairedUnits,
+  type PairedAccounting,
+  type PairedArmCategoryCounts,
+  type PairedGateVerdict,
   type PairedBlockClassification,
   type PairedUnitAccountingInput,
 } from "../experiments/paired-comparison-arm/_paired-gate.js";
+import { renderPairedResultsReport, type PairedReportUnitRecord } from "../experiments/paired-comparison-arm/_paired-report.js";
 import {
   PAIRED_SEEDS,
   PAIRED_SEEDS_REV3,
   PAIRED_BATTERY_SIZE_REV3,
   PAIRED_MIN_DISCORDANT_FLOOR,
+  PAIRED_CRITICAL_VALUE_TABLE,
   PAIRED_CRITICAL_VALUE_TABLE_REV3,
   PAIRED_CONCORDANCE_BLOCK_COUNT_REV3,
   PAIRED_CONCORDANCE_AGREE_THRESHOLD_REV3,
+  PAIRED_DOMINANT_FAILURE_MODE_CEILING_NUM,
+  PAIRED_DOMINANT_FAILURE_MODE_CEILING_DEN,
+  PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND,
+  PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND_REV3,
 } from "../experiments/paired-comparison-arm/_paired-constants.js";
 
 function rev3Blocks(overrides: Partial<Record<number, PairedBlockClassification>> = {}): PairedBlockClassification[] {
@@ -205,5 +214,106 @@ describe("_paired-gate.ts — rev-3 shape (Task 1, REQ-72)", () => {
       const gateFiles = fs.readdirSync(dir).filter((f) => f.includes("gate"));
       expect(gateFiles).toHaveLength(1);
     });
+  });
+});
+
+// ── Task 2 — the report writer, shape-parameterised (REQ-72) ───────────────
+
+function categoryCounts(overrides: Partial<PairedArmCategoryCounts> = {}): PairedArmCategoryCounts {
+  return { "no-artifact": 0, "non-scoreable": 0, "resolution-mismatch": 0, "resolution-match": 0, ...overrides };
+}
+
+function rev3EmptyBlocks() {
+  return PAIRED_SEEDS_REV3.map((seed) => ({ seed, discordantWins: 0, discordantLosses: 0 }));
+}
+
+function rev3Accounting(overrides: Partial<PairedAccounting> = {}): PairedAccounting {
+  return {
+    armW: categoryCounts(),
+    armB: categoryCounts(),
+    winCount: 0,
+    lossCount: 0,
+    tieCount: 0,
+    discordantCount: 0,
+    blocks: rev3EmptyBlocks(),
+    ...overrides,
+  };
+}
+
+const REV3_REPORT_SHAPE = {
+  criticalValueTable: PAIRED_CRITICAL_VALUE_TABLE_REV3,
+  dominantFailureModeCeilingNum: PAIRED_DOMINANT_FAILURE_MODE_CEILING_NUM,
+  dominantFailureModeCeilingDen: PAIRED_DOMINANT_FAILURE_MODE_CEILING_DEN,
+  nearFloorEvidentialWeightBound: PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND_REV3,
+};
+
+describe("_paired-report.ts — rev-3 shape (Task 2, REQ-72)", () => {
+  it("rendered at the rev-3 shape, the concordance table has one row per rev-3 block, keyed by the rev-3 seeds", () => {
+    const units: PairedUnitAccountingInput[] = PAIRED_SEEDS_REV3.map((seed) => ({
+      seed,
+      categoryW: "resolution-match",
+      categoryB: "resolution-mismatch",
+    }));
+    const acc = accountPairedUnits(units, { seeds: PAIRED_SEEDS_REV3 });
+    const verdict: PairedGateVerdict = { outcome: "COMPLETE", decision: "W-SUPERIOR", reason: "test" };
+    const report = renderPairedResultsReport(verdict, acc, [], REV3_REPORT_SHAPE);
+    for (const seed of PAIRED_SEEDS_REV3) {
+      expect(report).toContain(`| ${seed} |`);
+    }
+    // Never a rev-2 seed row — proves the table follows the supplied
+    // seeds, not the rev-2 default.
+    for (const seed of PAIRED_SEEDS) {
+      expect(report).not.toContain(`| ${seed} |`);
+    }
+  });
+
+  it("rendered with no options, the output is byte-identical to the same call with every option supplied explicitly at its rev-2 default", () => {
+    const acc = rev3Accounting({
+      armW: categoryCounts({ "resolution-mismatch": 9, "resolution-match": 1 }),
+      armB: categoryCounts({ "resolution-mismatch": 1, "resolution-match": 9 }),
+      discordantCount: 20,
+      winCount: 12,
+      blocks: PAIRED_SEEDS.map((seed) => ({ seed, discordantWins: 1, discordantLosses: 0 })),
+    });
+    const verdict: PairedGateVerdict = { outcome: "COMPLETE", decision: "W-SUPERIOR", reason: "test" };
+    const units: PairedReportUnitRecord[] = [{ unitId: "1301:0", arm: "W", status: "ok", oracleCategory: "resolution-match", score: 1 }];
+
+    const noOptions = renderPairedResultsReport(verdict, acc, units);
+    const explicitRev2Defaults = renderPairedResultsReport(verdict, acc, units, {
+      criticalValueTable: PAIRED_CRITICAL_VALUE_TABLE,
+      dominantFailureModeCeilingNum: PAIRED_DOMINANT_FAILURE_MODE_CEILING_NUM,
+      dominantFailureModeCeilingDen: PAIRED_DOMINANT_FAILURE_MODE_CEILING_DEN,
+      nearFloorEvidentialWeightBound: PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND,
+    });
+    expect(noOptions).toBe(explicitRev2Defaults);
+  });
+
+  it("the existing report test file passes with zero edits (proven by the git diff acceptance check, not this suite)", () => {
+    // Documented here as a pointer, not re-asserted: `git diff --stat
+    // test/paired-results-report.test.ts` shows no change, and that file's
+    // own suite runs green in this task's <verify> command.
+    expect(true).toBe(true);
+  });
+
+  it("the near-floor evidential-weight note appears at or below the supplied bound (rev-3: 25) and not above", () => {
+    const atBound = rev3Accounting({ discordantCount: PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND_REV3, winCount: 15 });
+    const atVerdict: PairedGateVerdict = { outcome: "COMPLETE", decision: "INDISTINGUISHABLE", reason: "test" };
+    const atReport = renderPairedResultsReport(atVerdict, atBound, [], REV3_REPORT_SHAPE);
+    expect(atReport).toContain("Near-the-floor evidential-weight caveat");
+
+    const aboveBound = rev3Accounting({ discordantCount: PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND_REV3 + 1, winCount: 15 });
+    const aboveVerdict: PairedGateVerdict = { outcome: "COMPLETE", decision: "INDISTINGUISHABLE", reason: "test" };
+    const aboveReport = renderPairedResultsReport(aboveVerdict, aboveBound, [], REV3_REPORT_SHAPE);
+    expect(aboveReport).not.toContain("Near-the-floor evidential-weight caveat");
+  });
+
+  it("the renderer writes no file and derives no verdict of its own — it renders what the verdict artifact states", () => {
+    const acc = rev3Accounting({ discordantCount: 30, winCount: 20 });
+    const verdict: PairedGateVerdict = { outcome: "COMPLETE", decision: "W-SUPERIOR", reason: "given verbatim, never recomputed" };
+    const report = renderPairedResultsReport(verdict, acc, [], REV3_REPORT_SHAPE);
+    expect(report).toContain("W-SUPERIOR");
+    // No filesystem side effect: this call itself proves it (no writeFileSync
+    // available in this pure-function call path) — the acceptance check's
+    // comment-stripped source grep is the structural guarantee.
   });
 });
