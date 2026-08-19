@@ -98,6 +98,49 @@ import { createProvider, type Provider } from "../../src/foundry/provider.js";
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const CEILING_PROBE_BASE_URL = "http://localhost:11434/v1";
 
+// ── model/shape/artifact-path resolution (Plan 15-06, REQ-72) — ONE
+// resolution point, called once near `main()`'s entry; everything
+// downstream consumes the resolved values as explicit arguments, never
+// re-reading `process.env` itself. Pure over the `env` argument (defaults
+// to `process.env`), so a test can resolve against a plain object with
+// zero global state — mirrors `_calibration-dryrun.ts`'s own
+// `CALIBRATION_MODEL`/`CALIBRATION_VERDICT_FILE` env-seam precedent, the
+// established convention for this directory's detached scripts. ─────────
+
+export interface CeilingProbeRunOptions {
+  /** Executor model — defaults to the rev-2 pinned `PAIRED_MODEL`. */
+  model?: string;
+  /** Verdict artifact filename — defaults to today's literal
+   *  `ceiling-probe-verdict.json`. */
+  verdictFile?: string;
+  /** Probe seed — defaults to `CEILING_PROBE_SEED`. */
+  seed?: number;
+  /** Tasks per probe run — defaults to `CEILING_PROBE_TASK_COUNT`. */
+  taskCount?: number;
+  /** Answer-visible scoreable-count pass floor — defaults to
+   *  `CEILING_PROBE_SCOREABLE_FLOOR`. */
+  scoreableFloor?: number;
+}
+
+export function resolveCeilingProbeRunOptions(env: NodeJS.ProcessEnv = process.env): Required<CeilingProbeRunOptions> {
+  return {
+    model: env.PAIRED_PROBE_MODEL || PAIRED_MODEL,
+    verdictFile: env.PAIRED_PROBE_VERDICT_FILE || "ceiling-probe-verdict.json",
+    seed: env.PAIRED_PROBE_SEED ? Number(env.PAIRED_PROBE_SEED) : CEILING_PROBE_SEED,
+    taskCount: env.PAIRED_PROBE_TASK_COUNT ? Number(env.PAIRED_PROBE_TASK_COUNT) : CEILING_PROBE_TASK_COUNT,
+    scoreableFloor: env.PAIRED_PROBE_SCOREABLE_FLOOR ? Number(env.PAIRED_PROBE_SCOREABLE_FLOOR) : CEILING_PROBE_SCOREABLE_FLOOR,
+  };
+}
+
+/** The digest lookup, extracted as a pure function of the resolved model
+ *  and an `ollama list` transcript — so a test can pin "the digest is
+ *  looked up for the RESOLVED model, not the default one" (T-15-24)
+ *  offline, without a real `ollama` call. */
+export function findModelDigestLine(model: string, ollamaListOutput: string): string {
+  const line = ollamaListOutput.split("\n").find((l) => l.startsWith(model) || l.startsWith(model.replace(/:latest$/, "")));
+  return line ?? `<not found in 'ollama list': ${model}>`;
+}
+
 // ── the two probe modes ─────────────────────────────────────────────────
 
 export const PROBE_MODES = Object.freeze(["answer-visible", "normal"] as const);
@@ -158,11 +201,16 @@ export function buildProbePrompt(ticket: CustomerSupportTicket, mode: ProbeMode)
 
 export interface RunProbeUnitOptions {
   taskTimeoutMs?: number;
+  /** The executor model for this call. Omitted resolves to the rev-2
+   *  pinned `PAIRED_MODEL` — every existing caller that never sets this
+   *  field keeps rev-2 behaviour byte-for-byte (Plan 15-06, REQ-72). */
+  model?: string;
 }
 
 /**
  * Runs ONE mode on ONE probe ticket: builds this file's own prompt (never
- * `buildPairedTaskPrompt`), passes the pinned model explicitly, truncates
+ * `buildPairedTaskPrompt`), passes the resolved model explicitly (the
+ * `model` option if given, else the rev-2 pinned `PAIRED_MODEL`), truncates
  * at the pinned character bound, then scores the raw response through the
  * SAME independent oracle the real round uses — `classifyCustomerSupportResponse`
  * is the sole scoring entry point, imported, never re-implemented.
@@ -175,6 +223,7 @@ export async function runProbeUnit(
   opts: RunProbeUnitOptions = {},
 ): Promise<PairedArmResult> {
   const taskTimeoutMs = opts.taskTimeoutMs ?? PAIRED_TIMEOUT_MS;
+  const model = opts.model ?? PAIRED_MODEL;
   const { system, user } = buildProbePrompt(ticket, mode);
 
   const startedAt = Date.now();
@@ -188,7 +237,7 @@ export async function runProbeUnit(
     const timer = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`task timeout after ${taskTimeoutMs}ms`)), taskTimeoutMs).unref(),
     );
-    const attempt = provider.chat({ model: PAIRED_MODEL, system, messages: [{ role: "user", content: user }] });
+    const attempt = provider.chat({ model, system, messages: [{ role: "user", content: user }] });
     // See `_dualfix-arms.ts` WR-08 / `_paired-arms.ts`: a late-rejecting
     // `attempt` after the timer already won the race must not surface as an
     // unhandled rejection — attach a no-op catch purely to mark it handled.
@@ -254,12 +303,22 @@ export interface ProbeOrderedUnit {
   key: string;
 }
 
+export interface ProbeUnitOrderOptions {
+  seed?: number;
+  taskCount?: number;
+}
+
 /** Task index 0..N-1, `answer-visible` then `normal` within each task index
- *  — never a sort by content, so array position IS the tie-break. */
-export function buildProbeUnitOrder(): ProbeOrderedUnit[] {
+ *  — never a sort by content, so array position IS the tie-break. Seed and
+ *  task count resolve from `opts` first and the rev-2 pinned constants
+ *  second — an existing caller that passes nothing gets exactly today's
+ *  behaviour (Plan 15-06, REQ-72). */
+export function buildProbeUnitOrder(opts: ProbeUnitOrderOptions = {}): ProbeOrderedUnit[] {
+  const seed = opts.seed ?? CEILING_PROBE_SEED;
+  const taskCount = opts.taskCount ?? CEILING_PROBE_TASK_COUNT;
   const order: ProbeOrderedUnit[] = [];
-  for (let taskIndex = 0; taskIndex < CEILING_PROBE_TASK_COUNT; taskIndex++) {
-    const unitId = pairingUnitId(CEILING_PROBE_SEED, taskIndex);
+  for (let taskIndex = 0; taskIndex < taskCount; taskIndex++) {
+    const unitId = pairingUnitId(seed, taskIndex);
     for (const mode of PROBE_MODES) {
       order.push({ taskIndex, mode, unitId, key: probeUnitKey(mode, unitId) });
     }
@@ -268,14 +327,19 @@ export function buildProbeUnitOrder(): ProbeOrderedUnit[] {
 }
 
 /** The main iteration loop, factored out so a test can drive it with a stub
- *  `runUnit` and assert call order/resume behaviour without a provider. */
+ *  `runUnit` and assert call order/resume behaviour without a provider.
+ *  `opts` threads the same seed/task-count shape through to
+ *  `buildProbeUnitOrder` and ticket generation — resolved once, never
+ *  re-read from a module-level mutable. */
 export async function runProbeUnits(
   statePath: string,
   state: PairedState,
   runUnit: (ticket: CustomerSupportTicket, unitId: string, mode: ProbeMode) => Promise<PairedArmResult>,
+  opts: ProbeUnitOrderOptions = {},
 ): Promise<void> {
-  for (const { taskIndex, mode, unitId, key } of buildProbeUnitOrder()) {
-    const ticket = generateCustomerSupportTicket(CEILING_PROBE_SEED, taskIndex);
+  const seed = opts.seed ?? CEILING_PROBE_SEED;
+  for (const { taskIndex, mode, unitId, key } of buildProbeUnitOrder(opts)) {
+    const ticket = generateCustomerSupportTicket(seed, taskIndex);
     await onceWithHarnessRetry(statePath, state, key, () => runUnit(ticket, unitId, mode));
   }
 }
@@ -334,21 +398,22 @@ function safeExec(cmd: string): string {
 }
 
 /** Properties of the EXECUTED run, captured at run time, never pinned as a
- *  design constant — mirrors `_dualfix-study.ts`'s `captureRunConfig`. */
-function captureRunConfig(): Record<string, unknown> {
+ *  design constant — mirrors `_dualfix-study.ts`'s `captureRunConfig`. Takes
+ *  the RESOLVED run options — the digest lookup below must look up the
+ *  resolved model, never the default one (T-15-24), so this is never called
+ *  with a bare default. */
+function captureRunConfig(resolved: Required<CeilingProbeRunOptions>): Record<string, unknown> {
   const ollamaVersion = safeExec("ollama --version");
-  const listLine = safeExec("ollama list")
-    .split("\n")
-    .find((l) => l.startsWith(PAIRED_MODEL) || l.startsWith(PAIRED_MODEL.replace(/:latest$/, "")));
+  const modelDigestLine = findModelDigestLine(resolved.model, safeExec("ollama list"));
   return {
-    model: PAIRED_MODEL,
-    modelDigestLine: listLine ?? `<not found in 'ollama list': ${PAIRED_MODEL}>`,
+    model: resolved.model,
+    modelDigestLine,
     ollamaVersion,
     samplerParams: "none sent (no temperature, no max_tokens override — provider/server default applies)",
     timeoutMs: PAIRED_TIMEOUT_MS,
     promptBoundChars: PAIRED_MAX_PROMPT_CHARS,
-    seed: CEILING_PROBE_SEED,
-    taskCount: CEILING_PROBE_TASK_COUNT,
+    seed: resolved.seed,
+    taskCount: resolved.taskCount,
     clientConcurrency: 1,
     startedAt: new Date().toISOString(),
     taskOrder: "task index 0..N-1, answer-visible mode then normal mode within each task index — deterministic, total, stable",
@@ -365,45 +430,46 @@ function writeArtifact(filename: string, data: unknown): void {
 
 async function main(): Promise<void> {
   const statePath = requireStatePath();
+  const resolved = resolveCeilingProbeRunOptions();
   console.log(
-    `# CEILING PROBE — state: ${statePath} · model: ${PAIRED_MODEL} · seed: ${CEILING_PROBE_SEED} · ` +
-      `tasks: ${CEILING_PROBE_TASK_COUNT} · scoreable floor: ${CEILING_PROBE_SCOREABLE_FLOOR}`,
+    `# CEILING PROBE — state: ${statePath} · model: ${resolved.model} · seed: ${resolved.seed} · ` +
+      `tasks: ${resolved.taskCount} · scoreable floor: ${resolved.scoreableFloor} · verdict: ${resolved.verdictFile}`,
   );
 
   const state = loadState(statePath);
   if (!state.runConfig) {
-    state.runConfig = captureRunConfig();
+    state.runConfig = captureRunConfig(resolved);
     saveState(statePath, state);
   }
   console.log(`run config: ${JSON.stringify(state.runConfig)}\n`);
 
   const provider = createProvider({ kind: "openai", baseUrl: CEILING_PROBE_BASE_URL });
   const runUnit = (ticket: CustomerSupportTicket, unitId: string, mode: ProbeMode) =>
-    runProbeUnit(ticket, unitId, mode, provider, { taskTimeoutMs: PAIRED_TIMEOUT_MS });
+    runProbeUnit(ticket, unitId, mode, provider, { taskTimeoutMs: PAIRED_TIMEOUT_MS, model: resolved.model });
 
-  await runProbeUnits(statePath, state, runUnit);
+  await runProbeUnits(statePath, state, runUnit, { seed: resolved.seed, taskCount: resolved.taskCount });
 
   const answerVisible = computeProbeModeAccounting(state.units, "answer-visible");
   const normal = computeProbeModeAccounting(state.units, "normal");
-  const pass = evaluateProbePass(answerVisible.scoreable, CEILING_PROBE_SCOREABLE_FLOOR);
+  const pass = evaluateProbePass(answerVisible.scoreable, resolved.scoreableFloor);
 
   // Written ONLY here — after the full deterministic unit order is
   // exhausted. Nothing else in this file, or in the phase, may treat the
   // probe as finished on any other signal (never wall-clock, never a log
   // tail).
-  writeArtifact("ceiling-probe-verdict.json", {
+  writeArtifact(resolved.verdictFile, {
     complete: true,
     pass,
-    seed: CEILING_PROBE_SEED,
-    taskCount: CEILING_PROBE_TASK_COUNT,
-    scoreableFloor: CEILING_PROBE_SCOREABLE_FLOOR,
+    seed: resolved.seed,
+    taskCount: resolved.taskCount,
+    scoreableFloor: resolved.scoreableFloor,
     accounting: { answerVisible, normal },
     retries: state.retries,
     runConfig: state.runConfig,
   });
   console.log(
     `\n=> CEILING PROBE: ${pass ? "PASS" : "FAIL"} (answer-visible scoreable ` +
-      `${answerVisible.scoreable} vs floor ${CEILING_PROBE_SCOREABLE_FLOOR}; normal-mode matched ` +
+      `${answerVisible.scoreable} vs floor ${resolved.scoreableFloor}; normal-mode matched ` +
       `${normal.matched}/${normal.attempted}, an unqualified reading, no pass/fail attached)`,
   );
 }

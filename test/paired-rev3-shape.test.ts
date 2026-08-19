@@ -46,7 +46,31 @@ import {
   PAIRED_DOMINANT_FAILURE_MODE_CEILING_DEN,
   PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND,
   PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND_REV3,
+  PAIRED_MODEL,
+  PAIRED_TASKS_PER_SEED,
+  PAIRED_HEALTH_GATE_FLOOR,
+  PAIRED_DROP_BUDGET_CEILING,
+  PAIRED_HEALTH_GATE_FLOOR_REV3,
+  PAIRED_DROP_BUDGET_CEILING_REV3,
+  PAIRED_TASKS_PER_SEED_REV3,
+  TOURNAMENT_SEARCH_SEEDS,
+  TOURNAMENT_PROMOTION_SEEDS,
 } from "../experiments/paired-comparison-arm/_paired-constants.js";
+import {
+  resolveCeilingProbeRunOptions,
+  findModelDigestLine as findModelDigestLineProbe,
+  buildProbeUnitOrder,
+} from "../experiments/paired-comparison-arm/_ceiling-probe.js";
+import {
+  findModelDigestLine as findModelDigestLineSearch,
+  RESOLVED_SEARCH_RUN_OPTIONS,
+} from "../experiments/paired-comparison-arm/_w-search.js";
+import {
+  resolvePairedStudyRunOptions,
+  findModelDigestLine as findModelDigestLineStudy,
+  buildPairedStudyUnitOrder,
+  evaluatePairedQualification,
+} from "../experiments/paired-comparison-arm/_paired-study.js";
 
 function rev3Blocks(overrides: Partial<Record<number, PairedBlockClassification>> = {}): PairedBlockClassification[] {
   return PAIRED_SEEDS_REV3.map((seed, i) => overrides[seed] ?? overrides[i] ?? "block-tied") as PairedBlockClassification[];
@@ -315,5 +339,160 @@ describe("_paired-report.ts — rev-3 shape (Task 2, REQ-72)", () => {
     // No filesystem side effect: this call itself proves it (no writeFileSync
     // available in this pure-function call path) — the acceptance check's
     // comment-stripped source grep is the structural guarantee.
+  });
+});
+
+// ── Task 3 — model, shape and artifact paths threaded through the three
+// drivers (REQ-72). Each driver's own resolution point is tested offline,
+// against a plain env-like object — never real `process.env` mutation and
+// never a real `ollama`/network call. ───────────────────────────────────
+
+describe("_ceiling-probe.ts — resolution point (Task 3, REQ-72)", () => {
+  it("with no env, resolves to exactly the rev-2 pinned defaults", () => {
+    const resolved = resolveCeilingProbeRunOptions({});
+    expect(resolved.model).toBe(PAIRED_MODEL);
+    expect(resolved.verdictFile).toBe("ceiling-probe-verdict.json");
+  });
+
+  it("env overrides seed/taskCount/scoreableFloor/model/verdictFile independently", () => {
+    const resolved = resolveCeilingProbeRunOptions({
+      PAIRED_PROBE_MODEL: "custom-model:latest",
+      PAIRED_PROBE_VERDICT_FILE: "custom-probe-verdict.json",
+      PAIRED_PROBE_SEED: "1610",
+      PAIRED_PROBE_TASK_COUNT: "10",
+      PAIRED_PROBE_SCOREABLE_FLOOR: "8",
+    });
+    expect(resolved).toEqual({
+      model: "custom-model:latest",
+      verdictFile: "custom-probe-verdict.json",
+      seed: 1610,
+      taskCount: 10,
+      scoreableFloor: 8,
+    });
+  });
+
+  it("buildProbeUnitOrder resolves seed/taskCount from opts, defaulting to the rev-2 constants when omitted", () => {
+    const order = buildProbeUnitOrder({ seed: 1610, taskCount: 3 });
+    expect(order).toHaveLength(3 * 2); // 2 modes per task index
+    expect(new Set(order.map((u) => u.unitId.split(":")[0]))).toEqual(new Set(["1610"]));
+  });
+
+  it("findModelDigestLine looks up the RESOLVED model, not a hardcoded one (T-15-24)", () => {
+    const listing = "qwen3.6:latest    07d35212591f    4.1 GB\ngpt-oss:latest    17052f91a42e    5.2 GB";
+    expect(findModelDigestLineProbe("gpt-oss:latest", listing)).toContain("17052f91a42e");
+    expect(findModelDigestLineProbe("qwen3.6:latest", listing)).toContain("07d35212591f");
+  });
+
+  it("findModelDigestLine returns a not-found marker rather than throwing or silently defaulting", () => {
+    expect(findModelDigestLineProbe("nonexistent-model:latest", "qwen3.6:latest  abc")).toContain("not found");
+  });
+});
+
+describe("_w-search.ts — resolution point (Task 3, REQ-72)", () => {
+  it("with no env override (this test process's own env), the resolved run options equal the rev-2 defaults byte-for-byte", () => {
+    expect(RESOLVED_SEARCH_RUN_OPTIONS.model).toBe(PAIRED_MODEL);
+    expect(RESOLVED_SEARCH_RUN_OPTIONS.tasksPerSeed).toBe(PAIRED_TASKS_PER_SEED);
+    expect([...RESOLVED_SEARCH_RUN_OPTIONS.searchSeeds]).toEqual([...TOURNAMENT_SEARCH_SEEDS]);
+    expect([...RESOLVED_SEARCH_RUN_OPTIONS.promotionSeeds]).toEqual([...TOURNAMENT_PROMOTION_SEEDS]);
+    expect(RESOLVED_SEARCH_RUN_OPTIONS.verdictFile).toBe("w-search-verdict.json");
+  });
+
+  it("findModelDigestLine looks up the RESOLVED model, not a hardcoded one (T-15-24)", () => {
+    const listing = "gpt-oss:latest    17052f91a42e    5.2 GB";
+    expect(findModelDigestLineSearch("gpt-oss:latest", listing)).toContain("17052f91a42e");
+  });
+});
+
+describe("_paired-study.ts — resolution point (Task 3, REQ-72)", () => {
+  it("with no env, resolves to exactly the rev-2 pinned shape and defaults", () => {
+    const resolved = resolvePairedStudyRunOptions({});
+    expect(resolved.model).toBe(PAIRED_MODEL);
+    expect(resolved.verdictFile).toBe("paired-study-verdict.json");
+    expect([...resolved.shape.seeds]).toEqual([...PAIRED_SEEDS]);
+    expect(resolved.shape.tasksPerSeed).toBe(PAIRED_TASKS_PER_SEED);
+    expect(resolved.shape.healthGateFloor).toBe(PAIRED_HEALTH_GATE_FLOOR);
+    expect(resolved.shape.dropBudgetCeiling).toBe(PAIRED_DROP_BUDGET_CEILING);
+  });
+
+  it("PAIRED_STUDY_SHAPE=rev3 resolves the whole battery shape to the rev-3 bundle in one flag", () => {
+    const resolved = resolvePairedStudyRunOptions({ PAIRED_STUDY_SHAPE: "rev3" });
+    expect([...resolved.shape.seeds]).toEqual([...PAIRED_SEEDS_REV3]);
+    expect(resolved.shape.tasksPerSeed).toBe(PAIRED_TASKS_PER_SEED_REV3);
+    expect(resolved.shape.healthGateFloor).toBe(PAIRED_HEALTH_GATE_FLOOR_REV3);
+    expect(resolved.shape.dropBudgetCeiling).toBe(PAIRED_DROP_BUDGET_CEILING_REV3);
+    expect(resolved.shape.blockCount).toBe(PAIRED_CONCORDANCE_BLOCK_COUNT_REV3);
+    expect(resolved.shape.agreeThreshold).toBe(PAIRED_CONCORDANCE_AGREE_THRESHOLD_REV3);
+    expect(resolved.shape.criticalValueTable).toBe(PAIRED_CRITICAL_VALUE_TABLE_REV3);
+  });
+
+  it("model and verdictFile resolve independently of the shape flag", () => {
+    const resolved = resolvePairedStudyRunOptions({ PAIRED_STUDY_MODEL: "custom-model:latest", PAIRED_STUDY_VERDICT_FILE: "custom-verdict.json" });
+    expect(resolved.model).toBe("custom-model:latest");
+    expect(resolved.verdictFile).toBe("custom-verdict.json");
+  });
+
+  it("findModelDigestLine looks up the RESOLVED model, not a hardcoded one (T-15-24)", () => {
+    const listing = "gpt-oss:latest    17052f91a42e    5.2 GB";
+    expect(findModelDigestLineStudy("gpt-oss:latest", listing)).toContain("17052f91a42e");
+  });
+
+  it("buildPairedStudyUnitOrder at the rev-3 shape produces 9 seeds x 10 tasks x 2 arms = 180 entries", () => {
+    const order = buildPairedStudyUnitOrder({ seeds: PAIRED_SEEDS_REV3, tasksPerSeed: PAIRED_TASKS_PER_SEED_REV3 });
+    expect(order).toHaveLength(9 * 10 * 2);
+    expect(new Set(order.map((u) => u.seed))).toEqual(new Set(PAIRED_SEEDS_REV3));
+  });
+
+  function qualAccounting(overrides: Partial<PairedAccounting> = {}): PairedAccounting {
+    return {
+      armW: { "no-artifact": 0, "non-scoreable": 0, "resolution-mismatch": 0, "resolution-match": 0 },
+      armB: { "no-artifact": 0, "non-scoreable": 0, "resolution-mismatch": 0, "resolution-match": 0 },
+      winCount: 0,
+      lossCount: 0,
+      tieCount: 0,
+      discordantCount: 0,
+      blocks: [],
+      ...overrides,
+    };
+  }
+
+  const REV3_QUAL_SHAPE = {
+    healthGateFloor: PAIRED_HEALTH_GATE_FLOOR_REV3,
+    discordantFloor: PAIRED_MIN_DISCORDANT_FLOOR,
+    dropBudgetCeiling: PAIRED_DROP_BUDGET_CEILING_REV3,
+  };
+
+  it("at the rev-3 instrument-health floor (72), the study proceeds; one unit below it, the health clause fires", () => {
+    const atFloor = evaluatePairedQualification(qualAccounting({ discordantCount: 30 }), PAIRED_HEALTH_GATE_FLOOR_REV3, REV3_QUAL_SHAPE);
+    expect(atFloor).not.toBe("TERMINATED-HEALTH-GATE-FAILED");
+
+    const belowFloor = evaluatePairedQualification(qualAccounting({ discordantCount: 30 }), PAIRED_HEALTH_GATE_FLOOR_REV3 - 1, REV3_QUAL_SHAPE);
+    expect(belowFloor).toBe("TERMINATED-HEALTH-GATE-FAILED");
+  });
+
+  it("at the rev-3 per-arm drop-budget ceiling (9), the study proceeds; one drop above it, the budget clause fires", () => {
+    const armWAtCeiling = { "no-artifact": PAIRED_DROP_BUDGET_CEILING_REV3, "non-scoreable": 0, "resolution-mismatch": 0, "resolution-match": 0 };
+    const atCeiling = evaluatePairedQualification(
+      qualAccounting({ discordantCount: 30, armW: armWAtCeiling }),
+      PAIRED_HEALTH_GATE_FLOOR_REV3,
+      REV3_QUAL_SHAPE,
+    );
+    expect(atCeiling).toBe("COMPLETE");
+
+    const armWAboveCeiling = { "no-artifact": PAIRED_DROP_BUDGET_CEILING_REV3 + 1, "non-scoreable": 0, "resolution-mismatch": 0, "resolution-match": 0 };
+    const aboveCeiling = evaluatePairedQualification(
+      qualAccounting({ discordantCount: 30, armW: armWAboveCeiling }),
+      PAIRED_HEALTH_GATE_FLOOR_REV3,
+      REV3_QUAL_SHAPE,
+    );
+    expect(aboveCeiling).toBe("TERMINATED-DROP-BUDGET-BREACHED");
+  });
+
+  it("called with no options, evaluatePairedQualification behaves exactly as before (rev-2 defaults)", () => {
+    expect(evaluatePairedQualification(qualAccounting({ discordantCount: 30 }), PAIRED_HEALTH_GATE_FLOOR)).not.toBe(
+      "TERMINATED-HEALTH-GATE-FAILED",
+    );
+    expect(evaluatePairedQualification(qualAccounting({ discordantCount: 30 }), PAIRED_HEALTH_GATE_FLOOR - 1)).toBe(
+      "TERMINATED-HEALTH-GATE-FAILED",
+    );
   });
 });

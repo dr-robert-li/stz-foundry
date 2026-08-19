@@ -84,6 +84,16 @@ import {
   PAIRED_MODEL,
   PAIRED_TIMEOUT_MS,
   PAIRED_MAX_PROMPT_CHARS,
+  PAIRED_CONCORDANCE_BLOCK_COUNT,
+  PAIRED_CONCORDANCE_AGREE_THRESHOLD,
+  PAIRED_CRITICAL_VALUE_TABLE,
+  PAIRED_SEEDS_REV3,
+  PAIRED_TASKS_PER_SEED_REV3,
+  PAIRED_HEALTH_GATE_FLOOR_REV3,
+  PAIRED_DROP_BUDGET_CEILING_REV3,
+  PAIRED_CONCORDANCE_BLOCK_COUNT_REV3,
+  PAIRED_CONCORDANCE_AGREE_THRESHOLD_REV3,
+  PAIRED_CRITICAL_VALUE_TABLE_REV3,
 } from "./_paired-constants.js";
 import { extractAgentSystemPromptFromDefinitionFile } from "./_w-search.js";
 import { createProvider, type Provider } from "../../src/foundry/provider.js";
@@ -91,6 +101,78 @@ import { createProvider, type Provider } from "../../src/foundry/provider.js";
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PAIRED_STUDY_BASE_URL = "http://localhost:11434/v1";
 const PAIRED_RUNCONFIG_PATH_FROM_REPO_ROOT = "experiments/paired-comparison-arm";
+
+// ── model/shape/artifact-path resolution (Plan 15-06, REQ-72) — ONE
+// resolution point, called once near `main()`'s entry; everything
+// downstream consumes the resolved values as explicit arguments, never
+// re-reading `process.env` itself. The env-seam convention mirrors
+// `_calibration-dryrun.ts`'s own `CALIBRATION_MODEL`/`CALIBRATION_VERDICT_FILE`.
+// The whole battery shape (seeds, block count, agreement threshold, per-arm
+// budget/health floors, critical-value table) selects as a single named
+// bundle (`PAIRED_STUDY_SHAPE=rev3`) rather than one env var per field —
+// every rev-3 pin already exists as a matched bundle in
+// `_paired-constants.ts` (Plan 15-05), and a per-field env surface for an
+// 8-field shape (one of which is a 71-row table) would invent a second,
+// harder-to-audit way to say the same thing a launcher can already name in
+// one flag. ────────────────────────────────────────────────────────────
+
+export interface PairedStudyShapeOptions {
+  seeds?: readonly number[];
+  tasksPerSeed?: number;
+  healthGateFloor?: number;
+  discordantFloor?: number;
+  dropBudgetCeiling?: number;
+  blockCount?: number;
+  agreeThreshold?: number;
+  criticalValueTable?: Readonly<Record<number, number>>;
+}
+
+const REV2_SHAPE: Required<PairedStudyShapeOptions> = {
+  seeds: PAIRED_SEEDS,
+  tasksPerSeed: PAIRED_TASKS_PER_SEED,
+  healthGateFloor: PAIRED_HEALTH_GATE_FLOOR,
+  discordantFloor: PAIRED_MIN_DISCORDANT_FLOOR,
+  dropBudgetCeiling: PAIRED_DROP_BUDGET_CEILING,
+  blockCount: PAIRED_CONCORDANCE_BLOCK_COUNT,
+  agreeThreshold: PAIRED_CONCORDANCE_AGREE_THRESHOLD,
+  criticalValueTable: PAIRED_CRITICAL_VALUE_TABLE,
+};
+
+/** §12's settled rev-3 shape — the discordant floor is reused unchanged
+ *  (§12: "unchanged"), every other field is the rev-3 pin (Plan 15-05). */
+const REV3_SHAPE: Required<PairedStudyShapeOptions> = {
+  seeds: PAIRED_SEEDS_REV3,
+  tasksPerSeed: PAIRED_TASKS_PER_SEED_REV3,
+  healthGateFloor: PAIRED_HEALTH_GATE_FLOOR_REV3,
+  discordantFloor: PAIRED_MIN_DISCORDANT_FLOOR,
+  dropBudgetCeiling: PAIRED_DROP_BUDGET_CEILING_REV3,
+  blockCount: PAIRED_CONCORDANCE_BLOCK_COUNT_REV3,
+  agreeThreshold: PAIRED_CONCORDANCE_AGREE_THRESHOLD_REV3,
+  criticalValueTable: PAIRED_CRITICAL_VALUE_TABLE_REV3,
+};
+
+export interface ResolvedPairedStudyRunOptions {
+  model: string;
+  verdictFile: string;
+  shape: Required<PairedStudyShapeOptions>;
+}
+
+export function resolvePairedStudyRunOptions(env: NodeJS.ProcessEnv = process.env): ResolvedPairedStudyRunOptions {
+  return {
+    model: env.PAIRED_STUDY_MODEL || PAIRED_MODEL,
+    verdictFile: env.PAIRED_STUDY_VERDICT_FILE || "paired-study-verdict.json",
+    shape: env.PAIRED_STUDY_SHAPE === "rev3" ? REV3_SHAPE : REV2_SHAPE,
+  };
+}
+
+/** The digest lookup, extracted as a pure function of the resolved model
+ *  and an `ollama list` transcript — so a test can pin "the digest is
+ *  looked up for the RESOLVED model, not the default one" (T-15-24)
+ *  offline, without a real `ollama` call. */
+export function findModelDigestLine(model: string, ollamaListOutput: string): string {
+  const line = ollamaListOutput.split("\n").find((l) => l.startsWith(model) || l.startsWith(model.replace(/:latest$/, "")));
+  return line ?? `<not found in 'ollama list': ${model}>`;
+}
 
 // ── the deterministic, total, resumable unit order — §4: "seed block
 // ascending, then task index within seed, then arm slot within pairing
@@ -104,13 +186,23 @@ export interface PairedStudyOrderedUnit {
   key: string;
 }
 
-/** `PAIRED_SEEDS` is already ascending; `PAIRED_ARM_SLOTS` is already
- *  `["W", "B"]` — neither is re-sorted here, both are read in their own
- *  pinned order, never a content-derived sort. */
-export function buildPairedStudyUnitOrder(): PairedStudyOrderedUnit[] {
+export interface PairedStudyUnitOrderOptions {
+  seeds?: readonly number[];
+  tasksPerSeed?: number;
+}
+
+/** The supplied seeds (or `PAIRED_SEEDS`, already ascending) are never
+ *  re-sorted here; `PAIRED_ARM_SLOTS` is already `["W", "B"]` — both read
+ *  in their own pinned order, never a content-derived sort. Seeds and
+ *  tasks-per-seed resolve from `opts` first and the rev-2 pinned constants
+ *  second — an existing caller that passes nothing gets exactly today's
+ *  behaviour (Plan 15-06, REQ-72). */
+export function buildPairedStudyUnitOrder(opts: PairedStudyUnitOrderOptions = {}): PairedStudyOrderedUnit[] {
+  const seeds = opts.seeds ?? PAIRED_SEEDS;
+  const tasksPerSeed = opts.tasksPerSeed ?? PAIRED_TASKS_PER_SEED;
   const order: PairedStudyOrderedUnit[] = [];
-  for (const seed of PAIRED_SEEDS) {
-    for (let taskIndex = 0; taskIndex < PAIRED_TASKS_PER_SEED; taskIndex++) {
+  for (const seed of seeds) {
+    for (let taskIndex = 0; taskIndex < tasksPerSeed; taskIndex++) {
       const unitId = pairingUnitId(seed, taskIndex);
       for (const arm of PAIRED_ARM_SLOTS) {
         order.push({ seed, taskIndex, unitId, arm, key: pairedUnitKey(arm, unitId) });
@@ -157,8 +249,9 @@ export async function runPairedStudyUnits(
   statePath: string,
   state: PairedState,
   runUnit: (ticket: CustomerSupportTicket, unitId: string, arm: PairedArmSlot) => Promise<PairedArmResult>,
+  opts: PairedStudyUnitOrderOptions = {},
 ): Promise<void> {
-  for (const { seed, taskIndex, unitId, arm, key } of buildPairedStudyUnitOrder()) {
+  for (const { seed, taskIndex, unitId, arm, key } of buildPairedStudyUnitOrder(opts)) {
     const ticket = generateCustomerSupportTicket(seed, taskIndex);
     await onceWithHarnessRetry(statePath, state, key, () => runUnit(ticket, unitId, arm));
   }
@@ -192,12 +285,29 @@ export function computeJointScoreableCount(units: readonly PairedUnitAccountingI
  * terminates into the SAME named state, never varying by which clause a
  * reader happens to check first.
  */
-export function evaluatePairedQualification(accounting: PairedAccounting, jointScoreableCount: number): PairedStudyOutcome {
-  if (jointScoreableCount < PAIRED_HEALTH_GATE_FLOOR) return "TERMINATED-HEALTH-GATE-FAILED";
-  if (accounting.discordantCount < PAIRED_MIN_DISCORDANT_FLOOR) return "TERMINATED-UNDERPOWERED";
+export interface PairedQualificationShapeOptions {
+  healthGateFloor?: number;
+  discordantFloor?: number;
+  dropBudgetCeiling?: number;
+}
+
+/** The three clause thresholds resolve from `opts` first and the rev-2
+ *  pinned constants second — an existing caller that passes nothing (both
+ *  existing call sites) gets exactly today's behaviour (Plan 15-06,
+ *  REQ-72). */
+export function evaluatePairedQualification(
+  accounting: PairedAccounting,
+  jointScoreableCount: number,
+  opts: PairedQualificationShapeOptions = {},
+): PairedStudyOutcome {
+  const healthGateFloor = opts.healthGateFloor ?? PAIRED_HEALTH_GATE_FLOOR;
+  const discordantFloor = opts.discordantFloor ?? PAIRED_MIN_DISCORDANT_FLOOR;
+  const dropBudgetCeiling = opts.dropBudgetCeiling ?? PAIRED_DROP_BUDGET_CEILING;
+  if (jointScoreableCount < healthGateFloor) return "TERMINATED-HEALTH-GATE-FAILED";
+  if (accounting.discordantCount < discordantFloor) return "TERMINATED-UNDERPOWERED";
   const armWUnscoreable = accounting.armW["no-artifact"] + accounting.armW["non-scoreable"];
   const armBUnscoreable = accounting.armB["no-artifact"] + accounting.armB["non-scoreable"];
-  if (armWUnscoreable > PAIRED_DROP_BUDGET_CEILING || armBUnscoreable > PAIRED_DROP_BUDGET_CEILING) {
+  if (armWUnscoreable > dropBudgetCeiling || armBUnscoreable > dropBudgetCeiling) {
     return "TERMINATED-DROP-BUDGET-BREACHED";
   }
   return "COMPLETE";
@@ -208,10 +318,15 @@ export function evaluatePairedQualification(accounting: PairedAccounting, jointS
 /** Throws loudly (never silently shrinks a clause denominator) when a
  *  pairing unit is missing either arm's result — this must only ever be
  *  called after `runPairedStudyUnits` has exhausted the full order. */
-export function buildAccountingInputs(units: Record<string, PairedArmResult>): PairedUnitAccountingInput[] {
+export function buildAccountingInputs(
+  units: Record<string, PairedArmResult>,
+  opts: PairedStudyUnitOrderOptions = {},
+): PairedUnitAccountingInput[] {
+  const seeds = opts.seeds ?? PAIRED_SEEDS;
+  const tasksPerSeed = opts.tasksPerSeed ?? PAIRED_TASKS_PER_SEED;
   const inputs: PairedUnitAccountingInput[] = [];
-  for (const seed of PAIRED_SEEDS) {
-    for (let taskIndex = 0; taskIndex < PAIRED_TASKS_PER_SEED; taskIndex++) {
+  for (const seed of seeds) {
+    for (let taskIndex = 0; taskIndex < tasksPerSeed; taskIndex++) {
       const unitId = pairingUnitId(seed, taskIndex);
       const w = units[pairedUnitKey("W", unitId)];
       const b = units[pairedUnitKey("B", unitId)];
@@ -230,8 +345,11 @@ export function buildAccountingInputs(units: Record<string, PairedArmResult>): P
 /** Same completeness discipline as `buildAccountingInputs`, projecting only
  *  the five report-facing fields — `rawText` stays in the state file only,
  *  never copied into the (much smaller, human-read) verdict artifact. */
-export function buildReportUnitRecords(units: Record<string, PairedArmResult>): PairedReportUnitRecord[] {
-  return buildPairedStudyUnitOrder().map(({ unitId, arm, key }) => {
+export function buildReportUnitRecords(
+  units: Record<string, PairedArmResult>,
+  opts: PairedStudyUnitOrderOptions = {},
+): PairedReportUnitRecord[] {
+  return buildPairedStudyUnitOrder(opts).map(({ unitId, arm, key }) => {
     const result = units[key];
     if (!result) throw new Error(`[paired-study] missing result for ${key} — cannot build report unit records`);
     return { unitId, arm, status: result.status, oracleCategory: result.oracleCategory, score: result.score };
@@ -334,27 +452,27 @@ function safeExec(cmd: string): string {
 
 /** Properties of the EXECUTED run, captured at run time, never pinned as a
  *  design constant — mirrors `_dualfix-study.ts`'s/`_ceiling-probe.ts`'s
- *  own `captureRunConfig`. */
-function captureRunConfig(armCommits: PairedRunConfigArms): Record<string, unknown> {
+ *  own `captureRunConfig`. Takes the RESOLVED run options — the digest
+ *  lookup below must look up the resolved model, never the default one
+ *  (T-15-24), so this is never called with a bare default. */
+function captureRunConfig(armCommits: PairedRunConfigArms, resolved: ResolvedPairedStudyRunOptions): Record<string, unknown> {
   const ollamaVersion = safeExec("ollama --version");
-  const listLine = safeExec("ollama list")
-    .split("\n")
-    .find((l) => l.startsWith(PAIRED_MODEL) || l.startsWith(PAIRED_MODEL.replace(/:latest$/, "")));
+  const modelDigestLine = findModelDigestLine(resolved.model, safeExec("ollama list"));
   return {
-    model: PAIRED_MODEL,
-    modelDigestLine: listLine ?? `<not found in 'ollama list': ${PAIRED_MODEL}>`,
+    model: resolved.model,
+    modelDigestLine,
     ollamaVersion,
     samplerParams: "none sent (no temperature, no max_tokens override — provider/server default applies)",
     timeoutMs: PAIRED_TIMEOUT_MS,
     promptBoundChars: PAIRED_MAX_PROMPT_CHARS,
-    seeds: PAIRED_SEEDS,
-    tasksPerSeed: PAIRED_TASKS_PER_SEED,
+    seeds: resolved.shape.seeds,
+    tasksPerSeed: resolved.shape.tasksPerSeed,
     attemptDiscipline: PAIRED_ATTEMPT_DISCIPLINE,
     armCommits: { W: armCommits.W.commit, B: armCommits.B.commit },
     armDefinitionFiles: { W: armCommits.W.definitionFile, B: armCommits.B.definitionFile },
     startedAt: new Date().toISOString(),
     taskOrder:
-      "seed block ascending (PAIRED_SEEDS order), then task index within seed, then arm slot within pairing unit " +
+      "seed block ascending (the resolved seed order), then task index within seed, then arm slot within pairing unit " +
       "(W then B, PAIRED_ARM_SLOTS order) — deterministic, total, stable",
     executionOrder: "one request in flight at a time — no batching, no second execution stream, no override",
   };
@@ -370,14 +488,16 @@ function writeArtifact(filename: string, data: unknown): void {
 
 async function main(): Promise<void> {
   const statePath = requireStatePath();
+  const resolved = resolvePairedStudyRunOptions();
   console.log(
-    `# PAIRED STUDY DRIVER — state: ${statePath} · model: ${PAIRED_MODEL} · seeds: ${PAIRED_SEEDS.join(",")} · tasks/seed: ${PAIRED_TASKS_PER_SEED}`,
+    `# PAIRED STUDY DRIVER — state: ${statePath} · model: ${resolved.model} · seeds: ${resolved.shape.seeds.join(",")} · ` +
+      `tasks/seed: ${resolved.shape.tasksPerSeed} · verdict: ${resolved.verdictFile}`,
   );
 
   const runConfigArms = loadArmCommitsFromRunConfigFile();
   const state = loadState(statePath);
   if (!state.runConfig) {
-    state.runConfig = captureRunConfig(runConfigArms);
+    state.runConfig = captureRunConfig(runConfigArms, resolved);
     saveState(statePath, state);
   } else {
     assertArmCommitsPinned(state.runConfig, { W: runConfigArms.W.commit, B: runConfigArms.B.commit });
@@ -391,23 +511,37 @@ async function main(): Promise<void> {
 
   const provider = createProvider({ kind: "openai", baseUrl: PAIRED_STUDY_BASE_URL });
   const runUnit = (ticket: CustomerSupportTicket, unitId: string, arm: PairedArmSlot) =>
-    runArmOnPairingUnit(ticket, unitId, arm, agentDefinitions[arm], provider as Provider, { taskTimeoutMs: PAIRED_TIMEOUT_MS });
+    runArmOnPairingUnit(ticket, unitId, arm, agentDefinitions[arm], provider as Provider, {
+      taskTimeoutMs: PAIRED_TIMEOUT_MS,
+      model: resolved.model,
+    });
 
-  await runPairedStudyUnits(statePath, state, runUnit);
+  await runPairedStudyUnits(statePath, state, runUnit, { seeds: resolved.shape.seeds, tasksPerSeed: resolved.shape.tasksPerSeed });
 
-  // Everything below runs ONLY after the full deterministic order (120
-  // arm-on-unit results) is exhausted — `buildAccountingInputs` throws if
-  // it is not.
-  const accountingInputs = buildAccountingInputs(state.units);
-  const accounting = accountPairedUnits(accountingInputs);
+  // Everything below runs ONLY after the full deterministic order (all
+  // arm-on-unit results for the resolved shape) is exhausted —
+  // `buildAccountingInputs` throws if it is not.
+  const shapeOpts = { seeds: resolved.shape.seeds, tasksPerSeed: resolved.shape.tasksPerSeed };
+  const accountingInputs = buildAccountingInputs(state.units, shapeOpts);
+  const accounting = accountPairedUnits(accountingInputs, { seeds: resolved.shape.seeds });
   const jointScoreableCount = computeJointScoreableCount(accountingInputs);
-  const outcome = evaluatePairedQualification(accounting, jointScoreableCount);
+  const outcome = evaluatePairedQualification(accounting, jointScoreableCount, {
+    healthGateFloor: resolved.shape.healthGateFloor,
+    discordantFloor: resolved.shape.discordantFloor,
+    dropBudgetCeiling: resolved.shape.dropBudgetCeiling,
+  });
   const blockClassifications = accounting.blocks.map((b) => classifyBlock(b.discordantWins, b.discordantLosses));
-  const gateVerdict = evaluatePairedGate(outcome, accounting.discordantCount, accounting.winCount, blockClassifications);
-  const unitRecords = buildReportUnitRecords(state.units);
+  const gateVerdict = evaluatePairedGate(outcome, accounting.discordantCount, accounting.winCount, blockClassifications, {
+    batterySize: resolved.shape.seeds.length * resolved.shape.tasksPerSeed,
+    discordantFloor: resolved.shape.discordantFloor,
+    blockCount: resolved.shape.blockCount,
+    agreeThreshold: resolved.shape.agreeThreshold,
+    criticalValueTable: resolved.shape.criticalValueTable,
+  });
+  const unitRecords = buildReportUnitRecords(state.units, shapeOpts);
 
   // Written ONCE — the only completion signal anything downstream may read.
-  writeArtifact("paired-study-verdict.json", {
+  writeArtifact(resolved.verdictFile, {
     complete: true,
     outcome: gateVerdict.outcome,
     ...(gateVerdict.decision ? { decision: gateVerdict.decision } : {}),

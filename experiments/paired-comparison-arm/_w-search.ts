@@ -75,12 +75,12 @@ import {
   type PairedState,
 } from "./_paired-arms.js";
 import {
-  PAIRED_MODEL,
+  PAIRED_MODEL as PAIRED_MODEL_DEFAULT,
   PAIRED_TIMEOUT_MS,
   PAIRED_MAX_PROMPT_CHARS,
-  PAIRED_TASKS_PER_SEED,
-  TOURNAMENT_SEARCH_SEEDS,
-  TOURNAMENT_PROMOTION_SEEDS,
+  PAIRED_TASKS_PER_SEED as PAIRED_TASKS_PER_SEED_DEFAULT,
+  TOURNAMENT_SEARCH_SEEDS as TOURNAMENT_SEARCH_SEEDS_DEFAULT,
+  TOURNAMENT_PROMOTION_SEEDS as TOURNAMENT_PROMOTION_SEEDS_DEFAULT,
 } from "./_paired-constants.js";
 import { createProvider, type Provider } from "../../src/foundry/provider.js";
 import {
@@ -95,6 +95,61 @@ import { onGeneration, initialMeta, MAX_GENERATIONS_DEFAULT } from "../../src/ha
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const SEARCH_BASE_URL = "http://localhost:11434/v1";
+
+// ── model/shape/artifact-path resolution (Plan 15-06, REQ-72) — the SAME
+// env-seam precedent `_calibration-dryrun.ts` established
+// (`CALIBRATION_MODEL`/`CALIBRATION_VERDICT_FILE`): shadow the imported
+// default under the ORIGINAL name, so every existing downstream reference
+// to `PAIRED_MODEL`/`TOURNAMENT_SEARCH_SEEDS`/`TOURNAMENT_PROMOTION_SEEDS`/
+// `PAIRED_TASKS_PER_SEED` (including the pinned literal
+// `reflectMutate(candidate, trace, provider, { model: PAIRED_MODEL })` this
+// file's own test asserts on) keeps working unchanged, resolved to the
+// env-overridden value with the env unset (every existing test's own
+// context) falling straight back to the rev-2 default. ──────────────────
+
+function parseSeedList(raw: string): number[] {
+  return raw.split(",").map((s) => Number(s.trim()));
+}
+
+const PAIRED_MODEL = process.env.PAIRED_SEARCH_MODEL || PAIRED_MODEL_DEFAULT;
+const PAIRED_TASKS_PER_SEED = process.env.PAIRED_SEARCH_TASKS_PER_SEED
+  ? Number(process.env.PAIRED_SEARCH_TASKS_PER_SEED)
+  : PAIRED_TASKS_PER_SEED_DEFAULT;
+const TOURNAMENT_SEARCH_SEEDS = process.env.PAIRED_SEARCH_SEEDS
+  ? parseSeedList(process.env.PAIRED_SEARCH_SEEDS)
+  : TOURNAMENT_SEARCH_SEEDS_DEFAULT;
+const TOURNAMENT_PROMOTION_SEEDS = process.env.PAIRED_PROMOTION_SEEDS
+  ? parseSeedList(process.env.PAIRED_PROMOTION_SEEDS)
+  : TOURNAMENT_PROMOTION_SEEDS_DEFAULT;
+/** Verdict artifact filename — defaults to today's literal
+ *  `w-search-verdict.json`. */
+const W_SEARCH_VERDICT_FILE = process.env.PAIRED_SEARCH_VERDICT_FILE || "w-search-verdict.json";
+
+/** The digest lookup, extracted as a pure function of the resolved model
+ *  and an `ollama list` transcript — so a test can pin "the digest is
+ *  looked up for the RESOLVED model, not the default one" (T-15-24)
+ *  offline, without a real `ollama` call. */
+export function findModelDigestLine(model: string, ollamaListOutput: string): string {
+  const line = ollamaListOutput.split("\n").find((l) => l.startsWith(model) || l.startsWith(model.replace(/:latest$/, "")));
+  return line ?? `<not found in 'ollama list': ${model}>`;
+}
+
+/** The resolved values, re-exported under their own names for direct test
+ *  visibility (the module-level shadowed identifiers above keep their
+ *  ORIGINAL names for the literal-source-regex reasons the block comment
+ *  above explains, so a test cannot import `PAIRED_MODEL` from this module
+ *  and see the resolved value under that name without colliding with the
+ *  rev-2 default of the same name already imported from
+ *  `_paired-constants.js` elsewhere in the same test file). With no env
+ *  override (every existing test's own process), every one of these equals
+ *  its rev-2 default byte-for-byte. */
+export const RESOLVED_SEARCH_RUN_OPTIONS = {
+  model: PAIRED_MODEL,
+  tasksPerSeed: PAIRED_TASKS_PER_SEED,
+  searchSeeds: TOURNAMENT_SEARCH_SEEDS,
+  promotionSeeds: TOURNAMENT_PROMOTION_SEEDS,
+  verdictFile: W_SEARCH_VERDICT_FILE,
+};
 
 // ── which of the two independently-exceedable caps halted the search — a
 // LOCAL type, never imported from `component-tournament.ts` (whose own
@@ -157,7 +212,12 @@ async function runCandidateOnUnit(
   provider: Provider,
   taskTimeoutMs?: number,
 ): Promise<PairedArmResult> {
-  return runArmOnPairingUnit(ticket, unitId, "W", candidate, provider, { taskTimeoutMs });
+  // Passes the resolved (possibly env-overridden) `PAIRED_MODEL` explicitly
+  // — `runArmOnPairingUnit`'s own default falls back to `_paired-arms.ts`'s
+  // OWN imported constant, which this module never shadows, so omitting
+  // `model` here would silently score against the wrong model whenever
+  // this file's own resolution diverges from `_paired-arms.ts`'s default.
+  return runArmOnPairingUnit(ticket, unitId, "W", candidate, provider, { taskTimeoutMs, model: PAIRED_MODEL });
 }
 
 /** A `status === "error"` result is retried at MOST once, logged into
@@ -600,12 +660,10 @@ function safeExec(cmd: string): string {
  *  `captureRunConfig`/`if (!state.runConfig)` gate). */
 function captureRunConfig(): Record<string, unknown> {
   const ollamaVersion = safeExec("ollama --version");
-  const listLine = safeExec("ollama list")
-    .split("\n")
-    .find((l) => l.startsWith(PAIRED_MODEL) || l.startsWith(PAIRED_MODEL.replace(/:latest$/, "")));
+  const modelDigestLine = findModelDigestLine(PAIRED_MODEL, safeExec("ollama list"));
   return {
     model: PAIRED_MODEL,
-    modelDigestLine: listLine ?? `<not found in 'ollama list': ${PAIRED_MODEL}>`,
+    modelDigestLine,
     ollamaVersion,
     samplerParams: "none sent (no temperature, no max_tokens override — provider/server default applies)",
     timeoutMs: PAIRED_TIMEOUT_MS,
@@ -679,7 +737,7 @@ async function main(): Promise<void> {
   );
 
   const verdict = composeVerdictArtifact(searchResult, promotion, state.runConfig ?? {});
-  writeArtifact("w-search-verdict.json", verdict);
+  writeArtifact(W_SEARCH_VERDICT_FILE, verdict);
   console.log(
     `\n=> W-SEARCH COMPLETE — winner ${verdict.winner.candidateId}, search ${verdict.winner.searchMatchCount}/` +
       `${verdict.searchTaskCount}, promotion ${verdict.promotion.matchCount}/${verdict.promotionTaskCount}`,
