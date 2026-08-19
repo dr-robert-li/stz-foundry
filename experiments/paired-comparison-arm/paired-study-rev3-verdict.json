@@ -1,0 +1,1379 @@
+{
+  "complete": true,
+  "outcome": "TERMINATED-UNDERPOWERED",
+  "reason": "§7 firing discipline: the decision rule is never evaluated on a non-completing outcome (TERMINATED-UNDERPOWERED)",
+  "jointScoreableCount": 80,
+  "accounting": {
+    "armW": {
+      "no-artifact": 0,
+      "non-scoreable": 5,
+      "resolution-mismatch": 10,
+      "resolution-match": 75
+    },
+    "armB": {
+      "no-artifact": 2,
+      "non-scoreable": 5,
+      "resolution-mismatch": 10,
+      "resolution-match": 73
+    },
+    "winCount": 8,
+    "lossCount": 6,
+    "tieCount": 76,
+    "discordantCount": 14,
+    "blocks": [
+      {
+        "seed": 1601,
+        "discordantWins": 2,
+        "discordantLosses": 2,
+        "classification": "block-tied"
+      },
+      {
+        "seed": 1602,
+        "discordantWins": 2,
+        "discordantLosses": 1,
+        "classification": "W-majority"
+      },
+      {
+        "seed": 1603,
+        "discordantWins": 1,
+        "discordantLosses": 0,
+        "classification": "W-majority"
+      },
+      {
+        "seed": 1604,
+        "discordantWins": 0,
+        "discordantLosses": 1,
+        "classification": "B-majority"
+      },
+      {
+        "seed": 1605,
+        "discordantWins": 1,
+        "discordantLosses": 0,
+        "classification": "W-majority"
+      },
+      {
+        "seed": 1606,
+        "discordantWins": 0,
+        "discordantLosses": 0,
+        "classification": "block-tied"
+      },
+      {
+        "seed": 1607,
+        "discordantWins": 2,
+        "discordantLosses": 1,
+        "classification": "W-majority"
+      },
+      {
+        "seed": 1608,
+        "discordantWins": 0,
+        "discordantLosses": 0,
+        "classification": "block-tied"
+      },
+      {
+        "seed": 1609,
+        "discordantWins": 0,
+        "discordantLosses": 1,
+        "classification": "B-majority"
+      }
+    ]
+  },
+  "unitRecords": [
+    {
+      "unitId": "1601:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1601:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1601:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "non-scoreable",
+      "score": 0
+    },
+    {
+      "unitId": "1601:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1601:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1601:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "non-scoreable",
+      "score": 0
+    },
+    {
+      "unitId": "1601:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1601:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1601:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1601:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "non-scoreable",
+      "score": 0
+    },
+    {
+      "unitId": "1601:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1601:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1601:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1601:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1601:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1601:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1601:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1601:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1601:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1601:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1602:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1602:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "no-artifact",
+      "score": 0
+    },
+    {
+      "unitId": "1602:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1602:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "non-scoreable",
+      "score": 0
+    },
+    {
+      "unitId": "1603:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1603:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "non-scoreable",
+      "score": 0
+    },
+    {
+      "unitId": "1604:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "non-scoreable",
+      "score": 0
+    },
+    {
+      "unitId": "1604:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1604:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1604:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "non-scoreable",
+      "score": 0
+    },
+    {
+      "unitId": "1604:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "non-scoreable",
+      "score": 0
+    },
+    {
+      "unitId": "1605:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1605:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1605:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1605:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1605:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1606:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1606:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1606:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "no-artifact",
+      "score": 0
+    },
+    {
+      "unitId": "1607:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1607:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1607:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1607:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "non-scoreable",
+      "score": 0
+    },
+    {
+      "unitId": "1608:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1608:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1608:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1608:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1608:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:0",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:0",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:1",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:1",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:2",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    },
+    {
+      "unitId": "1609:2",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:3",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:3",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:4",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:4",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:5",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:5",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:6",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:6",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:7",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:7",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:8",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:8",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-match",
+      "score": 1
+    },
+    {
+      "unitId": "1609:9",
+      "arm": "W",
+      "status": "ok",
+      "oracleCategory": "non-scoreable",
+      "score": 0
+    },
+    {
+      "unitId": "1609:9",
+      "arm": "B",
+      "status": "ok",
+      "oracleCategory": "resolution-mismatch",
+      "score": 0
+    }
+  ],
+  "retries": [],
+  "armCommits": {
+    "W": "6cc48aafd3a2613fe40f4b6f314752c3b0c5eda0",
+    "B": "90caee3bad14c781cd51671fa7f5e9c8708de9e1"
+  },
+  "runConfig": {
+    "model": "gpt-oss:latest",
+    "modelDigestLine": "gpt-oss:latest             17052f91a42e    13 GB     2 weeks ago     ",
+    "ollamaVersion": "ollama version is 0.32.5",
+    "samplerParams": "none sent (no temperature, no max_tokens override — provider/server default applies)",
+    "timeoutMs": 3600000,
+    "promptBoundChars": 2000,
+    "seeds": [
+      1601,
+      1602,
+      1603,
+      1604,
+      1605,
+      1606,
+      1607,
+      1608,
+      1609
+    ],
+    "tasksPerSeed": 10,
+    "attemptDiscipline": 1,
+    "armCommits": {
+      "W": "6cc48aafd3a2613fe40f4b6f314752c3b0c5eda0",
+      "B": "90caee3bad14c781cd51671fa7f5e9c8708de9e1"
+    },
+    "armDefinitionFiles": {
+      "W": "_w-arm-definition-rev3.md",
+      "B": "_b-arm-definition-rev3.md"
+    },
+    "startedAt": "2026-08-19T21:53:35.156Z",
+    "taskOrder": "seed block ascending (the resolved seed order), then task index within seed, then arm slot within pairing unit (W then B, PAIRED_ARM_SLOTS order) — deterministic, total, stable",
+    "executionOrder": "one request in flight at a time — no batching, no second execution stream, no override"
+  }
+}
