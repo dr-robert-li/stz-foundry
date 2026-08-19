@@ -1885,3 +1885,35 @@ on the constants module came back empty — and re-ran the full three-file suite
 Full suite and typecheck stayed green through both tasks. No instrument, search, or paired-round
 inference has run under these bindings as of this entry — the next plan is the first to touch
 execution against these now fully code-bound rev-3 pins.
+
+## Phase 15, plan 15-07: the rev-3 ceiling probe clears its gate against the real slot (2026-08-19)
+
+I launched `_ceiling-probe.ts` through the sole-instance launcher (`_launch-probe.sh`, never
+directly) against the pinned rev-3 executor (`gpt-oss:latest`, resolved digest `17052f91a42e`,
+confirmed matching the pin before writing this entry), probe seed `1610`
+(`CEILING_PROBE_SEED_REV3`), and the two rev-3-unchanged parameters §12 restates rather than
+replaces: task count 10 and scoreable floor 8. Launcher confirmed sole instance:
+`launched OK: node=1566392 (verified sole instance tree: pids 1566380 1566392)`. I waited on
+`ceiling-probe-rev3-verdict.json`'s own `complete: true` flag — never a log tail, never elapsed
+time — and read the verdict from that completed artifact once.
+
+**Verdict: PASS.** Answer-visible mode's scoreable count is 10 of 10 against the pinned floor of 8
+(`10 >= 8`) — 7 resolution-match, 3 resolution-mismatch, 0 non-scoreable, 0 no-artifact. All 3
+mismatches are format/vocabulary near-misses even with the answer shown verbatim (non-ASCII hyphens,
+a wrong verb variant, and two cases where the resolution's own item name was swapped for the
+ticket-text item name) — the kind of gap §12's own C6 finding already flagged, not an arithmetic
+failure, and the FORMAT contract held in all 20 attempts regardless. Normal mode (unqualified,
+no pass/fail attached, D-05) matched 2/10, scoreable 7/10 — a plain count, not a difficulty
+corridor. Zero harness-fault retries; all 20 attempts landed `ok`, none timed out.
+
+**What this does and does not license.** This probe measures whether the harness can score this
+instrument against `gpt-oss:latest` at all — whether responses come back in a shape the oracle can
+read — not either arm's accuracy, and it does not predict the round's outcome; the whole point of
+the model swap is that `gpt-oss:latest` is deliberately not saturating the battery.
+
+Full report at `experiments/paired-comparison-arm/CEILING-PROBE-REV3.md`. Rev-3 freeze commit
+`8279159aa28885bf0f95afe59db43eceb7921746` is a strict ancestor of this entry's own commit
+(`git merge-base --is-ancestor` exits 0), proving the run happened after the freeze. Rev-2 probe
+artifacts (`ceiling-probe-state.json`, `ceiling-probe-verdict.json`) are unchanged on disk. Because
+the probe passed, none of the failure-branch remedies (lower the floor, change the mode, change the
+seed, re-run) applied or were needed. The gate is passed; the phase proceeds to the search.
