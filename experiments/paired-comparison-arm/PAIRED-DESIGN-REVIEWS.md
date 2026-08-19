@@ -617,68 +617,81 @@ finding ids in a merge:
 - gemma4 (2, F1–F2): both walked into global findings below.
 - gpt-oss (7, F1–F7): all 7 walked into global findings below.
 
-## Findings (restated, not yet adjudicated)
+## Findings, adjudicated
 
 - F-01 (gpt-sol-pro F1, F2, F3): §6 Clause 1 (48/60 pairing units jointly scoreable), Clause 2
   (20 discordant-pair floor), and Clause 3 (6/60 per-arm unscoreable ceiling) are each arithmetically
   expressible as a percentage — 80%, one-third, and 10% respectively — which the closing declaration's
   blanket statement that none of the three clauses is "ever" a bound on a rate does not, on its face,
   account for.
+  **Verdict: ADOPTED.** the closing declaration's blanket claim that none of Clauses 1-3 is "ever" a bound on a rate is imprecise on its face: each clause's count value literally computes to a percentage. Rev 2 rewords §6's closing declaration to state the actual distinguishing principle precisely — a data-sufficiency count gate whose *breach terminates* the study (Clauses 1-3) is a mechanism different in kind from D-05's barred outcome-location corridor, whose *satisfaction certifies* a result — rather than asserting the clauses simply are not rates at all.
 - F-02 (gpt-sol-pro F4): the closing declaration distinguishes a one-sided count threshold from a
   two-sided corridor window and treats that distinction as sufficient to establish the barred corridor
   mechanism (D-05) has been removed at the root, rather than merely relabelled.
+  **Verdict: REJECTED.** D-05's own stated purpose, per §6 itself, is to remove the mechanism that terminated the prior two instrument lines: a pre-registered requirement that an arm's *win statistic, performance location, or outcome* fall inside a numeric window before a result counts. None of Clauses 1-3 does that — all three constrain only whether the battery produced enough usable, scoreable data to run §5's decision rule at all, never where any arm's performance must land. F-01's wording fix corrects the closing declaration's imprecise "never a rate" phrasing; it does not establish, as this finding claims, that the underlying *mechanism* is the barred corridor relabelled. The genuine nuance this finding gestures toward — that Clause 2's termination can be caused by the arms performing similarly well, not merely by bad data — is real and is adjudicated on its own terms at F-03 (ADOPTED).
 - F-03 (kimi-k3 F1): Clause 2's discordant-pair floor gates on a population size ($n_d$) that is
   itself jointly determined by both arms' own tie behaviour, not solely by data availability — a
   battery where both arms are genuinely strong can terminate as UNDERPOWERED specifically because the
   arms performed similarly well, a different kind of termination cause than "could not run," which the
   closing declaration's framing does not distinguish.
+  **Verdict: ADOPTED.** a real, narrow gap: accepting that none of §6's clauses bounds a rate (per F-01/F-02's disposition), Clause 2 can still terminate the study specifically *because* both arms performed similarly well (many both-1 ties), which is qualitatively different from "the instrument could not produce usable data." Rev 2 adds one sentence to §6 Clause 2 and/or §7 stating this distinction plainly, so a reader cannot read every TERMINATED-UNDERPOWERED outcome as a pure instrument-health failure.
 - F-04 (gpt-sol-pro F5, F9): the Binomial($n_d$, 0.5) null underlying §5's decision rule requires
   independent pairing units; §5 pools ten tasks per seed across six seeds without any block-level
   statistic, adjustment, or correction, and names this pooling "seed as a blocking factor" despite
   applying no block-level treatment to the pooled counts.
+  **Verdict: ADOPTED.** this is the design's own admitted open judgement call (13-RESEARCH.md Assumptions Log A5; §10's own 'no in-repo precedent' disclosure) and the panel exists precisely to attack it. sol-F5's independence argument is textbook-correct — the Binomial(n_d,0.5) null requires independent discordant pairs, and pooling ten correlated tasks per seed breaks that assumption. Calling the pooled analysis "seed as a blocking factor" when no block-level statistic or adjustment is ever computed is also a real naming defect. Rev 2 renames §5 Option 3 honestly (e.g. "pooled test, no intra-seed adjustment") and removes the "blocking factor" framing unless a genuine block-level treatment is adopted (see F-05).
 - F-05 (gpt-sol-pro F10; kimi-k3 F3): §5 states that Options 1 and 2 (cluster-robust adjustment;
   stratified/CMH combination) were rejected because they require a data-time floating-point
   computation that the design's integer-arithmetic discipline forbids, and that Option 3 (pooling) is
   therefore the only alternative compatible with that discipline; an integer-compatible seed-level
   (block-level) sign test — computing each seed's own directional majority and comparing that count
   against a pinned integer table — is not named or considered as a fourth alternative.
+  **Verdict: ADOPTED.** the strongest, most concrete, most actionable finding in the panel: a genuine integer-arithmetic-compatible alternative was available and not considered, and the design's claim that only pooling avoids live float computation is demonstrably false. Rev 2's §5 must add a required block-level concordance check, pinned in integers, alongside the pooled decision: for each of the six seed-blocks, classify its own ten pairing units' discordant win/loss count as W-majority, B-majority, or block-tied (an even split, or a block with zero discordant pairs); count how many of the six blocks favor each direction. If at least four of six blocks agree with the pooled decision's declared direction, the pooled verdict stands; if fewer than four agree, the reported decision downgrades to INDISTINGUISHABLE regardless of what the pooled comparison alone would report. This gives kimi-k3 F3's own proposed seed-level construction a concrete integer form and directly supersedes §5's current stated design that "the decision rule itself stays the plain pooled integer comparison regardless of what the diagnostic shows" — a statistical-machinery choice this phase's own 13-02 plan authored, not a 2026-08-19 STATE.md orchestrator default (D-02/D-03), which this ledger's adoption now overrides by review under D-07's adjudication authority.
 - F-06 (gpt-sol-pro F11, F12; qwen-max F1; gemma4 F1; gpt-oss F2): §5's cost disclosure states the
   pooled test will reject the null "MORE OFTEN" than nominal $\alpha$ under real intra-seed
   correlation, without stating a bound on how much more often; §8 item 4's per-seed diagnostic is
   recorded and reported but carries no decision-rule consequence — §5 states plainly that "the
   decision rule itself stays the plain pooled integer comparison regardless of what the diagnostic
   shows."
+  **Verdict: ADOPTED.** §5's cost disclosure names only the direction of the bias ("more often"), not its magnitude, and the per-seed diagnostic (§8 item 4) remains report-only despite three lanes independently arguing this is inadequate. Rev 2 (a) strengthens §5's cost-disclosure paragraph to state a concrete bound on the pooled test's worst-case anti-conservatism, *derived at design time from this design's own 6-seed/10-task structure* rather than transcribed from any single reviewer lane's own arithmetic (lane output is unverified reviewer data per D-07, not a citable source), and (b) folds the per-seed diagnostic into F-05's block-level concordance check so it carries the decision-rule consequence these findings correctly say it currently lacks.
 - F-07 (qwen-max F2): §5's cost disclosure names seed-pooling as a source of anti-conservative
   bias and separately names tie-discarding (Lane 5) as reducing $n_d$ and concentrating directional
   signal, but does not state whether or how the two sources compound when both apply to the same run.
+  **Verdict: ADOPTED.** a real, narrow precision gap: the two disclosed sources of anti-conservative bias (seed pooling, tie discarding) are each named separately but the design never states whether they compound. Rev 2 adds one sentence to §5 or §10 naming that both sources are independent risks that compound rather than being fully captured by either disclosure alone.
 - F-08 (gpt-sol-pro F6, F7): §5 interprets a W-SUPERIOR or B-SUPERIOR decision-rule outcome as
   evidence that the tournament search mechanism outperforms the unevolved baseline; §3 does not state
   whether this paired battery's own seeds, tasks, or generator distribution overlap with whatever data
   was used to select W among the tournament's candidate configurations, nor does it state that W's
   definition is fixed prior to this battery being drawn.
+  **Verdict: ADOPTED.** a real design gap: §3 pins W's identity descriptively but never states that W's definition is fixed before this battery is drawn, nor that the tasks/seeds used to select W among tournament candidates are disjoint from this battery's own six seeds — without that, the causal claim §5 licenses ("the tournament mechanism outperforms the baseline") is vulnerable to a winner's-curse-style bias the stated Binomial(n_d,0.5) null does not account for. Rev 2 adds an explicit statement to §3 that W's definition is frozen as a committed artifact before this battery's pairing units are drawn or seen by either arm, and that the data used to select W among the tournament's candidate configurations is disjoint from this battery's own seeds (1301-1306).
 - F-09 (gpt-sol-pro F8, F15): the decision rule's null concerns only the relative frequency of
   winning among discordant pairs; §10 discloses that the design detects direction, not magnitude, but
   does not separately state that a population in which both arms mostly fail (producing many
   concordant both-0 ties, which are discarded from $n_d$) can still yield a clean W-SUPERIOR or
   B-SUPERIOR label despite neither arm's absolute resolution accuracy being established.
+  **Verdict: ADOPTED.** §10 already discloses that the design detects direction, not magnitude, but that disclosure does not cover the distinct point this finding raises: because concordant both-0 ties are discarded from n_d along with concordant both-1 ties, a battery in which both arms mostly fail can still report a clean W-SUPERIOR or B-SUPERIOR verdict with no accompanying claim about either arm's absolute accuracy. Rev 2 adds an explicit sentence to §10 (or §5's decision-rule prose) stating that the verdict label reflects only relative frequency of winning among discordant pairs, never either arm's absolute resolution-match rate — closing this gap alongside the existing magnitude-blindness disclosure rather than duplicating it.
 - F-10 (gpt-oss F1): §5's null assumes each arm is equally likely to win a given discordant pair;
   the finding claims this assumption is invalid when the two arms have different overall rates of
   producing scoreable resolutions, because a higher overall scoreable rate changes the opportunities
   for ties and the effective probability that an observed win reflects true superiority.
+  **Verdict: REJECTED.** §5 already states the null hypothesis is conditional on a pairing unit being discordant ("W and B equally likely to win any given discordant pairing unit"), not on the arms' unconditional, marginal rates of producing a scoreable or matching proposal. This conditioning is precisely what makes the sign-test/McNemar construction robust to the two arms having different overall difficulty or scoreable rates: a difference in marginal rates changes *how many* pairs are discordant (already addressed, separately, by F-14's power critique of the 20-pair floor), not the validity of the 0.5 null among the discordant pairs that do occur. The finding conflates a real, already-adopted power concern with a validity concern §5's own text does not support.
 - F-11 (kimi-k3 F2): §9's 41-row critical-value table was spot-checked and found correct at every
   row checked, but the document names no regeneration script or drift-guard mechanism (contrasted with
   `DUALFIX-STUDY-PREREG.md`'s own `test/dualfix-study-prereg-sync.test.ts` precedent) that would catch
   a hand-transcription error in any of the 41 pinned integers once Phase 14 transcribes the table into
   code.
+  **Verdict: ADOPTED.** a legitimate, low-cost process-hygiene gap paralleling `DUALFIX-STUDY-PREREG.md`'s own drift-guard precedent. Rev 2's §9 adds a stated obligation that Phase 14's instrument code carry a drift-guard test (mirroring `test/dualfix-study-prereg-sync.test.ts`) that re-derives every c(n_d) value from §5's own combinatorial formula and checks it against the transcribed table, so a hand-transcription error in any of the 41 rows is mechanically caught rather than silently trusted.
 - F-12 (gpt-sol-pro F13; kimi-k3 F4; qwen-max F3; gpt-oss F3): §5 gives two reasons for rejecting
   the split-tie alternative — (1) a tie carries no directional information, and (2) splitting a tie
   would credit a fractional 0.5 win, reintroducing a non-integer value into $k_w$ that the decision
   rule's own integer-arithmetic discipline forbids. Doubling every count in the decision path
   (crediting each tie as exactly 1 in a doubled win count compared against a doubled critical-value
   table) keeps every quantity an exact integer throughout.
+  **Verdict: ADOPTED.** mathematically demonstrated false by three independent reviewers using the identical doubling-trick counterexample, in a document that stakes its own credibility on integer-arithmetic purity end to end. Rev 2's §5 drops the false "reintroduces a non-integer value" reason from the rejected-alternative paragraph, keeping only the valid evidential reason (a tie carries no directional information under this family's binary scoring) as the sole stated justification for discarding rather than splitting ties.
 - F-13 (gpt-sol-pro F14): §5 characterizes the split-tie alternative as "a stricter sign-test
   variant" of the adopted discard-tie rule, rather than as a procedure with a different estimand and a
   different null distribution from the adopted rule.
+  **Verdict: ADOPTED.** a real precision defect distinct from F-12: splitting ties changes the estimand and the null distribution, it is not the same exact test made "stricter." Rev 2's §5 rewords the rejected-alternative paragraph to describe split-tie handling accurately (a different estimand and null, not a stricter version of the adopted test) rather than mischaracterizing it as a stricter variant of the same procedure.
 - F-14 (gpt-sol-pro F16, F17; kimi-k3 F5; qwen-max F4; gpt-oss F4): §6 Clause 2's 20-discordant-pair
   floor and §9's provenance for that constant both state plainly that the value is reused from
   `DUALFIX_CORPUS_MIN_N` for house-convention consistency and is "not independently derived from a
@@ -686,9 +699,11 @@ finding ids in a merge:
   that floor actually provides against any stated plausible true discordant-win probability, nor does
   §7's canonization of an INDISTINGUISHABLE outcome as "a standalone, legitimate finding" distinguish
   a result landing near the floor from one landing near the battery's full size.
+  **Verdict: ADOPTED.** one of the most consequential findings in the panel: three independent reviewer calculations converge on the same qualitative conclusion — the 20-pair floor, reused from an unrelated study's convention, provides weak power against even large plausible true effects — and §7 currently canonizes any INDISTINGUISHABLE outcome as equally "a standalone, legitimate finding" regardless of how close n_d landed to the floor. Rev 2 reworks §6 Clause 2 and/or §9's provenance row to state the floor's own power profile, *derived at design time from the pinned critical-value table itself* against a small number of stated plausible true win-probabilities (not transcribed from any single reviewer lane's own arithmetic, which is unverified reviewer output per D-07), and adds a caveat to §7 that an INDISTINGUISHABLE result landing near the floor (n_d in the low 20s) carries markedly less evidential weight than one landing near the battery's full size (60).
 - F-15 (gpt-sol-pro F18): §3 describes W as "the tournament-selected winner agent definition"
   without naming a configuration identifier, an immutable artifact digest, a tournament commit, or a
   selected-agent hash that would pin which specific agent configuration W denotes at any given time.
+  **Verdict: ADOPTED.** a real gap: "the tournament-selected winner agent definition" names a role, not an artifact, leaving discretion to select or rerun W before the study while still claiming compliance with the "pinned" heading. Rev 2's §3 adds a requirement that W's specific selected configuration be recorded as a committed, hashable artifact (a config file with its own commit SHA) at the point the tournament concludes and before the paired battery runs.
 - F-16 (gpt-sol-pro F19, F20; kimi-k3 F6; gemma4 F2; gpt-oss F5): §3 describes B as "the
   configuration a human would hand-write without running the tournament machinery" and "the best a
   human would write without the tournament," rejecting the s0-minimal floor arm as too weak a
@@ -696,12 +711,14 @@ finding ids in a merge:
   deadline, a requirement that B be written before W's tournament output is observed, or a requirement
   that B reflect ordinary competitive human prompt-engineering effort rather than a first-draft
   minimum.
+  **Verdict: ADOPTED.** the single most load-bearing arm-identity finding in the panel, raised independently by four of five lanes — kimi-k3's own framing ("the single most important fairness property of the comparison rests entirely on the author's say-so") is accurate on the current text. Rev 2's §3 adds concrete pinning requirements for B: a committed artifact (config/prompt text) with a named author and a commit timestamp that precedes the tournament run producing W (closing the temporal-precedence gap), plus a stated competence requirement that B reflect ordinary human prompt-engineering effort, distinguishing it in substance, not merely in prose, from the already-rejected s0-minimal floor arm.
 - F-17 (gpt-sol-pro F21): §3 names "the presence or absence of the component-tournament search" as
   the one axis deliberately left to differ between W and B, holding every other axis (model, timeout,
   prompt-length bound, attempt discipline, scoring path) constant; "presence or absence of search"
   itself bundles several sub-factors — the number of candidate configurations evaluated, the compute
   spent, and the opportunity for iterative refinement — that W's arm receives and B's arm does not,
   under that single named axis.
+  **Verdict: ADOPTED.** a real, if narrower, gap: §3 correctly names "presence or absence of search" as the one axis held deliberately different, but that label bundles several sub-factors (candidate-evaluation count, compute spent, iterative-refinement opportunity) any of which could independently contribute to a measured difference. Rev 2 adds a disclosure to §3 naming this bundling explicitly as a stated limitation of the two-arm design, rather than resolving it by adding a third arm (out of scope for this paired design).
 - F-18 (gpt-sol-pro F22, F23): §2's four-axis mapping reads task semantics, oracle implementation,
   and parser/scoring machinery as "substantively different," attributing the difference to the
   vertical, task object, oracle mechanism, and scoring path all changing between the barred hypothesis
@@ -710,6 +727,7 @@ finding ids in a merge:
   to a different vertical, and the mapping does not separately state what, if anything, distinguishes
   a genuine substantive difference in mechanism from an inevitable engineering difference produced
   merely by changing the vertical.
+  **Verdict: REJECTED.** engaged on the merits, not on scope, per the plan's own prohibition on scope-rejecting a substance-drift finding. `RECOMMENDATION.md` §2's own already-adjudicated mapping — itself panel-reviewed via `BI-BATTERY-DESIGN.md`'s F-27 disposition — establishes the correct standard: three axes reading "substantively different" clears the bar only when the object under test, the check performed, and the failure modes available differ *in kind*, not merely in which vertical's content wraps them, and explicitly warns against "the same question asked about different data" as the exact failure mode this finding names. §2's table here satisfies that in-kind standard on inspection: the oracle axis changes from an execution-plus-interpreter-recomputation mechanism (data-ops/bi-analytics) to a replay-match mechanism with no execution or interpreter step at all — a difference in mechanism class, not merely vertical content — and the parser/scoring axis correspondingly has no fenced-parser or query-diff machinery at all. The residual concern this finding correctly gestures at — that the underlying treatment comparison (search vs. no-search) is unchanged across verticals — is real, but it is axis 4's job to carry that weight, not axes 1-3's; that gap is where F-19 (ADOPTED) lands.
 - F-19 (gpt-sol-pro F24; kimi-k3 F7): §2's promotion-gate-role axis states this design is "not a
   promotion gate" for `customer-support`'s admission, because `VERTICAL_ADMISSION`'s verdict for
   `customer-support` stays `pending` regardless of this study's outcome and because admission is "Phase
@@ -717,58 +735,70 @@ finding ids in a merge:
   own explicit clause stating no verdict from that study feeds any gate, this document contains no
   comparable clause stating that no verdict from this study may be cited as evidence in Phase 14's
   REQ-68 admission decision.
+  **Verdict: ADOPTED.** the panel's own strongest substance-drift finding, and the one that actually closes the residual gap F-18's rejection identifies. Unlike `DUALFIX-STUDY-PREREG.md` §2's own explicit "no verdict here feeds such a gate" clause, this document asserts axis 4's "not a promotion gate" clearance with no comparable prohibition, and the surrounding workflow (REQ-69's paired round immediately precedes REQ-68's admission decision for the same pending vertical) makes citation a live risk, not a hypothetical one. Rev 2 adds an explicit clause to §2, mirroring `DUALFIX-STUDY-PREREG.md` §2's own precedent verbatim in spirit, stating that no verdict from this study (W-SUPERIOR, B-SUPERIOR, or INDISTINGUISHABLE) may be cited as evidence in Phase 14's REQ-68 `customer-support` admission decision.
 - F-20 (gpt-sol-pro F25): §§1, 2, and 4 repeatedly describe the pairing units as "historical
   support tickets" with "historical resolutions," while §4 discloses that both the ticket text and its
   resolution are composed by the same seeded generator, before either arm sees the ticket — not
   replayed from an independently recorded historical outcome.
+  **Verdict: ADOPTED.** §4 already discloses that both the ticket text and its resolution are composed by the same seeded generator, not replayed from an independently recorded historical outcome, while §1's and §4's own prose repeatedly calls the tasks "historical support tickets." Rev 2 rewords this framing prose to describe the tasks as constructed *in the shape of* a replay-checkable historical ticket — preserving §1's own replay-checkable-subset task-shape argument that the admission-path selection rests on — rather than asserting literal historical replay the construction method does not perform. `vertical-admission.ts`'s own inherited "replay + construction" oracle-class label is left untouched; amending that source-level label is Phase 14's REQ-68 obligation, not this document's.
 - F-21 (gpt-oss F6): §2's four-axis mapping concludes the exclusion of `data-ops`/`bi-analytics`
   holds on substance; the finding states that a pairwise win-loss comparison of a prompt-search agent
   (W) against a hand-written baseline (B) is, on its face, the shape of the hypothesis §6/§10 bar, and
   that changing the vertical does not change that shape.
+  **Verdict: REJECTED.** engaged on the merits: this finding restates the barred hypothesis's shape (prompt-search vs. hand-written baseline compared pairwise) without engaging §2's own four-axis mapping at all — no claim is made about why the mapping's specific "substantively different" verdicts on task semantics, oracle implementation, or parser/scoring machinery are wrong, and it does not address axis 4 either. F-18's disposition (above) shows the mapping's in-kind standard holds on inspection, and F-19's adoption closes axis 4's real gap; a bare assertion that the pairwise shape alone is disqualifying, without addressing what the mapping actually claims or where its real weakness lay, does not survive contact with §2's own reasoning.
 - F-22 (kimi-k3 F8): §7's one-shot termination applies uniformly to any breach of §6's three
   clauses, with no distinction drawn between a pairing unit that failed because an arm's own attempt
   failed and one that failed because the single local inference slot itself faulted (connection
   refused, process kill, server restart); `DUALFIX-STUDY-PREREG.md` §6 names a distinct harness-fault
   category (`onceWithHarnessRetry`) that is retried once before counting against that document's own
   drop-budget ceiling, and this design does not carry a comparable carve-out.
+  **Verdict: ADOPTED.** a serious operational-risk finding with a clear, directly analogous precedent already in this project's own codebase. Rev 2 adds a harness-fault carve-out to §6/§7 mirroring `DUALFIX-STUDY-PREREG.md` §6's `onceWithHarnessRetry` discipline — a distinguishable "harness/infrastructure fault" category (connection refused, server restart, process kill) that is retried once before counting toward Clause 1 or Clause 3's drop-budget ceilings, so a single transient inference-slot fault cannot alone trigger this instrument line's permanent, one-shot termination.
 - F-23 (gpt-sol-pro F26, F33; kimi-k3 F9): §8 item 1 states "if the observed tie rate reaches or
   exceeds 40 of the 60 pairing units (66.7%), this design is disclosed IN ADVANCE as likely
   UNDERPOWERED: a tie rate at or above that level leaves fewer than 20 discordant pairs"; §9's
   provenance for the same 40 constant states it is derived as "60 − 20, the arithmetic complement of
   the Clause 2 discordant-pairs floor." A tie count of exactly 40 leaves exactly 20 discordant pairs,
   which is Clause 2's floor value itself, not a count below it.
+  **Verdict: ADOPTED.** a clean, unambiguous arithmetic error, independently caught by two reviewers and propagating into §9's own provenance for the same constant: exactly 40 ties leaves exactly 20 discordant pairs, which *meets*, not fails, Clause 2's floor — only 41 or more ties leaves fewer than 20. Rev 2 corrects §8 item 1 and §9's matching provenance row from "40" to "41" as the first tie count that actually leaves fewer than 20 discordant pairs.
 - F-24 (gpt-sol-pro F27, F32): §8 item 3 defines the per-arm dominant-failure-mode threshold as a
   rate — "resolution-mismatch rate (excluding no-artifact/non-scoreable)" — but expresses the trigger
   as a fixed count, "54 of 60 attempts (90%)"; if any attempts for that arm are excluded from the rate
   as the definition states, the relevant denominator is that arm's own count of scoreable attempts,
   not 60, and the two readings can produce different disclosures. §9's provenance for the same
   constant restates the fixed-count reading.
+  **Verdict: ADOPTED.** a genuine internal inconsistency: §8 item 3 defines its threshold as a rate excluding no-artifact/non-scoreable attempts, then expresses the trigger as a fixed count (54 of 60) that silently assumes zero such exclusions. Rev 2 reworks §8 item 3 and §9's matching provenance row to state the threshold consistently as a rate over that arm's own scoreable attempts (e.g. "90% or more of that arm's own scoreable attempts"), removing the fixed-count framing.
 - F-25 (gpt-sol-pro F28; kimi-k3 F10): §8 item 3 is stated as "a disclosure, not a qualification
   gate" — §6 does not gate on the resolution-mismatch-rate number, and no other section states a
   required consequence (a verdict qualifier, a mandated annotation on the reported result, or a
   sensitivity re-computation) that follows once the threshold is reached.
+  **Verdict: ADOPTED.** a legitimate "decorative disclosure" critique, matching the same pattern §8 item 4 has (already given real consequence via F-05's fix). Rev 2's §8 item 3 gains a stated consequence: a breach requires the completed run's reported result to carry an explicit oracle-discrimination caveat, rather than remaining purely informational with no required annotation on the verdict.
 - F-26 (gpt-sol-pro F29): §8 item 4 requires the six per-seed discordant win/loss counts to be
   "recorded and reported," described as letting a reviewer "inspect whether the pooled result is
   driven disproportionately by one or two seeds"; the item does not state a numeric heterogeneity or
   dominance threshold, or any other checkable rule, for what "disproportionately" means.
+  **Verdict: ADOPTED.** folded into F-05's edit: once the per-seed diagnostic becomes an input to F-05's block-level concordance check, "disproportionately... one or two seeds" is replaced by a checkable comparison (block-level majority direction against the pooled decision) rather than remaining a visual-impression-only disclosure; no separate numeric heterogeneity threshold is needed beyond that fix.
 - F-27 (gpt-sol-pro F30; kimi-k3 F11): §9's table is introduced as covering "every constant §3
   through §8 rely on"; §3 names the model digest, the timeout, and the prompt-length bound as pinned
   and identical across both arms, and separately names the one-attempt-per-arm discipline; none of
   these has a corresponding row with a literal value and provenance in §9. §9's own closing sentence
   states "a constant used above and missing here is the defect this table exists to catch; none is
   left out."
+  **Verdict: ADOPTED.** real, concrete traceability gaps that falsify §9's own closing completeness claim as written. Rev 2's §9 adds rows for the model digest, the timeout, and the prompt-length bound (each declared "pinned" and "identical across arms" in §3) and the one-attempt-per-arm discipline, so §9's own closing sentence ("a constant used above and missing here is the defect this table exists to catch; none is left out") becomes true rather than falsified at rev 1.
 - F-28 (qwen-max F5): the literal constant `40` (the reciprocal of the per-tail significance level,
   1/0.025) appears directly in §5's combinatorial condition for the critical-value table and in §9's
   own provenance text for that formula, without its own row in the §9 constants table.
+  **Verdict: ADOPTED.** a narrow, mechanical, cheap fix consistent with §9's own stated completeness discipline. Rev 2 adds a row to §9 for the literal constant 40 (1/0.025, the per-tail-significance-level reciprocal used directly in §5's combinatorial formula and in §9's own provenance text for the critical-value table).
 - F-29 (gpt-sol-pro F31): §9's provenance for $\alpha = 0.05$ reads "cited: the standard two-sided
   sign-test significance level"; the significance level is a value this design chooses, not a
   mathematical consequence the sign-test framework forces, and no specific external source is named
   for the word "standard."
+  **Verdict: ADOPTED.** a legitimate honesty-of-labeling point, consistent with the `cited:`/`derived:` provenance discipline §9 itself sets up elsewhere in the same table. Rev 2 relabels §9's provenance for alpha=0.05 from "cited: the standard two-sided sign-test significance level" (which implies an external source) to an honestly-labelled chosen conventional value, matching how the design already labels its other non-derived design choices.
 - F-30 (gpt-sol-pro F34): §4 states that the answer-first construction pattern establishes the
   ground truth "does not depend on, or [is] influenced by, either arm's own attempt" and that the
   oracle "shares zero helper functions" with either arm's resolution-construction path; the same
   generative system (the seeded generator) composes the known-correct resolution, derives the ticket
   from that resolution, and supplies the state the oracle checks proposed resolutions against.
+  **Verdict: REJECTED.** §4's own "What this independence does not cover" paragraph already states this precisely, in as many words: "Independence is also not claimed over the DATA SOURCE: both the resolution-composition step and the match-evaluation step read the same seed's generated ticket state — independence is claimed in computation, never in data provenance." The finding asks the document to disclose exactly what it already discloses; no rev-2 edit is needed because the described gap does not exist in the frozen text as written.
 - F-31 (gpt-sol-pro F35; gpt-oss F7): §4's own "What this independence does not cover" paragraph
   discloses that the same generator that composes the known-correct resolution also renders the
   customer-facing ticket text from that resolution's semantics, and that a bug in that shared
@@ -776,6 +806,7 @@ finding ids in a merge:
   derived from; §4 states this gap "is named here, not closed by this design" and defers a fidelity
   check to "Phase 14's own generator obligation," without stating how a malformed or ambiguous
   generated task would be detected, excluded, or counted once Phase 14 builds that check.
+  **Verdict: REJECTED.** §4 already carries the identical remedy `BI-BATTERY-DESIGN.md` §3's own analogous rendering/fidelity gap received when the same shape of finding (kimi-k3 F6 in that panel) was adjudicated ADOPTED there: a named, disclosed gap deferred to the next phase's own generator-fidelity obligation, not a fully operationalized detection/exclusion rule pinned at prereg-freeze time. This design's §4 text ("This gap is named here, not closed by this design; Phase 14's own generator obligation must add whatever fidelity check closes it") already matches that precedent's accepted level of specificity; asking for more here than the house precedent itself required at the equivalent stage is not a defect unique to this document.
 - F-32 (kimi-k3 F12): if the generator's shared rendering step (§4's own disclosed gap, above)
   leaves surface regularities in ticket phrasing that correlate with the resolution's structured
   fields (a templated phrasing per resolution category, for example), an arm could score a match by
@@ -783,14 +814,17 @@ finding ids in a merge:
   of the rendering-fidelity gap does not separately state whether W — having been tournament-selected
   against batteries drawn from the same generator family — would be differently positioned than B to
   exploit such regularities, were they to exist.
+  **Verdict: ADOPTED.** the single most sophisticated and novel finding in the panel: genuinely new content beyond §4's existing rendering-fidelity disclosure, directly implicating the fairness of the W-vs-B comparison rather than merely the oracle's correctness. Rev 2's §4 adds an explicit addition to the existing rendering-fidelity disclosure naming the asymmetric-exploitability risk — that W, having been tournament-selected against batteries drawn from the same generator family, may be systematically better positioned than a hand-written B to learn and exploit generator-tell regularities rather than genuine task competence — and states that Phase 14's already-named fidelity-check obligation must specifically test for and report this asymmetry, not only generic rendering bugs.
 - F-33 (gpt-sol-pro F36, F38): §4's replay-match oracle compares a candidate's proposed resolution
   against the known resolution's "action taken, resolution category, and any resolution-specific
   parameter," calling this a "structured match"; §4 does not state what counts as a match at that
   structured-field level (exact string equality, normalized equality, or set inclusion, for example),
   nor does it name an extraction grammar, ambiguity rule, or precedence rule governing when a raw
   response is classified as scoreable (§4 categories 1–2) versus not.
+  **Verdict: ADOPTED.** a real, decisive gap in the oracle's own most consequential mechanism: the structured-match "equivalence" the oracle applies is never defined at the field level, and no extraction grammar or ambiguity/precedence rule constrains how a raw response is classified as scoreable. Rev 2's §4 pins the structured-match equivalence rule (e.g. normalized string/category-set equality with a stated tolerance, mirroring §3's own equal-treatment-invariant discipline) rather than leaving it to Phase 14's undefined discretion, and adds a stated extraction contract for the scoreability classification (§4 categories 1-2) so two implementers would classify a raw response identically.
 - F-34 (gpt-sol-pro F37): §4's oracle scores a proposed resolution as matching or not matching the
   generator's own single pinned resolution tuple for that ticket; the finding states that a real
   support ticket can admit more than one effective resolution, parameterization, or action, and that
   exact matching to the generator's own chosen tuple does not, on its own, establish that a
   differently-worded but equally valid resolution would be scored as correct.
+  **Verdict: REJECTED.** by the answer-first construction pattern this design mirrors from `BI-BATTERY-DESIGN.md` §1 and the data-ops fixture warehouse (both already-accepted house precedents), correctness is defined relative to the synthetic generator's own pinned resolution for that specific constructed task, not as a claim about every possible valid resolution a real-world ticket might admit — the generator composes exactly one ground truth before the ticket exists, so "correct" is, by construction, the answer this task was built to have, exactly as a fixture warehouse's known-answer query set works. Demanding equivalence classes for alternate real-world resolutions imports a real-world-ambiguity requirement this synthetic, construction-scoped design was never claiming to model, and no house precedent (data-ops or bi-analytics) requires it either.
