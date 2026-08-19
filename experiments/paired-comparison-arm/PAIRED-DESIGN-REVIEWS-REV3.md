@@ -39,6 +39,386 @@ named it, in fact, entirely independently since no lane saw another lane's outpu
 is itself notable: it is recorded here as a fact about the panel's composition, not adjudicated as a
 finding requiring a fix — that determination belongs to 15-04.
 
+## Adjudication ledger (Plan 15-04)
+
+**Disposition — raw 54, merged into 31 global findings, ADOPTED: 26, REJECTED: 5 (26+5=31).**
+Reconciling arithmetic: every one of the 54 raw findings numbered above (14 gpt-sol-pro + 12
+kimi-k3 + 10 qwen-max + 7 gemma4 + 11 gpt-oss = 54) is absorbed into exactly one of the 31 global
+findings below (GF-01 … GF-31); each global finding's "Absorbs" line names every raw finding it
+closes. No raw finding appears in more than one global finding, and none is left unabsorbed — the
+per-lane counts below are mechanically checkable against the per-lane totals fixed in the Summary
+above (14/12/10/7/11).
+
+Every rejection below names the specific reason on the merits (a stated precedent, an already-frozen
+disclosure, a demonstrated statistical error in the finding's own proposed mechanism, or a
+demonstration that the finding's premise is refuted by an adopted sibling finding) — never effort,
+cost, or schedule. Every adoption states the concrete change §12 must carry; Task 3 (this plan)
+applies exactly these changes and no other.
+
+### Lane 1 — the model swap's own evidence
+
+**GF-01 — Calibration evidence is marginal/single-arm accuracy, not W-vs-B joint evidence, and does
+not test transfer of W's qwen3.6-evolved strategies to gpt-oss.**
+Absorbs: gpt-sol-pro F1, qwen-max F1, gpt-oss F1, gemma4 F1.
+Restatement: the dry-run measures the model's own task accuracy under six configurations; it says
+nothing about the joint/correlated outcome distribution between W and B (which determines the
+discordant-pair rate, not either arm's marginal accuracy alone), and nothing about whether W's
+tournament-evolved-on-`qwen3.6` strategies transfer to `gpt-oss:latest` at all.
+**Verdict: ADOPTED.** §12 must add an explicit disclosure, alongside the existing calibration
+citations, stating plainly that the dry-run establishes only that `gpt-oss:latest` is not saturated
+on this family — it is not evidence about the W-B joint distribution or about W's own transfer, both
+of which remain unmeasured assumptions the harvest arithmetic (GF-06/GF-08 below) depends on.
+
+**GF-02 — Calibration figures are drawn from six perturbation variants, not the plain battery with
+B's fixed prompt; C4's 100% suggests possible saturation; §12 does not pin which configuration the
+paired round actually runs under.**
+Absorbs: kimi-k3 F1, qwen-max F5.
+**Verdict: ADOPTED.** §12 must state explicitly that the paired round's own task prompt is rev-2's
+unmodified §4 construction — not any of C0–C6 — and that C0–C5's range (70%–100%) is disclosed as
+the observed spread across diagnostic variants, not a plain-battery estimate; C4's 100% is named as
+the most saturated observed configuration, not the one the paired round runs under.
+
+**GF-03 — C6's 10/10 used a different, explicit output-contract prompt than C0–C5; it does not show
+the tournament search can discover or generalize an equivalent repair, and (since the equal-treatment
+invariant requires one identical prompt per arm) does not establish the "format near-miss" diagnosis
+for the prompt the paired round will actually use.**
+Absorbs: gpt-sol-pro F2, qwen-max F2.
+**Verdict: ADOPTED.** §12 must state explicitly that C6 is diagnostic evidence about the *failure
+mode* (format vs. arithmetic) only — it is not a proposed prompt for either arm, both of which keep
+rev-2's own unmodified §4 prompt unchanged by this amendment — and that whether tournament search
+itself discovers or generalizes an equivalent repair is the paired round's own open question, not
+something C6 answers in advance.
+
+**GF-04 — Calibration data comes from the same generator family used to select the executor and the
+targeted failure modes; an untouched calibration set or registered replication is needed before
+treating the gradient as support for a multi-day run.**
+Absorbs: gpt-sol-pro F3.
+**Verdict: REJECTED.** The calibration dry-run's stated purpose (§12's own framing) is a narrow,
+binary saturation check, not a fine-grained failure-mode profile driving a hidden design lever — the
+one lever it did inform (C6's prompt) is disclosed as diagnostic-only by GF-03's adoption, not a
+silently-adopted design choice. Generator-family familiarity between a calibration check and the
+family it calibrates against is not unique to this amendment: every prior study in this project
+(`DUALFIX-STUDY-PREREG.md`, `BI-BATTERY-DESIGN.md`) calibrated its own instrument against its own
+generator family without a fresh-untouched-set requirement, and this finding does not name a reason
+this instance is different in kind. Requiring an untouched replication here, uniquely, would be a new
+house-convention bar this project has never applied anywhere else — rejected on that precedent
+absence, not on the cost of gathering it.
+
+**GF-05 — `gpt-oss:latest`'s dual role (proposed rev-3 executor and a reviewer lane on this panel) is
+not disclosed anywhere in §12's own text.**
+Absorbs: gpt-sol-pro F4, kimi-k3 F2, qwen-max F3, gemma4 F2, gpt-oss F2.
+**Verdict: ADOPTED.** Five of five lanes raised this independently. §12 must add an explicit
+disclosure paragraph naming the dual role, mirroring the disclosure already written into this panel
+record's own Summary section above.
+
+### Lane 2 — the battery-widening arithmetic
+
+**GF-06 — The harvest figures (~18 at 60, ~27 at 90) are asserted, not derived from any measured
+joint/correlation structure, and no target assurance probability is stated.**
+Absorbs: gpt-sol-pro F5, kimi-k3 F4, gpt-oss F3.
+**Verdict: ADOPTED.** §12 must add a design-time-computed disclosure of `P(n_d ≥ 20)` under the
+stated ≈30% discordance assumption, mirroring §6 Clause 2's own power-table precedent (a design-time
+binomial-tail computation, not a data-time one): at the assumed point estimate `p=0.30`,
+`P(Bin(90,0.30) ≥ 20) ≈ 96.1%`, versus `P(Bin(60,0.30) ≥ 20) ≈ 33.1%` at the old battery size — and,
+disclosed for honesty against a pessimistic assumption, even at `p=0.20`, 90 units yields `≈33.8%`
+versus `≈1.1%` at 60. This is the concrete assurance-probability figure the finding correctly says is
+missing, computed once at design time and stated as a disclosure, not a guarantee.
+
+**GF-07 — The harvest expectation assumes independence across seeds immediately after §5 names seed
+clustering as a live threat to the *decision rule*; no equivalent block-level treatment is applied to
+the *harvest/qualification* risk.**
+Absorbs: gpt-sol-pro F6.
+**Verdict: ADOPTED.** §12 must add a disclosure that the harvest estimate (GF-06) assumes discordance
+is roughly uniform across seed blocks; if discordance concentrates unevenly across seeds, the actual
+harvest may diverge from the point estimate even though the block-level concordance check (§5,
+unchanged) defends the *decision rule* against exactly that concentration — the two are different
+defenses against different risks, and §12 should not let the concordance check's existence imply the
+harvest arithmetic is also protected.
+
+**GF-08 — The discordance-rate assumption depends on the W–B joint/correlation structure specifically
+on `gpt-oss:latest`, which is entirely unmeasured.**
+Absorbs: qwen-max F4.
+**Verdict: ADOPTED.** §12's floor-margin-arithmetic bullet must state plainly that the ≈30%
+discordance-rate assumption is exactly that — an assumption under an implicit near-independence
+structure, not a measured correlation — cross-referencing GF-01's disclosure rather than re-deriving
+a second one.
+
+**GF-09 — If W is only marginally better than B (not near-perfect), the harvest would be larger, not
+smaller, than ~27; the widening to 90 might be excessive rather than insufficiently justified.**
+Absorbs: gemma4 F3.
+**Verdict: REJECTED.** This reverses the design's actual risk direction: the qualification floor
+(§6 Clause 2) is a *minimum*, and any harvest at or above it clears the gate — a larger-than-expected
+harvest only increases power and never triggers `TERMINATED-UNDERPOWERED`. The finding does not
+identify a threat to any pin, clause, or disclosure in this design; the risk it should be read as
+gesturing toward (an *under*-harvest) is the one GF-06/GF-07/GF-08 already correctly identify and
+adopt disclosures for.
+
+### Lane 3 — the three recomputed values
+
+**GF-10 — The three recomputed values (72/90, 9/90, 71/90) are correctly derived; no defect found.**
+Absorbs: gpt-oss F4.
+**Verdict: REJECTED.** The finding raises no defect and proposes no change — nothing to adopt.
+Recorded as confirming the recomputation is correct, consistent with the other four lanes'
+independent "No findings" verification on this lane.
+
+### Lane 4 — the widened critical-value table
+
+**GF-11 — No audit or test demonstrates every row of the widened 71-row table (beyond the shared
+20–60 range) satisfies the combinatorial condition; lane spot-checks are not a substitute.**
+Absorbs: gpt-oss F5.
+**Verdict: ADOPTED.** Confirmed as a real gap on inspection: `test/paired-rev3-derivation.test.ts`
+proves the *derivation function* `deriveRev3Table()` is internally correct and matches the frozen
+rev-2 table on the shared range, but nothing currently reads §12's own hand-transcribed 71-row
+markdown table off disk and checks it, row by row, against that derivation for the widened range
+(61–90) — the exact hand-transcription-error risk §9's own drift-guard provenance row names for the
+rev-2 table. Task 3 adds a new test (`test/paired-rev3-table-drift.test.ts`, a Rule-2 addition: a
+missing-critical-functionality gap, not a scope expansion of §1–§11) binding §12's own transcribed
+table to `deriveRev3Table()` for all 71 rows, mirroring `test/paired-critical-value-drift.test.ts`'s
+existing pattern for §9.
+
+### Lane 5 — open decision 1: the seed-block shape
+
+**Settled: 9 blocks of 10 tasks each, six-of-nine concordance agreement threshold** — the panel's
+own convergence (four of five lanes engaging this lane preferred 9×10; the fifth, gpt-oss, preferred
+a stricter, unelaborated 7-of-9 without a worked bound), strengthened by the findings below.
+
+**GF-12 — The draft's "zero gate-code change" framing of the 6×15 alternative understates a real
+statistical/practical cost (per-seed dominance under partial correlation, a larger design effect
+`1+14ρ` vs. `1+9ρ`, fewer independent blocks, and downstream scheduling/timeout impact).**
+Absorbs: gpt-sol-pro F7, kimi-k3 F7, qwen-max F6, gemma4 F4, gpt-oss F7.
+**Verdict: ADOPTED.** Five lanes converge on this. §12's 6×15 bullet must be rewritten to name the
+real cost (design-effect inflation under partial correlation, larger per-seed dominance, breaking
+house convention) rather than presenting "zero gate-code change" as the option's only cited property.
+
+**GF-13 — The 50.78% vs. 68.75% comparison is presented as a safety improvement, but the block-level
+concordance check is vacuous at the exact perfect-correlation collapse case under *both* options (it
+can never downgrade the ceiling case) — the "lower bound" framing should be corrected, not celebrated.**
+Absorbs: kimi-k3 F6.
+**Verdict: ADOPTED.** §12's 9×10 bullet must be corrected to state that the concordance check cannot
+downgrade the exact perfect-correlation collapse case under either seed-block shape, so the design's
+real comparative advantage is the per-seed-dilution argument (GF-12), not the bound magnitude itself.
+
+**GF-14 — Increasing the seed count from 6 to 9 increases the number of draws that could include an
+anomalous ("poison") seed, a risk distinct from the perfect-correlation collapse case already bounded.**
+Absorbs: gemma4 F5.
+**Verdict: ADOPTED.** §12 must add this as a disclosed, named risk of increasing seed count,
+alongside — not in place of — the existing perfect-correlation worst-case-bound disclosure.
+
+**GF-15 — 9×10's 6-of-9 threshold has a stricter false-concordance probability under the null
+(one-sided `P(X≥6)` under `Binomial(9,0.5))` than rev-2's 4-of-6 (`P(X≥4)` under `Binomial(6,0.5))`) —
+an additional conservatism argument for 9×10 the draft could name but does not.**
+Absorbs: qwen-max F7.
+**Verdict: ADOPTED**, figures independently re-verified rather than trusted from the lane's own
+arithmetic: `P(Bin(9,0.5)≥6) = 130/512 ≈ 25.39%` versus `P(Bin(6,0.5)≥4) = 22/64 ≈ 34.38%` — both
+confirmed by direct exact-integer computation. §12 must add this figure to the 9×10 recommendation as
+a supporting data point.
+
+**GF-16 — The 6-of-9 threshold is asserted without justification; a stricter 7-of-9 threshold would
+reduce risk.**
+Absorbs: gpt-oss F6.
+**Verdict: REJECTED.** §12 already states its rationale explicitly (preserving the same fraction
+rev-2's own already-reviewed 4-of-6 ≈ 66.7% threshold used) — the finding's claim that no
+justification is offered is factually incorrect. The finding proposes 7-of-9 without deriving its own
+worst-case bound or false-concordance rate for comparison, so no evidence is offered that 7-of-9 is
+actually better; the four lanes that engaged this decision with worked arithmetic (GF-12–GF-15,
+adopted) converge on 6-of-9 with additional, verified support (GF-15's 25.4% figure), which this
+isolated, unelaborated preference does not out-argue.
+
+### Lane 6 — open decision 2: the near-floor evidential-weight bound
+
+**Settled: re-derive the bound to 25, via a power-anchored criterion — the smallest `n_d` at which
+power against a stated plausible true discordant-win probability (`p=0.70`, the same reference
+probability §6 Clause 2's own power table already uses) first reaches 50%, computed directly from the
+pinned `c(n_d)` table.** Independently computed (not trusted from any lane's own arithmetic):
+`P(Bin(24,0.70)≥18) ≈ 38.9%`, `P(Bin(25,0.70)≥18) ≈ 51.2%` — 25 is the first `n_d` at which this
+crosses 50%. This criterion is a function of `n_d` and the pinned critical-value table alone; it
+never references the battery's total capacity (60 or 90), which is exactly kimi-k3 F8's
+battery-invariance argument, landed at a concrete number via qwen-max F8's power-anchoring approach
+(power itself is not perfectly monotonic in `n_d`, since `c(n_d)` steps unevenly — the "first
+crossing" convention is used deliberately, matching the existing house practice of anchoring §6
+Clause 2's own power table to two representative points rather than requiring strict monotonicity).
+
+**GF-17 — Neither the draft's recommended default (24) nor the counter-argument (34) is anchored to
+the evidentially relevant quantity — the sign test's own power at the observed `n_d`, a function of
+`n_d` alone, not of how much larger the full battery has become.**
+Absorbs: gpt-sol-pro F8, kimi-k3 F8.
+**Verdict: ADOPTED.** This is the correct framing and the basis for the settled value above; §12 must
+replace both proposed rationales with the power-anchored derivation.
+
+**GF-18 — The bound should be re-anchored proportionally to ≈34 (a fixed fraction of the widened
+floor-to-90 range), since 24 now represents a much smaller fraction of the available range than it
+did under rev-2.**
+Absorbs: gemma4 F6, gpt-oss F8.
+**Verdict: REJECTED.** This finding's own mechanism — scaling the bound as a fraction of total battery
+capacity — is exactly the premise GF-17 (adopted, above) demonstrates is statistically unsound: power
+at a given `n_d` does not depend on the size of the battery that produced it. Rejected because the
+proposed mechanism is refuted by an adopted sibling finding, not because re-deriving it is costly.
+
+**GF-19 — A power-anchored value (qwen-max's own worked figure, ~25–28 at `p=0.70`) sits between the
+draft's two proposed values and should be considered as a third, principled option.**
+Absorbs: qwen-max F8.
+**Verdict: ADOPTED.** This is the approach the settled value above uses; the final figure (25) is
+independently re-verified rather than taken from the lane's own approximate arithmetic (which
+reported ~25–28 without pinning the specific first-crossing definition used here).
+
+### Lane 7 — what this amendment does not touch, verified rather than assumed
+
+**GF-20 — Equal-treatment pins deferred to Phase 14 (timeout, prompt-length bound) were calibrated
+for `qwen3.6:latest`; §12 does not state they must be re-examined for `gpt-oss:latest`.**
+Absorbs: gpt-sol-pro F9, kimi-k3 F9, gemma4 F7, gpt-oss F10.
+**Verdict: ADOPTED.** §12 must add a disclosure naming a new deferred obligation: the timeout and
+prompt-length-bound rows (§9) must be re-examined, and re-pinned if inadequate, for
+`gpt-oss:latest`'s own latency/context-window behavior at or before the rev-3 instrument commit —
+mirroring Phase 14's original pinning obligation — before any rev-3 probe, search, or paired run.
+
+**GF-21 — The battery widening increases total arm-attempts by 50% (120→180), increasing cumulative
+harness-fault exposure against the single local inference slot over a longer run; §12 does not
+discuss this.**
+Absorbs: qwen-max F9.
+**Verdict: ADOPTED.** §12 must add an operational-exposure disclosure naming the 50% increase in
+total arm-attempts and its compounding effect on this project's own long-inference-operational-risk
+concern (`.planning/STATE.md` Blockers/Concerns) — disclosed, not gated: the harness-fault carve-out
+(§6, unchanged) already handles each unit's own exposure individually.
+
+**GF-22 — §12's framing that battery construction changes "only in size" is inaccurate: the
+seed-block-shape decision changes block topology and the concordance-gate threshold, which are
+structural/dependence changes, not merely a size change (vs. gpt-oss's own "no hidden side effects"
+reading of this same lane).**
+Absorbs: gpt-sol-pro F10, gpt-oss F9.
+**Verdict: ADOPTED**, on gpt-sol-pro's reading — the more substantively correct one, independently
+corroborated by kimi-k3 F10/qwen-max F6's own observations about the block-topology change elsewhere
+in the panel. §12 must state explicitly that battery construction changes in *both* size and block
+topology/concordance-gate threshold (per the settled seed-block-shape decision above), not merely a
+larger version of the same shape. gpt-oss F9's "no hidden side effects" reading is correct for the
+four *genuinely* untouched surfaces §12 already lists (oracle, generator, pairing-unit discipline,
+`VERTICAL_ADMISSION`) — those stay disposed of as accurate — but does not extend to the battery
+construction's own characterization, which this adoption corrects.
+
+**GF-23 — The oracle's extraction contract is unchanged, but the model swap changes which failure
+surface it actually sees (extraction-contract near-misses); a W-SUPERIOR/B-SUPERIOR verdict may
+partly reflect differential extraction-contract brittleness rather than capability, and §8 item 3's
+90%-mismatch ceiling would not catch a moderate-rate version of this.**
+Absorbs: kimi-k3 F10.
+**Verdict: ADOPTED**, as a disclosure — this is the panel's closest approach to a substance-adjacent
+finding (does the amendment change *what* is measured, not just *how precisely*), engaged on the
+merits rather than reflexively rejected or silently dropped, per this plan's own instruction. §12 must
+add a disclosure that the model swap shifts which failure surface the shared, byte-unchanged
+extraction contract must handle, and that a verdict should be read alongside §8 item 3's own
+already-existing oracle-discrimination-caveat mechanism (unchanged by this amendment). Disposition:
+this is read as a measurement-*validity* concern (a confound the design discloses, mirroring §2's own
+already-frozen "plausible-looking but wrong resolution" residual) rather than a redefinition of the
+hypothesis under test (still tournament-search-vs-not on `customer-support`'s replay-checkable
+subset) — but because it is the panel's most substance-adjacent finding, it is named explicitly here
+and raised again at the checkpoint below rather than closed as routine.
+
+**GF-24 — §6 Clause 2's F-14 power-profile disclosure is stale: its `n_d=40` reference point ("as the
+battery fills") now represents less than half of a 90-unit battery, and §12's own open-decision-2
+parenthetical acknowledges the need for restatement without providing it.**
+Absorbs: kimi-k3 F11, qwen-max F10.
+**Verdict: ADOPTED.** §12 must add a restated power-profile reference point at `n_d=60`, mirroring §6
+Clause 2's existing four-probability shape. Independently computed: `P(Bin(60,0.60)≥39)≈25.7%`,
+`P(Bin(60,0.65)≥39)≈55.9%`, `P(Bin(60,0.70)≥39)≈83.8%`, `P(Bin(60,0.75)≥39)≈97.0%`.
+
+### Lane 8 — anything else
+
+**GF-25 — §12 conflicts with §7's frozen one-shot termination clause, which bars "changing the
+qualification thresholds, the battery construction, the oracle, or the decision rule" for the same
+hypothesis after a termination; rev-2 terminated `TERMINATED-UNDERPOWERED`, and this amendment changes
+both the battery construction and the derived qualification thresholds. The executor-model change
+alone is not on §7's enumerated list. §12 does not engage §7 anywhere in its own text.**
+Absorbs: gpt-sol-pro F11, kimi-k3 F3.
+**Verdict: ADOPTED — the most load-bearing finding in this panel, surfaced prominently at the
+checkpoint below, not closed quietly.** §12's silence on §7 is itself a defect regardless of which way
+the substantive question resolves, so this finding is adopted at minimum to require that §12 engage
+§7 explicitly rather than never mention it. §12 must add a paragraph stating both readings honestly:
+(a) the instrument-identity argument — rev-2's termination was of the `qwen3.6`-instantiated
+instrument (W and B are committed, model-specific artifacts; termination cause was saturation/no
+gradient specific to that model), so an executor-model swap arguably redefines the instrument/W-B
+population being tested, and the widened battery is this new instrument's own from-scratch
+construction rather than a modification of the terminated one; against (b) the plain-text reading —
+§7 enumerates "battery construction" as a barred lever independent of executor identity, and
+separately states termination is "never remedied by... redrawing the battery," language that cuts
+directly against (a). Whether (a) is accepted is not this ledger's call to make unilaterally — it is
+the checkpoint's primary go/no-go question, with the checkpoint's three options (freeze-as-adjudicated
+= accept (a); revise-then-freeze at battery size 60 only = accept (b) but keep the model swap;
+another-panel-round = neither reading is dispositive enough to freeze) mapped directly onto it.
+
+**GF-26 — §12's freeze-discipline clause ("pins become immutable once any rev-3 inference data
+exists") is in tension with the fact that the executor choice and C6's failure-mode framing were
+themselves selected using pre-freeze `gpt-oss` inference data on the same instrument family.**
+Absorbs: gpt-sol-pro F12.
+**Verdict: ADOPTED.** §12's discipline-clause paragraph must be revised to state explicitly that "no
+rev-3 inference data" refers to ceiling-probe, search, or paired-round data collected *under the
+frozen rev-3 pins* — not the pre-freeze diagnostic dry-runs that informed those pins, which is a
+normal and disclosed part of instrument design, exactly as rev-2's own pins drew on pre-existing
+project convention and precedent.
+
+**GF-27 — §12 pins a mutable tag (`gpt-oss:latest`) and what appears to be a digest prefix
+(`17052f91a42e`) without stating a verification rule requiring the full content digest be resolved
+and checked before any rev-3 inference runs.**
+Absorbs: gpt-sol-pro F13.
+**Verdict: ADOPTED.** §12's executor-model pin must add a sentence stating that execution resolves and
+verifies the full content digest (not a prefix match) against the pinned value before any rev-3
+probe, search, promotion, or paired inference runs.
+
+**GF-28 — The ceiling probe (answer-visible mode) validates format-satisfiability only; it does not
+gate the model-swap's real risk (too few usable discordant pairs, unstable accuracy, seed-concentrated
+errors); a separate diagnostic-gradient replication is needed and should not be conflated with the
+frozen oracle/qualification methodology.**
+Absorbs: gpt-sol-pro F14.
+**Verdict: ADOPTED**, in part. §12's ceiling-probe paragraph must add a cross-reference sentence
+stating explicitly that the probe validates format-satisfiability only and is not evidence for the
+harvest-rate rationale (GF-01/GF-06's disclosures cover that gap instead). The request for a *new*,
+separate diagnostic-gradient replication is not adopted as a data-collection requirement: it asks for
+new inference data pre-freeze beyond what 15-01 already collected, which the honest-assumption
+disclosures already adopted above (GF-01, GF-06, GF-08) answer without commissioning further runs —
+the ceiling probe's own scope (format-only) is itself an already-frozen rev-2 design decision this
+amendment does not reopen.
+
+**GF-29 — The table-identity and seed-disjointness claims are cited to a test file and to "this
+plan's own SUMMARY.md" without a pinned commit/hash the way the ancestry paragraph pins rev 2; the
+amendment should also name which studies consumed the newer prior-union seeds it lists.**
+Absorbs: kimi-k3 F12.
+**Verdict: ADOPTED.** Verified directly rather than asserted: `1399` is the Phase-14 ceiling-probe
+seed (`CEILING_PROBE_SEED`), `1401–1403` are the tournament search seeds, `1404–1406` are the
+tournament promotion seeds (all three from `_paired-constants.ts`), and `1501–1503` are the Plan
+15-01 calibration-dry-run seeds (`_calibration-dryrun.ts`). §12 must cite `test/paired-rev3-derivation.test.ts`
+and `test/paired-rev3-table-drift.test.ts` (added by GF-11) by name for the table-identity claim, and
+name these four studies/plans for the seed provenance, replacing the bare "this plan's own SUMMARY.md"
+citation.
+
+**GF-30 — The new seed set (1601–1609, 1610, 1611–1616) is claimed disjoint from the prior union
+without a formal proof or registry lookup cited in §12 itself.**
+Absorbs: gpt-oss F11.
+**Verdict: ADOPTED.** Independently verified by direct set computation over the full prior union
+`_paired-comparison-arm` has ever used (101, 202, 303, 404, 505, 606, 707, 808, 909, 999, 1201–1206,
+1301–1306, 1399, 1401–1406, 1501–1503 — 32 numbers) against the sixteen new numbers (1601–1616):
+zero overlap, confirmed by exact computation, not by inspection. §12 must state that this disjointness
+was checked by direct set computation over the literal integers already named in its own text (rather
+than merely asserted), since the check is pure integer set arithmetic over values already pinned.
+
+**GF-31 — Holding the discordant-pairs floor at 20 while widening the battery moves the tie-rate
+disclosure threshold from 68.3% (41/60) to 78.9% (71/90); a run with, say, 75% ties would have fired
+rev-2's advance-disclosure but fires none under rev-3, and §12 does not state this.**
+Absorbs: kimi-k3 F5.
+**Verdict: ADOPTED.** §12's tie-rate-ceiling-threshold bullet must add one sentence disclosing that
+this is a consequence of the deliberate, unchanged choice to hold the floor at 20 (itself the right,
+non-gaming choice, unchanged by this adoption) — not a silent drift in what the disclosure protects
+against.
+
+### Substance gate
+
+**CLEAR, after the adoptions above.** After adoption, the surviving findings argue about evidentiary
+sufficiency, disclosure completeness, and procedural engagement with §7 — never that the amendment
+redefines the hypothesis under test (tournament-selected W vs. unevolved baseline B, on
+`customer-support`'s replay-checkable subset, scored by the unchanged replay-match oracle). The one
+finding closest to a substance claim, GF-23 (kimi-k3 F10, oracle/extraction-contract brittleness), is
+engaged explicitly above and disposed of as a measurement-validity disclosure, mirroring an already-
+frozen rev-2 residual disclosure (§2), not a redefinition of what is measured. GF-25 (§7) is not a
+substance-of-measurement finding either — it is a threshold/procedural question about whether a
+successor instrument is *permitted* to run at all — but per this plan's own instruction it is not
+closed quietly regardless: it is the primary item raised at the checkpoint below.
+
 ## Scope of this panel round
 
 This document covers the five-lane adversarial panel over the **rev-3 DRAFT amendment (§12)** of
