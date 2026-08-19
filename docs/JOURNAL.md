@@ -1570,3 +1570,62 @@ byte-identical prompts, this model's outputs on this battery were too consistent
 arms to produce the 20 discordant pairs the frozen design requires before it will render a verdict
 either way — precisely the `n_d`-collapse scenario §6 Clause 2's own prose names as a legitimate,
 distinct-from-instrument-failure termination cause (F-03).
+
+## Milestone v1.25.0 closed — third-family instrument built, real round TERMINATED-UNDERPOWERED (2026-08-19)
+
+Closing the arc this phase's four earlier gate entries opened (constants + tracer ancestry;
+ceiling probe clears; customer-support admitted on build evidence alone; B committed then W
+produced byte-identical; the real round's own TERMINATED-UNDERPOWERED verdict). Same framing every
+one of those entries already stated and repeats here for the last time: this is v1.25.0
+human-directed follow-on work under the 2026-08-11 override by Dr. Robert Li — reopening Phases
+13/14 after the pre-registered VOID BY RULE closure Phase 12 recorded for v1.24.0. It is not a
+Stage-B trigger outcome, and it is not a retroactive pass of the gate that recorded `NOT-MET` —
+that gate fired once, correctly, on `dualfix-study-verdict.json`'s own arms, and nothing in Phases
+13 or 14 revisits, re-derives, or softens that arithmetic.
+
+**What was built, plainly.** The third instrument family (`customer-support`, its replay-checkable
+subset), the frozen paired design (`PAIRED-DESIGN-PREREG.md` rev 2, five-lane adversarial panel, 27
+of 34 findings adopted), the answer-first generator/oracle pair with per-action leak-safety proofs,
+a pre-round instrument-health probe that cleared against the real inference slot, both arms (B
+hand-written and committed first, W produced by a real receipt-free bounded search run and pinned
+by commit), and the detached paired-round driver itself — deterministic order, §6's three
+qualification clauses in a fixed documented precedence, harness-fault-only retry.
+
+**What cleared, and what the real round found.** REQ-67 (paired design frozen), REQ-68
+(customer-support admitted on build evidence, no paired-round result cited — the frozen design's own
+axis-4 bar), and REQ-69 (the real round ran to a completed verdict) are all satisfied, each by its
+own named artifact: `PAIRED-DESIGN-PREREG.md` rev 2 (`2f9e6095dc6e20bcc8196a293397f7ec07f8c704`),
+`VERTICAL_ADMISSION`'s `customer-support` row plus `CEILING-PROBE.md`, and
+`paired-study-verdict.json` plus `PAIRED-STUDY-RESULTS.md`. The real 60-pair round against
+`qwen3.6:latest` (all 120 arm-on-unit results final, zero harness-fault retries) terminated
+`TERMINATED-UNDERPOWERED`: §6 Clause 2's minimum-discordant-pairs floor was breached
+(`discordantCount=1` against the pinned 20-pair floor; `winCount=1, lossCount=0, tieCount=59`, 59 of
+60 units concordant). §5's decision rule was never evaluated — no `WSUPERIOR`/`BSUPERIOR`/
+`INDISTINGUISHABLE` label applies, and no critical value was looked up, because `discordantCount=1`
+sits outside the pinned critical-value table's own domain.
+
+**What this does and does not claim, stated once more for the closing record.** All four outcome
+shapes the frozen design named — a decisive verdict either direction, an evaluated
+`INDISTINGUISHABLE`, or a pre-committed termination — were legitimate before this round ran, and
+this milestone closes identically on any of them: the record states what happened, not what would
+have been convenient. `TERMINATED-UNDERPOWERED` is reported exactly as the artifact states it, not
+reframed toward success or failure. It claims no direction (the sign test never ran) and no
+absolute-accuracy figure; 14-05's own disclosed prediction — that W's byte-identical text to B means
+the round is governed by model-sampling variance alone — is exactly what the real run shows, with
+that variance turning out to be near-zero on this battery.
+
+**The relationship to the prior milestone, stated in its own sentence.** This is v1.25.0
+human-directed follow-on work under the 2026-08-11 override, not a continuation of v1.24.0: the
+v1.24.0 milestone closed at Phase 12 on its own pre-registered branch (Stage-B `NOT-MET`, `40 < 72`),
+and its terminal record — `experiments/dualfix-study/TERMINAL-REPORT.md` and `STUDY-RESULTS.md` — is
+unamended by anything in Phase 13 or Phase 14; nothing here is a retroactive pass of the gate that
+recorded that miss.
+
+**Record and version discipline, closing REQ-70 for this override branch.** Version 1.25.0 synced
+across `package.json`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` in one
+commit (drift guard green); `CHANGELOG.md`'s already-open 1.25.0 heading carries this phase's entries
+under its own Phase 14 subsection, no second heading opened. Every commit this phase is attributed
+to `dr-robert-li` with no trailer lines. The full suite and typecheck are green on the tree this
+entry commits; the milestone is pushed at this gate, matching the v1.23.0/v1.24.0 precedent. All
+four frozen precedent documents and both v1.24.0 record files remain byte-identical to their
+pre-phase state.
