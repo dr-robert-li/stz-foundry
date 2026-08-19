@@ -1,4 +1,4 @@
-# Third-family paired-comparison design — pre-registration — **Revision:** rev 3 — DRAFT (§12 only; §0–§11 below are the byte-frozen rev-2 text, unchanged since the freeze)
+# Third-family paired-comparison design — pre-registration — **Revision:** rev 3 — **FROZEN — THIS COMMIT IS THE PRE-REGISTRATION FOR THE REV-3 RUNS.** (§12 only; §0–§11 below remain the byte-frozen rev-2 text, unchanged since the rev-2 freeze)
 
 **Revision:** rev 2 — **FROZEN — THIS COMMIT IS THE PRE-REGISTRATION.** Frozen 2026-08-19, after
 plan 13-03's five-lane adversarial panel round and plan 13-04's adjudication of every finding it
@@ -820,7 +820,7 @@ document is the record.
 together with the exact `git merge-base --is-ancestor` command a verifier re-runs rather than
 invents, so Phase 14's instrument code can prove ancestry against it without re-deriving anything.
 
-## §12 Amendment (rev 3) — DRAFT
+## §12 Amendment (rev 3) — FROZEN
 
 **Ancestry, cited as the amendment's own parent (D-09).** This amendment's parent is the rev-2
 freeze commit `2f9e6095dc6e20bcc8196a293397f7ec07f8c704`, whose blob for this exact path
@@ -854,6 +854,39 @@ already uses, against two models:
   unicode hyphens, bold labels breaking extraction), not arithmetic failures — exactly the kind of
   gap a prompt search can climb.
 
+**What the calibration dry-run does and does not establish, stated plainly (adjudication GF-01,
+GF-02, GF-03).** The dry-run measures `gpt-oss:latest`'s own marginal task accuracy under six
+perturbation variants (C0-C5) plus one further micro-check (C6) — it is single-arm accuracy
+evidence, not W-vs-B joint or correlated-outcome evidence: it says nothing about the joint
+distribution between W and B (the quantity that actually determines the discordant-pair rate the
+harvest arithmetic below depends on), and nothing about whether W's tournament-evolved-on-`qwen3.6`
+strategies transfer to `gpt-oss:latest` at all. The dry-run establishes only that `gpt-oss:latest`
+is not saturated on this family; both the W-B joint distribution and W's own cross-model transfer
+remain unmeasured assumptions the harvest estimate below (GF-06) depends on. Separately: the paired
+round itself runs under exactly one prompt — rev-2's unmodified §4 construction, never any of
+C0-C6. C0-C5's 70%-100% range is disclosed above as the observed spread across six diagnostic
+perturbation variants, not an estimate of plain-battery accuracy under the paired round's own
+prompt; C4's 100% is named as the most saturated observed configuration among those six variants,
+not the configuration the paired round runs under. C6 is diagnostic evidence about the *failure
+mode* only (format/vocabulary near-miss vs. arithmetic error) — it is not a proposed prompt for
+either arm, both of which keep rev-2's own unmodified §4 prompt unchanged by this amendment — and
+whether tournament search itself discovers or generalizes an equivalent repair against that prompt
+is the paired round's own open empirical question, not something C6 answers in advance.
+
+**`gpt-oss:latest`'s dual role, disclosed here (adjudication GF-05).** `gpt-oss:latest` is both the
+model this amendment proposes as the rev-3 paired-round executor AND one of the two locally-hosted
+reviewer lanes on the five-lane panel that adjudicated this amendment (`PAIRED-DESIGN-REVIEWS-REV3.md`).
+That duality was already true of the rev-2 panel's own reachability check and this phase's own
+15-02 reachability probe, both of which recorded it explicitly, and it is not, on its own, a
+conflict: critiquing a design document and executing tickets under it are different roles at
+different times, and the model carries no memory or stake between the two. It is disclosed here,
+in the amendment's own text, because a reader of this document alone — without the panel record open
+alongside it — should not have to work it out for themselves. Five of five panel lanes independently
+raised this same duality as a finding within their own review (`gpt-sol-pro` F4, `kimi-k3` F2,
+`qwen-max` F3, `gemma4` F2, `gpt-oss` F2), entirely independently since no lane saw another lane's
+output — that convergence is recorded as a fact about the panel's composition, not evidence the
+duality itself is a defect.
+
 This amendment re-parameterises the same methodology rather than replacing it: **§4's pairing unit,
 battery construction, and per-task status discipline; §4's independent replay-match oracle; the
 customer-support ticket generator; §3's equal-treatment invariant; and Phase 14's
@@ -862,20 +895,75 @@ understand this amendment as touching exactly three surfaces — the executor mo
 (and its two derived qualification constants plus one disclosure threshold), and the critical-value
 table's domain — and nothing else in the design.
 
+**Battery construction changes in both size and topology, stated precisely (adjudication GF-22).**
+"Battery size" above is not merely a larger version of the same shape: the settled seed-block-shape
+decision below (9 blocks of 10, replacing 6 blocks of 10) changes block topology and the
+block-level concordance-gate threshold as well as raw count — a structural/dependence change, not
+a size change alone. The four surfaces this amendment genuinely leaves untouched — the oracle, the
+generator, the pairing-unit discipline, and Phase 14's `VERTICAL_ADMISSION` — stay exactly as listed
+above; only the battery-construction characterization is corrected here.
+
+**Engagement with §7's one-shot termination clause, the panel's most load-bearing finding
+(adjudication GF-25).** §7 bars "changing the qualification thresholds, the battery construction,
+the oracle, or the decision rule" for the same hypothesis after a termination; rev-2 terminated
+`TERMINATED-UNDERPOWERED`, and this amendment changes both the battery construction and the derived
+qualification thresholds. Two readings exist, both stated honestly rather than one being silently
+preferred: **(a) the instrument-identity argument** — rev-2's termination was of the
+`qwen3.6`-instantiated instrument specifically (W and B are committed, model-specific artifacts;
+the termination cause, saturation/no gradient, was specific to that model on this family), so an
+executor-model swap arguably redefines the instrument/W-B population under test, and the widened
+battery is this new instrument's own from-scratch construction rather than a modification of the
+terminated one — against **(b) the plain-text reading** — §7 enumerates "battery construction" as a
+barred lever independent of executor identity, and separately states termination is "never remedied
+by... redrawing the battery," language that cuts directly against (a). This ledger did not resolve
+that question unilaterally; it was raised as the primary go/no-go item at the Task 2 checkpoint.
+
+**Resolution, recorded here as the freeze's own governing reading.** At the Task 2 checkpoint, Dr.
+Robert Li selected `freeze-as-adjudicated`, accepting reading (a): rev-2's termination bound the
+`qwen3.6`-instantiated instrument, not the hypothesis under every possible executor; the
+executor-model swap constructs a new instrument whose 90-pair battery is its own from-scratch
+construction, not a redraw of the terminated one. This amendment freezes under that reading. Reading
+(b) is not erased from this document — it remains stated in full immediately above, honestly, as the
+reading this freeze rejects — so a future reader can evaluate the same choice rather than trust a
+summary of it.
+
 **Rev-3 pins, each stated as a concrete value a reviewer can disagree with:**
 
 - **Executor model:** `gpt-oss:latest`, digest `17052f91a42e` — replacing the rev-2 pin
   (`qwen3.6:latest`, digest `07d35212591f`) for rev-3 runs only. The rev-2 pin is untouched in
   `_paired-constants.ts` (`PAIRED_MODEL`/`PAIRED_MODEL_DIGEST`); the rev-3 pin exists as a new,
   additive pair of exported symbols (`PAIRED_MODEL_REV3`/`PAIRED_MODEL_DIGEST_REV3`), already
-  committed in Plan 15-01.
+  committed in Plan 15-01. **Digest verification (adjudication GF-27):** `gpt-oss:latest` is a
+  mutable tag; execution resolves and verifies the FULL content digest (never a prefix match against
+  the `17052f91a42e` prefix pinned above) matches the pinned value before any rev-3 probe, search,
+  promotion, or paired inference runs.
+- **Deferred equal-treatment re-examination (adjudication GF-20).** The timeout and
+  prompt-length-bound pins (§9) were calibrated for `qwen3.6:latest`. This amendment adds a new
+  deferred obligation, mirroring Phase 14's original pinning obligation: the timeout
+  (`PAIRED_TIMEOUT_MS`) and prompt-length-bound (`PAIRED_MAX_PROMPT_CHARS`) rows must be
+  re-examined, and re-pinned if inadequate, for `gpt-oss:latest`'s own latency and context-window
+  behavior, at or before the rev-3 instrument commit — before any rev-3 probe, search, or paired
+  run, never after.
 - **Battery size:** 90 pairing units, replacing 60.
 - **Minimum discordant-pairs floor:** 20, unchanged. Floor-margin arithmetic, shown rather than
   asserted: at B's measured baseline accuracy (≈70% on the unmodified battery), the rev-2 battery
   size (60) yields an expected harvest of roughly 18 discordant pairs — borderline under the floor
   of 20. Widening the battery to 90 pairs, with the floor held at 20, raises the expected harvest to
   roughly 27 — a comfortable margin above the same, deliberately unlowered, bar. Margin comes from
-  more pairs, never from a lower floor.
+  more pairs, never from a lower floor. **The ≈30% discordance-rate assumption behind these figures
+  is exactly that — an assumption under an implicit near-independence structure, never a measured
+  W-B correlation** (adjudication GF-08; see the calibration-scope disclosure above, GF-01, for why
+  the W-B joint/correlation structure specifically on `gpt-oss:latest` is unmeasured). **Assurance
+  probability, computed once at design time rather than left implicit (adjudication GF-06):** at the
+  assumed point estimate `p=0.30`, `P(Bin(90,0.30) >= 20) ≈ 96.1%`, versus `P(Bin(60,0.30) >= 20) ≈
+  33.1%` at the old battery size — and, disclosed for honesty against a pessimistic assumption, even
+  at `p=0.20`, 90 units yields `≈33.8%` versus `≈1.1%` at 60. **Seed-uniformity caveat on the
+  harvest estimate (adjudication GF-07):** this estimate assumes discordance is roughly uniform
+  across seed blocks; if discordance instead concentrates unevenly across seeds, the actual harvest
+  may diverge from the point estimate above even though the block-level concordance check (§5,
+  unchanged) defends the *decision rule* against exactly that concentration — the two are different
+  defenses against different risks, and the concordance check's existence does not imply the harvest
+  arithmetic is also protected against seed concentration.
 - **Instrument-health gate floor (§9/§6 Clause 1), recomputed from §9's own provenance formula
   applied to the new battery size:** `battery_size × (1 − 2 × 0.10) = 90 × 0.8 = 72` (of 90),
   replacing 48 (of 60).
@@ -883,10 +971,18 @@ table's domain — and nothing else in the design.
   `battery_size × 0.10 = 90 × 0.1 = 9` (of 90), replacing 6 (of 60).
 - **Tie-rate ceiling disclosure threshold (§9/§8 item 1), recomputed the same way:** the smallest
   tie count whose complement (discordant pairs) falls strictly below the Clause 2 floor of 20 —
-  `battery_size − 19 = 90 − 19 = 71` (of 90), replacing 41 (of 60).
+  `battery_size − 19 = 90 − 19 = 71` (of 90), replacing 41 (of 60). This raises the disclosure's own
+  observable trigger point from 68.3% (41/60) to 78.9% (71/90) — a run with, say, a 75% tie rate
+  would have fired rev-2's advance-disclosure but fires none under rev-3 (adjudication GF-31). This
+  is a disclosed consequence of the deliberate, unchanged choice to hold the discordant-pairs floor
+  at 20 (itself the right, non-gaming choice, unaffected by this adoption) — not a silent drift in
+  what the disclosure protects against.
 - **The critical-value table**, pasted verbatim from `_rev3-critical-values.ts`'s own stdout
   (Plan 15-02, Task 1; test-proven identical to the frozen rev-2 table on the range they share,
-  `test/paired-rev3-derivation.test.ts`). The condition, restated verbatim from §5, unchanged: `c(n_d)`
+  `test/paired-rev3-derivation.test.ts`, and bound row-by-row across the full widened range to that
+  same derivation by `test/paired-rev3-table-drift.test.ts`, adjudication GF-11 — closing the exact
+  hand-transcription-error risk §9's own drift-guard provenance row names for the rev-2 table). The
+  condition, restated verbatim from §5, unchanged: `c(n_d)`
   is the smallest integer `c` such that `40 · Σ_{i=c}^{n_d} C(n_d, i) ≤ 2^{n_d}` — the exact
   combinatorial condition for a per-tail probability not exceeding 0.025 under `Binomial(n_d, 0.5)`,
   evaluated in exact integer arithmetic over binomial coefficients, computed once at design time,
@@ -969,10 +1065,18 @@ table's domain — and nothing else in the design.
 | 90 | 55 | 35 |
 
 - **Fresh seed blocks, proposed in the 1600 range, disjoint from the full prior union** (101, 202,
-  303, 404, 505, 606, 707, 808, 909, 999, 1201–1206, 1301–1306, 1399, 1401–1406, 1501–1503 —
-  disjointness checked and recorded in this plan's own SUMMARY.md, none of the sixteen numbers
-  below coincide with any number in that union):
-  - Battery seeds (nine, under the recommended 9×10 default below; the first six of these — 1601,
+  303, 404, 505, 606, 707, 808, 909, 999, 1201–1206, 1301–1306, 1399, 1401–1406, 1501–1503 — 32
+  numbers total. Provenance, named rather than left to a bare cross-reference (adjudication GF-29):
+  `1399` is the Phase-14 ceiling-probe seed (`CEILING_PROBE_SEED`); `1401–1403` are the Phase-14
+  tournament search seeds (`TOURNAMENT_SEARCH_SEEDS`); `1404–1406` are the Phase-14 tournament
+  promotion seeds (`TOURNAMENT_PROMOTION_SEEDS`); `1501–1503` are Plan 15-01's calibration-dry-run
+  seeds (`_calibration-dryrun.ts`) — all four constants/scripts named here for the table-identity and
+  seed-provenance claim, replacing a bare "this plan's own SUMMARY.md" citation. **Disjointness
+  checked by direct set computation over these literal integers, not merely asserted (adjudication
+  GF-30):** the full 32-number prior union above, compared against the sixteen new numbers
+  (1601–1616) below, has zero overlap, confirmed by exact set computation — pure integer set
+  arithmetic over values already pinned in this document's own text.):
+  - Battery seeds (nine, under the settled 9×10 default below; the first six of these — 1601,
     1602, 1603, 1604, 1605, 1606 — double as the six seeds if the panel instead selects the 6×15
     alternative): `1601, 1602, 1603, 1604, 1605, 1606, 1607, 1608, 1609`.
   - Probe seed (one): `1610`.
@@ -989,67 +1093,121 @@ table's domain — and nothing else in the design.
   often by construction and would be measuring the wrong thing: format satisfiability, not
   correctness. Rev 3 keeps the `answer-visible` mode for exactly this reason, so the panel reviews
   the actual gate this design relies on rather than a different, stricter one it never adopted.
+  **Scope, stated explicitly (adjudication GF-28):** this probe validates format-satisfiability
+  only — it is not evidence for the harvest-rate rationale above; the calibration-scope and
+  assurance-probability disclosures (GF-01, GF-06) cover that gap instead, and no new
+  diagnostic-gradient replication is commissioned beyond what those disclosures already answer.
 
-**Open decisions, named as open — not settled — for the panel:**
+**Operational-exposure disclosure (adjudication GF-21).** The battery widening increases total
+arm-attempts by 50% (120 to 180: 60 pairing units times 2 arms to 90 pairing units times 2 arms),
+increasing cumulative harness-fault exposure against the single local inference slot over a longer
+run. This is disclosed, not gated: the harness-fault carve-out (§6, unchanged) already handles each
+unit's own exposure individually, and this disclosure names the compounding effect on this
+project's own long-inference-operational-risk concern (`.planning/STATE.md` Blockers/Concerns)
+rather than introducing a new gate.
 
-1. **The seed-block shape for 90 units.** Two options, neither pre-selected:
-   - **9 blocks of ten** (this draft's recommended default), preserving the ten-tasks-per-seed
-     convention every prior study in this project has used (`DUALFIX-STUDY-PREREG.md`,
-     `BI-BATTERY-DESIGN.md`, rev 2 of this document). Consequence: `_paired-gate.ts`'s
-     `PAIRED_CONCORDANCE_BLOCK_COUNT` (currently hardcoded 6) must change to 9, and its own
-     agreement threshold must be re-derived — it cannot simply carry over rev-2's "4" literal
-     unchanged. This draft's recommended re-derivation, preserving the same fraction rev-2's
-     four-of-six threshold used (4/6 ≈ 66.7%): **six of nine** (6/9 ≈ 66.7%, the same fraction,
-     exactly analogous). Its own worst-case bound, computed the same way §5's F-06 computed rev-2's
-     68.75% figure — under perfect intra-seed correlation, the ninety pairing units collapse to nine
-     independent seed-level draws `X ~ Binomial(9, 0.5)` (the count of seeds favouring W), each
-     contributing all ten of its own units to one direction, so `k_w = 10·X`; at the full battery
-     (`n_d = 90`, `c(90) = 55`, lower bound `35`), the pooled decision fires at `10·X >= 55`, i.e.
-     `X >= 6`, or `10·X <= 35`, i.e. `X <= 3`. Computed exactly in 512ths (`2^9 = 512`,
-     `C(9,k)` for `k=0..9`: 1, 9, 36, 84, 126, 126, 84, 36, 9, 1):
+**Oracle/extraction-contract measurement-validity disclosure (adjudication GF-23).** The oracle's
+extraction contract is byte-unchanged by this amendment, but the model swap changes which failure
+surface it actually sees — extraction-contract near-misses of the kind the calibration dry-run's C6
+micro-check found (format/vocabulary near-misses, not arithmetic errors). A W-SUPERIOR/B-SUPERIOR
+verdict under rev 3 may therefore partly reflect differential extraction-contract brittleness rather
+than capability alone; §8 item 3's 90%-mismatch ceiling (unchanged by this amendment) would not
+catch a moderate-rate version of this. A verdict under this amendment should be read alongside that
+already-existing oracle-discrimination-caveat mechanism. This is a measurement-*validity* concern — a
+confound the design discloses, mirroring §2's own already-frozen "plausible-looking but wrong
+resolution" residual — not a redefinition of the hypothesis under test (still
+tournament-search-vs-not on `customer-support`'s replay-checkable subset).
+
+**Decisions, settled by adjudication (Plan 15-04) — not left open:**
+
+1. **The seed-block shape for 90 units — SETTLED: 9 blocks of ten, six-of-nine concordance
+   agreement threshold.** Two options were weighed:
+   - **9 blocks of ten** (the settled choice), preserving the ten-tasks-per-seed convention every
+     prior study in this project has used (`DUALFIX-STUDY-PREREG.md`, `BI-BATTERY-DESIGN.md`, rev 2
+     of this document). Consequence: `_paired-gate.ts`'s `PAIRED_CONCORDANCE_BLOCK_COUNT` (currently
+     hardcoded 6) must change to 9, and its own agreement threshold must be re-derived — it cannot
+     simply carry over rev-2's "4" literal unchanged. The settled re-derivation, preserving the same
+     fraction rev-2's four-of-six threshold used (4/6 ≈ 66.7%): **six of nine** (6/9 ≈ 66.7%, the
+     same fraction, exactly analogous). Its own worst-case bound, computed the same way §5's F-06
+     computed rev-2's 68.75% figure — under perfect intra-seed correlation, the ninety pairing units
+     collapse to nine independent seed-level draws `X ~ Binomial(9, 0.5)` (the count of seeds
+     favouring W), each contributing all ten of its own units to one direction, so `k_w = 10·X`; at
+     the full battery (`n_d = 90`, `c(90) = 55`, lower bound `35`), the pooled decision fires at
+     `10·X >= 55`, i.e. `X >= 6`, or `10·X <= 35`, i.e. `X <= 3`. Computed exactly in 512ths
+     (`2^9 = 512`, `C(9,k)` for `k=0..9`: 1, 9, 36, 84, 126, 126, 84, 36, 9, 1):
      `P(X>=6) = (84+36+9+1)/512 = 130/512`, `P(X<=3) = (1+9+36+84)/512 = 130/512`,
      `P(X>=6) + P(X<=3) = 260/512 ≈ 50.78%` — a worst-case two-sided rejection probability under
      perfect correlation, LOWER than rev-2's own 68.75% bound at the same nominal fraction, because
      tail mass concentrates more tightly around the mean as the number of independent blocks grows
-     from six to nine. This bound is disclosed here so the panel can pressure-test the proposed
-     6-of-9 threshold on its own arithmetic, not merely on analogy to rev-2's fraction.
-   - **6 blocks of fifteen**, preserving the six-block concordance check unmodified —
+     from six to nine. **This bound cannot downgrade the exact perfect-correlation collapse case
+     under either seed-block shape below (adjudication GF-13)** — the concordance check is vacuous
+     at that exact ceiling case regardless of shape, so this 50.78%-vs-68.75% comparison is not the
+     design's real comparative advantage; the per-seed-dilution argument (GF-12, below) is.
+     **Increasing the seed count from 6 to 9 also increases the number of draws that could include
+     an anomalous ("poison") seed, a risk distinct from the perfect-correlation collapse case bounded
+     above (adjudication GF-14)** — disclosed alongside, not in place of, that bound.
+     **Additional conservatism, independently re-verified (adjudication GF-15):** the 6-of-9
+     threshold's own false-concordance probability under the null is `P(Bin(9,0.5)>=6) = 130/512 ≈
+     25.39%`, stricter than rev-2's 4-of-6 threshold's `P(Bin(6,0.5)>=4) = 22/64 ≈ 34.38%` — both
+     confirmed by direct exact-integer computation, a supporting data point for the 9×10 choice
+     beyond the worst-case bound alone.
+   - **6 blocks of fifteen** (not selected), preserving the six-block concordance check unmodified —
      `PAIRED_CONCORDANCE_BLOCK_COUNT` stays 6, no gate-code parameterisation is required at all. Its
      own worst-case bound, computed the same way: under perfect correlation, `X ~ Binomial(6, 0.5)`,
      `k_w = 15·X`; the pooled decision fires at `15·X >= 55`, i.e. `X >= 4` (`15·4=60>=55`), or
      `15·X <= 35`, i.e. `X <= 2` (`15·2=30<=35`) — the SAME threshold pair as rev-2's own worked
      example (`X>=4` or `X<=2`), so this option's worst-case bound is unchanged from rev-2's own
-     68.75%, not merely a new number that happens to be close to it. The cost of this option is
-     breaking the ten-tasks-per-seed house convention every prior study used, in exchange for zero
-     gate-code change.
+     68.75%, not merely a new number that happens to be close to it. **The real cost of this option,
+     stated rather than understated (adjudication GF-12):** "zero gate-code change" is not this
+     option's only relevant property — it breaks the ten-tasks-per-seed house convention every prior
+     study used, produces a larger design effect under partial intra-seed correlation
+     (`1 + 14ρ` vs. 9×10's `1 + 9ρ`), concentrates per-seed dominance across fewer, larger blocks,
+     and carries downstream scheduling/timeout impact from longer per-seed runs — real statistical
+     and practical costs, not a free alternative.
 
-   Both options' consequence is stated in full above so the panel can adjudicate the actual
-   trade-off (house-convention consistency plus a lower, re-derived worst-case bound, vs. zero
-   code change plus an unchanged, already-reviewed bound) rather than a summary of it.
+   **Settled: 9 blocks of ten, six-of-nine agreement threshold.** The panel's own convergence (four
+   of five lanes preferred 9×10; the fifth, `gpt-oss`, preferred a stricter, unelaborated 7-of-9
+   without a worked bound that could out-argue GF-12–GF-15's worked arithmetic above) plus the
+   worked findings above settle this decision — house-convention consistency, a lower re-derived
+   worst-case bound at the actual comparative advantage (per-seed dilution, not ceiling-case bound
+   magnitude), and stricter false-concordance conservatism (GF-15) all point the same direction.
 
-2. **Whether the near-floor evidential-weight bound (`PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND`,
-   pinned at 24 by Plan 14-03) keeps its rev-2 value or is re-derived at the new battery size.**
-   This draft's recommended default: keep 24 unchanged. Its own rev-2 derivation reasoning (Plan
-   14-03: "roughly a quarter of the way through the gap" between the Clause 2 floor, `n_d=20`, and
-   §6 Clause 2's own worked power-comparison point, `n_d=40`) never referenced the full battery size
-   (60) at all — only the floor and that one comparison point, both of which are unchanged at rev 3
-   (the floor stays 20; §6 Clause 2's own worked power table would need its own comparison point
-   restated for `n_d=90`, but that restatement is independent of this bound). Counter-argument,
-   stated rather than suppressed: 24 is 4 units above the floor of 20, roughly a fifth of the
-   distance from the floor (20) to the new full battery size (90) — a substantially SMALLER
-   proportion of the new available range than the 4-unit gap represented of rev-2's own floor-to-40
-   comparison window (4 of 20, one fifth of that narrower window, versus 4 of 70 here, one
-   seventeenth of the wider one). If "near the floor" is meant to track a stable fraction of the
-   instrument's own available discordant-pair range rather than a fixed absolute distance from the
-   floor, an unchanged 24 may now under-cover what a reader would call "near the floor" at the wider
-   battery size, and a wider bound (e.g. re-anchored to a fifth of the floor-to-90 range, roughly
-   `20 + 14 = 34`) may better preserve the original intent. Both the recommended default and this
-   counter-argument are stated so the panel adjudicates the actual choice, not an implied one.
+2. **The near-floor evidential-weight bound (`PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND`, pinned at
+   24 by Plan 14-03) — SETTLED: re-derived to 25, via a power-anchored criterion.** Neither the
+   draft's original default (24) nor its counter-argument (34) was anchored to the evidentially
+   relevant quantity — the sign test's own power at the observed `n_d`, a function of `n_d` alone,
+   never of how much larger the full battery has become (adjudication GF-17). A power-anchored value
+   sits between those two proposals as a third, principled option (adjudication GF-19). The settled
+   criterion: the smallest `n_d` at which power against a stated plausible true discordant-win
+   probability (`p=0.70`, the same reference probability §6 Clause 2's own power table already uses)
+   first reaches 50%, computed directly from the pinned `c(n_d)` table. Independently computed:
+   `P(Bin(24,0.70)>=18) ≈ 38.9%`, `P(Bin(25,0.70)>=18) ≈ 51.2%` — **25 is the first `n_d` at which
+   this crosses 50%.** This criterion is a function of `n_d` and the pinned critical-value table
+   alone; it never references the battery's total capacity (60 or 90) — the proportional-scaling
+   mechanism the 34 counter-argument used (a fixed fraction of the floor-to-battery-size range) is
+   exactly the premise this power-anchored framing shows is statistically unsound, since power at a
+   given `n_d` does not depend on the size of the battery that produced it. Power itself is not
+   perfectly monotonic in `n_d` (since `c(n_d)` steps unevenly); the "first crossing" convention is
+   used deliberately, matching the existing house practice of anchoring §6 Clause 2's own power table
+   to two representative points rather than requiring strict monotonicity.
 
-**This amendment's own discipline clause, mirroring §0.** This amendment is itself frozen once
-adjudicated: once any rev-3 inference data exists (ceiling probe, search, or paired round), no pin,
-seed, floor, or battery shape stated above may be revised. All four outcome shapes named by §7 —
-`W-SUPERIOR`, `B-SUPERIOR`, `INDISTINGUISHABLE`, and any of the three `TERMINATED-*` states — remain
-legitimate terminal results under this amendment exactly as they were under rev 2. No instrument,
-search, or paired-round inference runs under this amendment until it is adjudicated and frozen; this
-draft authors text only.
+   **§6 Clause 2's power-profile disclosure, restated at `n_d=60` (adjudication GF-24).** §6 Clause
+   2's own worked power comparison used `n_d=40` as its "as the battery fills" reference point — under
+   a 90-unit battery that point now represents less than half the battery, and this restatement fills
+   the gap the draft's own parenthetical above acknowledged without providing. Mirroring §6 Clause
+   2's existing four-probability shape, at `n_d=60` (`c(60)=39`): `P(Bin(60,0.60)>=39) ≈ 25.7%`,
+   `P(Bin(60,0.65)>=39) ≈ 55.9%`, `P(Bin(60,0.70)>=39) ≈ 83.8%`, `P(Bin(60,0.75)>=39) ≈ 97.0%`.
+
+**This amendment's own discipline clause, mirroring §0.** This amendment is itself frozen as of this
+commit: once any rev-3 inference data exists (ceiling probe, search, or paired round) COLLECTED
+UNDER THE FROZEN REV-3 PINS ABOVE, no pin, seed, floor, or battery shape stated above may be revised.
+**Scope of "no rev-3 inference data," stated explicitly (adjudication GF-26):** this refers to
+ceiling-probe, search, or paired-round data collected under these frozen pins — never the pre-freeze
+diagnostic dry-runs (`calibration-dryrun-verdict.qwen36.json`, `.gptoss.json`, `.gptoss-c6.json`)
+that informed the executor-model choice and the C6 failure-mode framing above. Drawing on pre-freeze
+diagnostic data to inform a design's own pins is a normal and disclosed part of instrument design,
+exactly as rev-2's own pins drew on pre-existing project convention and precedent — it is not in
+tension with this discipline clause. All four outcome shapes named by §7 — `W-SUPERIOR`, `B-SUPERIOR`,
+`INDISTINGUISHABLE`, and any of the three `TERMINATED-*` states — remain legitimate terminal results
+under this amendment exactly as they were under rev 2. No instrument, search, or paired-round
+inference has run under this amendment before this freeze commit.

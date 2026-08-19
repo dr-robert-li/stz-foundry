@@ -58,8 +58,8 @@ const section9 = extractSection(preregText, "## §9 Pinned constants", "## §10"
 const section5 = extractSection(preregText, "## §5 The paired methodology", "## §6");
 
 describe("PAIRED-DESIGN-PREREG.md §9 <-> _paired-constants.ts drift guard (T-14-01)", () => {
-  it("declares itself rev 2 and FROZEN (guards against a post-freeze revert of the status line)", () => {
-    expect(preregText).toMatch(/\*\*Revision:\*\*\s*rev 2\s*—\s*\*\*FROZEN/);
+  it("declares itself rev 3 and FROZEN (guards against a post-freeze revert of the status line; moved from rev 2 by Plan 15-04)", () => {
+    expect(preregText).toMatch(/\*\*Revision:\*\*\s*rev 3\s*—\s*\*\*FROZEN/);
   });
 
   it("battery size (60)", () => {
