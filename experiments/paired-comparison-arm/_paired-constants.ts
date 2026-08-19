@@ -78,6 +78,20 @@ export const PAIRED_CONCORDANCE_BLOCK_COUNT = 6;
  *  direction" — the pooled verdict stands only at or above this count. */
 export const PAIRED_CONCORDANCE_AGREE_THRESHOLD = 4;
 
+/**
+ * §7's null-result canonization (F-14): an INDISTINGUISHABLE result landing
+ * near Clause 2's floor ("n_d in the low twenties") carries markedly less
+ * evidential weight than one near the full battery size — the frozen design
+ * states this in prose only, without pinning a literal boundary. Pinned here
+ * by Plan 14-03 (not a §9 table row — the frozen document names no exact
+ * integer) as the inclusive upper bound of "low twenties": 20-24. Chosen
+ * because §6 Clause 2's own worked power comparison (`n_d=20` vs `n_d=40`)
+ * treats 20 as the low end and the gap to 40 as the wide-power end, so a
+ * boundary roughly a quarter of the way through that gap keeps "low" narrow
+ * rather than creeping toward the midpoint.
+ */
+export const PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND = 24;
+
 // ── §9/§8 item 2 — significance level, documentation-only ──────────────────
 
 /**
