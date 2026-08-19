@@ -1,9 +1,9 @@
 # Third-family paired-comparison design — pre-registration
 
-**Revision:** 1-draft — NOT frozen. This document is being written §0–§2 first (plan 13-01);
-§3–§11 follow in plan 13-02; the 5-lane adversarial panel runs in 13-03, adjudication in 13-04,
-and rev 2 freezes at plan 13-05. Nothing below is a promise about downstream content beyond what
-these three sections state.
+**Revision:** rev 1 — NOT frozen. §0–§11 are complete as of plan 13-02. The 5-lane adversarial
+panel runs in 13-03, adjudication in 13-04, and rev 2 freezes at plan 13-05. This document is a
+complete pre-registration draft, not a partial one — every section below is ready for the panel to
+attack.
 
 ## §0 Status and freeze discipline
 
@@ -398,3 +398,211 @@ per-seed discordant win/loss counts are recorded and reported alongside the pool
 4), so a reviewer can inspect whether the six per-seed breakdowns look homogeneous or whether one or
 two seeds are visibly driving the pooled result — a diagnostic, not a correction; the decision rule
 itself stays the plain pooled integer comparison regardless of what the diagnostic shows.
+
+## §6 Qualification — corridor-free, per D-05
+
+Three clauses only, no fourth kind. None of the three constrains any arm's mean, rate, or interval
+estimate to fall inside a pre-registered numeric window — see the closing declaration below.
+
+**Clause 1 — instrument-health gate.** Before a paired comparison is judged meaningful at all, at
+least 48 of the 60 pairing units (§9) must land with BOTH arms in a scoreable category (§4's
+resolution-mismatch or resolution-match, combined — never no-artifact or non-scoreable) on that same
+pairing unit. A design that cannot clear its own health bar cannot distinguish a real loss from an
+unparseable answer: 48/60 is not an arbitrary separate number but the derived joint consequence of
+both arms individually clearing Clause 3's own per-arm drop-budget ceiling in the worst case
+(non-overlapping drops), per §9.
+
+**Clause 2 — minimum-discordant-pairs floor.** If the observed discordant-pair count (§5, WIN +
+LOSS) falls below 20, the study is declared UNDERPOWERED and reports that state as the result —
+never a win/loss verdict it cannot statistically support. Twenty is the same floor value this
+project's own `DUALFIX_CORPUS_MIN_N` house convention already uses for an underpowered-study check
+(`DUALFIX-STUDY-PREREG.md` §4/§8); it is reused here for consistency with that convention, not
+independently derived from a power calculation specific to this paired design — disclosed honestly
+rather than dressed up as a bespoke figure.
+
+**Clause 3 — per-arm drop-budget ceiling.** For EACH arm separately, no more than 6 of the 60
+pairing units (10%) may land in no-artifact or non-scoreable (combined) for that arm. This ceiling
+is reused from the same 10% house convention `BI-BATTERY-DESIGN.md` §6 clause (v) and
+`DUALFIX-STUDY-PREREG.md` §8's error budget both already use. A "loss" is never confounded with "the
+arm simply produced nothing": an arm that breaches this ceiling has its own run integrity in
+question before any win/loss verdict is read from it.
+
+**No numeric-window clause.** This document states plainly: this design contains no numeric-window clause
+anywhere in §6 or §7 requiring any arm's mean, rate, or interval estimate to fall inside a
+pre-registered numeric window, whatever that requirement might be called. This absence is
+deliberate: that exact mechanism — a corridor requirement, by whatever name — terminated two prior
+instrument lines (the v3/v3.1 data-ops fence-cliff and the bi-analytics structural-complexity
+cliff), and D-05 exists precisely to remove it at the root for this third family, not to reintroduce
+it under different wording. Re-reading the three clauses above against that bar: Clause 1 and
+Clause 3 are each a one-sided COUNT ceiling on how many pairing units land in an unscoreable
+category — never a bound on a win rate, a mean score, or any statistic computed from the
+scoreable-and-matched population. Clause 2 is a one-sided COUNT floor on the discordant population's
+size — never a bound on the direction or magnitude of that population's outcome. None of the three
+constrains where any arm's aggregate performance must land; all three constrain only whether the
+instrument produced enough usable data to run the decision rule (§5) at all.
+
+## §7 Termination, and the distinct null
+
+**One-shot termination.** If Clause 1, Clause 2, or Clause 3 (§6) is not met, this instrument line —
+this specific hypothesis (tournament-selected W versus unevolved baseline B, on `customer-support`'s
+replay-checkable subset, as REQ-69's paired round) — TERMINATES. This is a ONE-SHOT termination,
+mirroring `BI-BATTERY-DESIGN.md` §10's and `DUALFIX-STUDY-PREREG.md` §8's own one-shot construction:
+the prohibition is on SUBSTANCE, not name — no successor instrument testing this same hypothesis on
+this same family may be built under any label by changing the qualification thresholds, the battery
+construction, the oracle, or the decision rule after this termination. A terminated study reports
+its terminal state as the result — never an incomplete study, never remedied by extending the seed
+list, redrawing the battery, or re-running an arm mid-study.
+
+**A null result is a distinct, separately-defined, legitimate outcome — never confused with
+termination.** If §6's three clauses ARE met, the study runs to completion and §5's decision rule is
+evaluated exactly once. If that evaluation reads INDISTINGUISHABLE (`n_d - c(n_d) < k_w < c(n_d)`),
+this is a NULL RESULT: the instrument was healthy, the discordant population was large enough, the
+rule was applied, and the two arms could not be statistically distinguished at α=0.05. This is a
+standalone, legitimate finding — the tournament machinery did not measurably outperform (or
+underperform) the unevolved baseline on this family, under this decision rule, at this sample size —
+never a failed phase and never reported as though the study "could not run."
+
+**The two outcomes, stated so a verifier could never record one as the other.** TERMINATION means
+the qualification clauses were not met and the decision rule (§5) was NEVER EVALUATED — the study
+could not run. A NULL RESULT means the qualification clauses WERE met, the decision rule WAS
+evaluated, and its output was INDISTINGUISHABLE — the study ran and found no significant effect in
+either direction. A completed run artifact records exactly one of three terminal states —
+`TERMINATED-UNDERPOWERED` / `TERMINATED-HEALTH-GATE-FAILED` / `TERMINATED-DROP-BUDGET-BREACHED`
+(all three are termination, corresponding to §6 Clause 2/1/3 respectively) — or `COMPLETE` with a
+decision-rule outcome of `W-SUPERIOR` / `B-SUPERIOR` / `INDISTINGUISHABLE` (all three are the study
+having run to completion) — so no state artifact conflates a termination reason with a
+completed-but-null decision-rule outcome.
+
+## §8 Quantified disclosures
+
+Numbered, each carrying a literal number — no prose promise stands in for one.
+
+1. **Tie-rate ceiling.** If the observed tie rate reaches or exceeds 40 of the 60 pairing units
+   (66.7%), this design is disclosed IN ADVANCE as likely UNDERPOWERED: a tie rate at or above that
+   level leaves fewer than 20 discordant pairs available, which is exactly §6 Clause 2's floor —
+   this disclosure states the arithmetic consequence of that floor before any data exists, rather
+   than leaving a reader to derive it themselves.
+2. **Significance level and its pinned table.** The decision rule (§5) is evaluated at `α = 0.05`,
+   two-sided. §9's critical-value table is this level's pinned consequence — every integer in that
+   table is computed once, at design time, from the exact combinatorial condition §5 states, never
+   recomputed or approximated at data-time.
+3. **Per-arm dominant-failure-mode ceiling.** §2 named the residual this family's replay-match
+   oracle cannot close: a "plausible-looking but wrong resolution" scores identically to any other
+   resolution-mismatch (§4 category 3), so a high resolution-mismatch rate on EITHER arm, even
+   absent any qualification breach, may indicate the oracle cannot discriminate this family's true
+   failure surface rather than that the arm is genuinely weak. If either arm's resolution-mismatch
+   rate (excluding no-artifact/non-scoreable) reaches or exceeds 54 of 60 attempts (90%), this is
+   disclosed as evidence the paired comparison may be uninformative regardless of what §5's decision
+   rule reports — a disclosure, not a qualification gate (§6 does not gate on this number; only
+   Clauses 1–3 do).
+4. **Per-seed diagnostic disclosure.** Per §5's seed-clustering cost, the six per-seed discordant
+   win/loss counts are recorded and reported alongside the pooled decision in every run, so a
+   reviewer can inspect whether the pooled result is driven disproportionately by one or two seeds —
+   a diagnostic obligation stated here as a disclosure requirement, not a gate.
+
+## §9 Pinned constants
+
+Every constant §3 through §8 rely on, its literal value, and its provenance — cited from a named
+source, or derived here with the derivation shown. This is the table Phase 14's instrument code
+transcribes, and the table a later drift guard compares against; a constant used above and missing
+here is the defect this table exists to catch.
+
+| Constant | Value | Provenance |
+|---|---|---|
+| Battery size (pairing units) | 60 | derived: 6 seeds × 10 tasks per seed, matching the house convention `BI-BATTERY-DESIGN.md` §8 and `DUALFIX-STUDY-PREREG.md` §4 both already use |
+| Seeds (six, pinned) | 1301, 1302, 1303, 1304, 1305, 1306 | derived: fresh, disjoint from every seed set already used by any prior study in this project (DUALFIX 1201-1206; BI stage-1 101/202/303/404/505/606, stage-2 707/808/909, pretest 999) — chosen following DUALFIX's own incrementing-prefix naming convention, the next unused block |
+| Tasks per seed | 10 | derived: matches the house per-seed task count both `BI-BATTERY-DESIGN.md` §1 and `DUALFIX-STUDY-PREREG.md` §4 already use |
+| Instrument-health gate floor (§6 Clause 1) | 48 of 60 (80%) | derived: 60 × (1 − 2 × 0.10), the joint consequence of both arms individually clearing the 10% per-arm drop-budget ceiling (Clause 3) in the worst case of non-overlapping drops |
+| Minimum discordant-pairs floor (§6 Clause 2) | 20 | cited: reused from `DUALFIX_CORPUS_MIN_N`, `DUALFIX-STUDY-PREREG.md` §4/§8/§9's own underpowered-study floor value, for house-convention consistency, not independently power-derived for this design |
+| Per-arm drop-budget ceiling (§6 Clause 3) | 6 of 60 (10%) | cited: reused from the 10% drop-budget/error-budget convention both `BI-BATTERY-DESIGN.md` §6 clause (v) and `DUALFIX-STUDY-PREREG.md` §8's error budget already use |
+| Tie-rate ceiling disclosure (§8 item 1) | 40 of 60 (66.7%) | derived: 60 − 20, the arithmetic complement of the Clause 2 discordant-pairs floor |
+| Significance level (§5, §8 item 2) | 0.05, two-sided (0.025 per tail) | cited: the standard two-sided sign-test significance level; the per-tail combinatorial condition is derived, shown in §5 |
+| Per-arm dominant-failure-mode ceiling (§8 item 3) | 54 of 60 (90%) | derived: no upstream figure fixes this family's own residual-blindness ceiling; chosen as a high bar (90%) so it flags only the case where an arm is scoring resolution-match on 10% or fewer of its scoreable attempts, a rate at which the oracle's own discriminating power is itself in question |
+| Critical-value table (§5 decision rule) | see table below | derived: `c(n_d)` = smallest integer such that `40 · Σ_{i=c(n_d)}^{n_d} C(n_d, i) ≤ 2^{n_d}`, computed once per `n_d` from 20 (the Clause 2 floor) through 60 (the full battery size) |
+
+**Critical-value table, `n_d → c(n_d)`, pinned as literal integers, covering every discordant-pair
+count this design can plausibly produce — the Clause 2 floor (20) through the full battery size
+(60).** `W-superior` fires iff `k_w >= c(n_d)`; `B-superior` fires iff `k_w <= n_d - c(n_d)` (the
+third column, shown for direct lookup); otherwise indistinguishable.
+
+| n_d | c(n_d) (W-superior at or above) | n_d − c(n_d) (B-superior at or below) |
+|---|---|---|
+| 20 | 15 | 5 |
+| 21 | 16 | 5 |
+| 22 | 17 | 5 |
+| 23 | 17 | 6 |
+| 24 | 18 | 6 |
+| 25 | 18 | 7 |
+| 26 | 19 | 7 |
+| 27 | 20 | 7 |
+| 28 | 20 | 8 |
+| 29 | 21 | 8 |
+| 30 | 21 | 9 |
+| 31 | 22 | 9 |
+| 32 | 23 | 9 |
+| 33 | 23 | 10 |
+| 34 | 24 | 10 |
+| 35 | 24 | 11 |
+| 36 | 25 | 11 |
+| 37 | 25 | 12 |
+| 38 | 26 | 12 |
+| 39 | 27 | 12 |
+| 40 | 27 | 13 |
+| 41 | 28 | 13 |
+| 42 | 28 | 14 |
+| 43 | 29 | 14 |
+| 44 | 29 | 15 |
+| 45 | 30 | 15 |
+| 46 | 31 | 15 |
+| 47 | 31 | 16 |
+| 48 | 32 | 16 |
+| 49 | 32 | 17 |
+| 50 | 33 | 17 |
+| 51 | 33 | 18 |
+| 52 | 34 | 18 |
+| 53 | 35 | 18 |
+| 54 | 35 | 19 |
+| 55 | 36 | 19 |
+| 56 | 36 | 20 |
+| 57 | 37 | 20 |
+| 58 | 37 | 21 |
+| 59 | 38 | 21 |
+| 60 | 39 | 21 |
+
+A constant used in the prose but missing from this table (or the constants table above) is the
+defect this table exists to catch; none is left out.
+
+## §10 Limitations and residual disclosures
+
+- **No in-repo precedent for this statistical machinery.** The paired win/loss/tie sign test over
+  discordant pairs, and its pinned critical-value table, has no predecessor anywhere in this
+  project's history — every prior statistical design here (DUALFIX's Stage-B margin, the BI
+  battery's corridor/gradient/headroom clauses) is a single-arm rate or a two-arm rate DIFFERENCE,
+  never a per-task paired sign test. This document states that plainly rather than letting a
+  reviewer discover it; §5's own template is training-knowledge scaffolding for the 5-lane panel
+  (13-03) to pressure-test, not a transcription of an already-verified house mechanic.
+- **What this design cannot detect.** A sign test over discordant pairs detects only the DIRECTION
+  of a difference (does W or B win more discordant pairing units), never its MAGNITUDE — a design
+  where W wins discordant pairs by a landslide and one where W wins them by the barest majority
+  above the critical value are indistinguishable to this decision rule beyond both reading
+  W-SUPERIOR. This design makes no magnitude claim and none should be read into a W-SUPERIOR or
+  B-SUPERIOR verdict.
+- **What this design assumes.** The pooled decision rule (§5) assumes the sixty pairing units are
+  independent draws from a single `Binomial(n_d, 0.5)` process under the null; §5's own cost
+  disclosure states plainly that intra-seed correlation, if real, makes the test anti-conservative.
+  This is a design-time assumption, not a data-time-verified fact.
+- **A replay-match oracle's blind spot, carried from §2.** §2 named this design's inherited
+  exposure explicitly: a "plausible-looking but wrong" resolution scores identically to any other
+  mismatch under this family's binary oracle. §8 item 3's disclosure names the ceiling above which
+  this blind spot is flagged as a likely confound; it is not closed by this design.
+- **Single instrument, single family.** This design measures W-vs-B on one family
+  (`customer-support`'s replay-checkable subset) only. No claim is made about the tournament
+  machinery's performance on any other family, vertical, or task shape.
+
+## §11 Adversarial review and freeze
+
+Placeholder only. The 5-lane adversarial panel round (`gpt-sol-pro`, `kimi-k3`, `qwen-max`,
+`gemma4`, `gpt-oss`) runs in plan 13-03; the adjudication ledger (ADOPTED/REJECTED-with-reason for
+every finding) lands in plan 13-04; rev 2 freezes, and the freeze commit's SHA is recorded as a
+literal string in `docs/JOURNAL.md`, in plan 13-05. Nothing in this section is a finding or a
+decision — it exists only to name where those records land.
