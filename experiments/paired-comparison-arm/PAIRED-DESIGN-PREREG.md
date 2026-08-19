@@ -287,3 +287,114 @@ identically under these four categories: categories 1–2 turn only on whether a
 exists at all (never on whether it is correct), and categories 3–4 turn only on the oracle's own
 binary match result once a scoreable artifact exists — no category depends on a judgement call
 between them.
+
+## §5 The paired methodology and its integer decision rule
+
+**Per-pair outcome: win, loss, or tie — computed from binary oracle scores.** For each pairing unit
+(§4), both arms' proposed resolutions are scored independently by the same replay-match oracle,
+each producing a score of exactly 0 (resolution-mismatch — or worse, no-artifact/non-scoreable,
+which §6 Clause 3 tracks separately) or 1 (resolution-match). A pair resolves to exactly one of:
+
+- **WIN** — W scores 1 and B scores 0 on that pairing unit.
+- **LOSS** — W scores 0 and B scores 1.
+- **TIE** — both arms score identically (both 1, or both 0).
+
+Because the score type is binary (an integer 0 or 1, never a graded or continuous value), equality
+is plain integer equality — `scoreW === scoreB` — and no tolerance clause is applicable or needed:
+there is no floating-point comparison anywhere in this determination, and no ambiguous "close
+enough" case can arise. Two implementers given the same pair of scores would classify the pair
+identically, with no interpretive step between them.
+
+**The test population: discordant pairs only, ties recorded not dropped.** The test statistic
+(below) is computed over the DISCORDANT population — WIN ∪ LOSS pairs — only. TIE pairs carry no
+directional information under the null hypothesis that W and B are equally likely to win a
+discordant pairing unit, and are excluded from the statistic for exactly that reason: standard
+sign-test practice discards zero-differences because a tie is not evidence for either direction.
+The tie count is recorded and reported in every run, regardless of outcome — an all-tie or
+near-all-tie population is itself a finding (§8's tie-rate ceiling disclosure names the threshold
+above which this is disclosed in advance as likely), and is never silently absorbed into either the
+numerator or the denominator of the discordant-pair statistic.
+
+**Rejected tie-handling alternative, named and dispositioned.** A stricter sign-test variant splits
+ties evenly between the two directions (crediting each tied pair as half a win and half a loss)
+rather than discarding them. This design REJECTS that alternative for two reasons, stated plainly:
+(1) a tie under this family's binary scoring means both arms produced the identical outcome (both
+matched, or both missed) — crediting directional information to an event that by definition carries
+none would assert something this design has no evidential basis for; (2) splitting a tie requires
+crediting a fractional (0.5) win, which would reintroduce a non-integer value into the win count
+`k_w` that this section's own decision rule requires to stay a pure integer end to end — the
+split-tie alternative is therefore incompatible with the no-float-anywhere-in-the-decision-path
+discipline this design adopts, not merely a stylistic choice against it. Discarding ties (the
+adopted rule above) is the only convention compatible with both the evidential and the
+integer-arithmetic constraints this design is bound by.
+
+**The decision rule: a pinned integer comparison, two-sided.** Let `n_d` be the discordant-pair
+count (WIN + LOSS) and `k_w` the WIN count among them. Under the null hypothesis (W and B equally
+likely to win any given discordant pairing unit), `k_w` follows `Binomial(n_d, 0.5)`. Rather than
+computing a binomial tail probability at run time — a live floating-point operation this design
+forbids end-to-end, mirroring `DUALFIX-STUDY-PREREG.md` §7's own integer-comparison discipline —
+the decision rule uses a critical value `c(n_d)`, pinned as a literal integer in §9's table,
+computed once at design time as the smallest integer `c` such that
+`40 · Σ_{i=c}^{n_d} C(n_d, i) ≤ 2^{n_d}` (the exact combinatorial condition for a per-tail
+probability not exceeding 0.025 under `Binomial(n_d, 0.5)`, evaluated in exact integer arithmetic
+over binomial coefficients — no approximation, no floating-point tail-probability computation,
+ever). The decision rule, evaluated as a pure integer comparison against that pinned table:
+
+- **W-superior:** `k_w >= c(n_d)`. Boundary INCLUSIVE — `k_w` exactly equal to `c(n_d)` counts as
+  W-superior, not as indistinguishable.
+- **B-superior:** `k_w <= n_d - c(n_d)`. Boundary INCLUSIVE, by the same symmetric construction (the
+  lower critical value is `n_d - c(n_d)` by the symmetry of `Binomial(n_d, 0.5)`).
+- **Indistinguishable (fail to reject the null):** `n_d - c(n_d) < k_w < c(n_d)`.
+
+**Significance level, and its pinned consequence.** The significance level is `α = 0.05`, two-sided
+(a literal number, not "standard α" left implicit) — split as 0.025 per tail in the combinatorial
+condition above. §9's critical-value table is this level's pinned consequence: every `c(n_d)` value
+in that table is the literal integer computed once, at design time, from the formula above; the
+decision rule at data-time never recomputes it and never falls back to a live approximation.
+
+**Evaluated once, from a completed artifact.** The rule above is evaluated exactly once, after the
+full battery (§6) has run to completion and every pairing unit has a final, permanent per-arm status
+(§4's per-task status discipline) — never from wall-clock elapsed, never from partial progress, and
+never re-evaluated after an initial read, mirroring `DUALFIX-STUDY-PREREG.md` §7's own firing
+discipline and this project's standing long-inference-operational-risk practice
+(`.planning/STATE.md` Blockers/Concerns).
+
+**Seed clustering, addressed head-on.** This project's every prior noise-budget design (DUALFIX §9,
+`BI-BATTERY-DESIGN.md` §7) treats six seeds as the replication unit for a t-distribution interval
+estimate — but a sign test over discordant PAIRS is naturally task-level, and the battery (§6) draws
+ten tasks from each of six seeds, so a real intra-seed correlation threat exists: if a given seed's
+ten tickets happen to systematically favour one arm (a property of that seed's own generated
+content, not of the mechanism under test), the sixty pairing units are not sixty independent
+observations. Three candidate approaches exist, named rather than resolved by omission:
+
+1. **Task-level test with a cluster-robust adjustment** for intra-seed correlation (estimating a
+   design effect or intra-cluster correlation coefficient from the observed per-seed counts and
+   inflating the variance accordingly).
+2. **A stratified test** that computes each seed's own discordant win/loss counts separately and
+   combines the six 2x2 strata via a weighted combination (e.g. Cochran-Mantel-Haenszel).
+3. **Seed as a blocking factor, with results pooled across blocks** — the battery is constructed in
+   six seed-blocks (ensuring balanced representation across seeds, per §6), but the discordant
+   win/loss counts are pooled directly across all six blocks into one aggregate `n_d`/`k_w` pair,
+   with no data-time adjustment for intra-seed correlation.
+
+**This design adopts option 3.** Options 1 and 2 both require a data-time floating-point
+computation — an estimated correlation coefficient or design-effect multiplier for option 1, a
+variance-weighted stratum combination for option 2 — that would reintroduce exactly the live
+significance computation this section's own decision rule forbids; a design-time-pinned integer
+critical-value table (§9) has no closed form that absorbs a data-dependent adjustment computed after
+the battery runs. Option 3 keeps the entire decision path integer end to end: pool the raw
+discordant counts, compare against the pinned table, done.
+
+**What adoption costs, stated honestly.** The pooled decision rule assumes the discordant pairs are
+independent draws from a single `Binomial(n_d, 0.5)` process. If that assumption fails — if
+intra-seed correlation is real (some seeds systematically favour one arm across their own ten
+tasks) — the true number of independent observations is smaller than the nominal `n_d` the table is
+indexed by. This makes the pooled test ANTI-CONSERVATIVE: it will reject the null (declare
+W-superior or B-superior) MORE OFTEN than the table's nominal α=0.05 states, because the table
+assumes more independent information than the data may actually contain. This bias runs toward
+FALSE POSITIVES, not toward missed effects — the opposite of a conservative failure mode, stated
+here rather than left for a reviewer to discover. The mitigating disclosure this design adopts:
+per-seed discordant win/loss counts are recorded and reported alongside the pooled decision (§8 item
+4), so a reviewer can inspect whether the six per-seed breakdowns look homogeneous or whether one or
+two seeds are visibly driving the pooled result — a diagnostic, not a correction; the decision rule
+itself stays the plain pooled integer comparison regardless of what the diagnostic shows.
