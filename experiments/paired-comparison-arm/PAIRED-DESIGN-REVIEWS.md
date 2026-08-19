@@ -93,11 +93,12 @@ quoted verbatim, never executed, never auto-applied to any document (D-07). No f
 adjudicated in this plan — adjudication is 13-04's job, exactly once, `ADOPTED` or
 `REJECTED-with-reason` per finding.
 
-**Panel (Task 1 of 3 — three openrouter lanes only):** gpt-sol-pro (UNSOUND), kimi-k3
-(SOUND-WITH-CHANGES), qwen-max (SOUND-WITH-CHANGES), gemma4 (not yet run — Task 2), gpt-oss (not
-yet run — Task 2). 3 of 5 target lanes have produced output as of this task.
+**Panel (Task 2 of 3 — all five lanes now run):** gpt-sol-pro (UNSOUND), kimi-k3
+(SOUND-WITH-CHANGES), qwen-max (SOUND-WITH-CHANGES), gemma4 (UNSOUND), gpt-oss (UNSOUND). 5 of 5
+target lanes have produced output. Task 3 closes the header's own panel line and totals against the
+findings actually reproduced below; this line is Task 2's own interim record of the same fact.
 
-**Dead lanes (Task 1):** None of the three openrouter lanes attempted.
+**Dead lanes (Task 2):** None. All five lanes attempted; all five answered on the first attempt.
 
 **Invocation-path note (Task 1 — three openrouter lanes).** All three ran through the house seam —
 `node ~/.claude/gsd-core/bin/gsd-tools.cjs query review-lane invoke --slug opencode --model <id from
@@ -105,6 +106,30 @@ review.reviewer_instances> --as <name> --run-dir <scratch> --repo-root <repo> --
 <scratch>/prompt.md`, with `~/.opencode/bin` prepended to `PATH` — all three succeeded on the first
 attempt (`{ok: true, stubbed: false}` from the seam for every lane), no retry or fallback taken. The
 identical prompt (below, in full) was sent to all three; none required trimming.
+
+**Invocation-path note (Task 2 — two local Ollama lanes, `gemma4:31b` and `gpt-oss:latest`).** Both
+ran via the pre-authorised **direct HTTP POST fallback**, not the seam's own `ollama` lane — the
+seam's `ollama` lane timeout floor (120s) was already established, in the 13-01 reachability probe
+and in the `bi-analytics-pilot` precedent, to be too short for a cold load of a 19GB/13GB model
+against a full-document prompt. Direct HTTP was sent to Ollama's **native** `/api/chat` endpoint
+(`http://localhost:11434/api/chat`), not the OpenAI-compatible `/v1/chat/completions` endpoint,
+specifically because the OpenAI-compat endpoint does not honour a `num_ctx` override — the native
+endpoint does, and `options.num_ctx: 40000` was set on both requests to guarantee the ~29,800-token
+prompt was not silently truncated to Ollama's small default context window. This was verified from
+each response's own `prompt_eval_count` field, not assumed: `gemma4:31b` reported
+`prompt_eval_count: 29787`, `gpt-oss:latest` reported `prompt_eval_count: 28179` — both within
+rounding of the prompt's own token estimate (119,164 bytes / ~4 bytes-per-token ≈ 29,791), confirming
+the full, untrimmed, identical prompt (the same one Task 1's three openrouter lanes received) was
+ingested by both local lanes. Neither lane required any trimming or omission.
+
+`_memory-watchdog.sh` (`WATCHDOG_CEILING_GB=109`, PID 256796) ran detached for the entire local-model
+window, from before `gemma4:31b` loaded until after `gpt-oss:latest` was confirmed stopped; its own
+log shows only the start line and no breach event, confirming the ceiling was never crossed. The two
+models ran **strictly sequentially**: `ollama ps` confirmed empty before `gemma4:31b` loaded, empty
+again after `ollama stop gemma4:31b` and before `gpt-oss:latest` loaded, and empty a third time after
+`ollama stop gpt-oss:latest` — at no point were both models resident together. `wp-judge-v4` was
+invoked in no role, in either task of this panel round, per the standing exclusion — stated here
+explicitly rather than silently honoured.
 
 ## Review prompt
 
@@ -424,3 +449,106 @@ No findings. §8's four disclosures carry literal numbers (40/60, α=0.05, 54/60
 No findings. §4's answer-first construction composes ground truth before generating the ticket, and the match oracle shares zero helper functions with the generator. The disclosed gap (ticket-text rendering fidelity) is named and deferred to Phase 14, not silently exploited.
 
 **Raw finding count — qwen-max: 5 (F1–F5).**
+
+## Lane: gemma4
+
+**Verdict: unsound**
+
+**1. Qualification clauses (§6)**
+No findings.
+
+**2. Sign test appropriateness (§5)**
+No findings.
+
+**3. Critical-value table and boundaries (§9, §5)**
+No findings.
+
+**4. Seed clustering approach (§5)**
+F1: The decision to adopt Option 3 (pooling raw counts across blocks) in §5 explicitly introduces an anti-conservative bias that increases the risk of False Positives (Type I errors). By ignoring intra-seed correlation, the design treats dependent observations as independent, effectively inflating the nominal sample size $n_d$. While §5 and §8 item 4 disclose this as a "diagnostic," a diagnostic is not a correction; it allows the decision rule to fire on a biased statistic while merely providing a post-hoc record of how that bias may have occurred. This creates a systematic path for Robert Li to report W-superiority based on a few lucky seeds rather than a generalizable effect.
+
+**5. Tie handling (§5)**
+No findings.
+
+**6. Minimum-discordant-pairs floor (§6 Clause 2)**
+No findings.
+
+**7. Arm identities (§3)**
+F2: The definition of Arm B as an "unevolved baseline" in §3 is fatally under-specified. It describes B as the configuration a human would write without running tournament machinery, but it fails to require that B be optimized via standard manual prompt engineering (e.g., iterative refinement or few-shotting). Without a requirement for B to be a competitive manual baseline, Robert Li can utilize a naive, unoptimized prompt for Arm B, creating a straw man that ensures the GEPA-selected W appears superior regardless of whether the tournament machinery actually adds value over standard human engineering.
+
+**8. Barred promotion-gate relabelling (§2)**
+No findings.
+
+**9. Termination clause (§7)**
+No findings.
+
+**10. Quantified disclosures (§8)**
+No findings.
+
+**11. Constant traceability (§9)**
+No findings.
+
+**12. Answer-first construction (§4)**
+No findings.
+
+**Raw finding count — gemma4: 2 (F1–F2).**
+
+## Lane: gpt-oss
+
+**Verdict: unsound**
+
+### 1. Qualification clause (§6) bounds an aggregate statistic?
+
+No findings.
+
+### 2. Appropriateness of the sign test and its null hypothesis
+
+**F1 – Claim:** The design applies a simple sign test over discordant pairs with the null that *W* and *B* are equally likely to win any given discordant pair (i.e., each arm has probability 0.5 of scoring 1). This assumption is invalid when the two arms have different overall rates of producing scoreable resolutions, because a higher rate of valid proposals naturally yields more opportunities for ties and changes the effective probability that an observed win reflects true superiority rather than a difference in failure modes. Consequently, the test may produce misleading p-values and erroneous conclusions about agent performance.
+**Location:** §5, paragraph beginning "The test population: discordant pairs only…".
+
+### 3. Correctness of the pinned critical-value table (§9)
+
+No findings.
+
+### 4. Seed-clustering approach (§5, option 3) and intra-seed correlation
+
+**F2 – Claim:** Pooling discordant wins and losses across seeds while treating all sixty pairing units as independent observations ignores the inevitable within-seed correlation induced by identical seed-derived tickets. The design acknowledges this anti-conservative bias but offers no statistical correction or a bound on its impact, thereby risking inflated type-I error rates without justification for the chosen threshold of 20 discordant pairs.
+**Location:** §5, sub-section "Seed clustering, addressed head-on."
+
+### 5. Tie handling (discarding vs splitting)
+
+**F3 – Claim:** Discarding ties eliminates directional information that could be informative about agent behavior and reduces the effective sample size, thereby lowering test power. The justification that split-tied pairs would introduce non-integer wins (0.5) and thus violate the integer decision rule is mistaken; a simple rounding scheme preserves integer arithmetic while retaining more information. As written, the design sacrifices statistical efficiency without valid technical reason.
+**Location:** §5, paragraph beginning "Rejected tie-handling alternative…"
+
+### 6. Minimum-discordant-pairs floor (20 pairs)
+
+**F4 – Claim:** The choice of a minimum of 20 discordant pairs is arbitrary and not derived from a formal power analysis for the two-sided sign test at α = 0.05. Without such justification, the floor may be either too low to achieve acceptable power or unnecessarily restrictive, undermining confidence in reported results.
+**Location:** §6, "Clause 2 — minimum-discordant-pairs floor."
+
+### 7. Fairness of W and B arm identities (§3)
+
+**F5 – Claim:** Defining *B* as the same underlying model without any tournament-driven search creates a straw-man baseline that is unlikely to match real hand-written baselines in complexity or quality. This asymmetry inflates the apparent superiority of *W*, violating the principle of a fair comparison between an evolved agent and a properly engineered human or static model baseline.
+**Location:** §3, paragraphs describing *B* as "unevolved baseline" and the discussion of equal-treatment invariants.
+
+### 8. Hypothesis relabeling vs barred promotion-gate comparison
+
+**F6 – Claim:** Although §2 maps the design onto four axes and claims substantive differences from the barred hypothesis ("prompt-search vs hand-written baseline on data-ops or bi-analytics"), both *W* (a prompt-search agent) and *B* (hand-written baseline) are compared in a pairwise win–loss fashion. The original bar prohibits any promotion-gate comparison of a prompt-search instrument against a hand-written baseline regardless of vertical name; therefore the design still falls under the barred class, rendering its compliance claim invalid.
+**Location:** §2 and §3 where the mapping is asserted.
+
+### 9. Termination clause (§7) permitting silent extension or null conflation
+
+No findings.
+
+### 10. Quantified disclosures (§8)
+
+No findings.
+
+### 11. Constant provenance in §9's pinned-constants table
+
+No findings.
+
+### 12. Oracle's answer-first construction independence (§4)
+
+**F7 – Claim:** The design claims that ground truth is generated independently of the agent under test, yet the same rendering logic used to compose the known resolution also generates the customer-facing ticket text from that resolution's semantics. Any bug or bias in this shared rendering step would produce tickets whose wording unintentionally hints at the correct resolution, thereby violating true independence of the oracle and potentially inflating match rates.
+**Location:** §4, paragraph beginning "What this independence does not cover…"
+
+**Raw finding count — gpt-oss: 7 (F1–F7).**
