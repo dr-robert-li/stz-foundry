@@ -1838,3 +1838,50 @@ and typecheck stayed green through this commit.
 version-sync-deferred discipline D-08 established. No instrument, search, or paired-round inference
 has run against these frozen pins as of this entry; the pins the rest of this phase runs against are
 fixed as of this commit — a one-way door, not a draft that keeps moving.
+
+## Phase 15, plan 15-05: the rev-3 pins are transcribed and bound, and a gap in the disjointness check finally closes (2026-08-20)
+
+**Transcribing the frozen pins.** I added a new, additive rev-3 block to `_paired-constants.ts`,
+after the Plan-15-01 model pins, holding every one of §12's remaining pins: the 90-pairing-unit
+battery size, the nine 1601-1609 battery seeds, the tasks-per-seed value the settled 9×10 shape
+restates, the two recomputed qualification constants (health-gate floor 72, drop-budget ceiling 9),
+the recomputed tie-rate disclosure threshold (71), the settled block-concordance shape (9 blocks,
+six-of-nine agreement), the re-derived near-floor evidential-weight bound (25), the full 71-row
+critical-value table (n_d 20 through 90), the 1610 ceiling-probe seed, and the 1611-1613/1614-1616
+search and promotion seed arrays. Every symbol carries a doc comment naming the exact §12 row or
+paragraph it transcribes. Reused the rev-2 symbol directly, with no rev-3 duplicate, everywhere §12
+says a value is explicitly unchanged (the discordant floor, the ceiling probe's task count and
+scoreable floor) — and added a fresh rev-3 symbol everywhere §12 restates a value as part of a
+settled decision, even where the number coincides with rev-2's (the seed-block shape's own "nine
+blocks of ten"), because the guard binds symbols to rows and a missing symbol is a missing check.
+`git diff` against the pre-Task-1 tree shows only added lines — no existing export identifier on the
+removed side.
+
+**Binding the block to the frozen text.** `test/paired-constants-rev3.test.ts` reads §12 off disk —
+never a duplicated copy of a number — and checks every rev-3 symbol against the row or paragraph
+that states it, using the exact wording §12 uses (including its "nine"/"ten"/"six-of-nine"
+spelled-out number words, mapped through a small lookup rather than hand-copied as digits). The
+71-row critical-value table gets three independent checks: (a) the module's literal table matches
+§12's own transcribed table, parsed off disk; (b) every one of the 71 values is independently
+re-derived from §5's exact combinatorial condition in BigInt arithmetic, reimplemented locally in
+the guard itself rather than imported from `_rev3-critical-values.ts` — so a bug shared between that
+production script and the transcribed literal cannot pass unnoticed; (c) on the 20-60 range the
+rev-2 and rev-3 tables share, the two agree row for row.
+
+**Closing the disjointness gap.** Extended `test/paired-constants.test.ts`'s existing pairwise-
+disjointness case rather than duplicating it: added all four rev-3 seed blocks (battery, probe,
+search, promotion) to the checked-block list, and backfilled the prior-seed literal array with 1501,
+1502, 1503 — the three diagnostic calibration seeds (`_calibration-dryrun.ts`'s `CAL_SEED_BASE`,
+`CAL_SEED_C4`, `CAL_SEED_DISTRACTOR`) that this repository had consumed but that no disjointness
+check had ever been told about. A rev-3 block could have collided with them silently before this
+change; now it cannot.
+
+**Mutation-proving the guard, not just trusting it.** Before committing, I temporarily changed
+`PAIRED_BATTERY_SIZE_REV3` from 90 to 91 and re-ran `test/paired-constants-rev3.test.ts`: it went red
+(2 of 17 checks failed, both against the corrupted key-set expectation), confirming the guard
+actually discriminates a wrong value rather than passing vacuously. Reverted the change — `git diff`
+on the constants module came back empty — and re-ran the full three-file suite: 42/42 green again.
+
+Full suite and typecheck stayed green through both tasks. No instrument, search, or paired-round
+inference has run under these bindings as of this entry — the next plan is the first to touch
+execution against these now fully code-bound rev-3 pins.

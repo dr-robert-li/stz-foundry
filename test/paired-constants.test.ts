@@ -23,6 +23,10 @@ import {
   CEILING_PROBE_SCOREABLE_FLOOR,
   TOURNAMENT_SEARCH_SEEDS,
   TOURNAMENT_PROMOTION_SEEDS,
+  PAIRED_SEEDS_REV3,
+  CEILING_PROBE_SEED_REV3,
+  TOURNAMENT_SEARCH_SEEDS_REV3,
+  TOURNAMENT_PROMOTION_SEEDS_REV3,
 } from "../experiments/paired-comparison-arm/_paired-constants.js";
 
 // Plan 14-01 (REQ-68/69, T-14-01). This test reads the FROZEN
@@ -157,12 +161,16 @@ describe("PAIRED-DESIGN-PREREG.md §9 <-> _paired-constants.ts drift guard (T-14
     }
   });
 
-  it("every pinned seed block (paired battery + Phase-14 build-gate) is pairwise disjoint", () => {
+  it("every pinned seed block (paired battery + Phase-14 build-gate + Phase-15 rev-3) is pairwise disjoint (extended by Plan 15-05, REQ-71)", () => {
     const blocks: { name: string; seeds: readonly number[] }[] = [
       { name: "PAIRED_SEEDS", seeds: PAIRED_SEEDS },
       { name: "CEILING_PROBE_SEED", seeds: [CEILING_PROBE_SEED] },
       { name: "TOURNAMENT_SEARCH_SEEDS", seeds: TOURNAMENT_SEARCH_SEEDS },
       { name: "TOURNAMENT_PROMOTION_SEEDS", seeds: TOURNAMENT_PROMOTION_SEEDS },
+      { name: "PAIRED_SEEDS_REV3", seeds: PAIRED_SEEDS_REV3 },
+      { name: "CEILING_PROBE_SEED_REV3", seeds: [CEILING_PROBE_SEED_REV3] },
+      { name: "TOURNAMENT_SEARCH_SEEDS_REV3", seeds: TOURNAMENT_SEARCH_SEEDS_REV3 },
+      { name: "TOURNAMENT_PROMOTION_SEEDS_REV3", seeds: TOURNAMENT_PROMOTION_SEEDS_REV3 },
     ];
     const seen = new Map<number, string>();
     for (const block of blocks) {
@@ -172,10 +180,18 @@ describe("PAIRED-DESIGN-PREREG.md §9 <-> _paired-constants.ts drift guard (T-14
         seen.set(seed, block.name);
       }
     }
-    // Also disjoint from every seed set already used by a prior study.
-    const priorSeeds = [1201, 1202, 1203, 1204, 1205, 1206, 101, 202, 303, 404, 505, 606, 707, 808, 909, 999];
+    // Also disjoint from every seed set already used by a prior study or
+    // diagnostic, backfilled to the complete union (Plan 15-05, REQ-71): the
+    // DUALFIX and BI seeds already listed, plus the three diagnostic
+    // calibration seeds (`_calibration-dryrun.ts`'s `CAL_SEED_BASE`,
+    // `CAL_SEED_C4`, `CAL_SEED_DISTRACTOR`) — consumed seeds no test in this
+    // repository knew about until now, so a rev-3 block could have collided
+    // with them and passed.
+    const priorSeeds = [
+      1201, 1202, 1203, 1204, 1205, 1206, 101, 202, 303, 404, 505, 606, 707, 808, 909, 999, 1501, 1502, 1503,
+    ];
     for (const seed of priorSeeds) {
-      expect(seen.has(seed), `Phase 14 seed block reuses prior-study seed ${seed}`).toBe(false);
+      expect(seen.has(seed), `Phase 14/15 seed block reuses prior-study or diagnostic seed ${seed}`).toBe(false);
     }
   });
 
