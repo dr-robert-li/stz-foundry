@@ -1629,3 +1629,32 @@ to `dr-robert-li` with no trailer lines. The full suite and typecheck are green 
 entry commits; the milestone is pushed at this gate, matching the v1.23.0/v1.24.0 precedent. All
 four frozen precedent documents and both v1.24.0 record files remain byte-identical to their
 pre-phase state.
+
+## Phase 15 opens: a calibration dry-run finds the gradient the real round didn't have (2026-08-19)
+
+The v1.25.0 round I just closed above ended `TERMINATED-UNDERPOWERED` for a reason that had nothing
+to do with the instrument itself: the seed baseline (B) already scored 30/30 on the search battery, so
+there was no gradient for a component search to climb, and W shipped byte-identical to B by
+construction. Before drafting any amendment I wanted to know whether that was a property of the
+battery or a property of the model — those call for different fixes, and only one of them is cheap.
+
+So I ran a diagnostic — explicitly a **carve-out dry-run, never a pre-registered run**, via
+`experiments/paired-comparison-arm/_calibration-dryrun.ts` — six harder ticket-text variants (C0
+unmodified through C5 compound) against B's own real `systemPrompt`, real inference, no gating, no
+prereg document reading it. Two models, one battery each. `qwen3.6:latest` (the rev-2 pinned model)
+saturated every single configuration, 60/60 matched, including the footer-stripped and distractor
+variants I expected to bite. `gpt-oss:latest` (digest `17052f91a42e`) did not: C0 70%, C1 90%, C2 80%,
+C3 70%, C4 100%, C5 70% — a real gradient, and a further micro-check (C6, combining the two-step,
+stripped-footer, and distractor variants under an explicit output-contract prompt) cleared 10/10,
+which told me the misses were format/vocabulary near-misses, not arithmetic failures. That is the
+kind of gap a prompt search can climb.
+
+Therefore the rev-3 amendment I'm about to draft will propose `gpt-oss:latest` as the executor model,
+n raised to 90 pairs (keeping the 20-pair discordant floor unchanged — margin comes from more pairs,
+not a lower bar), and the standard unmodified battery. All three calibration verdict artifacts plus
+the diagnostic script that produced them are committed in this same plan (15-01), byte-exact as they
+lie on disk, so every figure the amendment cites reads back from a tracked file rather than from this
+session's transcript — `test/paired-calibration-evidence.test.ts` binds each cited figure to its
+artifact and fails if they ever disagree. Same house discipline as every prior amendment cycle: no
+inference of any kind runs again until the rev-3 freeze lands, panel-reviewed, ancestry-proven against
+rev 2.
