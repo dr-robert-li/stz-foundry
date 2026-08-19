@@ -216,3 +216,155 @@ export const TOURNAMENT_PROMOTION_SEEDS: readonly number[] = Object.freeze([1404
  *  (`PAIRED_MODEL` above) saturated every calibration configuration. */
 export const PAIRED_MODEL_REV3 = "gpt-oss:latest";
 export const PAIRED_MODEL_DIGEST_REV3 = "17052f91a42e";
+
+// ── Phase-15 rev-3 pins (Plan 15-05) — transcribed from §12 as FROZEN
+// (freeze commit `8279159aa28885bf0f95afe59db43eceb7921746`). Each symbol
+// below carries a doc comment naming the exact §12 row/paragraph it
+// transcribes; `test/paired-constants-rev3.test.ts` reads that frozen text
+// off disk and binds every one of them to it, plus independently re-derives
+// the widened critical-value table in arbitrary-precision arithmetic.
+// Additive only — every rev-2 export and the Plan-15-01 model pins above
+// stay exactly as they stand, value and order both. Reused unchanged where
+// §12 says so explicitly (the discordant floor, the ceiling probe's task
+// count and scoreable floor); transcribed as a fresh rev-3 symbol wherever
+// §12 restates a value as part of a settled decision, even when the number
+// coincides with rev-2's. ─────────────────────────────────────────────────
+
+/** §12 "Battery size:" 90 pairing units, replacing rev-2's 60. */
+export const PAIRED_BATTERY_SIZE_REV3 = 90;
+
+/** §12 "Fresh seed blocks ... Battery seeds (nine, under the settled 9×10
+ *  default)" — disjoint from the full prior-seed union. */
+export const PAIRED_SEEDS_REV3: readonly number[] = Object.freeze([
+  1601, 1602, 1603, 1604, 1605, 1606, 1607, 1608, 1609,
+]);
+
+/** §12 decision 1 "SETTLED: 9 blocks of ten" — the tasks-per-seed value the
+ *  settled 9×10 shape restates as part of that decision (same value as
+ *  rev-2's `PAIRED_TASKS_PER_SEED`, restated fresh rather than reused). */
+export const PAIRED_TASKS_PER_SEED_REV3 = 10;
+
+// Note: §12's "Minimum discordant-pairs floor: 20, unchanged" is reused
+// directly as `PAIRED_MIN_DISCORDANT_FLOOR` above — no rev-3 symbol, per
+// §12's own explicit "unchanged".
+
+/** §12 "Instrument-health gate floor (§9/§6 Clause 1), recomputed from §9's
+ *  own provenance formula applied to the new battery size:"
+ *  `battery_size × (1 − 2 × 0.10) = 90 × 0.8 = 72`. */
+export const PAIRED_HEALTH_GATE_FLOOR_REV3 = 72;
+
+/** §12 "Per-arm drop-budget ceiling (§9/§6 Clause 3), recomputed the same
+ *  way:" `battery_size × 0.10 = 90 × 0.1 = 9`. */
+export const PAIRED_DROP_BUDGET_CEILING_REV3 = 9;
+
+/** §12 "Tie-rate ceiling disclosure threshold (§9/§8 item 1), recomputed
+ *  the same way:" `battery_size − 19 = 90 − 19 = 71`. */
+export const PAIRED_TIE_RATE_DISCLOSURE_THRESHOLD_REV3 = 71;
+
+/** §12 decision 1 "SETTLED: 9 blocks of ten, six-of-nine concordance
+ *  agreement threshold" — the block count. */
+export const PAIRED_CONCORDANCE_BLOCK_COUNT_REV3 = 9;
+
+/** §12 decision 1 "SETTLED: 9 blocks of ten, six-of-nine concordance
+ *  agreement threshold" — the agreement threshold ("six of nine"). */
+export const PAIRED_CONCORDANCE_AGREE_THRESHOLD_REV3 = 6;
+
+/** §12 decision 2 "The near-floor evidential-weight bound ... SETTLED:
+ *  re-derived to 25, via a power-anchored criterion" — replacing Plan
+ *  14-03's 24 (`PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND` above, untouched). */
+export const PAIRED_NEAR_FLOOR_EVIDENTIAL_WEIGHT_BOUND_REV3 = 25;
+
+/**
+ * §12's critical-value table, pasted verbatim from §12's own 71-row table
+ * (n_d 20 through 90 inclusive) — the same combinatorial condition as
+ * `PAIRED_CRITICAL_VALUE_TABLE` above, widened to the rev-3 battery.
+ * `test/paired-constants-rev3.test.ts` re-derives every value independently
+ * in arbitrary-precision integer arithmetic; this module holds only the
+ * pinned literal, exactly as the rev-2 table above does.
+ */
+export const PAIRED_CRITICAL_VALUE_TABLE_REV3: Readonly<Record<number, number>> = Object.freeze({
+  20: 15,
+  21: 16,
+  22: 17,
+  23: 17,
+  24: 18,
+  25: 18,
+  26: 19,
+  27: 20,
+  28: 20,
+  29: 21,
+  30: 21,
+  31: 22,
+  32: 23,
+  33: 23,
+  34: 24,
+  35: 24,
+  36: 25,
+  37: 25,
+  38: 26,
+  39: 27,
+  40: 27,
+  41: 28,
+  42: 28,
+  43: 29,
+  44: 29,
+  45: 30,
+  46: 31,
+  47: 31,
+  48: 32,
+  49: 32,
+  50: 33,
+  51: 33,
+  52: 34,
+  53: 35,
+  54: 35,
+  55: 36,
+  56: 36,
+  57: 37,
+  58: 37,
+  59: 38,
+  60: 39,
+  61: 39,
+  62: 40,
+  63: 40,
+  64: 41,
+  65: 41,
+  66: 42,
+  67: 42,
+  68: 43,
+  69: 44,
+  70: 44,
+  71: 45,
+  72: 45,
+  73: 46,
+  74: 46,
+  75: 47,
+  76: 48,
+  77: 48,
+  78: 49,
+  79: 49,
+  80: 50,
+  81: 50,
+  82: 51,
+  83: 51,
+  84: 52,
+  85: 53,
+  86: 53,
+  87: 54,
+  88: 54,
+  89: 55,
+  90: 55,
+});
+
+/** §12 "Fresh seed blocks ... Probe seed (one): `1610`" — also restated in
+ *  "The rev-3 ceiling probe's own parameters" paragraph. Task count and
+ *  scoreable floor are explicitly unchanged there and reuse the rev-2
+ *  symbols (`CEILING_PROBE_TASK_COUNT`, `CEILING_PROBE_SCOREABLE_FLOOR`
+ *  above) — no rev-3 symbol for either, per §12's own explicit "unchanged". */
+export const CEILING_PROBE_SEED_REV3 = 1610;
+
+/** §12 "Fresh seed blocks ... Search seeds (three)". */
+export const TOURNAMENT_SEARCH_SEEDS_REV3: readonly number[] = Object.freeze([1611, 1612, 1613]);
+
+/** §12 "Fresh seed blocks ... Promotion seeds (three)". */
+export const TOURNAMENT_PROMOTION_SEEDS_REV3: readonly number[] = Object.freeze([1614, 1615, 1616]);
