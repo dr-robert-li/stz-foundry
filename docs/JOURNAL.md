@@ -1729,3 +1729,43 @@ model.** `gpt-oss` plays two distinct roles across this phase — one of the fiv
 here, and the executor model the paired round itself will run against later — a duality already
 named and disposed of in the phase research, not a conflict: this reachability check confirms only
 that the model answers, not anything about its independence as a reviewer.
+
+## Phase 15, plan 15-03: the real five-lane panel over §12, raw total fixed at 54 (2026-08-20)
+
+I put the rev-3 amendment (§12 only — the model swap, the battery widening to 90, the three
+recomputed qualification values, the widened 71-row critical-value table, and the two open
+decisions) in front of the same five-lane panel the rev-2 design carried, and recorded every finding
+verbatim before judging any of them, in a new, separate record:
+`experiments/paired-comparison-arm/PAIRED-DESIGN-REVIEWS-REV3.md`. The out-of-scope framing was explicit in the packet itself: the
+oracle, the generator, the equal-treatment invariant, and the sign-test methodology already cleared
+their own panel at rev-2 freeze and were not re-litigated here.
+
+**Verdicts:** `gpt-sol-pro` UNSOUND (14 findings), `kimi-k3` SOUND-WITH-CHANGES (12), `qwen-max`
+SOUND-WITH-CHANGES (10), `gemma4` SOUND-WITH-CHANGES (7), `gpt-oss` UNSOUND (11). **Raw total: 54.**
+No lane found the draft acceptable unchanged — every lane raised at least one finding, and no
+lane's silence stood in for agreement on the two open decisions.
+
+Three externally-hosted lanes ran through the house `review-lane invoke` seam against the identical
+packet; the two locally-hosted lanes ran strictly sequentially against Ollama's native `/api/chat`
+endpoint under the memory watchdog, each lane's `prompt_eval_count` checked against the packet's own
+estimated token count before recording (neither lane truncated: `gemma4` 16,929 vs. an estimated
+~14,532; `gpt-oss` 15,320 vs. the same estimate). No finding was merged, deduped, dismissed, or
+adjudicated — that is 15-04's job.
+
+The most serious substantive thread, raised independently by two lanes (`gpt-sol-pro` F11,
+`kimi-k3` F3) rather than by one: whether the battery-construction widening (60→90 units, plus the
+seed-block and qualification-threshold changes that come with it) is barred outright by §7's own
+frozen one-shot termination clause, which prohibits "changing the qualification thresholds, the
+battery construction, the oracle, or the decision rule" for the same hypothesis after a termination
+— which is exactly what rev-2's `TERMINATED-UNDERPOWERED` outcome was. Both lanes read the executor
+model swap alone as arguably outside that enumerated list, but the battery widening as squarely
+inside it. I recorded this without responding to it — no file was edited in reaction, and the
+amendment stays untouched until 15-04 adjudicates.
+
+Also raised independently by all five lanes, without any lane seeing another lane's output:
+`gpt-oss:latest`'s dual role as both a reviewer lane on this panel and the proposed rev-3 executor
+model, undisclosed in §12's own text. I recorded that convergence in the panel record's summary
+block as a fact about the panel's composition — not something I judged or fixed here.
+
+No instrument, search, or paired-round inference has run under this amendment. This plan recorded;
+it did not decide.

@@ -1,5 +1,44 @@
 # Adversarial panel round — PAIRED-DESIGN-PREREG.md §12 (rev 3 DRAFT amendment) (2026-08-20, plan 15-03)
 
+## Summary — fixed before adjudication
+
+Five lanes, five independent verdicts, five stated raw finding counts, verified against the
+findings actually numbered in each lane's own section below (no discrepancy found — every lane's
+stated count equals its own numbered-finding count):
+
+| Lane | Resolved model id | Verdict | Raw finding count |
+|---|---|---|---|
+| `gpt-sol-pro` | `openrouter/openai/gpt-5.6-sol-pro` | unsound | 14 |
+| `kimi-k3` | `openrouter/moonshotai/kimi-k3` | sound-with-changes | 12 |
+| `qwen-max` | `openrouter/qwen/qwen3.7-max` | sound-with-changes | 10 |
+| `gemma4` | `gemma4:31b` | sound-with-changes | 7 |
+| `gpt-oss` | `gpt-oss:latest` (digest `17052f91a42e`) | unsound | 11 |
+
+**Raw total: 54** (the arithmetic sum of the five per-lane counts above: 14 + 12 + 10 + 7 + 11 = 54).
+This is the number plan 15-04's merge is reconciled against — fixed here, before any finding is read
+for adjudication, so a convenient finding cannot quietly disappear during the merge.
+
+**Verdicts, at a glance:** 2 `unsound` (gpt-sol-pro, gpt-oss), 3 `sound-with-changes` (kimi-k3,
+qwen-max, gemma4), 0 `sound`. No lane found the amendment acceptable as drafted with zero changes —
+every lane raised at least one finding, and no lane's response was silence dressed up as agreement.
+
+**The panel's composition and its independence properties, stated plainly.** Five lanes: three
+externally-hosted (via OpenRouter through the house review-lane seam) and two locally-hosted (via
+Ollama's native `/api/chat` endpoint, run strictly sequentially under the memory watchdog). One
+point worth a reader's attention, disclosed here rather than left for a reader to notice: **one of
+the two locally-hosted reviewer lanes (`gpt-oss`) runs the same model — `gpt-oss:latest`, digest
+`17052f91a42e` — that this amendment proposes as the rev-3 paired-round executor.** That duality was
+already true of the rev-2 panel's own reachability check and this phase's own 15-02 reachability
+probe (both recorded it explicitly), and it is not, on its own, a conflict: critiquing a design
+document and executing tickets under it are different roles at different times, and the model has
+no memory or stake carried between the two. It is disclosed here because a reader should not have
+to work it out for themselves, and because three of the five lanes (`gpt-sol-pro`, `kimi-k3`,
+`qwen-max`) independently raised this exact duality as a finding within their own sections
+(`gpt-sol-pro` F4, `kimi-k3` F2, `qwen-max` F3, `gemma4` F2, `gpt-oss` F2 — five of five lanes
+named it, in fact, entirely independently since no lane saw another lane's output). That convergence
+is itself notable: it is recorded here as a fact about the panel's composition, not adjudicated as a
+finding requiring a fix — that determination belongs to 15-04.
+
 ## Scope of this panel round
 
 This document covers the five-lane adversarial panel over the **rev-3 DRAFT amendment (§12)** of
