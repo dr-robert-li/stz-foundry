@@ -109,10 +109,11 @@ the closing coverage table for the arithmetic).
 - **Primary source:** https://arxiv.org/abs/2512.07666
 - **Published:** 2025-12-08
 - **Fetch-verified:** https://arxiv.org/abs/2512.07666 retrieved 2026-08-20; page title and "Submitted on" line match the arXiv abstract page for the same identifier
-- **Quote:** "This paper proposes CGBridge, a novel plug-and-play method that enhances LLMs with Code Graph information through an external, trainable Bridge module."
+- **Quote:** "To address these limitations, this paper proposes CGBridge, a novel plug-and-play method that enhances LLMs with Code Graph information through an external, trainable Bridge module."
 - **Verdict:** validated
 - **Bar applied:** D-07 evidence bar — primary source fetched directly (arXiv abstract HTML, retrieved 2026-08-20), publication date read off the fetched page's own submission line, quote copied verbatim from the fetched abstract text.
 - **Relevance:** The code graph is the working medium a pretrained encoder and bridge module read structural semantics from; the scored deliverable is downstream code intelligence (generation, summarization, translation), not the graph, under D-02. Deliverable domain is `code-engineering` under D-03; subdomain is `code-architecture-graphs` under D-01.
+- **Reworked (16-03):** the original quote dropped the sentence's leading clause and recapitalized the next word, producing an excerpt that was not a literal substring of the fetched abstract. Corrected to the literal fetched sentence per `VALIDATION.md` `V-07`, which forced this change; no other field was altered.
 
 ### E-07 — TGMS: an agent-native bi-temporal graph management system exposes typed, deterministic operators with a content-addressed execution trace
 
@@ -207,8 +208,9 @@ the closing coverage table for the arithmetic).
 - **Fetch-verified:** https://github.com/SWE-bench/SWE-bench retrieved 2026-08-20; GitHub REST API record (5,671 stars, pushed 2026-08-18) matches the fetched repository; Published cross-checked against the Hugging Face dataset card `princeton-nlp/SWE-bench`, lastModified 2025-03-03
 - **Quote:** "SWE-bench is a benchmark for evaluating large language models on real world software issues collected from GitHub. Given a codebase and an issue, a language model is tasked with generating a patch that resolves the described problem."
 - **Verdict:** validated
-- **Bar applied:** D-07 evidence bar plus the benchmark-specific detail this sweep requires, held strictly to what the fetched README actually states (a first pass over this entry claimed FAIL_TO_PASS/PASS_TO_PASS test-set terminology that a direct grep of the fetched README does not contain — corrected here to only the fetched evidence): ground truth is a reference ("gold") patch per task instance, retrievable via the documented `swebench eval verified --gold` command; a submission is scored by running the candidate's generated patch through the `swebench eval` CLI inside the project's Docker-based reproducible evaluation harness, with `swebench report` able to re-grade saved evaluation logs against those references without re-running containers. Read directly off the fetched README, not recalled.
+- **Bar applied:** D-07 evidence bar plus the benchmark-specific detail this sweep requires, held strictly to what the fetched README actually states (a first pass over this entry claimed FAIL_TO_PASS/PASS_TO_PASS test-set terminology that a direct grep of the fetched README does not contain — corrected here to only the fetched evidence): ground truth is a reference ("gold") patch per task instance, retrievable via the documented `swebench eval verified --gold` command; a submission is scored by running the candidate's generated patch through the `swebench eval` CLI inside the project's Docker-based reproducible evaluation harness, with `swebench report` able to re-grade saved evaluation logs against those references without re-running containers. Read directly off the fetched README, not recalled. The Quote field's markdown italics markers around "codebase", "issue" and "patch" are removed, no prose altered — the same normalization E-13's Bar applied documents explicitly.
 - **Relevance:** SWE-bench is not itself graph-native, but it is the deliverable-side oracle that the code-graph systems surveyed in this subdomain (E-06, E-11) and several E-06-adjacent papers found during search (RepoGraph, CodexGraph, GraphCodeAgent) are increasingly scored against — the graph is the working medium, SWE-bench resolution is the scored deliverable, the cleanest instance of D-02's framing this sweep found. Deliverable domain is `code-engineering` under D-03; subdomain is `code-architecture-graphs` under D-01.
+- **Reworked (16-03):** the Quote field silently stripped markdown italics markup without documenting it, unlike E-13's equivalent normalization. Documented above per `VALIDATION.md` `V-15`, which forced this change; the Quote field's text is unchanged, only the Bar applied documentation was added.
 
 ### E-15 — Neo4j-Text2Cypher (2024): a 44,387-instance question/schema/cypher dataset for training and scoring text-to-Cypher generation
 
@@ -324,3 +326,21 @@ this document, and is not counted toward any floor per the protocol's own text.
 
 Five null results total, all logged above with their date and outcome rather than papered over with a
 recalled substitute.
+
+## Post-validation disposition summary (16-03)
+
+`VALIDATION.md` independently re-fetched all 16 entries above and reached a verdict for each: 15
+`confirmed`, 1 `refuted` (`E-06`, `V-07`), 0 `unverifiable` — bijective with this document's 16 entries,
+each checked exactly once. Dispositions: 14 `kept` unmodified, 2 `reworked` (`E-06` per `V-07`, `E-14` per
+`V-15`), 0 `dropped`. No entry was found misfiled under the wrong source class or subdomain; the class and
+subdomain counts in the tables above are therefore unchanged from the pre-validation sweep and were
+recomputed, not merely carried forward, against the same 16 surviving entries — every class and subdomain
+floor above still holds on entries independently confirmed or reworked-and-confirmed, with zero entries
+dropped. No re-sweep was required.
+
+**Surviving evidence base:** all 16 entries (`E-01` through `E-16`) stand as admissible evidence — 4 SC-A,
+4 SC-B, 4 SC-C, 4 SC-D; 6 knowledge-graphs, 4 code-architecture-graphs, 6 graph-db-schema — with two
+entries (`E-06`, `E-14`) carrying a `Reworked (16-03)` field correcting a quote-fidelity finding that this
+pass's independent re-fetch caught. Notable null: this sweep still found little dedicated field literature
+for the "hygiene invariant" framing of D-04 beyond database-level constraints (`E-09`), a gap 16-02 already
+recorded and this validation pass did not close, since discovering new sources is out of this pass's scope.
