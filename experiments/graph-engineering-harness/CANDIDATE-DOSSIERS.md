@@ -205,3 +205,148 @@ described above leaves no shared-mutation window within a scored attempt.
 graph-builder/answer-agent split), `E-05` (STaRK, the oracle itself — three constructed knowledge bases, gold
 node ids, and a documented, runnable `eval.py`). All three are `confirmed` and `kept` in `VALIDATION.md`
 (`V-02`, `V-03`, `V-06`).
+
+## C-02 — Text-to-Cypher / graph-query generation scored by live execution-match
+
+- **Oracle kind:** execution
+- **Oracle status:** harvested-and-existing
+- **Deliverable domain:** code-engineering
+- **Evidence:** E-15, E-09, E-03, E-12, E-13
+
+An agent generates a Cypher query against a schema it is shown; the query is executed against a real,
+already-existing graph-database engine, and its result set is diffed against the result set the dataset's
+own gold query produces. The deliverable is the generated query (specifically, whether executing it
+reproduces the correct result), never the graph database itself.
+
+### Exogenous-oracle analysis
+
+The oracle mechanism is `execution`: a real graph-database engine — FalkorDB (`E-12`) or Apache AGE (`E-13`),
+both independently confirmed live, actively-released open-source repositories in this sweep — runs the
+candidate's generated Cypher and the interpreter's own result is the signal, not a model's opinion of the
+query's correctness. The ground-truth side of the comparison is `E-15`'s Neo4j-Text2Cypher dataset: 44,387
+`question`/`schema`/`cypher` instances with a held-out 4,833-instance test split, each instance's `cypher`
+field the reference query to execute for the diff. `E-15`'s own dataset card does not itself document a
+scoring method (this sweep's Bar applied records that explicitly, holding to what the fetched card actually
+states rather than inferring one) — so unlike `C-01`'s STaRK, which ships its own scoring script, here the
+execution-match comparison is this project's own construction on top of an already-existing engine and an
+already-existing gold-query dataset, not an off-the-shelf scoring script. The engine and the dataset both
+already exist and are already usable; the comparison logic connecting them does not yet exist in this
+repository.
+
+### Backbone-fit map
+
+`runAgentBattery` (`src/foundry/agent-runner.ts`) and `OracleReceipt`/`EXOGENOUS_ROOT_KINDS`
+(`src/foundry/battery-types.ts`, `kind: "execution"`) are reused unchanged. `runComponentTournament`/
+`promoteComponentWinner` (`src/foundry/component-tournament.ts`) and `src/bridge.ts` are reused unchanged as
+the selection loop. The scoring layer's *closest* precedent is `src/foundry/execution-oracle.ts`
+(`runExecutionOracle`) — an existing "shell out to an external process, read its verdict" seam — but nothing
+in this repository today stands up and executes queries against a stateful, long-running external database
+process; every prior use of that seam runs a self-contained command (a test runner, a build) rather than
+talking to a running service across the task's whole lifetime. This is a materially bigger stretch from the
+existing pattern than `C-01`'s "run a public script once" reuse, so only the outer battery-task shape and the
+selection loop are cleanly reused unchanged — the scoring internals are new, not merely adapted.
+
+### Collaborative-mode sketch
+
+Two agents. A schema-agent inspects the target graph database's live schema (labels, relationship types,
+following the constraint-declaration idiom `E-09` documents) and writes a schema summary artifact. A
+query-agent reads only that summary — never the live database's schema directly — and writes the generated
+Cypher. What prevents mutual corruption: the query-agent's execution is confined to a throwaway, freshly
+seeded copy of the graph database per scored attempt, never the schema-agent's own inspection session or a
+shared long-lived instance; a destructive or malformed query can corrupt only its own disposable copy, never
+the next task's starting state. `E-09` (Neo4j Cypher constraints) is direct field precedent for the
+schema-agent's own boundary — the survey's graph integrity practice section names it explicitly as the
+database-layer version of a typed graph contract, which this candidate's schema-inspection step follows.
+
+### Effort and risk estimate
+
+As with `C-01`, none of `VERTICAL_ADMISSION`'s five rows (`src/foundry/vertical-admission.ts`) is a
+code-engineering deliverable domain in this survey's sense, so this candidate needs a wholly new admission.
+Effort is the highest of the surfaced set: no execution sandbox for a stateful external graph-database
+process exists in this repository today, and standing one up (process lifecycle, per-attempt reseeding, a new
+execution-match diff scorer) is two new infrastructure layers, not one. Risk is also the highest of the
+surfaced set: executing LLM-generated, potentially destructive queries against a running database process is
+a new execution-safety surface this project's existing sandbox discipline (built around source-file
+execution, `sandbox.ts`) does not fully cover — the throwaway-copy-per-attempt isolation above bounds it, but
+only partially, since a sufficiently adversarial query could still exhaust the disposable instance's own
+resources before the attempt completes.
+
+### Validated evidence trail
+
+`E-15` (the gold `question`/`schema`/`cypher` dataset the comparison is drawn from), `E-09` (Cypher
+constraints, the schema-contract precedent), `E-03` (Neo4j's own vendor GraphRAG pipeline, establishing
+graph-database-backed retrieval as an active vendor practice), `E-12` and `E-13` (FalkorDB and Apache AGE,
+the two confirmed-live engine candidates that could execute the query). All five are `confirmed` and `kept`
+in `VALIDATION.md` (`V-16`, `V-10`, `V-04`, `V-13`, `V-14`).
+
+## C-03 — Code-property-graph-mediated known-defect hunt scored by this project's own answer-first construction
+
+- **Oracle kind:** constructed
+- **Oracle status:** harvested-and-existing
+- **Deliverable domain:** code-engineering
+- **Evidence:** E-08, E-11
+
+Agents build a code property graph over a codebase into which this project has injected a known defect, then
+query that graph to locate and describe the defect. The deliverable is the located/patched defect, scored by
+exact match against the injection log this project wrote before any agent ran — never the graph itself.
+
+### Exogenous-oracle analysis
+
+The oracle mechanism is `constructed`, under the answer-first "known-injection hunt" pattern
+`docs/development/harness-factory.md` names explicitly (`agents/stz-injector.md` already embodies it for
+suite hardening, and this project's own data-ops/bi-analytics/customer-support batteries all build the answer
+first, then derive the task from it — the pattern is twice-proven, not novel). A known defect is injected into
+clean source; the injection log is the answer key, built independently of any agent under test, so the
+correct answer is known by construction. Per D-12, a code-and-engineering candidate needs no external
+benchmark to clear the oracle gate at all — this project's own construction machinery is the harvested oracle,
+and it already exists and is already usable (it is running in production for three other verticals today).
+What is genuinely new for this candidate is the working medium the agents build to find the defect: a code
+property graph (the CPG shape `E-08` and `E-11` describe), which this repository does not build today.
+
+### Backbone-fit map
+
+`runAgentBattery`, `OracleReceipt`/`EXOGENOUS_ROOT_KINDS` (`kind: "constructed"`), `runComponentTournament`/
+`promoteComponentWinner`, and `src/bridge.ts` are all reused unchanged, exactly as in `C-01`/`C-02`. The
+scoring pattern is the closest reuse of the three surfaced candidates: it is a direct, same-shape extension
+of the "build the answer first, derive the task, compare the candidate's output to the precomputed answer"
+pattern already running in `src/foundry/fixture-warehouse.ts`/`fixture-warehouse-v3.ts` (data-ops),
+`bi-warehouse.ts` (bi-analytics) and `customer-support-warehouse.ts`/`customer-support-oracle.ts`
+(customer-support) — the injection log plays the same role those warehouses' precomputed answers already
+play, applied to source code with an injected defect instead of structured facts. Net new: the
+code-property-graph construction/query layer itself — nothing in this repository parses source into a
+queryable property graph today.
+
+### Collaborative-mode sketch
+
+Two roles, one of which is not a foundry agent at all. The injector (this project's own construction step,
+run before any agent battery starts, mirroring `fixture-warehouse.ts`'s generator-first sequencing) writes the
+known defect and the injection log into a clean codebase; this step is sealed and complete before any agent
+ever sees the codebase. A graph-hunter agent then builds a code property graph over the resulting codebase and
+writes only its located-defect report — it never reads or writes the injection log, and there is no second
+agent role sharing the graph in this candidate's minimal form (a scaled-up version could add a second
+graph-refining agent, but the minimal shape needs only one). What prevents mutual corruption: the injection log
+is generated and sealed strictly before the hunter agent's access window opens, so there is no shared-write
+window at all between construction and hunting — a stronger isolation guarantee than either `C-01`'s
+handoff-immutability or `C-02`'s throwaway-copy pattern, because there is no concurrent access to prevent in
+the first place. The survey's graph integrity practice section does not cover this specific
+sealed-before-access ordering (it covers schema constraints and CDC-style replay, not construction sequencing)
+— this candidate operates without direct field precedent on that particular point; the ordering discipline is
+this project's own established internal pattern, not a harvested one.
+
+### Effort and risk estimate
+
+As with `C-01`/`C-02`, none of `VERTICAL_ADMISSION`'s five rows is a code-engineering deliverable domain in
+this survey's sense, so this candidate also needs a wholly new admission — though its `oracleClass` shape
+("execution + construction" for data-ops/bi-analytics) is the closest existing precedent in kind of the three
+surfaced candidates, since this candidate's own oracle is pure construction. Effort is moderate: the
+construction/scoring layer is close to free (a direct, same-shape extension of already-running machinery), but
+the code-property-graph builder is a clearly new layer this repository does not have today — one new layer on
+an already-proven pattern, not several. Risk is low: the sealed-before-access ordering above leaves no
+shared-mutation window between construction and hunting at all.
+
+### Validated evidence trail
+
+`E-08` (CodeQL, treating a codebase as queryable relational structure for cross-codebase analysis) and `E-11`
+(Joern, generating code property graphs stored in a custom graph database, queried via a DSL) — both directly
+establish the code-property-graph working medium this candidate's hunter agent builds and queries. Both are
+`confirmed` and `kept` in `VALIDATION.md` (`V-09`, `V-12`).
