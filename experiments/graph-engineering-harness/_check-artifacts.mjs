@@ -228,6 +228,7 @@ function cmdSurvey(dir, { entriesOnly, floorsOnly }) {
     }
   }
 
+  let floorsSummary = "";
   if (runFloorChecks) {
     const counts = {};
     for (const entry of entries) {
@@ -243,6 +244,9 @@ function cmdSurvey(dir, { entriesOnly, floorsOnly }) {
         throw new Error(`survey: identifier ${id} has ${count} surviving entries, below its floor of ${floor}`);
       }
     }
+    // Every identifier with its own surviving count and its own declared minimum, read from the
+    // same floors map the enforcement above already used — no second parser, just a printout of it.
+    floorsSummary = " " + Object.entries(floors).map(([id, floor]) => `${id}:${counts[id] || 0}/${floor}`).join(",");
   }
 
   if (runIntegrityCheck) {
@@ -258,7 +262,7 @@ function cmdSurvey(dir, { entriesOnly, floorsOnly }) {
   }
 
   const mode = entriesOnly ? "entries-only" : floorsOnly ? "floors-only" : "full";
-  ok("survey", `mode=${mode} entries=${entries.length}`);
+  ok("survey", `mode=${mode} entries=${entries.length}${floorsSummary}`);
 }
 
 // ---------------------------------------------------------------------------
