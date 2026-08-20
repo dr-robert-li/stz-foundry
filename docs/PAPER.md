@@ -639,7 +639,7 @@ not a Stage-B trigger outcome) paired a tournament-selected winner (W)
 against an unevolved baseline (B) on `customer-support`'s replay-checkable
 subset, 60 pairing units across six seed blocks. W landed 60/60
 resolution-match; B landed 59 resolution-match and 1 non-scoreable — 59 of 60
-units tied, with only one discordant pair surfacing, at seed 1302
+units tied, with only one discordant pair, at seed 1302
 (`PAIRED-STUDY-RESULTS.md`). The verdict: **TERMINATED
 (TERMINATED-UNDERPOWERED)** — Clause 2 (the minimum discordant-pairs floor)
 was breached, and the decision rule (§5) was **NEVER EVALUATED**
