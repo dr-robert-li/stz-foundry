@@ -629,3 +629,83 @@ working as pre-registered, not the study failing: DUALFIX's 2/24 advantage
 over a naive retry is a standalone, honestly reported finding, well short of
 the pre-registered 0.15-of-denominator margin, not softened toward a
 near-hit.
+
+### 16.2 The paired third-family arm (v1.25.0): TERMINATED-UNDERPOWERED, saturated
+
+Governing record: `experiments/paired-comparison-arm/PAIRED-STUDY-RESULTS.md`.
+
+This v1.25.0 human-directed follow-on round (2026-08-11 override; explicitly
+not a Stage-B trigger outcome) paired a tournament-selected winner (W)
+against an unevolved baseline (B) on `customer-support`'s replay-checkable
+subset, 60 pairing units across six seed blocks. W landed 60/60
+resolution-match; B landed 59 resolution-match and 1 non-scoreable — 59 of 60
+units tied, with only one discordant pair surfacing, at seed 1302
+(`PAIRED-STUDY-RESULTS.md`). The verdict: **TERMINATED
+(TERMINATED-UNDERPOWERED)** — Clause 2 (the minimum discordant-pairs floor)
+was breached, and the decision rule (§5) was **NEVER EVALUATED**
+(`PAIRED-STUDY-RESULTS.md`).
+
+`PAIRED-STUDY-RESULTS.md` itself states only the verdict and the counts — it
+does not say why the battery produced near-total ties. That characterization
+comes from the next round's own retrospective reading: the rev-3 record
+states this round "saturated its own battery to near-total ties (59 of 60
+units) and terminated TERMINATED-UNDERPOWERED before the decision rule ever
+ran" (`PAIRED-STUDY-RESULTS-REV3.md`). `CHANGELOG.md`'s `[1.25.0]` section
+corroborates the mechanism: the bounded search (`_w-search.ts`) selected
+`seed-baseline` as W, byte-identical to B, since the search never mutated a
+lineage that scored a perfect 30/30 from generation 0 — with textually
+identical arms, the round's outcome was governed by model-sampling variance
+alone, and that variance proved near-zero on this battery (`CHANGELOG.md`).
+
+### 16.3 The rev-3 amended re-run (v1.26.0): TERMINATED-UNDERPOWERED again, an honest anti-build null under a calibrated executor
+
+Governing record: `experiments/paired-comparison-arm/PAIRED-STUDY-RESULTS-REV3.md`.
+
+The amendment widened the battery to 90 pairing units across nine seed
+blocks and swapped executors: rev-2 (§16.2, above) ran `qwen3.6:latest`, the
+saturated round; this round pins a newly calibrated `gpt-oss:latest`,
+confirmed by its own ceiling probe and W search to be able to discriminate
+this task family at all (`PAIRED-STUDY-RESULTS-REV3.md`). The verdict is
+again **TERMINATED (TERMINATED-UNDERPOWERED)** — Clause 2 breached, the
+decision rule (§5) **NEVER EVALUATED**. 76 of 90 units tied; only 14
+discordant pairs surfaced against the pinned 20-pair floor, six short
+(`PAIRED-STUDY-RESULTS-REV3.md`).
+
+The record states plainly why: W and B carried byte-identical system-prompt
+text this round — the bounded search's own winner never beat the unevolved
+baseline, "an honest anti-build null" — so with both arms running the
+identical prompt against the identical model and no sampler override, the
+only source of any per-unit difference is decoding variance on a single,
+shared prompt, not a genuine prompt-vs-prompt comparison
+(`PAIRED-STUDY-RESULTS-REV3.md`). The material difference from rev-2 is the
+point: this null held under an executor confirmed able to discriminate the
+task family, not under an instrument that could not measure at all.
+
+### 16.4 The graph-engineering pivot and the C-01 selection (v1.27.0)
+
+Governing record: `experiments/graph-engineering-harness/SELECTION.md`.
+
+A five-criterion weighted decision matrix (oracle strength, backbone fit,
+risk, effort, evidence depth) scored three candidates surfaced from a
+16-entry, independently-validated survey of graph-engineering practice. The
+ordering: **C-01** first at a row total of 23, **C-03** second at 20 — a
+margin of 3 — and **C-02** third at 14 — a margin of 6 below C-03; no tie
+(`SELECTION.md`). Dr. Robert Li selected **C-01** — knowledge-graph-mediated
+retrieval QA scored against STaRK's constructed gold node ids — on the basis
+that the matrix ranks it first, row total 23, margin 3 over C-03's 20 and
+margin 9 over C-02's 14, with no departure from the matrix's own ordering
+(`SELECTION.md`). `SELECTION.md`'s `## Decision` section, at the commit
+pinned as `2747e112` in `docs/JOURNAL.md` and `CHANGELOG.md`'s `[1.27.0]`
+section (the hash is not stated in `SELECTION.md` itself), is the governing
+text for the next milestone's direction: a new collaborative mode beside the
+existing five-row adversarial `VERTICAL_ADMISSION` table, not a replacement
+of any of them.
+
+**On §14's open retry-policy question.** §14's *Retry-policy telemetry*
+bullet asks whether extra rounds recover a winner or merely burn budget, for
+the harness's own `retryPolicy` knobs (bounded/unbounded retries and
+replans). §16.1's DUALFIX-versus-naive-retry comparison is the first
+measured result in that neighbourhood, but it does not close the question:
+DUALFIX measures a per-task SQL-repair prompt against a naive re-attempt on a
+fixed corpus, not the harness's own tournament-level retry/replan rounds that
+§14 asks about. §14's bullet therefore stands open.
