@@ -1193,7 +1193,28 @@ inside the pre-registered corridor with a working gradient, so the line ended
 by exhaustion rather than producing a third verdict. Phase 5 remains gated on
 this evidence; any future instrument must target a different hypothesis or
 task family. See
-`experiments/dataops-agent-pilot/PILOT-RESULTS.md`. Full design:
+`experiments/dataops-agent-pilot/PILOT-RESULTS.md`.
+
+**2026-08 update (v1.24.0–v1.27.0).** The measurement line ran three more
+pre-registered studies after the v3.1 termination. The DUALFIX repair study
+(v1.24.0) closed **Stage-B NOT-MET** (dualfix 19/24 repaired vs naive-retry
+17/24; 20·(19−17)=40 < 3·24=72). A human-directed follow-on then opened the
+**third-family paired-comparison arm** on a customer-support battery: the
+v1.25.0 round ended **TERMINATED-UNDERPOWERED** (W shipped byte-identical to B —
+the search battery saturated at 30/30 with no gradient), and the v1.26.0 rev-3
+amended re-run on a calibrated executor (gpt-oss, measured B≈70% with real
+headroom) ended **TERMINATED-UNDERPOWERED again** (discordant 14 < floor 20)
+after the bounded search returned an honest **anti-build null** — the seed
+baseline was never beaten despite genuine gradient. Full records:
+`experiments/paired-comparison-arm/PAIRED-STUDY-RESULTS.md` and
+`PAIRED-STUDY-RESULTS-REV3.md`. On that cumulative evidence the roadmap
+pivoted (unconditional, 2026-08-19): **v1.27.0 opens a collaborative
+graph-engineering mode** on the kept backbone — a ground-truth-validated
+survey (16 sources, every claim independently re-fetched), three oracle-gated
+candidate directions, and a human-selected direction: **C-01,
+knowledge-graph-mediated retrieval QA scored against STaRK's constructed gold
+node ids** (`experiments/graph-engineering-harness/SELECTION.md`). Item-8
+phase 5 (harness-level evolve) remains gated and not built. Full design:
 `docs/development/harness-factory.md`. The abstraction ladder: STZ makes code →
 the same tournament machinery can make *agents* (specimens write `agents/*.md`
 instead of implementations) → the factory assembles tournament-won components
