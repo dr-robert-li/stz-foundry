@@ -45,7 +45,7 @@
  * drives every exported pure/stubbed function directly, without a provider
  * or a real git/process call.
  */
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -426,9 +426,15 @@ function loadArmCommitsFromRunConfigFile(filename: string): PairedRunConfigArms 
 /** Reads the EXACT committed blob at `commit:path` — never the working-tree
  *  file — so a run always operates on the frozen content the commit hash
  *  actually names, immune to any later, uncommitted edit of the same path.
- *  Throws loudly (via `execSync`) if the commit or path is bad. */
+ *  Throws loudly (via `execFileSync`) if the commit or path is bad.
+ *  WR-04: argv array, no shell — `commit`/`definitionFile` come from
+ *  `validatePairedRunConfigArms`, which only checks "non-empty string", so
+ *  this avoids string-interpolating untyped JSON-file values into a shell
+ *  command regardless of what they end up containing. */
 function readCommittedArmDefinitionSystemPrompt(commit: string, definitionFile: string): string {
-  const markdown = execSync(`git show ${commit}:${PAIRED_RUNCONFIG_PATH_FROM_REPO_ROOT}/${definitionFile}`, { encoding: "utf8" });
+  const markdown = execFileSync("git", ["show", `${commit}:${PAIRED_RUNCONFIG_PATH_FROM_REPO_ROOT}/${definitionFile}`], {
+    encoding: "utf8",
+  });
   return extractAgentSystemPromptFromDefinitionFile(markdown);
 }
 
