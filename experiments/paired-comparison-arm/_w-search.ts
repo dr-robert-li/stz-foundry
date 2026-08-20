@@ -108,7 +108,11 @@ const SEARCH_BASE_URL = "http://localhost:11434/v1";
 // context) falling straight back to the rev-2 default. ──────────────────
 
 function parseSeedList(raw: string): number[] {
-  return raw.split(",").map((s) => Number(s.trim()));
+  return raw.split(",").map((s) => {
+    const n = Number(s.trim());
+    if (!Number.isInteger(n)) throw new Error(`[w-search] invalid seed in seed list: "${s}"`);
+    return n;
+  });
 }
 
 const PAIRED_MODEL = process.env.PAIRED_SEARCH_MODEL || PAIRED_MODEL_DEFAULT;
