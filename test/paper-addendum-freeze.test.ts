@@ -34,9 +34,18 @@ function gitBinaryAvailable(): boolean {
 const GIT_AVAILABLE = gitBinaryAvailable();
 
 function getDiffLines(): string[] {
+  // Force the canonical a/ b/ header prefixes via -c, regardless of the executing
+  // environment's diff.noprefix/diff.mnemonicPrefix config — the deletion/added-line
+  // filters below hardcode "--- a/docs/PAPER.md"/"+++ b/docs/PAPER.md" and would
+  // otherwise fail to strip the header line under diff.noprefix=true, miscounting it
+  // as a real deletion/addition.
   const diff = execFileSync(
     "git",
-    ["diff", "--unified=0", PRE_PHASE_COMMIT, "--", PAPER_REL_PATH],
+    [
+      "-c", "diff.noprefix=false",
+      "-c", "diff.mnemonicPrefix=false",
+      "diff", "--unified=0", PRE_PHASE_COMMIT, "--", PAPER_REL_PATH,
+    ],
     { cwd: repoRoot, encoding: "utf8" },
   );
   return diff.split("\n");
