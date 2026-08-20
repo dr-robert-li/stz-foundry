@@ -2127,3 +2127,62 @@ shape from the next milestone's own planning, not from this document.
 
 Nothing else moved. No design or implementation work exists for any direction — the phase ends at this
 selection. No manifest version moved in this plan; that happens once, at the phase close.
+
+## Phase 16, plan 16-06: the phase closes — version 1.27.0, REQ-74 closed (2026-08-20)
+
+The question this phase set out to answer, from the 2026-08-19 pivot directive: what is the field actually
+doing with graph engineering in an agentic-harness setting, and is there a direction in it whose downstream
+deliverable an already-existing oracle can measure directly — checked against a fixed protocol and
+independently re-verified, not against what I already assumed the field looked like. I froze the sweep's own
+rules (`SEARCH-PROTOCOL.md`) before any entry existed, then surveyed 16 in-scope entries to every class and
+subdomain floor with five logged nulls rather than padding the count to look fuller than the field actually
+is. The field turned out to be doing three genuinely different things well enough to build against: retrieval
+over a constructed knowledge graph scored against a benchmark's own gold answer, text-to-graph-query
+generation scored by live execution-match, and code-property-graph analysis scored by this project's own
+answer-first construction — and at least one more, code-graph-encoder-bridged repo bug-fixing scored by
+SWE-bench's real Docker harness, that could not be surfaced despite having a genuinely real, already-usable
+oracle, because the two survey entries carrying that oracle's evidence (`E-06`, `E-14`) were independently
+re-verified and neither cleared this project's own stricter confirmed-AND-kept bar. That is the sharpest
+finding of the sweep: an oracle can be real and still not admissible, if the evidence that it exists doesn't
+hold up to its own re-check. `VALIDATION.md`'s independent re-fetch pass caught it — confirmed=15/refuted=1,
+kept=14/reworked=2/dropped=0 — before any dossier was written, not after.
+
+Three candidates surfaced, the minimum of the plan's own 3-5 bound, and I did not pad that count. The scored
+matrix (`DECISION-MATRIX.md`) ranked C-01 first (23), C-03 second (20, margin 3), C-02 third (14, margin 6
+below C-03) — every cell justified against specific dossier content, the arithmetic recomputed and closing.
+At the 16-05 checkpoint I selected **C-01** — knowledge-graph-mediated retrieval QA scored against STaRK's
+own runnable `eval.py` — no departure from the matrix's own ordering, on the basis its off-the-shelf oracle
+needs no translation layer I have to author and its backbone-fit cell is earned by the closest reuse of the
+three, the "shell out to an external checker" shape `execution-oracle.ts` already runs. `SELECTION.md`'s
+`## Decision` section, committed at `2747e112` and pinned once by that hash here at 16-05, is the governing
+text; this entry closes the arc that document opened, it does not repeat it.
+
+What the selection authorises: the next milestone designs and builds C-01 — a graph-builder agent and an
+answer-agent, the subgraph immutable once handed off between them, no shared-mutation window within a scored
+attempt — as a new collaborative mode beside the existing adversarial one, on the kept backbone
+(`runAgentBattery`, `OracleReceipt`/`EXOGENOUS_ROOT_KINDS`, `runComponentTournament`/`promoteComponentWinner`,
+`src/bridge.ts`), replacing none of the five existing `VERTICAL_ADMISSION` rows. This is a pivot into a
+collaborative mode of operation beside the adversarial one, on a backbone I am keeping — not a rewrite, not a
+new product, and I am not going to let this entry overclaim it as either. What it does not authorise: no
+design or implementation work happened in this phase, and it does not resolve the open questions
+`SELECTION.md` carried forward by name — whether a fourth or fifth candidate would have scored differently
+absent the `E-06`/`E-14` evidence bar, the matrix's own undeclared operator-appetite column, and the shape of
+C-01's net-new subgraph-construction/handoff artifact. All three stay open for the next milestone's own
+planning pass to inherit, not rediscover.
+
+Record and version discipline, closing REQ-74. Version 1.27.0 synced across `package.json`,
+`.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` (both `metadata.version` and the `stz-f`
+plugin entry's own `version`) in one commit (`7405599`), drift guard green. `CHANGELOG.md` gains its own new
+`[1.27.0]` heading — no earlier plan in this phase opened one — recording the protocol, the survey, the
+independent validation, the surfaced and screened-out candidates, the matrix, and the selection, all in this
+same commit as the heading itself. Every commit this phase is attributed to `dr-robert-li` with no trailer
+lines. REQ-74 (survey/validation, ground-truth-checked not model-recall) is marked complete in
+`.planning/REQUIREMENTS.md` alongside REQ-75 (already marked at 16-05); both edge-probe rows stay surfaced as
+unresolved per the plan's own flagged assumption — the evidentiary checks this phase ran are the closest
+checkable proxies authored, not a shape-axis edge analysis of either requirement, and that distinction is not
+quietly dropped here. The full suite and typecheck are green on the tree this entry commits; the four
+previously-frozen documents and the v1.24.0/v1.25.0/v1.26.0 run records are re-verified byte-identical to
+their pre-phase state by blob hash, not asserted. The milestone is pushed at this gate. Two open items predate
+this phase and stay open, named rather than absorbed: the v1.24.0 milestone's own completion entry (closed
+independently at Phase 12) and the `_paired-arms.ts` task-prompt parameter-description item flagged at 14-02
+(recorded in `WINDOWS.md`).

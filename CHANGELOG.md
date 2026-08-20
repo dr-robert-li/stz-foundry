@@ -7,6 +7,58 @@ and the project aims to follow [Semantic Versioning](https://semver.org/).
 Entries at 0.9.6 and below are the upstream slice-tournament-zoo record,
 preserved verbatim.
 
+## [1.27.0] — Graph engineering harness pivot: field survey, independent validation, candidate surfacing, human selection (Phase 16)
+
+### Phase 16 — Graph engineering harness (unconditional pivot)
+
+This work executes the **2026-08-19 human directive**'s pre-registered pivot contingency: the backbone
+(`runAgentBattery`, `OracleReceipt`/`EXOGENOUS_ROOT_KINDS`, `runComponentTournament`/
+`promoteComponentWinner`, `src/bridge.ts`) is kept; the pivot adds a new collaborative mode of operation
+beside the existing adversarial one, replacing none of the five existing `VERTICAL_ADMISSION` rows. Per the
+directive, research on emerging graph-engineering practice ran first, ground-truth-validated, before any
+candidate was surfaced and before any design or implementation work began.
+
+- `experiments/graph-engineering-harness/SEARCH-PROTOCOL.md` (REQ-74): the sweep's own rules — per-class
+  and per-subdomain entry floors, a pinned nine-field entry format, and the verification script's seven
+  subcommands — frozen and committed before any survey entry existed.
+- `experiments/graph-engineering-harness/SURVEY.md` (REQ-74): 16 in-scope entries across every source class
+  at its floor (SC-A academic, SC-B industry blog/report, SC-C open-source repository, SC-D benchmark, each
+  4/4) and every subdomain at or above its floor (knowledge-graphs 6/4, code-architecture-graphs 4/4,
+  graph-db-schema 6/4); 0 out-of-scope, 0 background entries; five logged null results by kind, closing
+  coverage table included.
+- `experiments/graph-engineering-harness/VALIDATION.md` (REQ-74): an independent re-fetch-and-check pass
+  over all 16 survey entries — **verdicts** confirmed=15, refuted=1, unverifiable=0; **dispositions**
+  kept=14, reworked=2, dropped=0. Two entries (`E-06` CGBridge, `E-14` SWE-bench) were individually corrected
+  and reworked rather than dropped, and neither cleared the stricter confirmed-AND-kept evidence bar used to
+  admit citations into the candidate dossiers.
+- `experiments/graph-engineering-harness/CANDIDATE-DOSSIERS.md` and `SELECTION.md` (REQ-75): three
+  candidates surfaced against the oracle-existing/evidence-eligible gate — **C-01** (knowledge-graph-mediated
+  retrieval QA scored against STaRK's own runnable `eval.py`, a `constructed` oracle), **C-02** (text-to-Cypher
+  generation scored by live execution-match against FalkorDB/Apache AGE and the Neo4j-Text2Cypher dataset, an
+  `execution` oracle), and **C-03** (code-property-graph-mediated known-defect hunt scored by this project's
+  own answer-first construction, a `constructed` oracle) — the minimum of the plan's 3-5 bound, not padded.
+  Six longlist directions were screened out for missing or ineligible oracles, including a code-graph-encoder
+  SWE-bench-scored direction whose two supporting entries (`E-06`, `E-14`) both carry `reworked` disposition.
+- `experiments/graph-engineering-harness/DECISION-MATRIX.md` (REQ-75): a five-criterion weighted matrix
+  (oracle strength ×3, backbone fit ×2, risk ×2, effort ×1, evidence depth ×1), every cell justified against
+  specific dossier content, arithmetic recomputed and closing for all three rows — **C-01 23** (ranked
+  first), **C-03 20** (second, margin 3), **C-02 14** (third, margin 6 below C-03); no tie.
+- **Selection (REQ-75):** Dr. Robert Li selected **C-01** at the 16-05 blocking checkpoint on 2026-08-20 —
+  matrix rank 1st, no departure from the ordering, on the basis of its off-the-shelf already-runnable
+  constructed oracle and its closest-reuse backbone fit. `SELECTION.md`'s `## Decision` section, committed at
+  `2747e112` and pinned once by that hash in `docs/JOURNAL.md`, is the governing text for the next
+  milestone's direction. The graph-integrity call is recorded explicitly: C-01's handoff-immutability
+  isolation has no field precedent (unlike C-02's Cypher-constraint precedent in `E-09`); this project's own
+  construction discipline — the graph-builder's subgraph is immutable once handed to the answer-agent, no
+  shared-mutation window within a scored attempt — covers it instead. No design or implementation work for
+  any direction was performed; the phase ends at this selection.
+- Version 1.27.0 synced across `package.json`, `.claude-plugin/plugin.json`, and
+  `.claude-plugin/marketplace.json` (both `metadata.version` and the `stz-f` plugin entry's own `version`)
+  in one commit, drift guard green. REQ-74 and REQ-75 marked complete in `.planning/REQUIREMENTS.md`. Both
+  edge-probe rows (REQ-74, REQ-75) stay surfaced as unresolved per the plan's own flagged assumption — the
+  evidentiary checks this phase ran are the closest checkable proxies authored, not a claim of a
+  shape-axis edge analysis of either requirement.
+
 ## [1.26.0] — Rev-3 amendment (executor-model swap, battery widened to 90) frozen (Phase 15); manifest sync deferred to phase close
 
 ### Phase 15 — Amended paired run, calibrated instrument
