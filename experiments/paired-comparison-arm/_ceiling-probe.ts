@@ -122,13 +122,28 @@ export interface CeilingProbeRunOptions {
   scoreableFloor?: number;
 }
 
+/** WR-03: `Number(...)` alone silently produces `NaN` on a malformed env var
+ *  (trailing garbage, empty string) that then flows into task-count/seed
+ *  arithmetic with no error until well after inference calls are spent —
+ *  same failure shape as `_w-search.ts`'s `parseSeedList` (WR-02). Throws
+ *  loudly on a non-finite-integer env value instead. */
+function parseIntegerEnvVar(name: string, raw: string): number {
+  const n = Number(raw);
+  if (!Number.isInteger(n)) throw new Error(`[ceiling-probe] invalid ${name}: "${raw}"`);
+  return n;
+}
+
 export function resolveCeilingProbeRunOptions(env: NodeJS.ProcessEnv = process.env): Required<CeilingProbeRunOptions> {
   return {
     model: env.PAIRED_PROBE_MODEL || PAIRED_MODEL,
     verdictFile: env.PAIRED_PROBE_VERDICT_FILE || "ceiling-probe-verdict.json",
-    seed: env.PAIRED_PROBE_SEED ? Number(env.PAIRED_PROBE_SEED) : CEILING_PROBE_SEED,
-    taskCount: env.PAIRED_PROBE_TASK_COUNT ? Number(env.PAIRED_PROBE_TASK_COUNT) : CEILING_PROBE_TASK_COUNT,
-    scoreableFloor: env.PAIRED_PROBE_SCOREABLE_FLOOR ? Number(env.PAIRED_PROBE_SCOREABLE_FLOOR) : CEILING_PROBE_SCOREABLE_FLOOR,
+    seed: env.PAIRED_PROBE_SEED ? parseIntegerEnvVar("PAIRED_PROBE_SEED", env.PAIRED_PROBE_SEED) : CEILING_PROBE_SEED,
+    taskCount: env.PAIRED_PROBE_TASK_COUNT
+      ? parseIntegerEnvVar("PAIRED_PROBE_TASK_COUNT", env.PAIRED_PROBE_TASK_COUNT)
+      : CEILING_PROBE_TASK_COUNT,
+    scoreableFloor: env.PAIRED_PROBE_SCOREABLE_FLOOR
+      ? parseIntegerEnvVar("PAIRED_PROBE_SCOREABLE_FLOOR", env.PAIRED_PROBE_SCOREABLE_FLOOR)
+      : CEILING_PROBE_SCOREABLE_FLOOR,
   };
 }
 
