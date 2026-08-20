@@ -92,13 +92,25 @@ function parseProtocol(dir) {
   if (!windowMatch) throw new Error("protocol: recency window declaration missing");
   const window = [Number(windowMatch[1]), Number(windowMatch[2])];
 
-  const subdomainRe = /^- \*\*Subdomain:\*\*\s*([a-z-]+)[^\n]*\n[ \t]*-\s*\*\*Minimum entries:\*\*\s*(\d+)/gm;
-  const classRe = /^- \*\*Source class:\*\*\s*(SC-[A-D])[^\n]*\n[ \t]*-\s*\*\*Minimum entries:\*\*\s*(\d+)/gm;
+  const subdomainRe = /^- \*\*Subdomain:\*\*\s*([a-z-]+)[^\n]*\n[ \t]*-\s*\*\*Minimum entries:\*\*\s*([^\n]+)/gm;
+  const classRe = /^- \*\*Source class:\*\*\s*(SC-[A-D])[^\n]*\n[ \t]*-\s*\*\*Minimum entries:\*\*\s*([^\n]+)/gm;
 
   const subdomains = {};
-  for (const m of text.matchAll(subdomainRe)) subdomains[m[1]] = Number(m[2]);
+  for (const m of text.matchAll(subdomainRe)) {
+    const raw = m[2].trim();
+    if (!/^\d+$/.test(raw)) {
+      throw new Error(`protocol: subdomain "${m[1]}" minimum entries "${raw}" is not a bare integer`);
+    }
+    subdomains[m[1]] = Number(raw);
+  }
   const classes = {};
-  for (const m of text.matchAll(classRe)) classes[m[1]] = Number(m[2]);
+  for (const m of text.matchAll(classRe)) {
+    const raw = m[2].trim();
+    if (!/^\d+$/.test(raw)) {
+      throw new Error(`protocol: source class "${m[1]}" minimum entries "${raw}" is not a bare integer`);
+    }
+    classes[m[1]] = Number(raw);
+  }
 
   for (const id of SUBDOMAINS) {
     if (!(id in subdomains)) throw new Error(`protocol: subdomain identifier missing a declared minimum: ${id}`);
@@ -484,12 +496,16 @@ function cmdMatrix(dir) {
 
   const criteriaSection = h2.find((s) => s.title === "Criteria");
   if (!criteriaSection) throw new Error('matrix: "## Criteria" section missing');
-  const criterionRe = /^- \*\*Criterion:\*\*\s*(.+?)[ \t]*\n[ \t]*-\s*\*\*Weight:\*\*\s*(\d+)/gm;
+  const criterionRe = /^- \*\*Criterion:\*\*\s*(.+?)[ \t]*\n[ \t]*-\s*\*\*Weight:\*\*\s*([^\n]+)/gm;
   const criteria = [];
   for (const m of criteriaSection.body.matchAll(criterionRe)) {
-    const weight = Number(m[2]);
-    if (!Number.isInteger(weight) || weight <= 0) {
-      throw new Error(`matrix: criterion "${m[1]}" has non-positive-integer weight ${m[2]}`);
+    const rawWeight = m[2].trim();
+    if (!/^\d+$/.test(rawWeight)) {
+      throw new Error(`matrix: criterion "${m[1]}" weight "${rawWeight}" is not a bare positive integer`);
+    }
+    const weight = Number(rawWeight);
+    if (weight <= 0) {
+      throw new Error(`matrix: criterion "${m[1]}" has non-positive-integer weight ${rawWeight}`);
     }
     criteria.push({ name: m[1].trim(), weight });
   }
@@ -520,20 +536,28 @@ function cmdMatrix(dir) {
 
     let weightedSum = 0;
     for (const { name, weight } of criteria) {
-      const cellRe = new RegExp(`^[ \\t]*-\\s*\\*\\*${esc(name)}:\\*\\*[ \\t]*(\\d+)`, "gm");
+      const cellRe = new RegExp(`^[ \\t]*-\\s*\\*\\*${esc(name)}:\\*\\*[ \\t]*([^\\n]+)`, "gm");
       const cellMatches = [...row.body.matchAll(cellRe)];
       if (cellMatches.length === 0) throw new Error(`matrix: row "${id}" missing a cell for criterion "${name}"`);
       if (cellMatches.length > 1) throw new Error(`matrix: row "${id}" has more than one cell for criterion "${name}"`);
-      const cell = Number(cellMatches[0][1]);
-      if (!Number.isInteger(cell) || cell < 0 || cell > 3) {
-        throw new Error(`matrix: row "${id}" cell for "${name}" is not an integer in 0-3: ${cellMatches[0][1]}`);
+      const rawCell = cellMatches[0][1].trim();
+      if (!/^\d+$/.test(rawCell)) {
+        throw new Error(`matrix: row "${id}" cell for "${name}" is not a bare integer: "${rawCell}"`);
+      }
+      const cell = Number(rawCell);
+      if (cell < 0 || cell > 3) {
+        throw new Error(`matrix: row "${id}" cell for "${name}" is not an integer in 0-3: ${rawCell}`);
       }
       weightedSum += cell * weight;
     }
 
-    const totalMatch = row.body.match(/^[ \t]*-\s*\*\*Row total:\*\*\s*(\d+)/m);
+    const totalMatch = row.body.match(/^[ \t]*-\s*\*\*Row total:\*\*\s*([^\n]+)/m);
     if (!totalMatch) throw new Error(`matrix: row "${id}" missing "Row total"`);
-    const statedTotal = Number(totalMatch[1]);
+    const rawTotal = totalMatch[1].trim();
+    if (!/^\d+$/.test(rawTotal)) {
+      throw new Error(`matrix: row "${id}" "Row total" value "${rawTotal}" is not a bare integer`);
+    }
+    const statedTotal = Number(rawTotal);
     if (statedTotal !== weightedSum) {
       throw new Error(`matrix: row "${id}" stated total ${statedTotal} does not equal the recomputed weighted sum ${weightedSum}`);
     }
