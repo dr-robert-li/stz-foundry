@@ -397,6 +397,12 @@ function parseDossierCandidates(dir) {
         evidence: field(s.body, "Evidence"),
       };
     });
+  const seenCandidateIds = new Set();
+  for (const c of candidates) {
+    if (seenCandidateIds.has(c.id)) throw new Error(`dossiers: duplicate candidate id ${c.id}`);
+    seenCandidateIds.add(c.id);
+  }
+
   const hasScreenedOut = sections.some((s) => /^Screened out\b/.test(s.title));
   return { text, sections, candidates, hasScreenedOut };
 }
@@ -501,16 +507,20 @@ function cmdMatrix(dir) {
     if (candidateIds && !candidateIds.has(id)) {
       throw new Error(`matrix: row "${id}" does not match a candidate in the dossiers`);
     }
+    if (seenRowIds.has(id)) {
+      throw new Error(`matrix: candidate "${id}" has more than one row under Scores`);
+    }
     seenRowIds.add(id);
 
     let weightedSum = 0;
     for (const { name, weight } of criteria) {
-      const cellRe = new RegExp(`^[ \\t]*-\\s*\\*\\*${esc(name)}:\\*\\*[ \\t]*(\\d+)`, "m");
-      const cellMatch = row.body.match(cellRe);
-      if (!cellMatch) throw new Error(`matrix: row "${id}" missing a cell for criterion "${name}"`);
-      const cell = Number(cellMatch[1]);
+      const cellRe = new RegExp(`^[ \\t]*-\\s*\\*\\*${esc(name)}:\\*\\*[ \\t]*(\\d+)`, "gm");
+      const cellMatches = [...row.body.matchAll(cellRe)];
+      if (cellMatches.length === 0) throw new Error(`matrix: row "${id}" missing a cell for criterion "${name}"`);
+      if (cellMatches.length > 1) throw new Error(`matrix: row "${id}" has more than one cell for criterion "${name}"`);
+      const cell = Number(cellMatches[0][1]);
       if (!Number.isInteger(cell) || cell < 0 || cell > 3) {
-        throw new Error(`matrix: row "${id}" cell for "${name}" is not an integer in 0-3: ${cellMatch[1]}`);
+        throw new Error(`matrix: row "${id}" cell for "${name}" is not an integer in 0-3: ${cellMatches[0][1]}`);
       }
       weightedSum += cell * weight;
     }
