@@ -17,17 +17,21 @@ const PAPER_REL_PATH = "docs/PAPER.md";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-function gitAvailable(): boolean {
+// Only "git binary is missing" is a defensible skip (e.g. a tarball install with
+// no git at all). "git is present but PRE_PHASE_COMMIT is unresolvable" (a shallow
+// CI checkout, a history rewrite) must NOT collapse into the same skip path — that
+// is exactly the tamper/history-rewrite scenario this test exists to catch, so it
+// is left to throw out of getDiffLines() below and fail the test instead.
+function gitBinaryAvailable(): boolean {
   try {
     execFileSync("git", ["--version"], { cwd: repoRoot, stdio: "pipe" });
-    execFileSync("git", ["cat-file", "-e", PRE_PHASE_COMMIT], { cwd: repoRoot, stdio: "pipe" });
     return true;
   } catch {
     return false;
   }
 }
 
-const GIT_AVAILABLE = gitAvailable();
+const GIT_AVAILABLE = gitBinaryAvailable();
 
 function getDiffLines(): string[] {
   const diff = execFileSync(
@@ -42,7 +46,7 @@ describe("Part III append-only guard (REQ-84)", () => {
   it.skipIf(!GIT_AVAILABLE)(
     GIT_AVAILABLE
       ? "docs/PAPER.md gained Part III without deleting a single line of the existing body"
-      : "skipped: git is unavailable in this environment (cannot resolve the pinned pre-phase commit) — not a failure of the append-only claim itself",
+      : "skipped: git binary is unavailable in this environment",
     () => {
       const lines = getDiffLines();
 
