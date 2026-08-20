@@ -41,11 +41,19 @@ function read(dir, name) {
   return readFileSync(p, "utf8");
 }
 
-/** First occurrence of a `- **Label:** value` field line in `text`. Returns trimmed value or null. */
+/** First occurrence of a `- **Label:** value` field line in `text`, including any hard-wrapped
+ * continuation lines (indented lines that follow before the next field, a blank line, or EOF).
+ * Internal whitespace (including the line breaks) is collapsed to single spaces. Returns the
+ * trimmed value or null. */
 function field(text, label) {
-  const re = new RegExp(`^[ \\t]*-\\s*\\*\\*${esc(label)}:\\*\\*[ \\t]*(.+)$`, "m");
+  // No "m" flag: with "m", `$` matches before every line terminator, which would stop the
+  // non-greedy capture at the end of the field's own first physical line and defeat wrapped-line
+  // capture. `(?:^|\n)` substitutes for a multiline `^` instead.
+  const re = new RegExp(
+    `(?:^|\\n)[ \\t]*-\\s*\\*\\*${esc(label)}:\\*\\*[ \\t]*([\\s\\S]+?)(?=\\n[ \\t]*-\\s*\\*\\*|\\n[ \\t]*\\n|$)`
+  );
   const m = text.match(re);
-  return m ? m[1].trim() : null;
+  return m ? m[1].replace(/\s+/g, " ").trim() : null;
 }
 
 /** Split `text` into chunks, one per line matching `headingRe` (must have the 'g' and 'm' flags),
