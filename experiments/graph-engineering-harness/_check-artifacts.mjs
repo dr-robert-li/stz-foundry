@@ -59,7 +59,13 @@ function splitOn(text, headingRe) {
 }
 
 function isIsoDate(s) {
-  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s.trim()) && !Number.isNaN(Date.parse(s.trim()));
+  if (typeof s !== "string") return false;
+  const trimmed = s.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return false;
+  const d = new Date(trimmed + "T00:00:00Z");
+  // Round-trip check: reject any date that Date silently rolled over to a different calendar day
+  // (e.g. 2024-02-30 -> 2024-03-01, 2023-02-29 -> 2023-03-01).
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === trimmed;
 }
 
 function parseDate(s) {
