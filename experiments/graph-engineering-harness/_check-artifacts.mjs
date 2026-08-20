@@ -344,6 +344,14 @@ function checkValidationEntry(entry, surveyById) {
         `validation ${id}: re-fetch date ${refetchDateMatch[1]} is earlier than the survey entry's own retrieval date ${surveyDateMatch[1]}`
       );
     }
+
+    const ledgerDropped = disposition === "dropped";
+    if (surveyEntry.dropped !== ledgerDropped) {
+      throw new Error(
+        `validation ${id}: disposition "${disposition}" for claim ${claimUnderCheck}, but SURVEY.md's own ` +
+        `Status field ${surveyEntry.dropped ? "is" : "is not"} "dropped" — the two documents disagree`
+      );
+    }
   }
 }
 
