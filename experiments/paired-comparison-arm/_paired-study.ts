@@ -82,6 +82,7 @@ import {
   PAIRED_DROP_BUDGET_CEILING,
   PAIRED_ATTEMPT_DISCIPLINE,
   PAIRED_MODEL,
+  PAIRED_MODEL_REV3,
   PAIRED_TIMEOUT_MS,
   PAIRED_MAX_PROMPT_CHARS,
   PAIRED_CONCORDANCE_BLOCK_COUNT,
@@ -166,8 +167,14 @@ export interface ResolvedPairedStudyRunOptions {
 
 export function resolvePairedStudyRunOptions(env: NodeJS.ProcessEnv = process.env): ResolvedPairedStudyRunOptions {
   const isRev3 = env.PAIRED_STUDY_SHAPE === "rev3";
+  // WR-01: PAIRED_STUDY_SHAPE=rev3 alone must not silently leave `model` at
+  // the rev-2 default — that default is the model the calibration dry-run
+  // found saturates every configuration with zero gradient. An explicit
+  // PAIRED_STUDY_MODEL always wins; absent one, rev-3 defaults to its own
+  // pinned model instead of rev-2's.
+  const defaultModel = isRev3 ? PAIRED_MODEL_REV3 : PAIRED_MODEL;
   return {
-    model: env.PAIRED_STUDY_MODEL || PAIRED_MODEL,
+    model: env.PAIRED_STUDY_MODEL || defaultModel,
     verdictFile: env.PAIRED_STUDY_VERDICT_FILE || "paired-study-verdict.json",
     shape: isRev3 ? REV3_SHAPE : REV2_SHAPE,
     runconfigFile: isRev3 ? "paired-runconfig-rev3.json" : "paired-runconfig.json",
