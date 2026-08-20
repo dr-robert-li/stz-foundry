@@ -3,6 +3,7 @@
 **Robert Li**
 slice-tournament-zoo (STZ), 2026-06
 *Part II addendum: STZ Foundry (stz-foundry 1.8.0), 2026-07 — §10–§15*
+*Part III addendum: STZ Foundry follow-up results (stz-foundry 1.27.0), 2026-08 — §16*
 
 ## Abstract
 
@@ -590,3 +591,41 @@ FSM with its policy bounds, the `slice-halt` primitive, and the provider
 seam are all pinned by the test suite (`npm test`, 299 green at 1.8.0).
 Install: `npm i -g stz-foundry`; plugin: `/plugin install stz-f`;
 standalone: `stz foundry init && stz foundry run <manifest>`.
+
+---
+
+# Part III — Follow-up results: the DUALFIX study, the paired third-family arm, and the graph-engineering pivot
+
+*Added 2026-08. Parts I-II (§1-15) are preserved verbatim; their earned results
+and open questions are not re-litigated. Part III covers four closed research
+arcs the paper predates — the DUALFIX repair study (v1.24.0), the paired
+third-family arm (v1.25.0), its rev-3 amended re-run (v1.26.0), and the
+graph-engineering pivot with the C-01 selection (v1.27.0) — each cited to its
+own committed study record.*
+
+## 16. Follow-up studies (v1.24.0–v1.27.0)
+
+### 16.1 The DUALFIX repair study (v1.24.0): Stage-B NOT-MET, milestone closing
+
+Governing records: `experiments/dualfix-study/STUDY-RESULTS.md` and
+`experiments/dualfix-study/TERMINAL-REPORT.md`.
+
+Both arms ran a paired, interleaved comparison against the identical 24-entry
+failing-candidate BI corpus, on the same local model (`qwen3.6:latest`),
+`COMPLETE` outcome for both. The DUALFIX execution-feedback repair arm
+repaired 19 of 24 candidates; the naive-retry control arm repaired 17 of 24 —
+the same shared denominator (`STUDY-RESULTS.md`). The pre-registered Stage-B
+gate evaluates `DUALFIX_STAGE_B_MARGIN_DEN * (kD - kC) >= DUALFIX_STAGE_B_MARGIN_NUM * n`;
+substituting `kD=19, kC=17, n=24` gives `20 * (19 - 17) >= 3 * 24`, i.e.
+`40 >= 72`, which does not hold. The verdict is **NOT-MET**; the resulting
+branch is **MILESTONE CLOSING** (`STUDY-RESULTS.md`).
+
+Per the milestone's own pre-registered conditional exit, REQ-67 (third-family
+selection), REQ-68 (instrument build), and REQ-69 (paired round) are recorded
+**VOID BY RULE** — not skipped, not deferred, not incomplete — because their
+own triggering condition, Stage B opening, never held
+(`TERMINAL-REPORT.md`). A gate that does not trigger is the instrument
+working as pre-registered, not the study failing: DUALFIX's 2/24 advantage
+over a naive retry is a standalone, honestly reported finding, well short of
+the pre-registered 0.15-of-denominator margin, not softened toward a
+near-hit.
