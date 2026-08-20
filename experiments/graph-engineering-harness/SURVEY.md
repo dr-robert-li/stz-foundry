@@ -37,6 +37,8 @@ the closing coverage table for the arithmetic).
 - **Query:** SWE-bench/SWE-bench repository and dataset — SC-D — 2026-08-20 — 1 hits, 1 survivor (GitHub REST API record plus README, cross-checked against the Hugging Face dataset card for the Published date)
 - **Query:** neo4j/text2cypher-2024v1 dataset — SC-D — 2026-08-20 — 1 hits, 1 survivor (Hugging Face dataset card and README, fetched directly)
 - **Query:** GraphRAG-Bench dataset — SC-D — 2026-08-20 — 5 hits, 1 survivor (Hugging Face dataset search for "GraphRAG-Bench"; the canonical `GraphRAG-Bench/GraphRAG-Bench` organization account selected over four unofficial forks/mirrors)
+- **Query:** all:"knowledge graph" AND all:"hygiene" — SC-A — 2026-08-20 — 1 hits, 0 survivors, null result (arXiv API; the sole hit, arXiv:2009.04915, predates the 2024-2026 recency window and does not describe a hygiene-invariant practice — run for the Graph integrity practice section, Task 3)
+- **Query:** all:"knowledge graph" AND all:"consistency checking" — SC-A — 2026-08-20 — 6 hits, 0 survivors, null result (arXiv API; six 2024-2026 hits examined, none describing a checked hygiene invariant on a shared graph — closest were an HLS-verification agent and a privacy-policy/code consistency checker, neither matching D-04's framing — run for the Graph integrity practice section, Task 3)
 
 ## Entries
 
@@ -234,9 +236,91 @@ the closing coverage table for the arithmetic).
 
 ## Graph integrity practice
 
-Not yet reported. This section is populated by the full sweep in 16-02, which the protocol's D-04
-requires to name at least one supporting entry id once the graph-integrity practice across the field has
-actually been surveyed. `E-01` alone does not describe graph-integrity practice (typed graph contracts,
-hygiene invariants, replayable mutations) and is not cited here for that reason — citing it would satisfy
-the mechanical check without satisfying D-04's actual requirement, which this tracer entry does not
-attempt to close.
+This section reports what the field's practice actually looks like for the three graph-integrity
+mechanisms D-04 names — typed or schema-constrained graph contracts, hygiene invariants, and replayable
+mutations. **It reports; it does not decide.** Whether this harness's own shared graph adopts any of this
+discipline is a selection-time question under D-04, and nothing below should be read as an answer to it.
+
+### Typed or schema-constrained graph contracts
+
+Two distinct mechanisms surfaced, at two different layers. `E-09` (Neo4j Cypher constraints) is the
+database-layer version: property type constraints, existence constraints and key constraints are
+declared on a label or relationship type and enforced by the DBMS itself at write time — a type or shape
+violation is rejected by the graph, not caught downstream by application code. `E-07` (TGMS) is the
+agent-tool-layer version: each of its thirteen temporal operators is declared "typed, deterministic,
+bounded, cost-guarded" as an agent-callable contract, so the constraint discipline sits on the interface
+an LLM plans against rather than on the graph's storage layer. The field has both layers; they are not
+substitutes for one another, and a system could plausibly adopt neither, one, or both.
+
+### Hygiene invariants
+
+The clearest field-level evidence is again `E-09`: existence constraints and key (uniqueness) constraints
+are continuously checked hygiene invariants, enforced by the DBMS on every write rather than run
+periodically as a batch job. Beyond database-level constraints, this sweep found little dedicated
+practice literature under the specific framing "hygiene invariant" or "consistency check" applied to a
+shared, LLM-mediated graph — two targeted academic searches (`all:"knowledge graph" AND all:"hygiene"`,
+`all:"knowledge graph" AND all:"consistency checking"`, both logged in the search log above) returned
+either an out-of-window result or matches that check something else (HLS-code verification, privacy-policy/
+code consistency) rather than a checked invariant on the graph's own structure. Read this as a genuine gap
+rather than an oversight: constraint-style hygiene is well established inside graph databases (`E-09`),
+but a distinct literature of hygiene checks purpose-built for an LLM-agent-mediated shared graph did not
+surface in this sweep.
+
+### Replayable mutations
+
+`E-10` (Neo4j Change Data Capture) is the closest single match this sweep found to D-04's "replayable
+mutations" phrase: an ordered, queryable stream of create/update/delete events that other systems can
+consume to replicate or replay changes made to the graph. `E-07` (TGMS) contributes a related but distinct
+mechanism — it separates valid time from transaction time and checks claims "against the content-addressed
+execution trace," which is a form of verifiable replay over an agent's own operator calls rather than over
+raw graph mutations. Together they show two different targets for "replayable": replaying what changed in
+the graph (CDC) versus replaying what an agent did to produce an answer (TGMS's trace). The field does not
+appear to have converged on one of these as the default; both are current, live practice.
+
+## Coverage
+
+**Protocol applied as written.** No query, source, or exclusion boundary was widened once the sweep was
+under way, matching `SEARCH-PROTOCOL.md`'s own closing discipline statement. No amendment line was added
+to the protocol during this plan — every field the four source classes' natural page shapes needed to
+populate (including the two vendor-doc pages with no dateline of their own, `E-03` and `E-09`/`E-10`) was
+populated by cross-checking a correlated, independently fetched source (a PyPI release timestamp, a
+vendor's own release-notes page) rather than by widening what the protocol requires.
+
+**Entries by source class** (against each class's declared floor of 4):
+
+| Class | Description | Count | Floor | Entries |
+|---|---|---|---|---|
+| SC-A | Academic (arXiv/conference) | 4 | 4 | E-01, E-02, E-06, E-07 |
+| SC-B | Vendor/framework documentation | 4 | 4 | E-03, E-08, E-09, E-10 |
+| SC-C | Open-source repositories | 4 | 4 | E-04, E-11, E-12, E-13 |
+| SC-D | Public benchmarks/datasets | 4 | 4 | E-05, E-14, E-15, E-16 |
+
+**Entries by subdomain** (against each subdomain's declared floor of 4):
+
+| Subdomain | Description | Count | Floor | Entries |
+|---|---|---|---|---|
+| knowledge-graphs | GraphRAG, temporal KGs, entity resolution | 6 | 4 | E-01, E-02, E-03, E-04, E-05, E-16 |
+| code-architecture-graphs | Code and architecture graphs | 4 | 4 | E-06, E-08, E-11, E-14 |
+| graph-db-schema | Graph-database and schema practice | 6 | 4 | E-07, E-09, E-10, E-12, E-13, E-15 |
+
+Total in-scope entries: **16**. No floor above is met with the help of an out-of-scope or background
+entry — every entry counted in both tables carries a real class and subdomain and is not marked dropped.
+
+**Out-of-scope entries:** 0. This sweep's search queries were themselves shaped by D-02's working-medium
+framing (graph-mediated code-engineering and qa-retrieval practice), so no leading search result surfaced
+whose only deliverable domain was analysis or research synthesis; the D-03 exclusion rule was applied as
+written, and applying it here produced no exclusions to record rather than a silent omission.
+
+**Background entries:** 0. `E-00` in `SEARCH-PROTOCOL.md` is the format specimen only, is not part of
+this document, and is not counted toward any floor per the protocol's own text.
+
+**Queries that returned nothing (null results), by kind:**
+
+| Kind | Count | Queries |
+|---|---|---|
+| Page-shape null (client-rendered SPA, no server prose to quote) | 2 | Sourcegraph code-navigation docs; Glean docs |
+| Currency null (real adoption signal once, not current practice) | 1 | kuzudb/kuzu (mid-archival at fetch time) |
+| Topic null (no in-window / on-topic result) | 2 | `all:"knowledge graph" AND all:"hygiene"`; `all:"knowledge graph" AND all:"consistency checking"` |
+
+Five null results total, all logged above with their date and outcome rather than papered over with a
+recalled substitute.
