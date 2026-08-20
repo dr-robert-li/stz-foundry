@@ -2097,3 +2097,33 @@ at this gate, matching the v1.23.0/v1.24.0/v1.25.0 precedent. Two open items pre
 open, named rather than absorbed: the v1.24.0 milestone's own completion entry (closed independently at
 Phase 12) and the parameter-description ledger item flagged at 14-02 for `_paired-arms.ts`'s task
 prompt.
+
+## Phase 16, plan 16-05: the direction is selected — C-01, REQ-75's gate closed (2026-08-20)
+
+I picked. `experiments/graph-engineering-harness/SELECTION.md` at commit
+`2747e11264dccd6435b8af1462d44f1dc8c272d7` is now the governing text for the next milestone's direction:
+**C-01, knowledge-graph-mediated retrieval QA scored against STaRK's constructed gold node ids.** That
+commit hash is the literal I want later work to prove descent from, not re-derive.
+
+The matrix ranked C-01 first (row total 23, margin 3 over C-03's 20, margin 9 over C-02's 14) and I did
+not depart from that ordering — the oracle is real and already runnable (STaRK's own public `eval.py`,
+no translation layer I have to author), and the backbone-fit cell is earned by the closest reuse of the
+three, the "shell out to an external checker" shape `execution-oracle.ts` already runs. I read the
+matrix's own disclosed blind spots before accepting the top rank rather than after — operator appetite
+independent of score, and whether a fourth or fifth candidate would have scored differently had the
+`E-06`/`E-14` evidence bar not removed the SWE-bench direction — and neither argued against C-01 on this
+record.
+
+The graph-integrity call, since the field's practice was surveyed precisely so this choice could be made
+here: C-01 has no field precedent for its isolation pattern, unlike C-02's Cypher-constraint precedent in
+`E-09`. What covers it instead is this project's own — the graph-builder's subgraph is immutable once
+handed to the answer-agent, so there is no shared-mutation window within a scored attempt. I recorded that
+explicitly in the `## Decision` section rather than let it sit implicit in the Collaborative-mode sketch.
+
+Open questions carried forward, by name, for the next planning pass to inherit rather than rediscover: the
+`E-06`/`E-14` re-verification question above; the matrix's own undeclared operator-appetite column, unused
+here but not retired; and C-01's subgraph-construction/handoff artifact, which is net-new and gets its
+shape from the next milestone's own planning, not from this document.
+
+Nothing else moved. No design or implementation work exists for any direction — the phase ends at this
+selection. No manifest version moved in this plan; that happens once, at the phase close.
