@@ -60,12 +60,16 @@ describe("Part III append-only guard (REQ-84)", () => {
       );
       expect(deletionLines).toEqual([]);
 
-      // Test 2: the shape invariant. Exactly two hunk headers — the byline insertion
-      // and the end-of-file append. This is the same diff shape the Part II commit
-      // produced, and it also catches a stray insertion dropped into the middle of
-      // §1-§15, which the zero-deletion check alone would not.
+      // Test 2: the shape invariant. Exactly two hunk headers, pinned by POSITION as
+      // well as count — the byline insertion at old-file line 5 and the end-of-§15
+      // append at old-file line 592. Count alone would still pass if Part III were
+      // relocated into the middle of §1-§15 (still zero deletions, still two hunks,
+      // still contains the heading/byline text) — pinning the append hunk's old-file
+      // line number to the pre-phase EOF is what actually enforces "append after §15".
       const hunkHeaders = lines.filter((line) => line.startsWith("@@"));
       expect(hunkHeaders).toHaveLength(2);
+      expect(hunkHeaders[0]!.startsWith("@@ -5,0 +6")).toBe(true); // byline insertion
+      expect(hunkHeaders[1]!.startsWith("@@ -592,0 +594")).toBe(true); // end-of-§15 append
 
       // Test 3: the anti-vacuous invariant. Among added lines, at least one begins
       // with the Part III top-level heading marker and at least one is the exact
