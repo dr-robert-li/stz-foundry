@@ -16,6 +16,14 @@ survey entry, including this one, with its own retrieval dates gathered in that 
 be treated as already-validated in the sense 16-03's pass requires — 16-03 re-checks it in full regardless
 of the `confirmed`/`kept` verdict recorded here.
 
+**16-03 supersession note:** the entry immediately below (`V-01`) is that self-graded pipeline-proof
+verdict, unmodified, kept here only as the historical record this note describes. `E-01`'s claim is
+re-checked in full below at `V-02`, by 16-03's own independent fetch and its own retrieval date, per this
+plan's explicit prohibition on treating the tracer entry as already validated. `V-01`'s self-graded verdict
+does not stand as evidence going forward; `V-02` is the entry every downstream bijection and dossier check
+resolves against for `E-01` — `V-01` is removed as a formal ledger entry once that supersession is recorded
+(see Task 2 in `16-03-PLAN.md`), and its content survives only in this repository's git history.
+
 ### V-01 — E-01
 
 - **Claim under check:** E-01
@@ -32,6 +40,27 @@ uses an LLM to build a graph index in two stages: first, to derive an entity kno
 source documents, then to pregenerate community summaries for all groups of closely related entities." —
 appears verbatim in the re-fetched abstract text.
 
+### V-02 — E-01
+
+- **Claim under check:** E-01
+- **Re-fetched:** https://arxiv.org/abs/2404.16130 retrieved 2026-08-20; page title, submission date and quote independently confirmed by this pass's own fetch, read before the survey's prose summary
+- **Verdict:** confirmed
+- **Disposition:** kept
+
+This is the pass's own independent re-check of the tracer entry, run under `16-03`'s separate-pass
+discipline rather than reusing `V-01` above. The URL, publication date and quote were read off the survey
+entry first (not its prose summary), then the source was fetched fresh via `rtk proxy curl` to a scratch
+file, and the fetched text alone was checked against those three fields. The fetched abstract page's
+`<title>` reads `[2404.16130] From Local to Global: A Graph RAG Approach to Query-Focused Summarization`,
+matching E-01's title; its submission line reads `[Submitted on 24 Apr 2024 (v1), last revised 19 Feb 2025
+(this version, v2)]`, matching the 2024-04-24 Published date E-01 records (the v1 date, not the v2 revision
+date); and E-01's quote — "Our approach uses an LLM to build a graph index in two stages: first, to derive
+an entity knowledge graph from the source documents, then to pregenerate community summaries for all
+groups of closely related entities." — is present verbatim in the fetched page's `og:description` /
+`citation_abstract` meta content and its rendered Abstract text. Retrieval date 2026-08-20 is not earlier
+than E-01's own recorded retrieval date (2026-08-20, same day); the ordering rule is satisfied by equality,
+which is the correct edge case for a re-check run on the day of harvest.
+
 ## Totals
 
-- **Totals:** confirmed=1, refuted=0, unverifiable=0
+- **Totals:** confirmed=2, refuted=0, unverifiable=0
