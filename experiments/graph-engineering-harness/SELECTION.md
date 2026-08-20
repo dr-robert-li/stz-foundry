@@ -264,16 +264,49 @@ is recorded as part of the `## Decision` below, since it is a selection-time que
 
 ## Decision
 
-*Filled after the gate resolves — nothing below is decided yet.*
-
-- **Selected:**
-- **Decided by:**
-- **Decided on:**
-- **Basis:**
-- **Matrix aggregate and rank at decision time:**
-- **Departure from matrix ordering, if any, and reason:**
-- **What this decision authorises:**
-- **What this decision does not authorise:**
-- **Graph-integrity call and basis:**
-- **Open questions carried forward:**
-- **Governing text:**
+- **Selected:** C-01
+- **Decided by:** Dr. Robert Li
+- **Decided on:** 2026-08-20
+- **Basis:** The matrix ranks C-01 first (row total 23, margin 3 over C-03's 20, margin 9 over C-02's 14).
+  C-01 clears the oracle gate with an off-the-shelf, already-runnable constructed oracle — STaRK's own
+  public `eval.py` scoring the predicted node id directly, no translation layer this project has to author
+  — and its backbone-fit cell is earned by the closest reuse available among the three of the existing
+  "shell out to an external checker" shape already operating in `execution-oracle.ts`. This is the
+  decision-authority line in `DECISION-MATRIX.md` exercised as written: the matrix's aggregate orders and
+  informs, the human at this gate selects, and here the selection follows the top of the ordering rather
+  than departing from it. Nothing in the matrix's declared blind spots (operator appetite, the
+  unreachable-evidence question below) argues against the top-ranked candidate; there is no reason on this
+  record to spend a departure's cost.
+- **Matrix aggregate and rank at decision time:** C-01 — row total 23, ranked first of three (C-03 second
+  at 20, C-02 third at 14). No tie.
+- **Departure from matrix ordering, if any, and reason:** None. The selection follows the matrix's top
+  ranking.
+- **What this decision authorises:** The next milestone designs and builds the C-01 direction —
+  knowledge-graph-mediated retrieval QA scored against STaRK's constructed gold node ids, on the kept
+  backbone (`runAgentBattery`, `OracleReceipt`/`EXOGENOUS_ROOT_KINDS`, `runComponentTournament`/
+  `promoteComponentWinner`, `src/bridge.ts`) — as a new collaborative mode beside the existing adversarial
+  one, replacing none of the five existing `VERTICAL_ADMISSION` rows.
+- **What this decision does not authorise:** No design or implementation work in this phase — the phase
+  ends at this selection. It does not change the oracle discipline any candidate, present or future, must
+  satisfy. It does not resolve any open question the dossier left unaddressed; those are carried forward by
+  name below rather than decided here.
+- **Graph-integrity call and basis:** C-01 does not take contract discipline on the shared graph from field
+  precedent — unlike C-02, whose schema-agent boundary has a direct precedent in `E-09`'s Neo4j Cypher
+  constraints, C-01's own dossier records explicitly that its isolation choice has no survey entry backing
+  it. The graph-integrity discipline C-01 relies on instead is this project's own: the graph-builder agent's
+  subgraph is immutable once handed off to the answer-agent for a given scored attempt, so there is no
+  shared-mutation window within a scored attempt for a hygiene or consistency invariant to guard against.
+  That is a call this project's own construction discipline covers on its own terms, not a borrowed one, and
+  it is recorded here explicitly rather than left to be inferred from the Collaborative-mode sketch.
+- **Open questions carried forward:** (1) Whether a fourth or fifth candidate would have scored differently
+  had the `E-06`/`E-14` evidence-eligibility bar (confirmed AND kept) not removed the SWE-bench-scored
+  direction from contention — screened-out item 1 names this as held back pending a future independent
+  re-verification pass of those two entries, not re-argued at this gate. (2) The matrix's own declared blind
+  spot — operator appetite for a direction independent of its score — did not need to be exercised here
+  since the top-ranked candidate was selected, but remains a legitimate future selection reason the matrix
+  itself has no column for. (3) C-01's subgraph-construction/handoff artifact and its build/read split are
+  net-new to this repository; the next milestone's planning pass designs that layer from scratch, nothing
+  here specifies its shape beyond the Collaborative-mode sketch above.
+- **Governing text:** This document, `experiments/graph-engineering-harness/SELECTION.md`, at the commit
+  recorded as a literal in `docs/JOURNAL.md`, is the governing text for the next milestone's direction. Its
+  `## Decision` section above is authoritative over any prose summary of it written elsewhere.
