@@ -625,6 +625,7 @@ error specifically — only two did.
 ```reconciliation
 raw_total = 21 + 8 + 5 + 3 + 10 = 47
 merged = 47 - 8 = 39
+disposition = 35 + 4 = 39
 ```
 
 Of the 47 raw findings, 16 cluster into 8 global findings — each cluster holds
@@ -632,3 +633,272 @@ exactly 2 raw findings, so 8 clusters contribute 8 global findings in place of 1
 raw sources, a reduction of 8 (`16 - 8 = 8`). The remaining 31 raw findings are
 raised by exactly one lane each and become 31 global findings one-to-one. Global
 count: `8 + 31 = 39`, matching `47 - 8 = 39` above.
+
+## Adjudication ledger
+
+Every global finding from the merge map above is walked once, in ascending id
+order, regardless of verdict. Global finding ids are referenced by number only
+below — the raw lane ids that fed each one are recorded exactly once, in the
+merge map section above, and are not repeated here.
+
+- **G-01 — ADOPTED.** §3 gains a sentence naming the residual TOCTOU window
+  between the re-hash and the actual open/read as its own condition: the
+  answerer's runner must open the artifact once into a buffer (or hold the same
+  file descriptor) it then hashes and reads from, rather than re-hashing a path
+  and reopening it, and any mutation observed between those two operations is the
+  same fail-closed condition as a hash mismatch. Concrete symlink-retargeting
+  handling is named as part of the same sentence: a symlink target swapped
+  between hash and open is treated as a mutation, not a distinct case.
+- **G-02 — ADOPTED.** §3's contract paragraph gains a binding requirement: the
+  recorded handoff hash must be stored as part of a record bound to the task's
+  own `query_id`, attempt id, candidate `definitionHash`, and KB revision — not
+  as a bare hash value an actor with artifact-replacement access could also
+  overwrite or transplant from a different task's record.
+- **G-03 — ADOPTED.** §3's failure-mode list gains one sentence stating that the
+  five named modes are illustrative of the contract's own shape, not an
+  exhaustive enumeration of every artifact-side edge case — partial writes,
+  oversized artifacts, malformed serialization, and parser/schema-version drift
+  are named explicitly as Phase 21 implementation-level failure modes the
+  handoff contract's design does not itself enumerate further, matching the
+  "described here, implemented there" pattern §2 and §6 already use.
+- **G-04 — ADOPTED.** §3's failure-mode list gains a sixth named mode: the
+  recorded handoff hash itself is absent, corrupted, or was never correctly
+  written at handoff time — fail closed identically to an artifact-content
+  mismatch, stated as its own case rather than assumed to be covered by the
+  existing "artifact is mutated" mode.
+- **G-05 — ADOPTED.** §3 gains a requirement that the builder's subgraph
+  artifact be written in a canonical, deterministic serialization — fixed field
+  ordering, a defined encoding, no incidental whitespace variance — so that two
+  structurally identical subgraphs always hash identically, with the concrete
+  format left to Phase 20/21 to choose within that constraint.
+- **G-06 — REJECTED.** The handoff-hash contract's own stated scope, already in
+  §3 ("What the contract does not defend against"), is an integrity check across
+  the handoff boundary, not a content-correctness check — it verifies the bytes
+  the answerer reads match what the builder handed off, not that those bytes
+  describe a well-formed subgraph. A syntactically empty or malformed artifact
+  that still verifies is a content-quality question the newly adopted output
+  schema/validator requirement (this ledger's entry for the builder's subgraph
+  contract) is the mechanism for, not the hash contract — asking the hash check
+  to also police content shape would collapse two boundaries this document keeps
+  deliberately separate.
+- **G-07 — ADOPTED.** §3 gains an explicit sentence: the runner/orchestrator, not
+  the builder agent itself, performs both the handoff hash at write time and the
+  re-hash at read time. Stating this closes the trust gap the finding names — a
+  self-hashed, self-recorded artifact would only prove the file matches the
+  builder's own claim, not that the claim is trustworthy.
+- **G-08 — ADOPTED.** §2 gains a requirement that the builder's subgraph output
+  conform to a closed, versioned schema with a deterministic validator that
+  rejects unrecognized or free-form fields — named here as the target behaviour
+  and left to Phase 20/21 to implement, the same "described here, implemented
+  there" move §2 already uses for the answerer's strip boundary and the
+  builder's own content-smuggling gap.
+- **G-09 — ADOPTED.** §2 gains a second named gap alongside the existing
+  output-smuggling one: the builder's own filesystem, tool, cache, and fixture
+  access is not mechanically restricted from reaching gold-`answer_ids`-bearing
+  data by a path other than its stated query inputs. Both gaps are named as
+  Phase 21's builder input/capability boundary to close, matching the mechanical
+  framing this document's own architecture rule requires.
+- **G-10 — ADOPTED.** §4's closing "Decision statement" paragraph is reworded so
+  the replay ground — the already-harvested, byte-reproducible sealed fixture
+  pair — carries the decision, since it is the one ground the section's own body
+  text shows genuinely discriminates PrimeKG from the alternatives. Size and
+  licence are re-presented as honest supporting context (the only measured size
+  figure in the repo; a licence distinction stated with its own unverified gap
+  named) rather than as independent comparative grounds a reader could mistake
+  for equal-weight evidence. This keeps SC-4's own requirement — make the case
+  with size, licence, and replay evidence — intact; it changes how the three
+  grounds are weighted, not whether all three are presented.
+- **G-11 — ADOPTED.** §4's "Licence" subsection gains a sentence stating plainly
+  that the STaRK dataset's cc-by-4.0 licence applies identically to Amazon and
+  MAG and therefore does not itself discriminate among the three KBs — the only
+  licence question that would discriminate, PrimeKG's own dataset licence,
+  remains named as unverified. This is the same re-weighting G-10 applies to the
+  decision statement, made explicit at the subsection that states the licence
+  evidence itself.
+- **G-12 — ADOPTED.** §7's primary-gate explanation is reworded to drop "fires"
+  for the binary PASS/FAIL condition: the defense against parametric-recall
+  bypass only does its job if the gate correctly FAILS whenever the null arm
+  scores close to or above the graph arm — stated in PASS/FAIL language, not
+  alarm-trigger language, so a reader does not have to decode which state
+  "firing" refers to.
+- **G-13 — ADOPTED.** §7's "more sensitive" sentence is reworded to state
+  precisely why: because δ2 is smaller than δ1 and both read the same paired
+  difference in opposite directions, a do-no-harm trigger necessarily co-occurs
+  with a primary-gate FAIL — the secondary is not an independent detector, it is
+  a same-swing diagnostic that names the direction and magnitude of harm within
+  an already-failing result.
+- **G-14 — ADOPTED.** §7 gains a citation for the 4-8-query range's provenance
+  where one is traceable, or, absent a citable derivation, a relabelling of the
+  range as a stated practitioner judgment call offered for panel scrutiny per
+  D-05's own text — rather than presenting an uncited number beside a request
+  (§10) that any overturning evidence be cited rather than intuitive.
+- **G-15 — ADOPTED.** §7 or §9 gains a stated requirement that Phase 23's
+  implementation include a test that mechanically re-derives all 56 rows of the
+  pinned critical-value table from the stated combinatorial formula and compares
+  them against the transcribed constants, mirroring the paired-comparison-arm's
+  own drift-guard discipline for its critical-value table, rather than trusting
+  the transcription in this document on its own.
+- **G-16 — ADOPTED.** §7's "one row past that table's own ceiling" sentence is
+  corrected: the existing table covers discordant counts 20 through 60, and this
+  suite's 75 pairs can produce discordant counts up to 75 — 15 rows past the
+  ceiling (61 through 75 uncovered), not one.
+- **G-17 — ADOPTED.** §7's quoted error text is replaced with the message that
+  actually fires for an out-of-range discordant count in `_paired-gate.ts`
+  (`discordantCount ${discordantCount} outside the supplied critical-value
+  table's own range [${discordantFloor}, ${batterySize}]`, thrown by the range
+  guard ahead of the lookup), with a sentence clarifying that the "no pinned
+  critical value" message only fires for an in-range count missing from the
+  table — which cannot occur against the default table for any in-range count.
+- **G-18 — ADOPTED.** §7 gains a sentence requiring that the UNDERPOWERED
+  precision statement, when `n_d` falls below the 20-discordant floor, be
+  surfaced in whatever report or receipt artifact records the ablation-gate
+  result — not left as an internal return value the caller may or may not
+  propagate.
+- **G-19 — ADOPTED.** §7 gains one clarifying sentence stating explicitly that
+  the gate always evaluates against this design's own newly pinned table (`n_d`
+  20 through 75), never against the existing `[20,60]` table, for every
+  discordant count the 75-query suite can produce — removing the ambiguity
+  between the two tables named in the same section.
+- **G-20 — ADOPTED.** §7's margin definitions are reworded so the inequalities
+  and the query-count margins agree in unit: either the inequalities are
+  restated directly in raw hit-count terms (`graphHits - nullHits >= 6`,
+  `nullHits - graphHits >= 5`), or the margins are stated as their rate
+  equivalents (δ1 = 0.08, δ2 ≈ 0.067) wherever they appear beside the
+  `hit@1`-based formulas — one convention chosen and used consistently, not left
+  for the reader to reconcile a query count against a per-query rate.
+- **G-21 — ADOPTED.** §7 gains an explicit sentence defining the discordant-pair
+  count: a discordant pair is exactly a query where the two arms disagree (one
+  hits, one misses); a tie (both hit or both miss) is excluded from `n_d` by
+  definition, stated plainly rather than left to a reader's familiarity with the
+  sign-test term of art.
+- **G-22 — ADOPTED.** §8's sentence claiming `componentVariantId` "produces the
+  two 32-byte digests the outer hash consumes" is corrected: `componentVariantId`
+  is the existing 16-hex-character truncated diagnostic function and is
+  unchanged, but it is not the function that produces the outer hash's 32-byte
+  inputs — the full, untruncated `sha256(builderPrompt)` and
+  `sha256(answererPrompt)` digests are computed directly for that purpose, named
+  as a distinct step from `componentVariantId`'s own diagnostic truncation.
+- **G-23 — ADOPTED.** §8 gains an explicit disclosure of the outer hash's own
+  16-hex (64-bit) truncated output's birthday-bound collision probability,
+  named as an accepted, house-convention-consistent risk — the same convention
+  `componentVariantId` already carries — so the "prevents distinct prompt pairs
+  from sharing a hash" language reads as a collision-resistance claim at a
+  stated probability, not an absolute-uniqueness claim.
+- **G-24 — ADOPTED.** §8 gains a sentence stating that no normalization is
+  applied to either prompt before hashing: byte-identical prompt text is
+  required for identical hashes, so trailing whitespace, line-ending, and
+  Unicode-normalization differences are identity-bearing, not silently
+  collapsed.
+- **G-25 — ADOPTED.** §8's rejection rationale for truncated per-role inputs is
+  reworded: using the full 32-byte inner digests keeps the outer sha256's own
+  256-bit output space unconstrained by an artificially small (2^128) input
+  combination space, preserving headroom should a future need call for the
+  untruncated outer digest — rather than the current claim that truncated
+  inputs would narrow the outer hash's own effective collision resistance, which
+  is imprecise given the outer hash's *output* is truncated to 64 bits
+  regardless of the inner hashes' width.
+- **G-26 — ADOPTED.** §5's cross-reference "for the CD-04 hash, §9" is corrected
+  to "for the CD-04 hash, §8", where the CD-04 hash is actually specified.
+- **G-27 — REJECTED.** §8 already states this exactly: "`||` is raw-byte
+  concatenation of the two full, untruncated 32-byte sha256 digests" — the
+  design specifies raw binary, not hex-encoded bytes, before the outer
+  concatenation. The ambiguity the finding names does not survive a full read of
+  the sentence it is attacking.
+- **G-28 — ADOPTED.** §6 gains an explicit rule for mixed valid/invalid
+  predictions: an invalid id is dropped from the ranked list and its rank slot
+  counts as a forfeited miss rather than promoting subsequent valid ids into its
+  position, and empty-list and duplicate-id cases are each named with their own
+  defined outcome, closing the non-determinism the finding names.
+- **G-29 — ADOPTED.** §6 gains a sentence naming that Phase 21's bridge must
+  define a complete fail-closed outcome table covering timeout, signal
+  termination, malformed or multiple JSON on stdout, missing expected metric
+  keys, and stderr-only warnings, each as its own deterministic outcome — never
+  silently scored as zero or silently retried — extending the pre-filter/miss
+  precedent this section already sets for out-of-pool predictions.
+- **G-30 — ADOPTED.** §6 gains a disclosure that the revision-pinning assertion
+  verifies the Hugging Face Hub's current remote resolution only, not the local
+  cache's own on-disk content against that resolution — named as a known
+  residual risk for Phase 21 to mitigate (a revision-qualified load path or a
+  local artifact-manifest check), rather than left unaddressed.
+- **G-31 — ADOPTED.** §6's receipt-discipline paragraph gains a sentence
+  requiring that every `OracleReceipt` be constructed per scored prediction and
+  bound to that specific `query_id`, prediction payload, metrics, and attempt
+  identity — never a template receipt reused across results — as an explicit
+  requirement on the bridge's `validateReceipt` call site, beyond the lineage
+  fields the receipt type already carries.
+- **G-32 — ADOPTED.** §6 gains a requirement that Phase 21's bridge log and
+  differentiate its own pre-filter misses (an expected, defined outcome) from
+  genuine oracle-process failures such as OOM or segfault, rather than
+  presenting both identically as "non-zero exit, empty stdout" — needed so a
+  systemic oracle failure is diagnosable separately from expected filtering.
+- **G-33 — ADOPTED.** §6's stdout-purity claim gains a direct citation to
+  `tools/stark-eval/score_one.py`'s own stdout-redirect implementation lines,
+  alongside the existing citation to `SPIKE-FINDINGS.md`'s prose description of
+  the same behaviour.
+- **G-34 — REJECTED.** §6 already cites both artifacts directly: the lineage
+  strings are stated as "matching `test/fixtures/stark/oracle-receipt.json`
+  verbatim," and the receipt type is stated as "built with
+  `src/foundry/battery-types.ts`'s existing `OracleReceipt` type." The finding's
+  premise — that neither is directly cited — does not hold against the current
+  text.
+- **G-35 — ADOPTED.** §9's module-filename table gains a sentence clarifying what
+  it currently is: a naming commitment for Phase 20/21 to honour when creating
+  these modules, checked (if at all before those modules exist) by a guard those
+  phases author against the concrete paths they choose — not an active
+  path-watching mechanism today. This is distinguished explicitly from §1's
+  ancestry freeze test, which operates at the commit level via
+  `git merge-base --is-ancestor` and needs no file paths at all, so the two
+  mechanisms are not conflated under one "pinned mechanically" claim.
+- **G-36 — ADOPTED.** §1's amendment protocol gains a bound on its no-panel
+  branch: a "documented amendment entry" is restricted to non-substantive
+  corrections — typos, cross-reference fixes, wording clarifications that change
+  no inequality, threshold, contract shape, or decision — and any change to a
+  symbol, threshold, contract, or decision requires a new five-lane panel round.
+  This refines D-08's own locked two-branch amendment shape by giving the
+  no-panel branch a stated boundary; it does not remove either branch D-08
+  fixes.
+- **G-37 — ADOPTED.** §5 gains an explicit statement of the candidate × query
+  expansion: for a given candidate (builder+answerer prompt pair), one task is
+  generated per query in the 75-query battery, task identity is
+  `(candidateId, query_id)`, and retries and artifact ownership follow
+  `runAgentBattery`'s existing per-task retry semantics unchanged — never a
+  Cartesian product across multiple candidates within one round.
+- **G-38 — ADOPTED.** §5's `query_id` uniqueness sentence is reworded to state
+  precisely what the cited evidence shows (ids are not positional) without
+  implying global uniqueness the evidence does not establish, and gains a
+  requirement that a lookup by `query_id` reject zero or multiple matching rows
+  rather than silently taking the first.
+- **G-39 — REJECTED.** §5 already states these bounds are "panel-tested
+  proposals, not settled values," and §10 already names them as an open item
+  with its own stated overturn criterion — evidence that PrimeKG's typical
+  query-linked neighbourhood routinely falls outside the range, not intuition
+  alone. This finding restates the absence of justification the document already
+  discloses about itself; it does not supply the PrimeKG-degree evidence §10
+  asks for to actually move either number.
+
+**The primary inequality's direction.** No lane attacked the sign or direction of
+§7's primary bypass-defense inequality (`graph_hit@1 - null_hit@1 >= δ1`). Every
+§7 finding above concentrates on wording (G-12, G-13), an uncited range (G-14),
+transcription and arithmetic (G-15, G-16, G-17, G-19), a reporting gap (G-18), a
+unit mismatch (G-20), and a definitional gap (G-21) — none argues the inequality
+should run the opposite way, and none proposes reading a *decrease* in the
+graph-handoff arm's score as a PASS. The panel was given the full text of amended
+D-05's one-way primary gate and did not attack its sign; this section records that
+absence explicitly rather than folding it into the general disposition below.
+
+35 of 39 global findings adopted, 4 rejected with reason.
+
+Rev-2 touches seven of the document's ten sections. §3 (handoff contract) gains
+the most text — a bound TOCTOU response, a bound-and-protected recorded hash, two
+new failure modes, a canonical-serialization requirement, and an explicit
+hasher-identity statement. §7 (ablation gate) gets the heaviest correctness pass —
+an arithmetic fix, a wrong error-message fix, a unit-consistency fix, and four
+wording/disclosure additions — none of it touching δ1's or δ2's value or the
+primary inequality's direction, both of which stay exactly as amended D-05 fixed
+them. §8 (candidate hash) gets three self-contradiction and clarity fixes. §2
+(builder role), §4 (KB selection), §5 (battery shape), §6 (oracle interface), and
+§1/§9 (freeze and amendment) each gain one to four scoped additions. §10's open
+items are untouched by this ledger — they remain open for the freeze commit to
+carry forward, not resolved here. `COLLAB-DESIGN.md` itself is not edited by this
+plan; Plan 19-05's freeze commit applies exactly the adoptions named above, and no
+other change.
