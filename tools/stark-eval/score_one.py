@@ -61,6 +61,8 @@ def parse_pred_dict(raw):
         raise ValueError(f"stdin must be a JSON object, got {type(obj).__name__}")
     if not obj:
         raise ValueError("stdin prediction object is empty")
+    if len(obj) > 20:
+        raise ValueError(f"stdin prediction object has {len(obj)} entries, CD-01 caps at 20")
     pred_dict = {}
     for k, v in obj.items():
         try:
