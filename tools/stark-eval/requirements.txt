@@ -1,0 +1,7 @@
+stark-qa==1.1.0
+# uv-created venvs ship without setuptools; stark_qa -> PyTDC (tdc) imports
+# pkg_resources at import time (tdc/metadata.py). setuptools>=81 dropped the
+# vendored pkg_resources module, so this must be pinned below that AND above
+# torch's own >=77.0.3 floor — 77.0.3 is the last version satisfying both.
+# Spike finding for Plan 18-03: experiments/collab-oracle-spike/raw/setuptools-fix.log.
+setuptools==77.0.3

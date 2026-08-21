@@ -1,0 +1,13 @@
+$ tools/stark-eval/.venv/bin/python tools/stark-eval/pick_query.py prime val 0
+WARNING: faiss must be imported for indexing
+Use file from /home/robert_li/.cache/huggingface/hub/datasets--snap-stanford--stark/snapshots/88269e23e90587f99476c5dd74e235a0877e69be/qa/prime/stark_qa/stark_qa_human_generated_eval.csv.
+{"index": 0, "query_id": 0, "gold": 95886, "answer_ids": [95886]}
+
+$ printf '{"95886": 1.0}' | tools/stark-eval/.venv/bin/python tools/stark-eval/score_one.py prime 0
+loading skb for kb='prime' (download_processed=True) ...
+loading qa dataset for kb='prime' ...
+resolved query_id=0 at subscript idx=0 (row's own query_id field=0)
+WARNING: faiss must be imported for indexing
+Loading from /home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/data/prime/processed!
+Use file from /home/robert_li/.cache/huggingface/hub/datasets--snap-stanford--stark/snapshots/88269e23e90587f99476c5dd74e235a0877e69be/qa/prime/stark_qa/stark_qa_human_generated_eval.csv.
+{"kb": "prime", "query_id": 0, "hf_revision": "88269e23e90587f99476c5dd74e235a0877e69be", "metrics": {"mrr": 1.0, "hit@1": 1.0, "hit@5": 1.0, "recall@20": 1.0}}

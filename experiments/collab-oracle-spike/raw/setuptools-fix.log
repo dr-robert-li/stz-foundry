@@ -1,0 +1,84 @@
+$ tools/stark-eval/.venv/bin/python -c "import stark_qa"   # BEFORE fix
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/stark_qa/__init__.py", line 2, in <module>
+    from .load_skb import load_skb
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/stark_qa/load_skb.py", line 4, in <module>
+    from stark_qa.skb import *
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/stark_qa/skb/__init__.py", line 2, in <module>
+    from .prime import PrimeSKB
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/stark_qa/skb/prime.py", line 10, in <module>
+    from tdc.resource import PrimeKG
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/tdc/__init__.py", line 1, in <module>
+    from .evaluator import Evaluator
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/tdc/evaluator.py", line 8, in <module>
+    from .utils import fuzzy_search
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/tdc/utils/__init__.py", line 1, in <module>
+    from .load import (
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/tdc/utils/load.py", line 12, in <module>
+    from ..metadata import (
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/tdc/metadata.py", line 5, in <module>
+    import pkg_resources
+ModuleNotFoundError: No module named 'pkg_resources'
+
+=== defect: uv-created venv has no setuptools, so tdc/metadata.py's 'import pkg_resources' fails ===
+
+$ tools/stark-eval/.venv/bin/pip install setuptools
+Requirement already satisfied: setuptools in ./tools/stark-eval/.venv/lib/python3.11/site-packages (84.0.0)
+
+$ tools/stark-eval/.venv/bin/python -c "import stark_qa; print(stark_qa.__file__)"   # AFTER fix
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/stark_qa/__init__.py", line 2, in <module>
+    from .load_skb import load_skb
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/stark_qa/load_skb.py", line 4, in <module>
+    from stark_qa.skb import *
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/stark_qa/skb/__init__.py", line 2, in <module>
+    from .prime import PrimeSKB
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/stark_qa/skb/prime.py", line 10, in <module>
+    from tdc.resource import PrimeKG
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/tdc/__init__.py", line 1, in <module>
+    from .evaluator import Evaluator
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/tdc/evaluator.py", line 8, in <module>
+    from .utils import fuzzy_search
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/tdc/utils/__init__.py", line 1, in <module>
+    from .load import (
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/tdc/utils/load.py", line 12, in <module>
+    from ..metadata import (
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/tdc/metadata.py", line 5, in <module>
+    import pkg_resources
+ModuleNotFoundError: No module named 'pkg_resources'
+
+=== ROOT CAUSE ===
+setuptools>=81 removed the vendored pkg_resources module. uv venv
+installed setuptools 84.0.0 (latest) as part of --seed, which has no
+pkg_resources, breaking stark_qa -> PyTDC's 'import pkg_resources'
+(tdc/metadata.py:5). torch itself requires setuptools>=77.0.3, so the
+fix must satisfy both floors: pin setuptools==77.0.3 (last release
+with pkg_resources AND >=77.0.3).
+
+$ tools/stark-eval/.venv/bin/pip install "setuptools==77.0.3"
+Requirement already satisfied: setuptools==77.0.3 in ./tools/stark-eval/.venv/lib/python3.11/site-packages (77.0.3)
+
+$ tools/stark-eval/.venv/bin/python -c "import stark_qa; print(stark_qa.__file__)"   # FINAL VERIFY
+WARNING: faiss must be imported for indexing
+/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/stark_qa/__init__.py
+
+$ tools/stark-eval/.venv/bin/pip freeze > requirements.lock.txt   # refreeze
+lock refrozen.
+
+=== lock-file normalization (deviation, Rule 3 - blocking verify) ===
+pip freeze wrote the stark-qa dependency as "stark_qa==1.1.0" (underscore),
+matching the package's own distribution metadata Name, not the PyPI display
+name "stark-qa" (hyphen) that the plan's acceptance criteria grep for.
+PEP 503 name normalization treats hyphen/underscore/dot as identical, so
+this is the same package; normalized the lock line to "stark-qa==1.1.0" to
+match the plan's literal artifact criterion without changing what gets
+installed.
+
+Also added "setuptools==77.0.3" to the lock file by hand: `pip freeze`
+excludes setuptools/pip from its default output (bootstrap packages), but
+since setuptools is now a real functional pin in requirements.txt (this
+defect's fix), the lock must capture it too or a from-lock reprovision
+would silently reinstall latest setuptools (84.0.0) and reintroduce the
+ModuleNotFoundError: pkg_resources bug. Verified via `pip freeze --all`.
