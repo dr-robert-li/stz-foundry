@@ -1,0 +1,8 @@
+{
+  "kind": "constructed",
+  "acceptedBy": "dr-robert-li",
+  "lineage": [
+    "constructed:stark-prime",
+    "constructed:hf:snap-stanford/stark@88269e23e90587f99476c5dd74e235a0877e69be"
+  ]
+}

@@ -1,0 +1,638 @@
+{
+  "meta": {
+    "harvest_script": "tools/stark-eval/harvest_gold.py",
+    "harvested_at": "2026-08-21",
+    "hf_revision": "88269e23e90587f99476c5dd74e235a0877e69be",
+    "kb": "prime",
+    "pool": "selection",
+    "sample_size": 75,
+    "sampled_from_n": 2241,
+    "seed": 1801,
+    "split": "val",
+    "stark_qa_version": "1.1.0"
+  },
+  "pairs": [
+    {
+      "answer_ids": [
+        32873
+      ],
+      "query": "Could you identify the condition linked to the VANGL2 gene that's related to spina bifida cystica, characterized by a cerebrospinal fluid-filled sac protruding through a spinal defect, embraced by the dura and arachnoid, and covered by a skin layer that might show dysplasia or ulcers?",
+      "query_id": 97
+    },
+    {
+      "answer_ids": [
+        37396,
+        37516,
+        97305,
+        97307
+      ],
+      "query": "Could you provide potential diagnoses for a gallbladder neoplasm that leads to growths or tumors confined to the gallbladder, considering my family's history with gallbladder problems?",
+      "query_id": 131
+    },
+    {
+      "answer_ids": [
+        14061,
+        14062,
+        14158,
+        14175,
+        14191,
+        14197,
+        14204,
+        14238,
+        14278,
+        14287,
+        15101,
+        15984
+      ],
+      "query": "I have a joint condition that's causing swelling and discomfort. Could you recommend treatments that alleviate joint symptoms but are safe for someone with a risk of kidney complications, like proteinuria and edema?",
+      "query_id": 482
+    },
+    {
+      "answer_ids": [
+        128546,
+        128547
+      ],
+      "query": "What cellular pathway involves the MSH2 gene/protein within the MMR disease pathway hierarchy, includes heteroduplex repair, and leads to compromised mismatch repair functionality?",
+      "query_id": 586
+    },
+    {
+      "answer_ids": [
+        32828
+      ],
+      "query": "What is the name of the condition, often starting with petechiae and evolving into purpura, that serves as a secondary form of immune complex-mediated vasculitis?",
+      "query_id": 843
+    },
+    {
+      "answer_ids": [
+        60157
+      ],
+      "query": "I'm looking for genes or proteins that interact with neuropilin-2 (NRP2) and have a role in regulating the development and maturation of the nervous system. These should be primarily overexpressed in gonadotrope adenomas according to the PubMed literature and show higher expression in pituitary adenomas, with lower expression in tongue squamous cell carcinoma, ulcerative colitis, and peri-implantitis, as detailed in protein descriptions.",
+      "query_id": 1040
+    },
+    {
+      "answer_ids": [
+        31147,
+        33310,
+        98760
+      ],
+      "query": "Which disorder is associated with a partial loss of chromosome 14's long arm and results in significant developmental delays and hypotonia?",
+      "query_id": 1199
+    },
+    {
+      "answer_ids": [
+        29135,
+        29366
+      ],
+      "query": "Which condition associated with the BRCC3 gene is evident in individuals showing acute neurological symptoms coupled with brain infarctions or hemorrhages?",
+      "query_id": 1297
+    },
+    {
+      "answer_ids": [
+        32426,
+        33127,
+        39145,
+        84166,
+        84194,
+        84316,
+        96883,
+        97159
+      ],
+      "query": "Can you give me a rundown of illnesses associated with herpes simplex virus types 1 and 2, falling under the general herpes simplex infection category?",
+      "query_id": 1384
+    },
+    {
+      "answer_ids": [
+        19704
+      ],
+      "query": "Which drugs directly target mevalonate kinase and enhance their effects when used alongside Eperisone?",
+      "query_id": 1528
+    },
+    {
+      "answer_ids": [
+        36772
+      ],
+      "query": "What's the most common type of invasive ductal carcinoma found in women?",
+      "query_id": 1644
+    },
+    {
+      "answer_ids": [
+        11819
+      ],
+      "query": "Which genes or proteins are known to interact with the nucleus, bind proteins, and play a role in chromatin assembly?",
+      "query_id": 1846
+    },
+    {
+      "answer_ids": [
+        14190,
+        14655,
+        15461,
+        16183,
+        18680
+      ],
+      "query": "Could you suggest any oral medications that are effective in treating sun-induced skin spots?",
+      "query_id": 1862
+    },
+    {
+      "answer_ids": [
+        30702,
+        32357,
+        32596
+      ],
+      "query": "Could you help identify a possible condition linked to extreme sun sensitivity resulting in frequent rashes or sunburns, a growth disorder potentially tied to congenital metabolic problems, and notably small head size in both myself and my child, as well as an overall lack of expected growth?",
+      "query_id": 1920
+    },
+    {
+      "answer_ids": [
+        32311
+      ],
+      "query": "What condition is associated with the ERMARD gene that features unique craniofacial irregularities and intellectual growth delays, such as microcephaly, broadened nasal bridge, noticeable nasal root with a bulbous tip, malformations or low positioning of large ears, and a characteristic downward slant of the mouth corners?",
+      "query_id": 2399
+    },
+    {
+      "answer_ids": [
+        36043,
+        38512
+      ],
+      "query": "What disease falls under aromatase deficiency, is associated with the CYP17A1 gene, and significantly reduces fertility?",
+      "query_id": 2486
+    },
+    {
+      "answer_ids": [
+        38708
+      ],
+      "query": "What subtype of primary cutaneous anaplastic large cell lymphoma is associated with BAX gene expression or its protein activity?",
+      "query_id": 2920
+    },
+    {
+      "answer_ids": [
+        56860
+      ],
+      "query": "Could you supply a list of genes or proteins that both interact with the RHOA GTPase cycle and possess lipid-binding capabilities?",
+      "query_id": 3002
+    },
+    {
+      "answer_ids": [
+        20542
+      ],
+      "query": "Could you recommend any medications specifically tailored for plasmacytoma treatment, particularly those with a molecular weight around 143 Dalton?",
+      "query_id": 3270
+    },
+    {
+      "answer_ids": [
+        58668
+      ],
+      "query": "Could you provide a list of genes and proteins that interact with the Hypoxia-inducible Factor-mediated gene expression regulation pathway and are also involved in protein dimerization?",
+      "query_id": 3414
+    },
+    {
+      "answer_ids": [
+        98455,
+        98456
+      ],
+      "query": "Could a newborn with pyruvate carboxylase deficiency present with severe acidemia?",
+      "query_id": 3551
+    },
+    {
+      "answer_ids": [
+        30311
+      ],
+      "query": "What diseases are linked to the TMEM98 gene and feature signs of anophthalmia or significant microphthalmia as well as pulmonary hypoplasia or lung agenesis?",
+      "query_id": 3671
+    },
+    {
+      "answer_ids": [
+        84038
+      ],
+      "query": "Could you provide information on parasitic gastrointestinal infections treatable with Quinacrine, considering my family's history of similar ailments?",
+      "query_id": 4114
+    },
+    {
+      "answer_ids": [
+        8136
+      ],
+      "query": "Could you find any genes or proteins connected with short sleeper syndrome that also play a role in expressing the alpha4 subunit of the nicotinic acetylcholine receptor?",
+      "query_id": 4137
+    },
+    {
+      "answer_ids": [
+        129283
+      ],
+      "query": "Could you identify the pathway involving KIT gene/protein interactions that leads to regorafenib resistance development?",
+      "query_id": 4143
+    },
+    {
+      "answer_ids": [
+        95109
+      ],
+      "query": "What condition is linked to KDM3B and involves blue-gray or gray-black pigmentation changes in the skin, nails, and mucosa due to poisoning?",
+      "query_id": 4184
+    },
+    {
+      "answer_ids": [
+        15436
+      ],
+      "query": "Could you recommend a drug that targets dopamine receptors for rapid, sustained uterine contraction, particularly one associated with the HTR2B gene or protein and with headache as a possible side effect, for a patient prone to postpartum hemorrhage?",
+      "query_id": 4495
+    },
+    {
+      "answer_ids": [
+        62925
+      ],
+      "query": "Can you find a signaling pathway that involves molecular interactions with the IFNGR1 and TRIM38 genes/proteins and falls under the umbrella of the Interferon Signaling pathway?",
+      "query_id": 4597
+    },
+    {
+      "answer_ids": [
+        27871,
+        28105,
+        28495,
+        29229,
+        30583,
+        31617,
+        32496,
+        33472,
+        33526,
+        33531
+      ],
+      "query": "What disease involves high eye pressure and can lead to permanent vision loss if untreated?",
+      "query_id": 4698
+    },
+    {
+      "answer_ids": [
+        37054
+      ],
+      "query": "Can you list the subtypes of malignant soft tissue tumors or CNS cancers that arise directly as precursor or subsequent forms of another neoplasm?",
+      "query_id": 4718
+    },
+    {
+      "answer_ids": [
+        11487
+      ],
+      "query": "I need a compilation of genes or proteins that both interact with Neuropoietin (NENF) through protein-protein interactions and have RNA binding capabilities, particularly those that impact cell differentiation and show high affinity for guanine- and uracil-rich sequences in vitro.",
+      "query_id": 4923
+    },
+    {
+      "answer_ids": [
+        27164
+      ],
+      "query": "Which disorders are associated with HELLS protein malfunction considering its chromatin remodeling functions?",
+      "query_id": 5036
+    },
+    {
+      "answer_ids": [
+        35590,
+        84178,
+        84183
+      ],
+      "query": "What is the disease treatable with Procaine benzylpenicillin that's associated with syphilis and could affect the brain, nervous system, eyes, heart, blood vessels, liver, bones, and joints?",
+      "query_id": 5135
+    },
+    {
+      "answer_ids": [
+        10452
+      ],
+      "query": "What gene or protein linked to monogenic obesity is involved in glycerol transport between adipocytes and the liver via Aquaporin channels?",
+      "query_id": 5189
+    },
+    {
+      "answer_ids": [
+        128961,
+        128962,
+        128994,
+        128995,
+        128996
+      ],
+      "query": "Please find the biological pathway involving the POLR3D gene/protein within the nucleoplasm.",
+      "query_id": 5194
+    },
+    {
+      "answer_ids": [
+        62745
+      ],
+      "query": "What is the subordinate biological pathway interacting with the B4GAT1 gene/protein in relation to the O-glycosylation of proteins with the thrombospondin type 1 repeat domain?",
+      "query_id": 5437
+    },
+    {
+      "answer_ids": [
+        37531,
+        94734,
+        94735
+      ],
+      "query": "What is the name of the neuroendocrine tumor affecting the main part of the uterus?",
+      "query_id": 5713
+    },
+    {
+      "answer_ids": [
+        62343
+      ],
+      "query": "Can someone provide information on the specific cellular pathway capable of substituting numerous nucleotides at abasic sites, which also has interactions with genes or proteins involved in the repair or resolution process of these sites?",
+      "query_id": 5991
+    },
+    {
+      "answer_ids": [
+        2151
+      ],
+      "query": "Which gene or protein is present in the synovial joint but not expressed in the cerebellar vermis?",
+      "query_id": 6114
+    },
+    {
+      "answer_ids": [
+        89055
+      ],
+      "query": "Which side effects or phenotypes are associated with medications carried by the SLC39A11 transporter?",
+      "query_id": 6150
+    },
+    {
+      "answer_ids": [
+        56241,
+        56436,
+        126196
+      ],
+      "query": "Identify the cellular structures associated with genes or proteins that interact with L-2-amino-3-butynoic acid.",
+      "query_id": 6193
+    },
+    {
+      "answer_ids": [
+        22190,
+        23277,
+        23280
+      ],
+      "query": "What are the observed effects or phenotypes associated with mesenchymal cell neoplasm subtypes?",
+      "query_id": 6329
+    },
+    {
+      "answer_ids": [
+        24,
+        177,
+        1127,
+        2210,
+        2584,
+        2762,
+        4031,
+        5237,
+        6373,
+        10535,
+        11021,
+        13084
+      ],
+      "query": "Can you elaborate on the interaction mechanisms between the gene/protein that functions as a metastasis suppressor and plays roles in cell differentiation, stress response, and apoptosis, with the gene/protein responsible for plasma heme scavenging?",
+      "query_id": 6439
+    },
+    {
+      "answer_ids": [
+        3476,
+        6417
+      ],
+      "query": "Which gene or protein has interaction with NRL, shares a disease association with it, and plays a role in the visual process under dim lighting conditions?",
+      "query_id": 6649
+    },
+    {
+      "answer_ids": [
+        66747
+      ],
+      "query": "Which anatomical structures lack the expression of genes or proteins engaging in interactions with poly-ADP-ribosylation processes?",
+      "query_id": 7198
+    },
+    {
+      "answer_ids": [
+        27399
+      ],
+      "query": "Search for diseases with no current therapeutic drugs, which are linked to atypical body height and lead to both advancing joint contractures and early-onset degenerative joint conditions.",
+      "query_id": 7219
+    },
+    {
+      "answer_ids": [
+        15852
+      ],
+      "query": "Can someone provide information on a medication that acts on genes or proteins associated with efflux transmembrane transporter function, and is also involved in intracellular chemical energy transport?",
+      "query_id": 7330
+    },
+    {
+      "answer_ids": [
+        2448
+      ],
+      "query": "Identify genes or proteins that interact with LRPPRC and are linked to the same medical condition.",
+      "query_id": 7393
+    },
+    {
+      "answer_ids": [
+        14830
+      ],
+      "query": "Which medications that interact synergistically with Droxidopa for treating its indicated conditions might also be effective in preventing, protecting against, and managing the clinical manifestations of infections from different subtypes of Influenza A virus?",
+      "query_id": 7525
+    },
+    {
+      "answer_ids": [
+        14355
+      ],
+      "query": "Which pharmaceutical compound has a molecular mass of 284.48 and is associated with genes or proteins that have an interaction with sarcoplasmic elements?",
+      "query_id": 7593
+    },
+    {
+      "answer_ids": [
+        11741
+      ],
+      "query": "Which genes or proteins are involved in interactions with GP1BB, which synthesizes a minor membrane-bound glycoprotein present on human platelet surfaces, and are connected with effects or phenotypes similar to those associated with GP1BB?",
+      "query_id": 7651
+    },
+    {
+      "answer_ids": [
+        2137
+      ],
+      "query": "Is there evidence of interaction between RPS15A and RPL35, and do they share a role in the promotion of cell proliferation and the progression of cancer, particularly in relation to the same disease spectrum as implicated by RPL35 studies?",
+      "query_id": 7770
+    },
+    {
+      "answer_ids": [
+        27689
+      ],
+      "query": "Identify diseases lacking approved medications and linked to Arterial Fibromuscular Dysplasia.",
+      "query_id": 7911
+    },
+    {
+      "answer_ids": [
+        35471,
+        36836,
+        84056
+      ],
+      "query": "Which pulmonary condition characterized by fibrosis and tissue densification is deemed inadvisable for pharmacological treatments prescribed for Richter's syndrome?",
+      "query_id": 8015
+    },
+    {
+      "answer_ids": [
+        62659
+      ],
+      "query": "Search for pathways associated with the inactivation of CDC42 and RAC1, which also interact with a common gene or protein.",
+      "query_id": 8022
+    },
+    {
+      "answer_ids": [
+        15761,
+        19447,
+        19448
+      ],
+      "query": "Which antiviral medication, known for its inhibition of the neuraminidase enzyme, might also have an effect on genes or proteins associated with exo-alpha-(2->3)-sialidase enzymatic function?",
+      "query_id": 8079
+    },
+    {
+      "answer_ids": [
+        9976
+      ],
+      "query": "Which gene or protein is consistently unexpressed in both lung and thymus tissues?",
+      "query_id": 8361
+    },
+    {
+      "answer_ids": [
+        28082,
+        83956
+      ],
+      "query": "Which illness, resulting from infection by the Epstein-Barr virus and marked by elevated levels of mononuclear leukocytes and enlarged lymphatic glands, is an unsuitable condition for the administration of medications typically prescribed for IgG4-related sclerosing cholangitis?",
+      "query_id": 8498
+    },
+    {
+      "answer_ids": [
+        36544
+      ],
+      "query": "Find health conditions linked to TAGLN2 that should not be treated with Glimepiride.",
+      "query_id": 8813
+    },
+    {
+      "answer_ids": [
+        14108,
+        14109,
+        14110
+      ],
+      "query": "Could you describe the mechanism by which a medication, transported by gene or protein vectors that engage with essential elements of plasma membranes, provides antioxidant protection to lipid bilayers?",
+      "query_id": 8870
+    },
+    {
+      "answer_ids": [
+        25744,
+        27095,
+        94267,
+        94549
+      ],
+      "query": "What are the observed effects or phenotypes associated with the subtype of hypotension that occurs after eating, known as postprandial hypotension?",
+      "query_id": 8920
+    },
+    {
+      "answer_ids": [
+        213
+      ],
+      "query": "Would you kindly identify genes or proteins responsible for synthesizing insulin which also demonstrate interaction with carboxypeptidase E (CPE), given their shared role in the modulation of carbohydrate and lipid metabolic processes?",
+      "query_id": 9001
+    },
+    {
+      "answer_ids": [
+        14111,
+        14113
+      ],
+      "query": "Which pharmaceutical agent shares a gene or protein transporter with Etretinate and acts as a selective agonist for the retinoic acid receptor alpha and beta?",
+      "query_id": 9120
+    },
+    {
+      "answer_ids": [
+        55538,
+        55725,
+        55770,
+        55842,
+        55927,
+        56263,
+        56285,
+        125711,
+        126551,
+        127256
+      ],
+      "query": "Which cellular structures are involved in interactions with genes or proteins influenced by the root of Rauwolfia serpentina?",
+      "query_id": 9184
+    },
+    {
+      "answer_ids": [
+        8503
+      ],
+      "query": "Identify the common gene targets that Niacin and Mephenytoin both interact with as transporters.",
+      "query_id": 9284
+    },
+    {
+      "answer_ids": [
+        66747
+      ],
+      "query": "Which anatomical structures lack the expression of genes or proteins implicated in the inhibition of the ceramide biosynthesis pathway?",
+      "query_id": 9313
+    },
+    {
+      "answer_ids": [
+        14051
+      ],
+      "query": "Could you identify the fast-metabolized medication that is transported by genetic or protein factors and engages with the membrane of organelles, which has a notably short half-life of approximately 1.27 minutes?",
+      "query_id": 9498
+    },
+    {
+      "answer_ids": [
+        14024,
+        14050,
+        14255,
+        14269,
+        14321
+      ],
+      "query": "Could you identify a pharmaceutical agent sharing a gene or protein transport mechanism with Zidovudine and also exhibits a similar elimination half-life near 2.3 hours?",
+      "query_id": 9755
+    },
+    {
+      "answer_ids": [
+        66747
+      ],
+      "query": "Which bodily structures lack the expression of genes or proteins that are linked to hyperventilation?",
+      "query_id": 9886
+    },
+    {
+      "answer_ids": [
+        9976
+      ],
+      "query": "Which genes or proteins are not expressed in either lung tissue or the deltoid muscle?",
+      "query_id": 10309
+    },
+    {
+      "answer_ids": [
+        55842,
+        55851,
+        55875,
+        56263
+      ],
+      "query": "Which cellular structures are involved in interactions with genes or proteins that are affected by the compound Macitentan?",
+      "query_id": 10407
+    },
+    {
+      "answer_ids": [
+        27358
+      ],
+      "query": "Search for conditions lacking medications for treatment that correlate with heightened bone mineral density and primarily lead to osteosclerosis in the metaphyseal and epiphyseal areas of the limbs.",
+      "query_id": 10719
+    },
+    {
+      "answer_ids": [
+        14572
+      ],
+      "query": "Which dietary supplements are formulated to influence the genes or proteins associated with fatty acid elongation processes to alleviate nutritional deficiencies or correct imbalances?",
+      "query_id": 10802
+    },
+    {
+      "answer_ids": [
+        35963,
+        35966
+      ],
+      "query": "Which illnesses linked to EAF2 contribute to the development of prostate cancer and should not be managed with Nandrolone therapy?",
+      "query_id": 10861
+    },
+    {
+      "answer_ids": [
+        14059,
+        14060,
+        14064,
+        14105
+      ],
+      "query": "Which medication shares a gene or protein transporter with Etonogestrel and also serves the purpose of accelerating metabolic function in individuals diagnosed with an underactive thyroid gland?",
+      "query_id": 11059
+    }
+  ]
+}

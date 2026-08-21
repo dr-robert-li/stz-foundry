@@ -1,0 +1,21 @@
+=== Re-run into scratch dir, diff against committed fixtures ===
+revision pin OK: snap-stanford/stark@88269e23e90587f99476c5dd74e235a0877e69be
+loading qa dataset for kb='prime' ...
+WARNING: faiss must be imported for indexing
+Use file from /home/robert_li/.cache/huggingface/hub/datasets--snap-stanford--stark/snapshots/88269e23e90587f99476c5dd74e235a0877e69be/qa/prime/stark_qa/stark_qa_human_generated_eval.csv.
+wrote /tmp/harvest-scratch/prime-selection.json
+revision pin OK: snap-stanford/stark@88269e23e90587f99476c5dd74e235a0877e69be
+loading qa dataset for kb='prime' ...
+WARNING: faiss must be imported for indexing
+Use file from /home/robert_li/.cache/huggingface/hub/datasets--snap-stanford--stark/snapshots/88269e23e90587f99476c5dd74e235a0877e69be/qa/prime/stark_qa/stark_qa_human_generated_eval.csv.
+wrote /tmp/harvest-scratch/prime-heldout.json
+--- diff selection ---
+EMPTY DIFF: selection byte-identical
+--- diff heldout ---
+EMPTY DIFF: heldout byte-identical
+--- scratch dir contents (no temp remnant expected) ---
+total 272
+drwxrwxr-x    2 robert_li robert_li   4096 Aug 21 14:50 .
+drwxrwxrwt 3340 root      root      221184 Aug 21 14:50 ..
+-rw-rw-r--    1 robert_li robert_li  21691 Aug 21 14:50 prime-heldout.json
+-rw-rw-r--    1 robert_li robert_li  21547 Aug 21 14:50 prime-selection.json

@@ -1,0 +1,703 @@
+{
+  "meta": {
+    "harvest_script": "tools/stark-eval/harvest_gold.py",
+    "harvested_at": "2026-08-21",
+    "hf_revision": "88269e23e90587f99476c5dd74e235a0877e69be",
+    "kb": "prime",
+    "pool": "heldout",
+    "sample_size": 75,
+    "sampled_from_n": 2801,
+    "seed": 1802,
+    "split": "test",
+    "stark_qa_version": "1.1.0"
+  },
+  "pairs": [
+    {
+      "answer_ids": [
+        129192
+      ],
+      "query": "What are the molecular pathways that fall under the Iron uptake and transport pathway in the pathway database?",
+      "query_id": 209
+    },
+    {
+      "answer_ids": [
+        37674
+      ],
+      "query": "What diseases could be linked to symptoms of persistent fatigue, muscle pain, and memory issues in someone with a history of myopericytoma and leiomyosarcoma?",
+      "query_id": 600
+    },
+    {
+      "answer_ids": [
+        31560
+      ],
+      "query": "Could you assist in identifying a hereditary disease, possibly maternal in origin, that includes varying degrees of headache as a symptom, and may be linked to Mendelian inheritance within my family?",
+      "query_id": 612
+    },
+    {
+      "answer_ids": [
+        14578,
+        14586,
+        16369,
+        16701,
+        17031,
+        17288,
+        17289,
+        17290,
+        17291,
+        17292,
+        17293,
+        17294,
+        17295,
+        17296,
+        17297,
+        17298,
+        17299
+      ],
+      "query": "Could you share a compilation of pill or tablet medications that target the ADH1C gene or protein in their pharmacological interactions?",
+      "query_id": 616
+    },
+    {
+      "answer_ids": [
+        11385,
+        34401,
+        58732,
+        58781,
+        58788,
+        58790,
+        58791,
+        58794,
+        58798,
+        58803
+      ],
+      "query": "Please supply a compilation of genes and proteins linked to signal transduction within the Olfactory Signaling Pathway, specifically those encoding olfactory receptors for odor detection.",
+      "query_id": 829
+    },
+    {
+      "answer_ids": [
+        35497
+      ],
+      "query": "What is a disorder classified under hyperandrogenism as a subtype?",
+      "query_id": 830
+    },
+    {
+      "answer_ids": [
+        15278,
+        15279,
+        15281,
+        15284,
+        15285,
+        15286,
+        15288
+      ],
+      "query": "What drugs target the IFNAR2 receptor and are known to increase Major Histocompatibility Complex class I protein expression?",
+      "query_id": 834
+    },
+    {
+      "answer_ids": [
+        94883
+      ],
+      "query": "Which disease is linked to the CLN6 gene and also has an etiological association with manganese exposure?",
+      "query_id": 925
+    },
+    {
+      "answer_ids": [
+        14657
+      ],
+      "query": "Can you recommend a drug that inhibits UGT1A9 and modulates PTGS2, effective for bronchitis treatment?",
+      "query_id": 959
+    },
+    {
+      "answer_ids": [
+        129367
+      ],
+      "query": "What is the downstream cellular pathway associated with megakaryocyte development and platelet production that interacts with KIF27 protein?",
+      "query_id": 1125
+    },
+    {
+      "answer_ids": [
+        14667,
+        17727,
+        17728,
+        17729,
+        17730,
+        17731,
+        17732,
+        17733,
+        17734,
+        17735,
+        17736,
+        17737,
+        17738
+      ],
+      "query": "Could you find any solid-state drugs that target the farnesyl diphosphate synthase (FDPS) gene/protein in our records?",
+      "query_id": 1253
+    },
+    {
+      "answer_ids": [
+        14557,
+        14619,
+        14621,
+        14622,
+        16179,
+        16634,
+        16671,
+        18411,
+        18413
+      ],
+      "query": "Could you provide me with a list of drugs available for managing hemophilia A to improve blood clotting, specifically for instances of cuts or bruises?",
+      "query_id": 1897
+    },
+    {
+      "answer_ids": [
+        19729
+      ],
+      "query": "What drugs currently used for venous conditions have been found to engage with the aryl hydrocarbon receptor (AHR)?",
+      "query_id": 2077
+    },
+    {
+      "answer_ids": [
+        36521
+      ],
+      "query": "What disease is considered a type of allergy as well as an ocular condition, representing a dual categorization in medical classification systems?",
+      "query_id": 2301
+    },
+    {
+      "answer_ids": [
+        1809
+      ],
+      "query": "Identify the gene or protein involved in Diamond-Blackfan anemia development, associated with L13a-mediated translational repression of Ceruloplasmin, implicated in early hepatocarcinogenesis, and indicative of prognosis post-hepatocellular carcinoma surgery.",
+      "query_id": 2352
+    },
+    {
+      "answer_ids": [
+        32729
+      ],
+      "query": "What subtype of Clostridium infection presents symptoms such as difficulty swallowing, slurred speech, vision impairment, and breathing problems?",
+      "query_id": 2412
+    },
+    {
+      "answer_ids": [
+        8649
+      ],
+      "query": "Identify genes or proteins that interact with the HATs acetylation of histones, bind to chromatin, and inhibit cell growth and proliferation.",
+      "query_id": 2709
+    },
+    {
+      "answer_ids": [
+        14792,
+        14793,
+        15429
+      ],
+      "query": "Could you recommend any medications that target the TUBB1 gene/protein and inform me about potential side effects like myelosuppression or neurotoxicity?",
+      "query_id": 2803
+    },
+    {
+      "answer_ids": [
+        19637
+      ],
+      "query": "Could you list drugs that target HLA-DRB3 and HLA-B genes for their pharmacologic action?",
+      "query_id": 3020
+    },
+    {
+      "answer_ids": [
+        96125
+      ],
+      "query": "Could my recent discomfort be linked to an illness associated with pulmonary blastoma, especially considering it's hereditary and I'm in my forties?",
+      "query_id": 3137
+    },
+    {
+      "answer_ids": [
+        14550,
+        14845,
+        14885,
+        14905,
+        14906,
+        14914,
+        15119,
+        15123,
+        15138,
+        15174,
+        15534,
+        16356,
+        19172,
+        19222,
+        19223,
+        19233,
+        19238
+      ],
+      "query": "What is the name of the solid-state drug that enhances the effects of Dicoumarol and selectively acts on the MAOA enzyme?",
+      "query_id": 3141
+    },
+    {
+      "answer_ids": [
+        8388
+      ],
+      "query": "Which gene or protein associated with Lenz microphthalmia syndrome also promotes the proliferation and spread of gastric epithelial cells via direct interaction with NF90?",
+      "query_id": 3214
+    },
+    {
+      "answer_ids": [
+        29367
+      ],
+      "query": "Could you assist in identifying potential conditions associated with overgrowth syndrome in my child? They exhibit ventriculomegaly and experience difficulties with feeding and breathing, suggesting airway abnormalities.",
+      "query_id": 3273
+    },
+    {
+      "answer_ids": [
+        2872
+      ],
+      "query": "Please list the genes and proteins involved in cellular protein metabolism, with RNA binding functions, that also play a role in Surfactant metabolism pathways.",
+      "query_id": 3702
+    },
+    {
+      "answer_ids": [
+        63005
+      ],
+      "query": "Could you locate pathways in our database that act as precursors or follow-up stages to both 'HCMV Early Events' and 'HCMV Late Events'?",
+      "query_id": 3949
+    },
+    {
+      "answer_ids": [
+        1807,
+        2298,
+        2773,
+        3875,
+        4183,
+        4209,
+        5048,
+        6156,
+        7299,
+        7452,
+        9106,
+        11394,
+        12441
+      ],
+      "query": "Please supply a compilation of genes and proteins actively expressed in connective tissue linked to limb-girdle muscular dystrophy and associated with the onset of both autosomal recessive limb-girdle muscular dystrophy and dilated cardiomyopathy.",
+      "query_id": 3961
+    },
+    {
+      "answer_ids": [
+        28557
+      ],
+      "query": "What disease involves altered metabolism or homeostasis and is also linked to the MPO gene?",
+      "query_id": 4420
+    },
+    {
+      "answer_ids": [
+        19626
+      ],
+      "query": "Can you list medications that primarily act on the KISS1 receptor?",
+      "query_id": 4480
+    },
+    {
+      "answer_ids": [
+        57881
+      ],
+      "query": "I'm looking for an ATP-binding cassette transporter gene that binds ATP, interacts with nucleolin, and is associated with multi-drug resistance. Can you help identify this gene-protein?",
+      "query_id": 4570
+    },
+    {
+      "answer_ids": [
+        32975
+      ],
+      "query": "Can you give me details about a disease associated with the PMVK gene that falls under or is akin to disseminated superficial actinic porokeratosis?",
+      "query_id": 4827
+    },
+    {
+      "answer_ids": [
+        127674
+      ],
+      "query": "Could you find a biological pathway that interacts with SOS1 gene/protein, falls under the 'Signaling by ERBB2 in Cancer' pathway, and includes the impact of ERBB2 TMD/JMD mutations on signaling enhancement?",
+      "query_id": 5269
+    },
+    {
+      "answer_ids": [
+        9317,
+        12045,
+        59912
+      ],
+      "query": "I'm looking for a gene or protein that modulates the Glutathione synthesis and recycling pathway, catalyzes the transformation of amino acids into different metabolites, and inhibits the growth of cancer cells, particularly with tumor-suppressing effects in gastric cancer.",
+      "query_id": 5449
+    },
+    {
+      "answer_ids": [
+        14866,
+        19676,
+        19677,
+        19678,
+        19679,
+        19680,
+        19681,
+        19682,
+        19683,
+        19684,
+        19685,
+        19686,
+        19687,
+        19688,
+        19689
+      ],
+      "query": "Could you suggest any tablet or capsule medications that specifically target the CTRB1 gene/protein?",
+      "query_id": 5546
+    },
+    {
+      "answer_ids": [
+        34525
+      ],
+      "query": "Which gene or protein is not expressed in either adipose tissue or the biceps brachii muscle?",
+      "query_id": 5870
+    },
+    {
+      "answer_ids": [
+        14128,
+        14645,
+        14716,
+        14742,
+        14833
+      ],
+      "query": "Which medication is metabolized by certain enzymes present in skeletal muscle tissue that provides cellular protection against oxidative stress by mitigating the impact of free radicals?",
+      "query_id": 5980
+    },
+    {
+      "answer_ids": [
+        14023,
+        14024,
+        14030,
+        14031,
+        14034,
+        14048,
+        14050
+      ],
+      "query": "Could you identify a short-duration pharmaceutical agent similar to Medrysone which employs a widely recognized gene or protein as a carrier, characterized by its rapid half-life that ranges between two to three hours?",
+      "query_id": 6023
+    },
+    {
+      "answer_ids": [
+        62606
+      ],
+      "query": "Could anyone provide information on the signaling pathway that is associated with IRS-mediated interactions, which simultaneously engages with a common gene or protein, and initiates the activation of both the PI3K and MAPK pathways via the phosphorylation of IRS proteins?",
+      "query_id": 6085
+    },
+    {
+      "answer_ids": [
+        1996
+      ],
+      "query": "Which gene or protein is simultaneously not expressed in both leg muscle tissues and the decidua?",
+      "query_id": 6506
+    },
+    {
+      "answer_ids": [
+        14041,
+        14042,
+        14043,
+        14044,
+        14045,
+        14046,
+        14047,
+        14387
+      ],
+      "query": "Is it likely that a medication sharing a gene or protein transport mechanism with 2-Methoxyestradiol would also exhibit a similar elimination half-life, specifically within the range of 6 to 8 hours?",
+      "query_id": 6564
+    },
+    {
+      "answer_ids": [
+        62432
+      ],
+      "query": "Search for pathways associated with the activation of type 1 interferon by IRF3 that also exhibit interactions with a common gene or protein.",
+      "query_id": 6596
+    },
+    {
+      "answer_ids": [
+        27725
+      ],
+      "query": "Search for medical conditions that lack associated treatments and are linked to Total Ophthalmoplegia.",
+      "query_id": 6823
+    },
+    {
+      "answer_ids": [
+        128137
+      ],
+      "query": "I am looking for a biological pathway in which the activation of SMAD proteins is triggered by TGF-beta receptor signaling, with both sharing interactions with an identical gene or protein.",
+      "query_id": 6981
+    },
+    {
+      "answer_ids": [
+        40405,
+        41325,
+        42844
+      ],
+      "query": "Which biological processes are involved in the interaction with the gene or protein linked to Kleeblattsch\u00e4del syndrome (Cloverleaf Skull)?",
+      "query_id": 7117
+    },
+    {
+      "answer_ids": [
+        22574,
+        92824
+      ],
+      "query": "What are the observed effects or phenotypes associated with a subtype of eyelid carcinoma?",
+      "query_id": 7311
+    },
+    {
+      "answer_ids": [
+        14227,
+        14242,
+        14600,
+        15101,
+        15329,
+        15794,
+        20573
+      ],
+      "query": "Could you provide a list of medications that exhibit synergistic effects when used in combination with Choline magnesium trisalicylate to treat the same condition and that also selectively target COX-2 enzymes to alleviate inflammation?",
+      "query_id": 7408
+    },
+    {
+      "answer_ids": [
+        29229,
+        83830
+      ],
+      "query": "Which ailment, characterized by elevated intraocular pressure, should be avoided when prescribing medications for glossopharyngeal neuralgia due to its conflicting nature?",
+      "query_id": 7529
+    },
+    {
+      "answer_ids": [
+        1420
+      ],
+      "query": "Is there an interaction between the SLC34A2 gene responsible for encoding Type II sodium-phosphate cotransporters and the DHHC palmitoyltransferase family involved in lipid modification and the trafficking of proteins within cellular membranes?",
+      "query_id": 7627
+    },
+    {
+      "answer_ids": [
+        62777
+      ],
+      "query": "Identify a biological pathway associated with SMO activation which also involves interaction with a common gene or protein.",
+      "query_id": 7991
+    },
+    {
+      "answer_ids": [
+        11555
+      ],
+      "query": "Which gene or protein is responsible for the translocation of UDP-galactose into the Golgi apparatus and has an interaction with the gene or protein associated with SLC35A3 mutation? Is there a possibility that this interaction contributes to the onset of arthrogryposis, mental retardation, and seizures (AMRS)?",
+      "query_id": 8120
+    },
+    {
+      "answer_ids": [
+        955
+      ],
+      "query": "Is there an interaction between the G\u03b111 protein and any gene or protein involved in phospholipase C beta signaling pathways?",
+      "query_id": 8132
+    },
+    {
+      "answer_ids": [
+        2387
+      ],
+      "query": "Identify the common gene targets that interact with both Stanolone and Mitotane.",
+      "query_id": 8569
+    },
+    {
+      "answer_ids": [
+        22759,
+        86790
+      ],
+      "query": "Which phenotypic manifestations are associated with the subtype of anal canal adenocarcinoma?",
+      "query_id": 8597
+    },
+    {
+      "answer_ids": [
+        1863
+      ],
+      "query": "Which gene or protein is present in the pineal gland but not expressed in the decidua?",
+      "query_id": 8811
+    },
+    {
+      "answer_ids": [
+        10542
+      ],
+      "query": "Which gene or protein is consistently not expressed in both pancreatic and tracheal tissues?",
+      "query_id": 8935
+    },
+    {
+      "answer_ids": [
+        89055
+      ],
+      "query": "What are the potential side effects or phenotypic outcomes associated with drugs that utilize SLC39A1 as their transport mechanism?",
+      "query_id": 9029
+    },
+    {
+      "answer_ids": [
+        35958
+      ],
+      "query": "Which ailments are linked to MIA3 and should not be treated with Alvimopan due to their association with anomalies in the globin component of hemoglobin?",
+      "query_id": 9271
+    },
+    {
+      "answer_ids": [
+        1424,
+        2387
+      ],
+      "query": "Identify the common gene targets that facilitate steroid ligand binding in unique conformational alignments, and are involved in the transport or interaction of both Hydrocortisone butyrate and Hydrocortisone cypionate.",
+      "query_id": 9317
+    },
+    {
+      "answer_ids": [
+        18038
+      ],
+      "query": "Which medication inhibits the HIV virus from entering cells by blocking the CXCR4 coreceptor, and what are the associated genes or proteins that engage with this coreceptor?",
+      "query_id": 9646
+    },
+    {
+      "answer_ids": [
+        4133,
+        5915,
+        10571
+      ],
+      "query": "Which gene or protein is involved in the regulation of monocyte chemotaxis, has the ability to bind or interact with CCL8, and is linked to a disease that is commonly associated with both CCL8 and monocyte chemotactic activity?",
+      "query_id": 9812
+    },
+    {
+      "answer_ids": [
+        23483,
+        23544,
+        25950,
+        85504,
+        85543,
+        85545,
+        85592,
+        90310,
+        93291
+      ],
+      "query": "Could you provide the specific effects or phenotypes associated with tubular aggregate myopathy?",
+      "query_id": 9840
+    },
+    {
+      "answer_ids": [
+        63180
+      ],
+      "query": "Which anatomical structures lack the expression of genes or proteins that play a role in the organization of microvilli?",
+      "query_id": 9977
+    },
+    {
+      "answer_ids": [
+        78586
+      ],
+      "query": "Identify genes or proteins that are not expressed in both the spleen and bone marrow.",
+      "query_id": 10063
+    },
+    {
+      "answer_ids": [
+        27639
+      ],
+      "query": "Identify diseases that lack drugs indicated for treatment and are linked to the formation of atrophic scars.",
+      "query_id": 10088
+    },
+    {
+      "answer_ids": [
+        14062,
+        14158,
+        14175,
+        14191,
+        14197,
+        14204,
+        14219,
+        14236,
+        14238,
+        14242,
+        14252,
+        14262,
+        14278,
+        14287,
+        14419,
+        14469
+      ],
+      "query": "Which pharmaceutical agent shares a gene or protein transporter with Torasemide and also serves as an antagonist to prostaglandin receptors?",
+      "query_id": 10102
+    },
+    {
+      "answer_ids": [
+        2915
+      ],
+      "query": "Search for genes or proteins that interact with DCTN1 and share an associated phenotype or effect.",
+      "query_id": 10118
+    },
+    {
+      "answer_ids": [
+        6753
+      ],
+      "query": "What are the common target genes affected by both alpha-Tocopherol succinate and alpha-Tocopherol acetate?",
+      "query_id": 10327
+    },
+    {
+      "answer_ids": [
+        4055
+      ],
+      "query": "Which genes or proteins are present in the lacrimal gland but not expressed in the vastus lateralis muscle?",
+      "query_id": 10396
+    },
+    {
+      "answer_ids": [
+        14119,
+        14120
+      ],
+      "query": "Which medications are associated with genes or proteins connected to the microvillar membrane that regulate phosphorus levels in the blood of adults with chronic kidney disease on dialysis?",
+      "query_id": 10438
+    },
+    {
+      "answer_ids": [
+        14783,
+        14784
+      ],
+      "query": "Which medication is targeted by certain genes or proteins that function enzymatically within bone tissue and promotes wakefulness through the relaxation of smooth muscle?",
+      "query_id": 10697
+    },
+    {
+      "answer_ids": [
+        56099,
+        56150,
+        56174,
+        124245
+      ],
+      "query": "Which cellular structures are engaged in interactions with genes or proteins that Aeruginosin 98-B affects?",
+      "query_id": 10947
+    },
+    {
+      "answer_ids": [
+        14502,
+        14503,
+        14514
+      ],
+      "query": "Which additional medication operates similarly to Pegaspargase by sharing a typical gene or protein transporter and functions by transforming asparagine into aspartic acid and ammonia?",
+      "query_id": 11006
+    },
+    {
+      "answer_ids": [
+        27638,
+        27639,
+        27640,
+        27641,
+        27643
+      ],
+      "query": "What conditions are linked to Abnormal scalp morphology and also result in fragile, blister-prone skin, in the absence of any known effective medications?",
+      "query_id": 11066
+    },
+    {
+      "answer_ids": [
+        14643
+      ],
+      "query": "Could you identify the medication that functions as an enzymatic agent affecting certain genes or proteins within the peripheral nervous system and metabolizes to create pain-relieving effects through the diminution of substance P neuropeptide concentrations?",
+      "query_id": 11151
+    },
+    {
+      "answer_ids": [
+        5
+      ],
+      "query": "Which gene or protein facilitates the transport of substances that exhibit synergistic effects when combined with Esculin, and also mediates the absorption of di- and tripeptides through the intestinal epithelial barrier?",
+      "query_id": 11184
+    },
+    {
+      "answer_ids": [
+        111
+      ],
+      "query": "Identify common gene targets of both 3-({[(1Z)-(2-methoxyphenyl)methylidene]amino}oxy)propanoic acid and N-(M-Trifluoromethylphenyl) phenoxazine-4,6-dicarboxylic acid.",
+      "query_id": 11187
+    }
+  ]
+}
