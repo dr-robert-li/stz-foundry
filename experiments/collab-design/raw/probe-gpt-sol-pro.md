@@ -1,0 +1,1 @@
+The most common failure mode is ambiguity about exactly which bytes are hashed, including serialization, encoding, line endings, metadata, and canonicalization. If producer and consumer do not share one deterministic byte-level representation, legitimate artifacts mismatch or, worse, verification covers different content than what the second agent reads.
