@@ -1,7 +1,6 @@
 {
   "meta": {
     "harvest_script": "tools/stark-eval/harvest_gold.py",
-    "harvested_at": "2026-08-21",
     "hf_revision": "88269e23e90587f99476c5dd74e235a0877e69be",
     "kb": "prime",
     "pool": "selection",

@@ -16,7 +16,6 @@ import argparse
 import json
 import random
 import sys
-from datetime import date
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -86,7 +85,10 @@ def sample_pool(kb, pool, seed, size, root, hf_revision):
         "sampled_from_n": sampled_from_n,
         "stark_qa_version": stark_qa_version,
         "hf_revision": hf_revision,
-        "harvested_at": date.today().isoformat(),
+        # ponytail: no harvested_at field — embedding today's date in the
+        # hashed/byte-compared payload made the D-04/D-05 byte-identical
+        # reproducibility claim date-dependent (WR-03). Harvest date is
+        # tracked via git history / raw/harvest.log, not the fixture payload.
         "harvest_script": "tools/stark-eval/harvest_gold.py",
     }
     return build_payload(meta, pairs)

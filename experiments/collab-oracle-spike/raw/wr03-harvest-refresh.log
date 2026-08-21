@@ -1,0 +1,50 @@
+=== WR-03 fix: harvested_at dropped from meta; regenerate committed fixtures, then re-run into scratch dir and diff (post-fix determinism proof) ===
+
+--- regenerate committed fixtures under the post-WR-03 harvest_gold.py ---
+$ tools/stark-eval/.venv/bin/python tools/stark-eval/harvest_gold.py prime --pool selection --out-dir test/fixtures/stark
+revision pin OK: snap-stanford/stark@88269e23e90587f99476c5dd74e235a0877e69be
+loading qa dataset for kb='prime' ...
+WARNING: faiss must be imported for indexing
+Use file from /home/robert_li/.cache/huggingface/hub/datasets--snap-stanford--stark/snapshots/88269e23e90587f99476c5dd74e235a0877e69be/qa/prime/stark_qa/stark_qa_human_generated_eval.csv.
+wrote test/fixtures/stark/prime-selection.json
+
+$ tools/stark-eval/.venv/bin/python tools/stark-eval/harvest_gold.py prime --pool heldout --out-dir test/fixtures/stark
+revision pin OK: snap-stanford/stark@88269e23e90587f99476c5dd74e235a0877e69be
+loading qa dataset for kb='prime' ...
+WARNING: faiss must be imported for indexing
+Use file from /home/robert_li/.cache/huggingface/hub/datasets--snap-stanford--stark/snapshots/88269e23e90587f99476c5dd74e235a0877e69be/qa/prime/stark_qa/stark_qa_human_generated_eval.csv.
+wrote test/fixtures/stark/prime-heldout.json
+
+--- git diff of regenerated fixtures vs. previously committed fixtures: only the harvested_at line dropped, pairs and every other meta key unchanged ---
+$ git diff --stat test/fixtures/stark/
+ test/fixtures/stark/prime-heldout.json   | 1 -
+ test/fixtures/stark/prime-selection.json | 1 -
+ 2 files changed, 2 deletions(-)
+
+--- re-run into a scratch dir, diff against the now-committed (harvested_at-free) fixtures ---
+$ tools/stark-eval/.venv/bin/python tools/stark-eval/harvest_gold.py prime --pool selection --out-dir <scratch>
+revision pin OK: snap-stanford/stark@88269e23e90587f99476c5dd74e235a0877e69be
+loading qa dataset for kb='prime' ...
+WARNING: faiss must be imported for indexing
+Use file from /home/robert_li/.cache/huggingface/hub/datasets--snap-stanford--stark/snapshots/88269e23e90587f99476c5dd74e235a0877e69be/qa/prime/stark_qa/stark_qa_human_generated_eval.csv.
+wrote <scratch>/prime-selection.json
+
+$ tools/stark-eval/.venv/bin/python tools/stark-eval/harvest_gold.py prime --pool heldout --out-dir <scratch>
+revision pin OK: snap-stanford/stark@88269e23e90587f99476c5dd74e235a0877e69be
+loading qa dataset for kb='prime' ...
+WARNING: faiss must be imported for indexing
+Use file from /home/robert_li/.cache/huggingface/hub/datasets--snap-stanford--stark/snapshots/88269e23e90587f99476c5dd74e235a0877e69be/qa/prime/stark_qa/stark_qa_human_generated_eval.csv.
+wrote <scratch>/prime-heldout.json
+
+--- diff selection ---
+EMPTY DIFF: selection byte-identical
+--- diff heldout ---
+EMPTY DIFF: heldout byte-identical
+
+=== Conclusion (WR-03) ===
+Post-fix, the fixture's full byte-identical-reproducibility claim no longer
+depends on which day the comparison is re-run: harvested_at (the only
+non-reproducible field) was dropped from meta entirely, not merely worked
+around. The remaining meta keys (kb, split, pool, seed, sample_size,
+sampled_from_n, stark_qa_version, hf_revision, harvest_script) and pairs were
+already deterministic (raw/harvest-determinism.log) and remain so here.

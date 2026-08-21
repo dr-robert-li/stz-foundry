@@ -114,6 +114,15 @@ EMPTY DIFF: selection byte-identical
 --- diff heldout ---
 EMPTY DIFF: heldout byte-identical
 ```
+**Correction (WR-03, post-review):** the fixture payload originally embedded
+`meta.harvested_at = date.today().isoformat()`, which was captured in the
+byte-identical comparison above but is not itself reproducible across days —
+re-running the documented verification procedure on any later date would
+diff non-empty on that one field alone, even though nothing about the sample
+changed. `harvested_at` has been dropped from the fixture payload entirely
+(harvest date is tracked via git history / `raw/harvest.log`, not the
+committed JSON); the byte-identical claim is now truly day-independent, not
+just true today, re-confirmed with the field removed (`raw/wr03-harvest-refresh.log`).
 
 ## Download size and wall-clock
 
@@ -167,3 +176,4 @@ One additional refutation the hands-on run surfaced beyond RESEARCH's own assump
 | `raw/harvest-determinism.log` | Fresh `harvest_gold.py` re-run into a scratch dir, diffed against committed fixtures | Sample seeds and pools |
 | `raw/d09-guard-red-proof.log` | `test/stark-fixtures.test.ts` run against a deliberately marker-injected `test/budget.test.ts` | (Background — proves the D-09 CI-boundary guard's own failure mode; cited in 18-02-SUMMARY.md, not itself a scoring-shape finding but present in `raw/` and must be cited here to satisfy the evidence-citation guard) |
 | `raw/download-size.log` | `du -sh` over `tools/stark-eval/data` and its subdirectories, run at the start of this plan | Download size and wall-clock |
+| `raw/wr03-harvest-refresh.log` | Post-WR-03-fix `harvest_gold.py` re-run (fixture regen + fresh scratch-dir re-run + diff), after dropping `meta.harvested_at` | Sample seeds and pools |
