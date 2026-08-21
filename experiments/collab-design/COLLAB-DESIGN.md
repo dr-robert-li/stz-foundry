@@ -31,7 +31,11 @@ ancestor of every commit touching the Phase 20–22 implementation modules named
 reviewer's memory of commit order. **Amendment protocol, stated in the same breath:**
 once frozen, a change to this document requires either a new five-lane panel round
 over the amended text, or a documented amendment entry naming what changed and why —
-never a silent edit. That cost is deliberate: it is exactly why the panel round runs
+never a silent edit. The documented-amendment-entry branch is bounded: it covers only
+non-substantive corrections — typos, cross-reference fixes, wording clarifications
+that change no inequality, threshold, contract shape, or decision — and any change to
+a symbol, a threshold, a contract, or a decision requires a new five-lane panel round,
+never a documented entry alone. That cost is deliberate: it is exactly why the panel round runs
 before the freeze rather than after, so the expensive adversarial scrutiny happens
 once, on the design as a whole, instead of being paid piecemeal for every later
 edit. Phase 18's spike commits (`experiments/collab-oracle-spike/`) are explicitly
@@ -67,6 +71,17 @@ failure-mode list names this explicitly as a gap the handoff contract does not
 close, because a TypeScript boundary that only checks the artifact's hash cannot see
 inside the artifact's content for that class of leak.
 
+The output-smuggling gap gets a target mechanism, described here and implemented in
+Phase 20/21: the builder's subgraph output must conform to a closed, versioned schema
+with a deterministic validator that rejects unrecognized or free-form fields, so a
+field the schema does not name cannot carry smuggled information into the answerer's
+input. A second, distinct gap sits alongside it: the builder's own filesystem, tool,
+cache, and fixture access is not itself mechanically restricted from reaching
+gold-`answer_ids`-bearing data by a path other than its stated query inputs — a
+schema on the *output* artifact says nothing about what the builder could read on the
+way to producing it. Both gaps are named here as Phase 21's builder input/capability
+boundary to close (REQ-78), not designed further by this document.
+
 ## 3. Handoff-immutability contract
 
 This is the design's own novel piece (D-06) — the dossier's Collaborative-mode
@@ -80,6 +95,15 @@ moment of handoff. Before the answerer reads the artifact, the answerer's runner
 re-hashes the artifact on disk and compares it against the recorded handoff hash.
 Any mismatch is a fail-closed condition: the answerer's runner refuses to read the
 artifact and the task is marked failed rather than proceeding on unverified content.
+Both the handoff hash and the re-hash are performed by the runner/orchestrator, never
+by the builder agent itself: a self-hashed, self-recorded artifact would only prove
+the file matches the builder's own claim about it, not that the claim is
+trustworthy — the check's value depends on the party computing the hash being
+outside the party whose output it is checking. The recorded handoff hash is stored as
+part of a record bound to the task's own `query_id`, attempt id, candidate
+`definitionHash`, and KB revision — not as a bare hash value an actor with
+artifact-replacement access could also overwrite or transplant from a different
+task's record.
 
 **Mechanical precedent for the check's *shape*, not its field.**
 `src/foundry/battery-types.ts`'s `validateReceipt` is the precedent cited here: it is a
@@ -104,11 +128,25 @@ discovering omissions:
   mutation after handoff, regardless of cause (a bug, a race, a bad actor), produces
   a hash mismatch, and "closed" means the answerer's runner refuses to open the file
   and the task is marked failed, never silently proceeding on the mutated content.
+  A residual TOCTOU window remains between the re-hash itself and the actual
+  open/read that follows it: the answerer's runner must open the artifact once into
+  a buffer (or hold the same file descriptor) that it then both hashes and reads
+  from, rather than re-hashing a path and reopening it as two separate operations —
+  any mutation observed between those two operations is the same fail-closed
+  condition as a hash mismatch, not a distinct case. A symlink target swapped
+  between the hash and the open is treated identically: a mutation, not a distinct
+  case the contract needs its own handling for.
 - **The artifact is absent at read time.** Intended behaviour: fail closed. A missing
   file is not treated as "empty subgraph, proceed" — it is a distinct failure from a
   hash mismatch (the artifact was never produced or was deleted, not tampered with),
   reported as such, and the answerer's runner never synthesizes a placeholder
   artifact to keep the task alive.
+- **The recorded handoff hash itself is absent, corrupted, or was never correctly
+  written at handoff time.** Intended behaviour: fail closed, identically to an
+  artifact-content mismatch — a re-hash with nothing valid to compare against is not
+  "no check possible, proceed," it is the same refuse-and-mark-failed outcome as a
+  mismatched hash, stated here as its own case rather than assumed to be covered by
+  the "artifact is mutated" mode above.
 - **The builder emits an artifact that hashes identically to a prior attempt's.**
   Intended behaviour: this is not itself a failure — a content-addressed hash
   colliding because two attempts produced byte-identical subgraphs is expected and
@@ -131,6 +169,19 @@ discovering omissions:
   boundary, not a content-correctness or a scope-of-knowledge check on either side of
   it; that gap is the same one §2 flags for the builder's own restraint, and no
   mechanism in this section closes it.
+
+**Illustrative, not exhaustive.** The five failure modes named above are illustrative
+of the handoff contract's own shape, not an exhaustive enumeration of every
+artifact-side edge case. Partial writes, oversized artifacts, malformed
+serialization, and parser/schema-version drift are named explicitly as Phase 21
+implementation-level failure modes this design does not itself enumerate further,
+matching the "described here, implemented there" pattern §2 and §6 already use.
+
+**Canonical serialization.** The builder's subgraph artifact must be written in a
+canonical, deterministic serialization — fixed field ordering, a defined encoding, no
+incidental whitespace variance — so that two structurally identical subgraphs always
+hash identically. The concrete format is left to Phase 20/21 to choose within that
+constraint; this section pins the requirement, not the format.
 
 ## 4. STaRK KB selection
 
@@ -170,6 +221,12 @@ not carried forward from search-synthesis, upgrading RESEARCH assumptions A2 and
   by this fetch — the codebase licence (MIT) and the dataset licence (unstated in
   this source) are two different claims and are not conflated here.
 
+The STaRK dataset's `cc-by-4.0` licence applies identically to Amazon and MAG — it is
+STaRK's own wrapper licence over whichever underlying KB is selected — and therefore
+does not itself discriminate among the three candidate KBs. The only licence question
+that would discriminate is PrimeKG's own dataset licence, and that one remains
+unverified, as stated above.
+
 **Replay.** PrimeKG is the KB Phase 18 actually harvested against: revision-pinned to
 `88269e23e90587f99476c5dd74e235a0877e69be` (stark-qa `1.1.0`), with sealed selection
 and heldout pools already committed and byte-reproducible —
@@ -185,11 +242,17 @@ sealed fixtures — this is the strongest of the three grounds: it is not merely
 PrimeKG scores better on paper, it is that the harvested, byte-reproducible evidence
 for it already exists and the evidence for the alternatives does not.
 
-**Decision statement.** PrimeKG is selected over Amazon and MAG on the verified
-254M operational footprint (size), an independently-retrieved cc-by-4.0 dataset
-licence with the PrimeKG codebase/dataset licence distinction stated explicitly
-(licence), and an already-harvested, byte-reproducible sealed fixture pair this
-project would otherwise have to redo from scratch (replay).
+**Decision statement.** PrimeKG is selected over Amazon and MAG chiefly on replay: an
+already-harvested, byte-reproducible sealed fixture pair this project would
+otherwise have to redo from scratch against a different KB — the one ground among
+the three whose own body text above actually discriminates PrimeKG from Amazon and
+MAG, since choosing either alternative discards this entire chain with no existing
+sealed fixtures for it. The verified 254M operational footprint (size) and the
+independently-retrieved cc-by-4.0 dataset licence (licence) are presented alongside
+as honest supporting context — the only measured size figure in the repo for any of
+the three KBs, and a licence distinction stated with its own unverified gap named —
+rather than as independent comparative grounds a reader could mistake for equal
+weight with replay's own discriminating evidence.
 
 ## 5. Battery and task shape
 
@@ -197,11 +260,16 @@ project would otherwise have to redo from scratch (replay).
 `query_id` field — **never** by positional index. Phase 18's spike confirmed the two
 do not coincide once a real split is selected (`SPIKE-FINDINGS.md` §"query_id vs
 positional index": every sampled row across both the `val` and `test` splits had
-`row_query_id != idx`); `query_id` is a global id into STaRK's full un-split dataset,
-and both `harvest_gold.py`'s sampler and `tools/stark-eval/score_one.py`'s
-`load_split()` key exclusively off the row's own `query_id`, never a loop index. A
-task keyed by index would silently mispair a query with the wrong gold answer set
-the moment a split boundary shifted.
+`row_query_id != idx`); both `harvest_gold.py`'s sampler and
+`tools/stark-eval/score_one.py`'s `load_split()` key exclusively off the row's own
+`query_id`, never a loop index. This is what the cited evidence actually shows —
+that `query_id` is not positional — and no more: it does not by itself establish
+that `query_id` is globally unique across STaRK's full un-split dataset, a stronger
+claim this section does not need and does not make. A task keyed by index would
+silently mispair a query with the wrong gold answer set the moment a split boundary
+shifted. A lookup by `query_id` must reject zero or multiple matching rows rather
+than silently taking the first — a defined failure, not a defined behaviour that
+happens to work when the assumption holds.
 
 **Output contract (CD-01).** The answerer emits a ranked candidate list capped at
 **20** entries. This preserves STaRK's native Hit@k, MRR, and Recall metrics and
@@ -214,6 +282,13 @@ the candidate, carrying a single lineage — not two independently-scored halves
 mutation edits one role's prompt (builder or answerer, never both in the same
 mutation step), and selection scores the pair as a whole; no role is ever scored or
 selected in isolation from its partner.
+
+**Candidate × query expansion.** For a given candidate (one builder+answerer prompt
+pair), one task is generated per query in the 75-query battery; task identity is the
+pair `(candidateId, query_id)`. Retries and artifact ownership follow
+`runAgentBattery`'s existing per-task retry semantics unchanged — this is never a
+Cartesian product across multiple candidates within one round, only the one
+candidate under evaluation expanded across the battery's queries.
 
 **Artifact durability (CD-03).** Per-attempt subgraph artifacts live in the detached
 round's own artifact directory for the duration of that round. Only the **winning**
@@ -247,7 +322,7 @@ and the panel is invited to attack it if it is wrong.
 unchanged as the collaborative mode's battery driver — the same dispatcher that runs
 one task per candidate today runs one task per STaRK query here, with no change to
 its own signature or scheduling. What the collaborative mode adds beside it is the
-task record's own payload: the builder/answerer prompt pair (for the CD-04 hash, §9),
+task record's own payload: the builder/answerer prompt pair (for the CD-04 hash, §8),
 the handoff artifact's recorded hash (§3), and the query's `query_id` (this section)
 — all carried as data on top of `runAgentBattery`'s existing task/result shape, not
 as a change to the function itself.
@@ -285,10 +360,20 @@ else on stdout: `stark_qa`'s own transitive dependencies (`colbert`, `tdc`'s
 `download_hf`) print progress and warning lines with bare `print()` straight to the real
 stdout, which would corrupt a `JSON.parse` on the Node side of Phase 21's bridge, so
 `score_one.py` redirects the process's real stdout fd to stderr for the duration of every
-load and only restores it to emit the final JSON line. Stdout purity is not an
-implementation detail Phase 21 can take on faith — it is the exact contract the bridge's
-`JSON.parse(stdout)` step depends on holding for every invocation, including a failing
-one.
+load and only restores it to emit the final JSON line
+(`tools/stark-eval/score_one.py:37-51`, the `_stdout_to_stderr()` context manager,
+alongside `SPIKE-FINDINGS.md`'s own prose description of the same behaviour). Stdout
+purity is not an implementation detail Phase 21 can take on faith — it is the exact
+contract the bridge's `JSON.parse(stdout)` step depends on holding for every
+invocation, including a failing one.
+
+**Failure outcome table (Phase 21).** Beyond the out-of-pool `IndexError` case named
+below, Phase 21's bridge must define a complete fail-closed outcome table covering
+timeout, signal termination, malformed or multiple JSON on stdout, missing expected
+metric keys, and stderr-only warnings — each its own deterministic outcome, never
+silently scored as zero and never silently retried. This extends the
+pre-filter/scored-miss precedent this section sets below for out-of-pool predictions
+to the rest of the invocation's own failure surface.
 
 **Evaluator construction and `candidate_ids`.** `Evaluator(candidate_ids=candidate_ids)`
 — the constructor takes only `candidate_ids`, resolved from the loaded SKB's own
@@ -301,12 +386,21 @@ own metric-computation code, the process exits non-zero, and stdout stays empty
 (`SPIKE-FINDINGS.md` §"Three test predictions", case (c)). Phase 21's bridge must
 pre-filter predicted node ids to the candidate pool before calling `score_one.py`, and
 must treat a filtered-out prediction as a defined outcome — a scored miss, not an error
-the bridge swallows or lets crash the caller.
+the bridge swallows or lets crash the caller. The bridge must also log and
+differentiate its own pre-filter misses (an expected, defined outcome) from genuine
+oracle-process failures such as OOM or a segfault, rather than presenting both
+identically as "non-zero exit, empty stdout" — a systemic oracle failure needs to be
+diagnosable separately from expected filtering, not folded into the same signal.
 
 **Prediction shape.** `pred_dict` is a ranked mapping of candidate node id to score,
 parsed from a JSON object on stdin and validated key-by-key, capped at 20 entries per
 CD-01 — matching the wrapper's confirmed input contract, not a single predicted node id
-(`SPIKE-FINDINGS.md` §"Prediction shape (ranked list, CD-01)").
+(`SPIKE-FINDINGS.md` §"Prediction shape (ranked list, CD-01)"). Mixed valid/invalid
+predictions have one defined rule: an invalid id is dropped from the ranked list and
+its rank slot counts as a forfeited miss, never promoting subsequent valid ids into
+its position. An empty ranked list and a duplicate-id list are each named with their
+own defined outcome rather than left to fall through to whichever behaviour the
+implementation happens to produce.
 
 **Metrics.** The exact metrics list requested is `["mrr", "hit@1", "hit@5",
 "recall@20"]`, and `Evaluator.evaluate()` returns a dict with those same four keys
@@ -333,6 +427,12 @@ pin"). On a deliberately wrong pin, `score_one.py` exits 1 with `HF revision pin
 for snap-stanford/stark: expected <wrong>, Hub currently resolves to
 88269e23e90587f99476c5dd74e235a0877e69be` printed to stderr, confirmed hands-on
 (`SPIKE-FINDINGS.md` §"Hugging Face revision pin", `raw/probe-pin-mismatch.log`).
+This assertion verifies the Hub's current remote resolution only — it does not verify
+the local cache's own on-disk content against that resolution, so a stale or
+tampered local cache that happens to sit under a directory named for the pinned
+revision would not be caught by this check alone. This is a known residual risk,
+named here for Phase 21 to mitigate (a revision-qualified load path, or a local
+artifact-manifest check), not resolved by this design.
 
 **Receipt discipline.** Each scored prediction produces a `constructed`-kind
 `OracleReceipt` carrying the lineage string the Phase 18 fixture already carries —
@@ -343,7 +443,11 @@ dossier assumption", A4). This is a requirement on Phase 21's bridge (REQ-78), d
 here and implemented there: every scored prediction the bridge returns must carry this
 receipt shape, built with `src/foundry/battery-types.ts`'s existing `OracleReceipt`
 type and validated by its existing `validateReceipt`/`EXOGENOUS_ROOT_KINDS` discipline —
-no new receipt shape is introduced for the collaborative mode.
+no new receipt shape is introduced for the collaborative mode. Every `OracleReceipt`
+must be constructed per scored prediction and bound to that specific `query_id`,
+prediction payload, metrics, and attempt identity — never a template receipt reused
+across results — an explicit requirement on the bridge's `validateReceipt` call site,
+beyond the lineage fields the receipt type already carries.
 
 **What this design does NOT specify about the oracle.** The strip-boundary
 implementation that keeps `answer_ids` unreachable from any agent-visible code path, the
@@ -391,8 +495,9 @@ Per amended D-05, PASS requires the no-subgraph arm to be at least δ1 BELOW the
 graph-handoff arm: removing the subgraph must measurably hurt, or the answerer is
 running on parametric recall and the subgraph is not the thing producing correct
 answers. This is the design's central validity defense against parametric-recall
-bypass — a defense that only does its job if it fires exactly when the null arm scores
-close to or above the graph arm, which is what the inequality above checks directly:
+bypass — a defense that only does its job if it correctly FAILS whenever the null arm
+scores close to or above the graph arm, which is what the inequality above checks
+directly:
 `graph_hit@1` on the left, `null_hit@1` subtracted, compared against a margin the
 no-subgraph arm must fall short by.
 
@@ -416,18 +521,30 @@ starting point for panel scrutiny, per D-05's own text ("the number gets panel s
 before freeze") — not as settled values.
 
 - **δ1 (primary, bypass-defense):** 6 of the 75 queries, `6/75 = 8.0` percentage points.
-  Six queries is inside the 4–8-query range this project's own research pass on this
-  design recommended as a practically-meaningful bar without being so tight that ordinary
-  run-to-run agent variance alone would trip it.
+  Six queries is inside a 4–8-query range offered here as a stated practitioner
+  judgment call, not a cited derivation — no traceable source pins this range, and it
+  is presented for panel scrutiny per D-05's own text rather than beside an uncited
+  number a reader might mistake for a derived figure. §10 already asks that any
+  overturning evidence be cited rather than intuitive; this range is held to the same
+  bar it sets for its own challengers.
 - **δ2 (secondary, do-no-harm):** 5 of the 75 queries, `5/75 ≈ 6.7` percentage points.
-  Set one query lighter than δ1 so the do-no-harm flag is the more sensitive of the two
-  checks — it exists to surface an actively harmful handoff early, and a secondary that
-  requires a strictly larger swing than the primary to trip would under-flag exactly the
-  case it is meant to catch.
+  Set one query lighter than δ1 precisely because δ2 is the smaller margin and both
+  inequalities read the same paired difference in opposite directions: a do-no-harm
+  trigger necessarily co-occurs with a primary-gate FAIL whenever it fires. The
+  secondary is not an independent detector — it is a same-swing diagnostic that names
+  the direction and magnitude of harm within a result the primary gate has already
+  failed, existing to surface that an already-failing result is actively harmful, not
+  to catch a case the primary gate would otherwise miss.
 
 Both are whole numbers of queries out of the sealed suite first, with the
 percentage-point figure derived from that count — no margin here is a number no integer
-outcome count of this 75-pair suite could actually reach.
+outcome count of this 75-pair suite could actually reach. Wherever δ1 and δ2 appear
+beside the `hit@1`-based inequalities above, they denote the rate equivalents —
+δ1 = 0.08, δ2 ≈ 0.067 — not the raw query counts: `hit@1` is itself a rate, and a
+margin combined with it in the same inequality must be stated in that same unit. The
+query counts and the rates are two representations of the same margin, restated in
+whichever unit the surrounding context requires, never left for the reader to
+reconcile a query count against a per-query rate.
 
 **Boundary behaviour.** Both inequalities include equality (`>=`), so a result landing
 exactly on a margin has a defined outcome, stated here rather than left to inference: a
@@ -452,15 +569,26 @@ exact discordant-pairs sign test (`experiments/paired-comparison-arm/_paired-gat
 the same family as McNemar's exact test, reported as a statement about uncertainty
 around the pre-specified practical margins above — never as the verdict itself.
 Statistical significance alone is **not** degradation; the margins above are the
-verdict, and the sign test's p-value is diagnostic context around them.
+verdict, and the sign test's p-value is diagnostic context around them. A discordant
+pair is, by definition, exactly a query where the two arms disagree — one arm hits
+and the other misses; a tie, where both arms hit or both arms miss, is excluded from
+`n_d` by definition, stated here plainly rather than left to a reader's own
+familiarity with the sign-test term of art.
 
 **Critical values.** `_paired-constants.ts`'s pinned `PAIRED_CRITICAL_VALUE_TABLE`
 (`_paired-gate.ts:145-167`, read directly) is indexed by discordant-pair count and
-covers `[20, 60]` — `evaluatePairedGate` throws `no pinned critical value for
-discordantCount ${discordantCount}` for any count outside that range, transcribed
-verbatim from the check's own error text. This suite's 75 pairs land one row past that
-table's own ceiling, so this design cannot reference it by index without a guaranteed
-throw. **This design pins its own table**, covering the full discordant range this
+covers `[20, 60]`. The error that actually fires for an out-of-range discordant count
+is the range guard ahead of the table lookup: `evaluatePairedGate` throws
+`discordantCount ${discordantCount} outside the supplied critical-value table's own
+range [${discordantFloor}, ${batterySize}]` (`_paired-gate.ts:152-156`), transcribed
+verbatim from the check's own error text. The separate `no pinned critical value for
+discordantCount ${discordantCount}` message (`_paired-gate.ts:165-167`) only fires for
+an in-range count that is missing from the table — which cannot occur against the
+default table for any in-range count, since the range guard above it already excludes
+every out-of-range value before the lookup runs. This suite's 75 pairs land 15 rows
+past that table's own ceiling — discordant counts 61 through 75 are uncovered, not
+merely one row past it — so this design cannot reference it by index without a
+guaranteed throw. **This design pins its own table**, covering the full discordant range this
 suite can produce — the same Clause-2-style floor of 20 discordant pairs through the
 full 75-query suite — computed by the identical exact-integer combinatorial condition
 `PAIRED-DESIGN-PREREG.md` §5 states: the smallest integer `c` such that
@@ -496,7 +624,17 @@ paired hit@1 counts regardless of the discordant-pair count. `W-superior`/`B-sup
 in the sign-test sense would read `k_w >= c(n_d)` / `k_w <= n_d - c(n_d)`, mirroring
 `_paired-gate.ts`'s own convention exactly; this design does not write TypeScript for it
 — Phase 23 implements this table and comparison as its own code artifact, this section
-specifies the values it must transcribe.
+specifies the values it must transcribe. Phase 23's implementation must include a test
+that mechanically re-derives all 56 rows of the pinned table above from the stated
+combinatorial formula and compares them against the transcribed constants, mirroring
+the paired-comparison-arm's own drift-guard discipline for its critical-value table —
+this document's own transcription is not to be trusted on its own indefinitely. The
+UNDERPOWERED precision statement, when `n_d` falls below the 20-discordant floor, must
+be surfaced in whatever report or receipt artifact records the ablation-gate result —
+never left as an internal return value the caller may or may not propagate. The gate
+always evaluates against this design's own newly pinned table above (`n_d` 20 through
+75), never against the existing `[20, 60]` table cited earlier in this section, for
+every discordant count this 75-query suite can produce.
 
 **Secondary diagnostics.** MRR, hit@5, recall@20, input-token counts, and error rates
 are recorded as diagnostics. Statistical significance alone is not degradation, and none
@@ -536,12 +674,16 @@ diagnostic form. This is the failure mode the collision example above defends ag
 because both inputs to the outer hash are fixed-length 32-byte values, there is no
 delimiter-boundary question at all — a builder-prompt digest and an answerer-prompt
 digest cannot be rearranged into a different byte split the way variable-length text
-concatenated around a delimiter can. Feeding the outer hash the *truncated* 16-hex
-per-role diagnostic hashes instead of the full 32-byte digests was considered and
-rejected: truncating each role's hash to 16 hex characters (64 bits) before combining
-them would narrow the outer hash's own effective collision resistance to that 64-bit
-surface, a needless weakening this design does not accept when the full digests are
-already computed and available.
+concatenated around a delimiter can. No normalization is applied to either prompt
+before hashing: byte-identical prompt text is required for identical hashes, so
+trailing whitespace, line-ending, and Unicode-normalization differences between two
+otherwise-equivalent prompts are identity-bearing, never silently collapsed. Feeding
+the outer hash the *truncated* 16-hex per-role diagnostic hashes instead of the full
+32-byte digests was considered and rejected: using the full 32-byte inner digests
+keeps the outer sha256's own 256-bit output space unconstrained by an artificially
+small (2^128) input combination space, preserving headroom should a future need call
+for the untruncated outer digest — a needless narrowing of that input space this
+design does not accept when the full digests are already computed and available.
 
 **Width, algorithm, and relationship to the existing single-prompt id.** The outer
 hash's own output is sha256, hex-encoded, truncated to the same 16-hex-character width
@@ -549,12 +691,20 @@ hash's own output is sha256, hex-encoded, truncated to the same 16-hex-character
 `createHash("sha256").update(definitionText).digest("hex").slice(0, 16)`), so
 collaborative candidate ids read alike beside existing single-prompt component ids —
 this design introduces no new hash width or algorithm, only a new two-input composition
-in front of the existing one. The joint `definitionHash` is a **sibling identity added
-beside** the existing single-prompt id, never a redefinition of it: `componentVariantId`
-itself is unchanged, still called once per role to produce each of the two 32-byte
-digests the outer hash consumes, and every existing archived single-prompt component id
-in `.stz/60-harness/component/<slot>/MANIFEST.json` is computed exactly as it always
-was, untouched by this section.
+in front of the existing one. This 16-hex (64-bit) truncated output carries the same
+birthday-bound collision probability `componentVariantId` already accepts as house
+convention — named here explicitly so the "prevents distinct prompt pairs from sharing
+a hash" language above reads as a collision-resistance claim at a stated probability,
+not an absolute-uniqueness claim. The joint `definitionHash` is a **sibling identity
+added beside** the existing single-prompt id, never a redefinition of it:
+`componentVariantId` itself is unchanged and continues to produce its own existing
+16-hex-character truncated diagnostic form exactly as before — it is **not** the
+function that produces the outer hash's two 32-byte inputs; those are the full,
+untruncated `sha256(builderPrompt)` and `sha256(answererPrompt)` digests, computed
+directly for that purpose as a step distinct from `componentVariantId`'s own
+truncation. Every existing archived single-prompt component id in
+`.stz/60-harness/component/<slot>/MANIFEST.json` is computed exactly as it always was,
+untouched by this section.
 
 **Per-role hashes, diagnostics only.** `componentVariantId(builderPrompt)` and
 `componentVariantId(answererPrompt)` — the existing 16-hex-character truncated form —
@@ -580,6 +730,14 @@ scoring bridge, the collaborative runner, and the tournament shell:
 **Directory placement within `src/foundry/` is Phase 20's and Phase 21's to settle** —
 this section pins the top-level filenames only, the concrete watched paths the
 forward-ancestry guard needs, not the subtree layout around them.
+
+**What this table currently is.** A naming commitment for Phase 20/21 to honour when
+creating these modules, checked — if at all before those modules exist — by a guard
+those phases author against the concrete paths they choose, not an active
+path-watching mechanism today. This is distinguished explicitly from §1's ancestry
+freeze test, which operates at the commit level via `git merge-base --is-ancestor` and
+needs no file paths at all; the two mechanisms are not conflated under one "pinned
+mechanically" claim.
 
 **The sealed-union constraint, alongside.** `collaborative-admission.ts` is a sibling
 table beside `src/foundry/vertical-admission.ts`'s existing `VERTICAL_ADMISSION`, never
@@ -622,6 +780,12 @@ overturn it:
   independent fetch of the PrimeKG dataset's own stated licence, or by verifying the
   28 MB figure against the Harvard Dataverse artifact directly.
 
-**Status.** This is rev-1, pre-panel. The frozen revision will be recorded at the
-freeze commit (Plan 19-05).
+**Status.** This is **rev-2, frozen** (Plan 19-05). A five-lane adversarial panel round
+(gpt-sol-pro, kimi-k3, qwen-max, gemma4, gpt-oss) ran over rev-1 on 2026-08-21,
+producing 47 raw findings merged into 39 global findings and adjudicated 35 ADOPTED /
+4 REJECTED-with-reason (`experiments/collab-design/COLLAB-DESIGN-REVIEWS.md`
+"Adjudication ledger"). This commit applies exactly the 35 adopted findings; no lane
+attacked §7's primary bypass-defense inequality's sign or direction, and none of the
+open items above is resolved by this freeze — they remain open for a future
+five-lane round or documented amendment entry per §1's amendment protocol.
 
