@@ -131,3 +131,124 @@ discovering omissions:
   boundary, not a content-correctness or a scope-of-knowledge check on either side of
   it; that gap is the same one §2 flags for the builder's own restraint, and no
   mechanism in this section closes it.
+
+## 4. STaRK KB selection
+
+**Decision: PrimeKG.** This is a decided, documented choice against Amazon and MAG —
+STaRK's other two constructed knowledge bases — on three grounds: size, licence, and
+replay.
+
+**Size.** The verified operational footprint of the STaRK-processed PrimeKG artifact
+is **254M** on disk (`tools/stark-eval/data/prime/processed`), quoted verbatim from
+`experiments/collab-oracle-spike/raw/download-size.log`'s own `du -sh` output — the
+only in-repo, hands-on-measured size evidence for any of the three KBs. This is the
+operational footprint claim: what this project actually stores and loads once
+STaRK's own feature/embedding processing has run. A separate, smaller figure
+("~28 MB") appears in this phase's own carry-forward context (`19-CONTEXT.md`
+`<specifics>`) and most plausibly refers to PrimeKG's own raw upstream CSV release
+(the Harvard Dataverse artifact, before STaRK's processing inflates it) — but this
+project has not independently verified that number against the Dataverse artifact
+itself, so it is stated here only as an unverified upstream-release figure, distinct
+from and never interchangeable with the 254M verified processed-artifact figure. An
+unqualified size claim that a committed log in this same repository contradicts is
+the easiest finding a panel lane could score against this document, so the two
+figures are kept explicitly separate.
+
+**Licence.** Both licence claims below were independently retrieved this session,
+not carried forward from search-synthesis, upgrading RESEARCH assumptions A2 and A3:
+
+- **STaRK dataset:** `cc-by-4.0`, read from the YAML front-matter of the dataset card
+  at `https://huggingface.co/datasets/snap-stanford/stark` (fetched 2026-08-21;
+  `license: cc-by-4.0` is the first line of the card's metadata block).
+- **PrimeKG:** the PrimeKG **codebase** is MIT-licensed, per the README at
+  `https://github.com/mims-harvard/PrimeKG` (fetched 2026-08-21; "PrimeKG codebase
+  and associated tools are released under the MIT license"). That same README states
+  in the same sentence that this MIT grant covers the software only and explicitly
+  does **not** cover the PrimeKG **dataset** itself, directing users instead to "the
+  respective dataset licenses available on data website" without naming one in the
+  fetched text. The PrimeKG dataset's own licence is therefore left **unverified**
+  by this fetch — the codebase licence (MIT) and the dataset licence (unstated in
+  this source) are two different claims and are not conflated here.
+
+**Replay.** PrimeKG is the KB Phase 18 actually harvested against: revision-pinned to
+`88269e23e90587f99476c5dd74e235a0877e69be` (stark-qa `1.1.0`), with sealed selection
+and heldout pools already committed and byte-reproducible —
+`test/fixtures/stark/prime-selection.json` (`pool: selection`, `sample_size: 75`,
+`sampled_from_n: 2241`, `split: val`, `seed: 1801`) and
+`test/fixtures/stark/prime-heldout.json` (`pool: heldout`, `sample_size: 75`,
+`sampled_from_n: 2801`, `split: test`, `seed: 1802`), both traced through
+`tools/stark-eval/harvest_gold.py` and re-confirmed byte-identical on a fresh re-run
+(`experiments/collab-oracle-spike/SPIKE-FINDINGS.md` §"Sample seeds and pools").
+Choosing Amazon or MAG instead would discard this entire replay chain and require
+re-running Phase 18's harvest from scratch against a different KB, with no existing
+sealed fixtures — this is the strongest of the three grounds: it is not merely that
+PrimeKG scores better on paper, it is that the harvested, byte-reproducible evidence
+for it already exists and the evidence for the alternatives does not.
+
+**Decision statement.** PrimeKG is selected over Amazon and MAG on the verified
+254M operational footprint (size), an independently-retrieved cc-by-4.0 dataset
+licence with the PrimeKG codebase/dataset licence distinction stated explicitly
+(licence), and an already-harvested, byte-reproducible sealed fixture pair this
+project would otherwise have to redo from scratch (replay).
+
+## 5. Battery and task shape
+
+**Unit of work.** One STaRK query is one battery task, keyed by the query's own
+`query_id` field — **never** by positional index. Phase 18's spike confirmed the two
+do not coincide once a real split is selected (`SPIKE-FINDINGS.md` §"query_id vs
+positional index": every sampled row across both the `val` and `test` splits had
+`row_query_id != idx`); `query_id` is a global id into STaRK's full un-split dataset,
+and both `harvest_gold.py`'s sampler and `tools/stark-eval/score_one.py`'s
+`load_split()` key exclusively off the row's own `query_id`, never a loop index. A
+task keyed by index would silently mispair a query with the wrong gold answer set
+the moment a split boundary shifted.
+
+**Output contract (CD-01).** The answerer emits a ranked candidate list capped at
+**20** entries. This preserves STaRK's native Hit@k, MRR, and Recall metrics and
+keeps baseline comparability with STaRK's own published leaderboard shape; a
+single-id answer is recoverable from the ranked list as Hit@1 and is not a separate
+output mode the answerer needs to support.
+
+**Candidate identity (CD-02).** The builder-prompt/answerer-prompt pair jointly *is*
+the candidate, carrying a single lineage — not two independently-scored halves. A
+mutation edits one role's prompt (builder or answerer, never both in the same
+mutation step), and selection scores the pair as a whole; no role is ever scored or
+selected in isolation from its partner.
+
+**Artifact durability (CD-03).** Per-attempt subgraph artifacts live in the detached
+round's own artifact directory for the duration of that round. Only the **winning**
+attempt's subgraph artifact is promoted into the `.stz/` audit tree; losing attempts'
+artifacts are not carried forward into the permanent record.
+
+**Structural bounds (CD-05).** The builder's subgraph must be (a) connected, (b)
+within a stated minimum and maximum node count, and (c) a query-linked neighbourhood
+(every node reachable from the query's own seed entities within the subgraph, not an
+arbitrary disconnected sample). Concrete proposed bounds, marked explicitly as
+**panel-tested proposals, not settled values** (CD-05 requires the exact bounds get
+panel scrutiny before freeze): minimum 3 nodes (below which "subgraph" is not a
+meaningful distinction from a single fact lookup), maximum 200 nodes (bounding both
+the answerer's read cost and the artifact's storage footprint, chosen as a round
+order-of-magnitude ceiling well above what a query-linked neighbourhood at this KB's
+typical entity degree should need, and left open to the panel to argue up or down).
+
+**D-04/CD-05 harmonizing reading, open to panel attack.** D-04 ("one condition") and
+CD-05 ("a degenerate-graph arm" in the REQ-81 ablation family) read as if they might
+conflict — D-04 fixes the primary ablation gate to a single no-subgraph null control,
+while CD-05 separately requires a degenerate-graph arm. The reading this document
+takes, per RESEARCH's Open Question 1 recommendation: D-04's "one condition" governs
+the **primary** ablation gate (the binary "degraded" verdict §7 will pin as an
+explicit inequality) — CD-05's degenerate-graph arm is a **diagnostic member of the
+broader REQ-81 ablation family**, distinct from and never overriding the D-05 primary
+gate itself, not a second arm competing for the same degraded/not-degraded verdict.
+This reading is stated explicitly, not silently resolved by dropping either decision,
+and the panel is invited to attack it if it is wrong.
+
+**Battery entry point.** `runAgentBattery` (`src/foundry/agent-runner.ts`) is reused
+unchanged as the collaborative mode's battery driver — the same dispatcher that runs
+one task per candidate today runs one task per STaRK query here, with no change to
+its own signature or scheduling. What the collaborative mode adds beside it is the
+task record's own payload: the builder/answerer prompt pair (for the CD-04 hash, §9),
+the handoff artifact's recorded hash (§3), and the query's `query_id` (this section)
+— all carried as data on top of `runAgentBattery`'s existing task/result shape, not
+as a change to the function itself.
+
