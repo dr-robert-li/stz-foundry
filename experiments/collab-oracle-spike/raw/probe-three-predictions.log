@@ -1,0 +1,60 @@
+Probe 1 — three predictions, one query (18-01 Task 3)
+query_id=0, gold=95886, candidate pool size=129375 (0..129374)
+
+=== (a) gold node id ranked first ===
+$ printf '{"95886": 1.0}' | score_one.py prime 0
+revision pin OK: snap-stanford/stark@88269e23e90587f99476c5dd74e235a0877e69be
+loading skb for kb='prime' (download_processed=True) ...
+loading qa dataset for kb='prime' ...
+resolved query_id=0 at subscript idx=0 (row's own query_id field=0)
+WARNING: faiss must be imported for indexing
+Loading from /home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/data/prime/processed!
+Use file from /home/robert_li/.cache/huggingface/hub/datasets--snap-stanford--stark/snapshots/88269e23e90587f99476c5dd74e235a0877e69be/qa/prime/stark_qa/stark_qa_human_generated_eval.csv.
+{"kb": "prime", "query_id": 0, "hf_revision": "88269e23e90587f99476c5dd74e235a0877e69be", "metrics": {"mrr": 1.0, "hit@1": 1.0, "hit@5": 1.0, "recall@20": 1.0}}
+
+=== (b) valid candidate node id, NOT gold (id=0) ===
+$ printf '{"0": 1.0}' | score_one.py prime 0
+revision pin OK: snap-stanford/stark@88269e23e90587f99476c5dd74e235a0877e69be
+loading skb for kb='prime' (download_processed=True) ...
+loading qa dataset for kb='prime' ...
+resolved query_id=0 at subscript idx=0 (row's own query_id field=0)
+WARNING: faiss must be imported for indexing
+Loading from /home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/data/prime/processed!
+Use file from /home/robert_li/.cache/huggingface/hub/datasets--snap-stanford--stark/snapshots/88269e23e90587f99476c5dd74e235a0877e69be/qa/prime/stark_qa/stark_qa_human_generated_eval.csv.
+{"kb": "prime", "query_id": 0, "hf_revision": "88269e23e90587f99476c5dd74e235a0877e69be", "metrics": {"mrr": 0.0, "hit@1": 0.0, "hit@5": 0.0, "recall@20": 0.0}}
+
+=== (c) node id NOT in candidate_ids at all (1129374, pool is 0..129374) ===
+$ printf '{"1129374": 1.0}' | score_one.py prime 0
+revision pin OK: snap-stanford/stark@88269e23e90587f99476c5dd74e235a0877e69be
+loading skb for kb='prime' (download_processed=True) ...
+loading qa dataset for kb='prime' ...
+resolved query_id=0 at subscript idx=0 (row's own query_id field=0)
+WARNING: faiss must be imported for indexing
+Loading from /home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/data/prime/processed!
+Use file from /home/robert_li/.cache/huggingface/hub/datasets--snap-stanford--stark/snapshots/88269e23e90587f99476c5dd74e235a0877e69be/qa/prime/stark_qa/stark_qa_human_generated_eval.csv.
+Traceback (most recent call last):
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/score_one.py", line 211, in <module>
+    main()
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/score_one.py", line 194, in main
+    metrics = evaluator.evaluate(
+              ^^^^^^^^^^^^^^^^^^^
+  File "/home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/.venv/lib/python3.11/site-packages/stark_qa/evaluator.py", line 62, in evaluate
+    all_pred[pred_ids] = pred
+    ~~~~~~~~^^^^^^^^^^
+IndexError: index 1129374 is out of bounds for dimension 0 with size 129375
+exit=1
+
+=== Result recorded ===
+(a) gold ranked first:  hit@1=1.0, mrr=1.0 (correct predictions score as correct)
+(b) valid non-gold candidate (id=0): hit@1=0.0, mrr=0.0 (incorrect prediction
+    scores as incorrect — sane baseline)
+(c) node id outside candidate_ids (1129374, candidate pool is 0..129374,
+    size 129375): Evaluator.evaluate() raises IndexError
+    ("index 1129374 is out of bounds for dimension 0 with size 129375") from
+    `all_pred[pred_ids] = pred` inside stark_qa's own evaluator.py. This is a
+    RAISED EXCEPTION, not a zeroed metric or a silent pass — process exits
+    non-zero, stdout stays empty (confirmed: 0 bytes on stdout), traceback on
+    stderr only. Phase 21's bridge/wrapper must therefore filter predicted
+    node ids to the candidate pool before calling this script, or catch this
+    specific exception class — an out-of-candidates id is NOT safely passed
+    through to stark_qa untouched.

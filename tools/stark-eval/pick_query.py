@@ -49,7 +49,13 @@ def main():
         from stark_qa import load_qa
 
         qa_dataset = load_qa(kb, root=str(DATA_ROOT))
-        row = qa_dataset[index]
+        # load_qa() has no split kwarg — it returns the full dataset. The
+        # split-scoped subset comes from STaRKDataset.get_subset(split),
+        # which reindexes .indices to just that split's query ids. Indexing
+        # the full dataset directly here would silently ignore <split>
+        # entirely (val and test would return identical rows).
+        split_dataset = qa_dataset.get_subset(split)
+        row = split_dataset[index]
     # Row shape observed hands-on (see raw/tracer-score-one.log for the exact
     # tuple this returned) — print both the subscript used and the row's own
     # query_id so index-vs-query_id divergence is observable, not assumed.

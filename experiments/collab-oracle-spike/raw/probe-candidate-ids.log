@@ -1,0 +1,44 @@
+Probe 4 — candidate_ids and query_id resolution (18-01 Task 3)
+
+WARNING: faiss must be imported for indexing
+Loading from /home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/data/prime/processed!
+Use file from /home/robert_li/.cache/huggingface/hub/datasets--snap-stanford--stark/snapshots/88269e23e90587f99476c5dd74e235a0877e69be/qa/prime/stark_qa/stark_qa_human_generated_eval.csv.
+candidate_ids accessor used: skb.candidate_ids
+candidate_ids cardinality: 129375
+candidate_ids range: min=0 max=129374
+
+=== split=val (get_subset('val'), 2241 rows) ===
+  idx=0 row_query_id=274 coincide_with_subscript=False
+  idx=1 row_query_id=3140 coincide_with_subscript=False
+  idx=2 row_query_id=7327 coincide_with_subscript=False
+  idx=3 row_query_id=3826 coincide_with_subscript=False
+  idx=4 row_query_id=8029 coincide_with_subscript=False
+=== split=test (get_subset('test'), 2801 rows) ===
+  idx=0 row_query_id=6517 coincide_with_subscript=False
+  idx=1 row_query_id=9996 coincide_with_subscript=False
+  idx=2 row_query_id=3630 coincide_with_subscript=False
+  idx=3 row_query_id=10252 coincide_with_subscript=False
+  idx=4 row_query_id=5142 coincide_with_subscript=False
+
+=== Findings ===
+candidate_ids: skb.candidate_ids exists directly; used (not
+get_candidate_ids()). Cardinality 129375, dense integer range 0..129374
+(size == max+1, i.e. contiguous).
+
+query_id vs subscript index: they DO NOT coincide once a real split is
+selected (get_subset('val')/get_subset('test')) — every one of the 10
+rows checked across both splits has row_query_id != idx. query_id is a
+global id into the full un-split dataset (2241 val rows, 2801 test
+rows, ids drawn from the full ~10k-query pool), not a per-split
+sequential counter. score_one.py's load_split() already resolves by
+the row's own query_id field via a full-dataset linear scan, never by
+trusting a positional index — this probe confirms that was the
+correct, necessary choice (RESEARCH Open Question 3 / Assumption A6).
+
+Deviation found and fixed during this probe: the committed
+pick_query.py from Task 2 called qa_dataset[index] on the FULL
+dataset, silently ignoring the <split> CLI argument entirely — 'val'
+and 'test' returned identical rows. Fixed to call
+qa_dataset.get_subset(split)[index] (STaRKDataset's real split
+accessor). Re-verified Task 2's tracer acceptance criteria still pass
+post-fix (see raw/tracer-score-one.log, re-recorded against the fix).

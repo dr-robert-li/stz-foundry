@@ -5,15 +5,17 @@ STaRK's own gold answer_ids, via stark_qa.evaluator.Evaluator.evaluate() —
 never a project-side metric reimplementation (REQ-77, D-07).
 
 Usage:
-  echo '{"1234": 1.0, "5678": 0.5}' | python score_one.py <kb> <query_id>
+  echo '{"1234": 1.0, "5678": 0.5}' | python score_one.py <kb> <query_id> \
+      [--hf-revision SHA] [--metrics mrr,hit@1,hit@5,recall@20] [--root DIR]
   # kb   : one of amazon | mag | prime
   # query_id : the STaRK query's own query_id field (not a loop index)
-  # stdin: JSON object mapping candidate node id (string) -> score, ≤20 entries (CD-01)
+  # stdin: JSON object mapping candidate node id (string) -> score, <=20 entries (CD-01)
 
 Prints exactly one JSON object to stdout: {"kb", "query_id", "hf_revision", "metrics"}.
 All progress/diagnostic text goes to stderr, so a future Node bridge can
 JSON.parse stdout directly (D-07, execution-oracle.ts idiom).
 """
+import argparse
 import contextlib
 import json
 import os
@@ -21,6 +23,13 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+HF_REPO_ID = "snap-stanford/stark"
+# Observed live twice (research pass + planning pass), lastModified 2024-10-20,
+# unchanged (RESEARCH.md Pitfall 2 / Common Pitfalls #2).
+HF_PIN = "88269e23e90587f99476c5dd74e235a0877e69be"
+KB_ALLOWLIST = ("amazon", "mag", "prime")
+DATA_ROOT = HERE / "data"
+DEFAULT_METRICS = ["mrr", "hit@1", "hit@5", "recall@20"]
 
 
 @contextlib.contextmanager
@@ -39,18 +48,31 @@ def _stdout_to_stderr():
         sys.stdout.flush()
         os.dup2(saved_fd, stdout_fd)
         os.close(saved_fd)
-HF_REPO_ID = "snap-stanford/stark"
-# Observed live twice (research pass + planning pass), lastModified 2024-10-20,
-# unchanged (RESEARCH.md Pitfall 2 / Common Pitfalls #2).
-HF_PIN = "88269e23e90587f99476c5dd74e235a0877e69be"
-KB_ALLOWLIST = ("amazon", "mag", "prime")
-DATA_ROOT = HERE / "data"
-DEFAULT_METRICS = ["mrr", "hit@1", "hit@5", "recall@20"]
 
 
 def parse_pred_dict(raw):
-    pred_dict = json.loads(raw)
-    return {int(k): float(v) for k, v in pred_dict.items()}
+    """Parse-or-reject the stdin prediction object at the CLI boundary
+    (ASVS V5) — never coerce silently, never drop an entry."""
+    try:
+        obj = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"stdin is not valid JSON: {e}") from e
+    if not isinstance(obj, dict):
+        raise ValueError(f"stdin must be a JSON object, got {type(obj).__name__}")
+    if not obj:
+        raise ValueError("stdin prediction object is empty")
+    pred_dict = {}
+    for k, v in obj.items():
+        try:
+            key = int(k)
+        except (TypeError, ValueError):
+            raise ValueError(f"prediction key {k!r} does not parse as an integer node id")
+        try:
+            val = float(v)
+        except (TypeError, ValueError):
+            raise ValueError(f"prediction value {v!r} for key {k!r} does not parse as a float")
+        pred_dict[key] = val
+    return pred_dict
 
 
 def resolve_candidate_ids(skb):
@@ -67,13 +89,32 @@ def resolve_candidate_ids(skb):
     )
 
 
-def load_split(kb, query_id):
+def assert_pinned_revision(expected_revision):
+    """Fail closed BEFORE any KB load or scoring if the Hub's currently
+    resolved commit sha for HF_REPO_ID does not match expected_revision.
+    Neither load_qa nor load_skb exposes a revision kwarg (D-08) — this is
+    the check standing in for a pass-through pin that does not exist
+    upstream (RESEARCH Common Pitfalls #2, mechanism C)."""
+    from huggingface_hub import HfApi
+
+    resolved = HfApi().dataset_info(HF_REPO_ID).sha
+    if resolved != expected_revision:
+        print(
+            f"HF revision pin mismatch for {HF_REPO_ID}: expected "
+            f"{expected_revision}, Hub currently resolves to {resolved}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    print(f"revision pin OK: {HF_REPO_ID}@{expected_revision}", file=sys.stderr)
+
+
+def load_split(kb, query_id, root):
     from stark_qa import load_qa, load_skb
 
     print(f"loading skb for kb={kb!r} (download_processed=True) ...", file=sys.stderr)
-    skb = load_skb(kb, root=str(DATA_ROOT), download_processed=True)
+    skb = load_skb(kb, root=str(root), download_processed=True)
     print(f"loading qa dataset for kb={kb!r} ...", file=sys.stderr)
-    qa_dataset = load_qa(kb, root=str(DATA_ROOT))
+    qa_dataset = load_qa(kb, root=str(root))
 
     row = None
     for idx in range(len(qa_dataset)):
@@ -94,23 +135,55 @@ def load_split(kb, query_id):
     return skb, qa_dataset, answer_ids
 
 
-def main():
-    if len(sys.argv) != 3:
-        print("usage: score_one.py <kb> <query_id>", file=sys.stderr)
-        sys.exit(1)
-    kb, query_id_str = sys.argv[1], sys.argv[2]
-    if kb not in KB_ALLOWLIST:
-        print(f"unknown kb {kb!r}, expected one of {KB_ALLOWLIST}", file=sys.stderr)
-        sys.exit(1)
-    query_id = int(query_id_str)
+def build_arg_parser():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("kb", help=f"one of {KB_ALLOWLIST}")
+    parser.add_argument("query_id", help="the query's own query_id field")
+    parser.add_argument(
+        "--hf-revision",
+        default=HF_PIN,
+        help="override the pinned HF dataset revision (testable pin mismatch path)",
+    )
+    parser.add_argument(
+        "--metrics",
+        default=",".join(DEFAULT_METRICS),
+        help="comma-separated metric names passed to Evaluator.evaluate()",
+    )
+    parser.add_argument(
+        "--root",
+        default=str(DATA_ROOT),
+        help="KB/QA data root directory",
+    )
+    return parser
 
-    pred_dict = parse_pred_dict(sys.stdin.read())
+
+def main():
+    args = build_arg_parser().parse_args()
+
+    if args.kb not in KB_ALLOWLIST:
+        print(f"unknown kb {args.kb!r}, expected one of {KB_ALLOWLIST}", file=sys.stderr)
+        sys.exit(1)
+    try:
+        query_id = int(args.query_id)
+    except ValueError:
+        print(f"query_id {args.query_id!r} does not parse as an integer", file=sys.stderr)
+        sys.exit(1)
+
+    metrics_list = [m.strip() for m in args.metrics.split(",") if m.strip()]
+
+    try:
+        pred_dict = parse_pred_dict(sys.stdin.read())
+    except ValueError as e:
+        print(f"invalid prediction on stdin: {e}", file=sys.stderr)
+        sys.exit(1)
 
     with _stdout_to_stderr():
+        assert_pinned_revision(args.hf_revision)
+
         import torch
         from stark_qa.evaluator import Evaluator
 
-        skb, _qa_dataset, answer_ids = load_split(kb, query_id)
+        skb, _qa_dataset, answer_ids = load_split(args.kb, query_id, args.root)
         candidate_ids = resolve_candidate_ids(skb)
 
         evaluator = Evaluator(candidate_ids=candidate_ids)
@@ -119,15 +192,15 @@ def main():
         # qa_dataset row returns (observed hands-on; RESEARCH's sketch
         # passed the list through untouched).
         metrics = evaluator.evaluate(
-            pred_dict, torch.LongTensor(answer_ids), metrics=DEFAULT_METRICS
+            pred_dict, torch.LongTensor(answer_ids), metrics=metrics_list
         )
 
     print(
         json.dumps(
             {
-                "kb": kb,
+                "kb": args.kb,
                 "query_id": query_id,
-                "hf_revision": HF_PIN,
+                "hf_revision": args.hf_revision,
                 "metrics": metrics,
             }
         )

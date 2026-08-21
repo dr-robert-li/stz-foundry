@@ -1,0 +1,7 @@
+Probe 3 — pin mismatch (D-08 checked, not claimed)
+
+$ printf '{"95886": 1.0}' | score_one.py prime 0 --hf-revision deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+exit=1
+--- stdout (0 bytes) ---
+--- stderr ---
+HF revision pin mismatch for snap-stanford/stark: expected deadbeefdeadbeefdeadbeefdeadbeefdeadbeef, Hub currently resolves to 88269e23e90587f99476c5dd74e235a0877e69be

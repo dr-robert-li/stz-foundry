@@ -1,0 +1,34 @@
+Probe 2 — per-query granularity (REQ-77 Success Criterion 2)
+One Evaluator.evaluate() call per query, looped over 5 distinct real
+PrimeKG val queries (val split selected via qa_dataset.get_subset('val'),
+see pick_query.py — an earlier draft ignored <split> entirely, fixed
+during this probe, see raw/setuptools-fix.log sibling note in Task 3
+commit). No batch-shaped call was needed — evaluate() is already
+single-query-shaped (one pred_dict + one answer_ids tensor); the
+per-query CLI contract needed no workaround.
+
+--- val index 0 ---
+pick_query.py prime val 0 -> {"index": 0, "query_id": 274, "gold": 7570, "answer_ids": [7570]}
+$ printf '{"7570": 1.0}' | score_one.py prime 274
+{"kb": "prime", "query_id": 274, "hf_revision": "88269e23e90587f99476c5dd74e235a0877e69be", "metrics": {"mrr": 1.0, "hit@1": 1.0, "hit@5": 1.0, "recall@20": 1.0}}
+
+--- val index 1 ---
+pick_query.py prime val 1 -> {"index": 1, "query_id": 3140, "gold": 63024, "answer_ids": [63024]}
+$ printf '{"63024": 1.0}' | score_one.py prime 3140
+{"kb": "prime", "query_id": 3140, "hf_revision": "88269e23e90587f99476c5dd74e235a0877e69be", "metrics": {"mrr": 1.0, "hit@1": 1.0, "hit@5": 1.0, "recall@20": 1.0}}
+
+--- val index 2 ---
+pick_query.py prime val 2 -> {"index": 2, "query_id": 7327, "gold": 6541, "answer_ids": [6541]}
+$ printf '{"6541": 1.0}' | score_one.py prime 7327
+{"kb": "prime", "query_id": 7327, "hf_revision": "88269e23e90587f99476c5dd74e235a0877e69be", "metrics": {"mrr": 1.0, "hit@1": 1.0, "hit@5": 1.0, "recall@20": 1.0}}
+
+--- val index 3 ---
+pick_query.py prime val 3 -> {"index": 3, "query_id": 3826, "gold": 95641, "answer_ids": [95641]}
+$ printf '{"95641": 1.0}' | score_one.py prime 3826
+{"kb": "prime", "query_id": 3826, "hf_revision": "88269e23e90587f99476c5dd74e235a0877e69be", "metrics": {"mrr": 1.0, "hit@1": 1.0, "hit@5": 1.0, "recall@20": 1.0}}
+
+--- val index 4 ---
+pick_query.py prime val 4 -> {"index": 4, "query_id": 8029, "gold": 62352, "answer_ids": [62352]}
+$ printf '{"62352": 1.0}' | score_one.py prime 8029
+{"kb": "prime", "query_id": 8029, "hf_revision": "88269e23e90587f99476c5dd74e235a0877e69be", "metrics": {"mrr": 1.0, "hit@1": 1.0, "hit@5": 1.0, "recall@20": 1.0}}
+
