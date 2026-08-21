@@ -138,3 +138,43 @@ describe("D-09 CI boundary: no test/**/*.ts file references the Python toolchain
     expect(offenders).toEqual([]);
   });
 });
+
+// Phase 18, Plan 03 (REQ-77): the "no unrun claims" prohibition, made structural.
+// Every transcript under raw/ must be cited by SPIKE-FINDINGS.md, and every
+// required section must exist — a transcript added later without a matching
+// claim, or a claim whose transcript was deleted, turns this suite red.
+const RAW_EVIDENCE_DIR = join(repoRoot, "experiments", "collab-oracle-spike", "raw");
+const FINDINGS_PATH = join(repoRoot, "experiments", "collab-oracle-spike", "SPIKE-FINDINGS.md");
+const REQUIRED_FINDINGS_SECTIONS = [
+  "## Verdict",
+  "## Working invocation shape",
+  "## Evaluator construction and candidate_ids",
+  "## Prediction shape",
+  "## Metrics requested and returned",
+  "## Three test predictions",
+  "## Per-query granularity",
+  "## Hugging Face revision pin",
+  "## query_id vs positional index",
+  "## Sample seeds and pools",
+  "## Download size and wall-clock",
+  "## Corrections to the C-01 dossier assumption",
+  "## Evidence index",
+];
+
+describe("spike findings cite their evidence (REQ-77, no unrun claims)", () => {
+  it("every raw/ transcript is cited by filename in SPIKE-FINDINGS.md", () => {
+    const findings = readFileSync(FINDINGS_PATH, "utf8");
+    const rawFiles = readdirSync(RAW_EVIDENCE_DIR);
+    expect(rawFiles.length).toBeGreaterThan(0);
+
+    const uncited = rawFiles.filter((f) => !findings.includes(f));
+    expect(uncited, `uncited raw/ transcripts: ${uncited.join(", ")}`).toEqual([]);
+  });
+
+  it("every required findings section is present in SPIKE-FINDINGS.md", () => {
+    const findings = readFileSync(FINDINGS_PATH, "utf8");
+
+    const missing = REQUIRED_FINDINGS_SECTIONS.filter((heading) => !findings.includes(heading));
+    expect(missing, `missing findings headings: ${missing.join(", ")}`).toEqual([]);
+  });
+});
