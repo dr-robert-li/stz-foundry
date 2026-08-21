@@ -21,6 +21,13 @@ const FROZEN_DESIGN_BLOB = "ca363b8d51efa77c0653b8ac63569104917e6e30";
 const FROZEN_REVIEWS_BLOB = "8a2c676d32e83499fe40480af1f0185ad7bc083f";
 const DESIGN_REL_PATH = "experiments/collab-design/COLLAB-DESIGN.md";
 const REVIEWS_REL_PATH = "experiments/collab-design/COLLAB-DESIGN-REVIEWS.md";
+// Line count of COLLAB-DESIGN-REVIEWS.md AT FREEZE_COMMIT (identical to the
+// worktree today, since no drift exists yet). Used to pin where a legitimate
+// amendment hunk is allowed to land — strictly after the frozen ledger's last
+// line (WR-01: adapts the phase-17 append-only idiom from a fixed hunk count
+// to a fixed hunk *position*, since this ledger's amendment hunk count is 0
+// today and becomes N>=1 only once an amendment is actually appended).
+const FROZEN_REVIEWS_LINE_COUNT = 904;
 
 // The module filenames COLLAB-DESIGN.md §9 pins for Phases 20-22 (REQ-78/79/80),
 // as repository-relative paths under src/foundry/ (REQ-79's own sibling-placement
@@ -114,17 +121,49 @@ describe("C-01 design freeze guard (REQ-76, D-08)", () => {
     },
   );
 
-  // Scoped to the design document only, not the panel record: the design is what is
-  // frozen, while COLLAB-DESIGN-REVIEWS.md may later gain an appended amendment note
-  // (§1's own amendment protocol) without that appended note invalidating anything —
-  // an empty-worktree-diff assertion on the reviews file would make a legitimate
-  // future amendment entry fail this test for no reason.
+  // The design document is fully frozen: no future edit is legitimate short of a
+  // new five-lane panel round, so a plain empty-diff assertion is the correct guard.
   it.skipIf(!GIT_AVAILABLE)(
     GIT_AVAILABLE
       ? "the working tree has not drifted from COLLAB-DESIGN.md as it stood at the freeze commit"
       : "skipped: git binary is unavailable in this environment",
     () => {
       expect(worktreeDiffLines(FREEZE_COMMIT, DESIGN_REL_PATH)).toEqual([]);
+    },
+  );
+
+  // WR-01: COLLAB-DESIGN-REVIEWS.md is append-only, not immutable — §1's amendment
+  // protocol allows a future note appended after the ledger's frozen tail, so a
+  // plain empty-diff assertion (as used for the design doc above) would wrongly
+  // fail a legitimate amendment. Adapts the phase-17 append-only idiom
+  // (test/paper-addendum-freeze.test.ts): zero deletion lines, and any hunk must
+  // land strictly after FROZEN_REVIEWS_LINE_COUNT — so an appended note passes but
+  // a mutation anywhere in the existing 904 ledger lines (a flipped verdict, a
+  // deleted entry, an edited count) fails.
+  it.skipIf(!GIT_AVAILABLE)(
+    GIT_AVAILABLE
+      ? "COLLAB-DESIGN-REVIEWS.md only gains appended content after its frozen tail — no deletion or modification of existing lines"
+      : "skipped: git binary is unavailable in this environment",
+    () => {
+      const lines = worktreeDiffLines(FREEZE_COMMIT, REVIEWS_REL_PATH);
+
+      // Deletion lines: any '-'-prefixed line other than the file-header line,
+      // matched by full string equality (not a "---" prefix — the ledger contains
+      // markdown horizontal rules that render as "----" and must not be mistaken
+      // for the header).
+      const deletionLines = lines.filter(
+        (line) => line.startsWith("-") && line !== `--- a/${REVIEWS_REL_PATH}`,
+      );
+      expect(deletionLines).toEqual([]);
+
+      // Hunk position: zero hunks today (no drift); any future hunk must start
+      // strictly after the frozen tail, i.e. its old-file line number is
+      // FROZEN_REVIEWS_LINE_COUNT (insertion after the last frozen line, unified
+      // diff's "@@ -N,0 +M" form for a pure insertion at old-file line N).
+      const hunkHeaders = lines.filter((line) => line.startsWith("@@"));
+      for (const header of hunkHeaders) {
+        expect(header.startsWith(`@@ -${FROZEN_REVIEWS_LINE_COUNT},0 +`)).toBe(true);
+      }
     },
   );
 });
