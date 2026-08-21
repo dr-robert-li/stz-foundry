@@ -459,3 +459,176 @@ D-07 — quoted or faithfully transcribed, never executed, never auto-applied to
 `COLLAB-DESIGN.md` or to any other file. Adjudication happens exactly once, in plan
 19-04, which reads this document and produces the adjudication ledger; nothing in
 this section constitutes, implies, or anticipates that ledger's outcome.
+
+## Global findings — merge map
+
+Two raw findings merge into one global finding only when they attack the same claim
+at the same location; two findings attacking the same section from different angles
+stay separate. A raw finding raised by exactly one lane becomes a global finding
+one-to-one. Ids are assigned `G-` followed by a two-digit number, in ascending
+order.
+
+**Reconciliation note on the raw section's "three lanes" sentence.** The raw finding
+counts section above describes the critical-value-table family as flagged by "three
+lanes." Two distinct claims live inside that family: the `75 - 60` arithmetic error
+(gpt-sol-pro's lane and qwen-max's lane — merged below as G-16) and a separate
+ambiguity about which table the gate actually reads from, raised only by gpt-oss's
+lane and never stating the arithmetic error itself (kept separate below as G-19).
+The raw section's prose groups both under one informal "critical-value-table" label;
+this merge map treats them as two claims because they attack two different
+sentences, and states that distinction explicitly rather than letting the two
+documents disagree silently about whether two lanes or three raised the arithmetic
+error specifically — only two did.
+
+- **G-01** — §3, handoff contract. Re-hashing before the answerer reads the
+  artifact still leaves a residual TOCTOU window between the verify step and the
+  actual open/read — a file could be replaced, symlink-retargeted, or mutated in
+  that window, and the failure-mode list does not name the window itself. Raw:
+  `L1-F1`, `L2-F5`.
+- **G-02** — §3, handoff contract. The recorded handoff hash is not itself
+  protected or bound to the task's own identity (query, attempt, candidate
+  `definitionHash`, KB revision) — an actor able to replace the artifact could
+  replace its recorded hash too, or transplant a valid pair from a different task.
+  Raw: `L1-F2`.
+- **G-03** — §3, handoff contract. The named failure-mode list omits several
+  concrete artifact-side gaps: partial writes during hashing, oversized artifacts,
+  malformed serialization, parser/schema-version drift, and unreadable/special
+  files. Raw: `L1-F3`.
+- **G-04** — §3, handoff contract. The failure-mode list omits a sixth mode: the
+  stored/recorded handoff hash itself being corrupted, wrong from the start, or
+  mutated alongside the artifact if the task record sits in a mutable store. Raw:
+  `L3-F4`.
+- **G-05** — §3, handoff contract. No canonical serialization is defined for the
+  subgraph artifact before hashing (key ordering, encoding, whitespace), so two
+  structurally identical subgraphs are not guaranteed to hash identically. Raw:
+  `L5-F2`.
+- **G-06** — §3, handoff contract. The failure-mode list does not cover a
+  syntactically empty or malformed artifact that still yields a matching hash. Raw:
+  `L5-F3`.
+- **G-07** — §3, handoff contract. The document does not state who performs the
+  handoff hash — if the builder agent itself both hashes and records, the check
+  only proves the file matches the builder's own claim, not that the claim is
+  trustworthy. Raw: `L4-F2`.
+- **G-08** — §2, builder role. The builder's subgraph output contract is not
+  mechanically defined — no closed schema, field set, or ordering rule, leaving
+  room to smuggle information through structure rather than content. Raw: `L1-F4`.
+- **G-09** — §2, builder role. The builder's gold-`answer_ids` boundary is stated
+  only as field-omission on the input side, with no named filesystem, tool, cache,
+  or fixture-access constraint preventing the builder from reaching gold-bearing
+  data by another path. Raw: `L1-F5`, `L2-F6`.
+- **G-10** — §4, KB selection. The decision statement cites size and licence as
+  comparative grounds, but the document's own body text shows neither
+  discriminates among the three candidate KBs the way the statement implies. Raw:
+  `L1-F7`.
+- **G-11** — §4, KB selection. The STaRK dataset's cc-by-4.0 licence, cited as a
+  ground for PrimeKG, applies identically to Amazon and MAG — it does not
+  discriminate — while the licence that would discriminate (PrimeKG's own dataset
+  licence) is stated as unverified in the same section. Raw: `L2-F7`, `L3-F5`.
+- **G-12** — §7, ablation gate. The primary-gate explanation's "fires" language is
+  reversed or misleading for what is a binary PASS/FAIL condition, not an
+  alarm-style trigger. Raw: `L1-F12`.
+- **G-13** — §7, ablation gate. The secondary do-no-harm check's "more sensitive"
+  framing is misleading — the two thresholds read from the same paired-difference
+  statistic in opposite directions and do not compete as independent detectors.
+  Raw: `L1-F13`.
+- **G-14** — §7/§10, ablation gate. No source, prior run, or variance estimate is
+  cited for the "4-8 query" range that produced δ1, yet §10 asks a reviewer to
+  supply exactly that kind of evidence to overturn it. Raw: `L1-F14`.
+- **G-15** — §7, ablation gate. No code regenerates or mechanically verifies the
+  56 transcribed critical-value constants against the stated combinatorial
+  formula. Raw: `L1-F15`.
+- **G-16** — §7, ablation gate. "One row past that table's own ceiling" is
+  arithmetically wrong: `75 - 60 = 15`, not 1. Raw: `L2-F1`, `L3-F1`.
+- **G-17** — §7, ablation gate. The transcribed error message
+  (`no pinned critical value for discordantCount ...`) is not what actually fires
+  for an out-of-range count in `_paired-gate.ts` — a separate range guard fires
+  first, with a different message. Raw: `L3-F2`.
+- **G-18** — §7, ablation gate. The document does not specify whether the sign
+  test's UNDERPOWERED precision statement is surfaced in the final report when
+  `n_d` falls below the 20-discordant floor. Raw: `L4-F3`.
+- **G-19** — §7, ablation gate. The description of critical-value table coverage
+  is ambiguous about which table — the existing `[20,60]` table or this design's
+  own extended table — the gate actually reads from. Raw: `L5-F1`.
+- **G-20** — §7, ablation gate. δ1/δ2 are defined as query counts (6, 5) and
+  restated as percentage points, but the inequalities themselves are written
+  against `hit@1`, which reads as a rate — a unit mismatch between the margin's
+  definition and its use in the formula. Raw: `L5-F9`.
+- **G-21** — §7, ablation gate. The sign test's discordant-pair count does not
+  state whether a tie (both arms hit or both miss) contributes to that count. Raw:
+  `L5-F10`.
+- **G-22** — §8, candidate hash. The claim that `componentVariantId` is
+  "unchanged" and "produces the 32-byte digests" is self-contradictory — the cited
+  implementation returns a 16-hex truncated string, not a 32-byte digest. Raw:
+  `L1-F16`, `L2-F3`.
+- **G-23** — §8, candidate hash. The outer `definitionHash` is truncated to 16 hex
+  characters (64 bits); the document's "prevents distinct prompt pairs from
+  sharing a hash" language reads as an absolute-uniqueness claim the truncated
+  width cannot support, and no collision probability is disclosed for that final
+  truncation. Raw: `L1-F17`, `L5-F4`.
+- **G-24** — §8, candidate hash. The "same pair, same id" guarantee does not
+  specify whether line endings, Unicode normalization, BOM, trailing whitespace,
+  or role/tool scaffolding are identity-bearing in the hashed payload. Raw:
+  `L1-F18`.
+- **G-25** — §8, candidate hash. The stated reason for rejecting truncated 64-bit
+  per-role hashes as inputs — that it would "narrow the outer hash's own
+  effective collision resistance" — is imprecise given the outer hash's own
+  *output* is truncated to that same 64-bit width regardless of the inner hashes'
+  width. Raw: `L2-F2`, `L3-F3`.
+- **G-26** — §5, battery shape. A cross-reference is wrong: "for the CD-04 hash,
+  §9" should read "§8", where the CD-04 hash is actually specified. Raw: `L2-F4`.
+- **G-27** — §8, candidate hash. Ambiguity about whether the inner sha256 digests
+  are raw binary or hex-encoded bytes before the outer concatenation. Raw:
+  `L5-F5`.
+- **G-28** — §6, oracle interface. Out-of-pool prediction handling is
+  non-deterministic for mixed predictions — removing an invalid id can promote
+  later ids and change Hit@k/MRR, and the empty-list, duplicate-id, and
+  tie-breaking cases are unspecified. Raw: `L1-F8`.
+- **G-29** — §6, oracle interface. The fail-closed contract is incomplete — no
+  defined bridge outcome for timeout, signal termination, malformed or multiple
+  JSON on stdout, missing metric keys, stderr-only warnings, or
+  receipt-construction failure. Raw: `L1-F9`.
+- **G-30** — §6, oracle interface. Revision pinning checks the Hugging Face Hub's
+  live head, not the bytes actually loaded from the local cache — a stale local
+  cache can pass the assertion while serving different bytes. Raw: `L1-F10`.
+- **G-31** — §6, oracle interface. The receipt discipline states lineage and
+  `acceptedBy` fields but does not bind a given receipt to the concrete
+  query/prediction/metrics/attempt that produced it. Raw: `L1-F11`.
+- **G-32** — §6, oracle interface. The fail-closed contract does not distinguish
+  a bridge pre-filter miss (an expected, defined outcome) from a genuine
+  oracle-process crash (OOM, segfault) — both currently present identically as
+  "non-zero exit, empty stdout." Raw: `L4-F1`.
+- **G-33** — §6, oracle interface. The claim that `score_one.py` redirects stdout
+  during loads to keep stdout pure is cited only to `SPIKE-FINDINGS.md`'s prose,
+  not to the wrapper's own source lines. Raw: `L5-F6`.
+- **G-34** — §6, oracle interface. The `OracleReceipt` structure and lineage
+  strings are asserted without being directly cited to the TypeScript type or the
+  fixture file. Raw: `L5-F7`.
+- **G-35** — §1/§9, freeze and module naming. The "pinned mechanically" language
+  for the module-filename table claims more than §9 currently delivers — with
+  directory placement unsettled until Phase 20, a path-watching guard has nothing
+  concrete to watch yet, and filenames alone cannot reliably distinguish a rename
+  from an unrelated file. Raw: `L1-F19`, `L2-F8`.
+- **G-36** — §1, amendment protocol. The "documented amendment entry" branch has
+  no stated bound on what counts as non-substantive, so a substantive change
+  could ship without a new panel round, undercutting the freeze's own stated
+  purpose. Raw: `L1-F20`.
+- **G-37** — §5, battery shape. `runAgentBattery` reuse does not specify the
+  candidate × query expansion into task identities, which affects retries and
+  artifact ownership. Raw: `L1-F21`.
+- **G-38** — §5/§6, battery shape. The `query_id` global-uniqueness claim is
+  overstated — the cited evidence (`row_query_id != idx`) proves ids are not
+  positional, not that they are globally unique or that a lookup returns exactly
+  one row. Raw: `L1-F6`.
+- **G-39** — §5, battery shape. The proposed structural bounds (minimum 3 nodes,
+  maximum 200 nodes) carry no data-driven justification. Raw: `L5-F8`.
+
+```reconciliation
+raw_total = 21 + 8 + 5 + 3 + 10 = 47
+merged = 47 - 8 = 39
+```
+
+Of the 47 raw findings, 16 cluster into 8 global findings — each cluster holds
+exactly 2 raw findings, so 8 clusters contribute 8 global findings in place of 16
+raw sources, a reduction of 8 (`16 - 8 = 8`). The remaining 31 raw findings are
+raised by exactly one lane each and become 31 global findings one-to-one. Global
+count: `8 + 31 = 39`, matching `47 - 8 = 39` above.
