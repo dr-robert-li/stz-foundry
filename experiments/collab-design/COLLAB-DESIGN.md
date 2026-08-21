@@ -252,3 +252,104 @@ the handoff artifact's recorded hash (§3), and the query's `query_id` (this sec
 — all carried as data on top of `runAgentBattery`'s existing task/result shape, not
 as a change to the function itself.
 
+## 6. Oracle interface
+
+**This section's ground truth is `SPIKE-FINDINGS.md`, not the dossier.** ROADMAP SC-1
+requires the oracle-interface section be grounded in Phase 18's confirmed working path
+because the dossier's own assumption about that path was wrong; every factual claim
+below cites `SPIKE-FINDINGS.md` by name, and where the spike itself quotes a transcript,
+that transcript is cited too, so a reader can walk from this section to the hands-on
+evidence without an intermediate paraphrase.
+
+**The correction, stated plainly.** The dossier's Exogenous-oracle analysis
+(`experiments/graph-engineering-harness/CANDIDATE-DOSSIERS.md` §C-01) assumed: "The
+oracle is STaRK's own scoring script (`E-05`'s Bar applied: `eval.py --dataset
+{amazon,mag,prime}`, ranking candidate `node_id -> torch.Tensor` embeddings against the
+gold node id, reportable to STaRK's own public Hugging Face leaderboard)," and its
+Collaborative-mode sketch assumed the answer-agent "writes the final predicted node id,
+which STaRK's `eval.py` scores against the gold id." **This is superseded.** `eval.py`
+has no external-prediction flag — it drives only STaRK's five built-in baseline
+retrievers, not an arbitrary agent's prediction (`SPIKE-FINDINGS.md` §"Corrections to the
+C-01 dossier assumption"). The replacement, verified hands-on in Phase 18: a thin
+project-authored wrapper, `tools/stark-eval/score_one.py`, calling
+`stark_qa.evaluator.Evaluator.evaluate()` directly. The oracle itself is still
+`stark_qa`'s own metric computation — nothing is reimplemented — but the invocation path
+is a direct `Evaluator` call, not an `eval.py` shell-out.
+
+**Invocation contract.** `score_one.py`'s argv is `<kb> <query_id>` positional, with
+`[--hf-revision SHA] [--metrics ...] [--root DIR]` optional flags; the ranked prediction
+object is piped on stdin as JSON, `{node_id_str: score, ...}`, capped at 20 entries per
+CD-01 (`SPIKE-FINDINGS.md` §"Working invocation shape"). The wrapper prints exactly one
+JSON object to stdout — `{"kb", "query_id", "hf_revision", "metrics"}` — and nothing
+else on stdout: `stark_qa`'s own transitive dependencies (`colbert`, `tdc`'s
+`download_hf`) print progress and warning lines with bare `print()` straight to the real
+stdout, which would corrupt a `JSON.parse` on the Node side of Phase 21's bridge, so
+`score_one.py` redirects the process's real stdout fd to stderr for the duration of every
+load and only restores it to emit the final JSON line. Stdout purity is not an
+implementation detail Phase 21 can take on faith — it is the exact contract the bridge's
+`JSON.parse(stdout)` step depends on holding for every invocation, including a failing
+one.
+
+**Evaluator construction and `candidate_ids`.** `Evaluator(candidate_ids=candidate_ids)`
+— the constructor takes only `candidate_ids`, resolved from the loaded SKB's own
+`.candidate_ids` accessor, never from the caller's prediction keys
+(`SPIKE-FINDINGS.md` §"Evaluator construction and candidate_ids"; observed cardinality
+129375, the KB's full node-id pool, dense and contiguous). The consequence Phase 21's
+bridge inherits: a predicted node id outside that pool does not score zero and is not
+silently dropped — `Evaluator.evaluate()` raises `IndexError` from inside `stark_qa`'s
+own metric-computation code, the process exits non-zero, and stdout stays empty
+(`SPIKE-FINDINGS.md` §"Three test predictions", case (c)). Phase 21's bridge must
+pre-filter predicted node ids to the candidate pool before calling `score_one.py`, and
+must treat a filtered-out prediction as a defined outcome — a scored miss, not an error
+the bridge swallows or lets crash the caller.
+
+**Prediction shape.** `pred_dict` is a ranked mapping of candidate node id to score,
+parsed from a JSON object on stdin and validated key-by-key, capped at 20 entries per
+CD-01 — matching the wrapper's confirmed input contract, not a single predicted node id
+(`SPIKE-FINDINGS.md` §"Prediction shape (ranked list, CD-01)").
+
+**Metrics.** The exact metrics list requested is `["mrr", "hit@1", "hit@5",
+"recall@20"]`, and `Evaluator.evaluate()` returns a dict with those same four keys
+(`SPIKE-FINDINGS.md` §"Metrics requested and returned"). `hit@1` is the ablation gate's
+primary metric (§7); `mrr`, `hit@5`, and `recall@20` are secondary diagnostics — this is
+the fact §7's secondary-diagnostics clause builds on.
+
+**Granularity.** Scoring is confirmed per-query, hands-on — `Evaluator.evaluate()` is
+already single-query-shaped, and no batch workaround was needed
+(`SPIKE-FINDINGS.md` §"Per-query granularity"). A battery task is keyed by the query's
+own `query_id` field, never by a positional index: the spike confirmed the two do not
+coincide once a real split is selected — every sampled row across both the `val` and
+`test` splits had `row_query_id != idx` (`SPIKE-FINDINGS.md` §"query_id vs positional
+index"). §5 already states this for the battery/task shape; this section restates it as
+part of the oracle contract because `score_one.py`'s own `load_split()` performs the
+same `query_id`-keyed lookup on the Python side.
+
+**Revision pinning.** The mechanism actually used is a checked, fail-closed assertion
+(`assert_pinned_revision()`) that queries the live Hugging Face Hub for the dataset's
+currently-resolved commit sha and compares it against a `HF_PIN` constant embedded in the
+wrapper, aborting before any KB load on mismatch — not a `revision` kwarg, because
+neither `load_qa` nor `load_skb` exposes one (`SPIKE-FINDINGS.md` §"Hugging Face revision
+pin"). On a deliberately wrong pin, `score_one.py` exits 1 with `HF revision pin mismatch
+for snap-stanford/stark: expected <wrong>, Hub currently resolves to
+88269e23e90587f99476c5dd74e235a0877e69be` printed to stderr, confirmed hands-on
+(`SPIKE-FINDINGS.md` §"Hugging Face revision pin", `raw/probe-pin-mismatch.log`).
+
+**Receipt discipline.** Each scored prediction produces a `constructed`-kind
+`OracleReceipt` carrying the lineage string the Phase 18 fixture already carries —
+`["constructed:stark-prime", "constructed:hf:snap-stanford/stark@<pinned-sha>"]`, matching
+`test/fixtures/stark/oracle-receipt.json` verbatim — and the `acceptedBy` identity
+already human-approved during Plan 18-01 (`SPIKE-FINDINGS.md` §"Corrections to the C-01
+dossier assumption", A4). This is a requirement on Phase 21's bridge (REQ-78), described
+here and implemented there: every scored prediction the bridge returns must carry this
+receipt shape, built with `src/foundry/battery-types.ts`'s existing `OracleReceipt`
+type and validated by its existing `validateReceipt`/`EXOGENOUS_ROOT_KINDS` discipline —
+no new receipt shape is introduced for the collaborative mode.
+
+**What this design does NOT specify about the oracle.** The strip-boundary
+implementation that keeps `answer_ids` unreachable from any agent-visible code path, the
+environment-fingerprint preflight's exact shape (venv path, package versions, KB
+revision — named in ROADMAP Phase 21 SC-3, not designed here), and the per-attempt
+output-path scheme that keeps a stale result from a crashed prior run from being mistaken
+for a fresh one are all Phase 21's to design within the contract this section states, not
+this document's to pin.
+
