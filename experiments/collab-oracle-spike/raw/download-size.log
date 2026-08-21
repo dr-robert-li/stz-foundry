@@ -1,0 +1,19 @@
+$ du -sh tools/stark-eval/data
+256M	tools/stark-eval/data
+$ du -sh tools/stark-eval/data/prime/processed
+254M	tools/stark-eval/data/prime/processed
+$ du -sh tools/stark-eval/data/prime/stark_qa
+2.0M	tools/stark-eval/data/prime/stark_qa
+$ du -sh tools/stark-eval/data/prime/split
+68K	tools/stark-eval/data/prime/split
+
+=== Note ===
+No transcript from the original setup/tracer/harvest runs captured wall-clock
+timing for the PrimeKG download (setup.log records the pip install phase
+only; the KB download happens lazily inside load_skb/load_qa on first use,
+observed indirectly via tracer-score-one.log line 2, "Loading from
+.../data/prime/processed!"). This command records the on-disk footprint of
+the already-downloaded, revision-pinned PrimeKG processed artifact as
+observed after Plans 18-01/18-02 completed; install/download wall-clock was
+not measured during the spike and is recorded here as an honest gap, not
+fabricated.
