@@ -353,3 +353,157 @@ output-path scheme that keeps a stale result from a crashed prior run from being
 for a fresh one are all Phase 21's to design within the contract this section states, not
 this document's to pin.
 
+## 7. Ablation-gate pre-registration
+
+**Authority statement.** This section's every inequality is transcribed from amended
+D-05 in `.planning/phases/19-c-01-design-freeze/19-CONTEXT.md` (amended 2026-08-21), the
+sole authority for both gates and their directions — not from `19-PATTERNS.md`'s "Core
+pattern" list, whose formula has its two arms transposed relative to amended D-05's own
+words. D-05 is rated one-way: once a heldout run has happened, the pre-registration
+cannot be amended without invalidating the run, so this section is written entirely
+before any measurement, in the house pre-registration voice
+(`experiments/paired-comparison-arm/PAIRED-DESIGN-PREREG.md`): the gate, the metric, the
+procedure, and the treatment of failures, all stated now, nothing left to be settled
+after results are seen.
+
+**The null control (D-04).** One condition: the no-subgraph answerer — the identical
+answerer prompt shape with an empty or absent subgraph slot, query only. The
+shuffled-subgraph control was considered and deliberately not taken: it would
+approximately double the evaluation cost of this gate (a third arm scored over the same
+75-query suite) for a condition this design does not need to isolate "wrong subgraph"
+from "no subgraph" — the bypass-defense question §5 exists to answer is whether removing
+the subgraph entirely hurts, not whether a corrupted one does. This omission is a
+recorded decision (`19-CONTEXT.md` Deferred), not a gap; it can be revisited as its own
+amendment if the no-subgraph result proves ambiguous.
+
+**The evaluation suite.** The sealed heldout pool at
+`test/fixtures/stark/prime-heldout.json` — `pool: heldout`, `sample_size: 75`,
+`sampled_from_n: 2801`, `split: test`, `seed: 1802` (its own `meta` block, read directly)
+— both arms scored over the identical 75 queries, paired per query.
+
+**The primary gate — bypass defense.**
+
+```
+graph_hit@1 - null_hit@1 >= δ1
+```
+
+Per amended D-05, PASS requires the no-subgraph arm to be at least δ1 BELOW the
+graph-handoff arm: removing the subgraph must measurably hurt, or the answerer is
+running on parametric recall and the subgraph is not the thing producing correct
+answers. This is the design's central validity defense against parametric-recall
+bypass — a defense that only does its job if it fires exactly when the null arm scores
+close to or above the graph arm, which is what the inequality above checks directly:
+`graph_hit@1` on the left, `null_hit@1` subtracted, compared against a margin the
+no-subgraph arm must fall short by.
+
+**The secondary check — do-no-harm.**
+
+```
+null_hit@1 - graph_hit@1 >= δ2
+```
+
+Its own named inequality, its own relational operator, its own margin — not prose
+riding on the primary gate's paragraph. It flags when the graph-handoff arm is at least
+δ2 BELOW the no-subgraph arm: the handoff actively hurting, the opposite direction from
+the primary gate. This is a **bypass-defense primary** (the gate above) and a
+**do-no-harm secondary** (this one) — named in words, not only in the direction of a
+symbol, so a reader checks both without decoding sign conventions. The secondary is a
+flag, not the verdict: it cannot alter the primary gate's PASS/FAIL outcome, whatever it
+reports.
+
+**Margins, expressed as queries first.** Both margins are proposed here as the draft's
+starting point for panel scrutiny, per D-05's own text ("the number gets panel scrutiny
+before freeze") — not as settled values.
+
+- **δ1 (primary, bypass-defense):** 6 of the 75 queries, `6/75 = 8.0` percentage points.
+  Six queries is inside the 4–8-query range this project's own research pass on this
+  design recommended as a practically-meaningful bar without being so tight that ordinary
+  run-to-run agent variance alone would trip it.
+- **δ2 (secondary, do-no-harm):** 5 of the 75 queries, `5/75 ≈ 6.7` percentage points.
+  Set one query lighter than δ1 so the do-no-harm flag is the more sensitive of the two
+  checks — it exists to surface an actively harmful handoff early, and a secondary that
+  requires a strictly larger swing than the primary to trip would under-flag exactly the
+  case it is meant to catch.
+
+Both are whole numbers of queries out of the sealed suite first, with the
+percentage-point figure derived from that count — no margin here is a number no integer
+outcome count of this 75-pair suite could actually reach.
+
+**Boundary behaviour.** Both inequalities include equality (`>=`), so a result landing
+exactly on a margin has a defined outcome, stated here rather than left to inference: a
+paired difference of exactly 6 queries (`graph_hit@1 - null_hit@1 = 8.0` pp) is a PASS on
+the primary gate — the boundary counts as clearing it, not as falling short. A paired
+difference of exactly 5 queries in the harmful direction
+(`null_hit@1 - graph_hit@1 = 6.7` pp) fires the do-no-harm flag — the boundary counts as
+triggering it, not as clearing it.
+
+**Non-completions.** A non-completion — agent failure, timeout, malformed output — on
+either arm for a given query counts as a **miss** for that arm on that query, and is
+never excluded from the 75-pair denominator. Silent exclusion would let the
+graph-handoff arm's own failures shrink the effective sample and bias the paired
+comparison in its own favour, which is exactly the failure this treatment forbids; this
+matches the fail-closed convention the rest of this system runs on
+(`OracleReceipt`'s validate-first discipline, the out-of-candidate-pool `IndexError`
+in §6 — neither silently drops a bad outcome, both make it count against the arm that
+produced it).
+
+**Precision statement.** The secondary statistical treatment is this project's own
+exact discordant-pairs sign test (`experiments/paired-comparison-arm/_paired-gate.ts`),
+the same family as McNemar's exact test, reported as a statement about uncertainty
+around the pre-specified practical margins above — never as the verdict itself.
+Statistical significance alone is **not** degradation; the margins above are the
+verdict, and the sign test's p-value is diagnostic context around them.
+
+**Critical values.** `_paired-constants.ts`'s pinned `PAIRED_CRITICAL_VALUE_TABLE`
+(`_paired-gate.ts:145-167`, read directly) is indexed by discordant-pair count and
+covers `[20, 60]` — `evaluatePairedGate` throws `no pinned critical value for
+discordantCount ${discordantCount}` for any count outside that range, transcribed
+verbatim from the check's own error text. This suite's 75 pairs land one row past that
+table's own ceiling, so this design cannot reference it by index without a guaranteed
+throw. **This design pins its own table**, covering the full discordant range this
+suite can produce — the same Clause-2-style floor of 20 discordant pairs through the
+full 75-query suite — computed by the identical exact-integer combinatorial condition
+`PAIRED-DESIGN-PREREG.md` §5 states: the smallest integer `c` such that
+`40 · Σ_{i=c}^{n_d} C(n_d, i) ≤ 2^{n_d}` (the exact per-tail-probability-≤-0.025
+condition under `Binomial(n_d, 0.5)`, α = 0.05 two-sided, no floating-point tail
+probability computed anywhere). This table was independently re-derived this session in
+exact BigInt arithmetic and cross-checked against `PAIRED_CRITICAL_VALUE_TABLE_REV3`
+(`_paired-constants.ts`, the paired-comparison-arm's own rev-3 widened table, which
+covers `n_d` 20 through 90) — the two agree on every one of the 56 overlapping rows
+(`n_d` 20 through 75), giving this design's own table an independent second derivation
+rather than resting on a single unverified computation:
+
+```
+n_d=20: c=15  |  n_d=21: c=16  |  n_d=22: c=17  |  n_d=23: c=17  |  n_d=24: c=18
+n_d=25: c=18  |  n_d=26: c=19  |  n_d=27: c=20  |  n_d=28: c=20  |  n_d=29: c=21
+n_d=30: c=21  |  n_d=31: c=22  |  n_d=32: c=23  |  n_d=33: c=23  |  n_d=34: c=24
+n_d=35: c=24  |  n_d=36: c=25  |  n_d=37: c=25  |  n_d=38: c=26  |  n_d=39: c=27
+n_d=40: c=27  |  n_d=41: c=28  |  n_d=42: c=28  |  n_d=43: c=29  |  n_d=44: c=29
+n_d=45: c=30  |  n_d=46: c=31  |  n_d=47: c=31  |  n_d=48: c=32  |  n_d=49: c=32
+n_d=50: c=33  |  n_d=51: c=33  |  n_d=52: c=34  |  n_d=53: c=35  |  n_d=54: c=35
+n_d=55: c=36  |  n_d=56: c=36  |  n_d=57: c=37  |  n_d=58: c=37  |  n_d=59: c=38
+n_d=60: c=39  |  n_d=61: c=39  |  n_d=62: c=40  |  n_d=63: c=40  |  n_d=64: c=41
+n_d=65: c=41  |  n_d=66: c=42  |  n_d=67: c=42  |  n_d=68: c=43  |  n_d=69: c=44
+n_d=70: c=44  |  n_d=71: c=45  |  n_d=72: c=45  |  n_d=73: c=46  |  n_d=74: c=46
+n_d=75: c=47
+```
+
+Below the 20-discordant floor — reused from this project's `PAIRED_MIN_DISCORDANT_FLOOR`
+house convention — the sign test reports UNDERPOWERED as its own result, not a
+significance verdict; this floor governs the sign test's precision statement only and
+does not block or alter the primary margin gate above, which is evaluated on the raw
+paired hit@1 counts regardless of the discordant-pair count. `W-superior`/`B-superior`
+in the sign-test sense would read `k_w >= c(n_d)` / `k_w <= n_d - c(n_d)`, mirroring
+`_paired-gate.ts`'s own convention exactly; this design does not write TypeScript for it
+— Phase 23 implements this table and comparison as its own code artifact, this section
+specifies the values it must transcribe.
+
+**Secondary diagnostics.** MRR, hit@5, recall@20, input-token counts, and error rates
+are recorded as diagnostics. Statistical significance alone is not degradation, and none
+of these diagnostics can alter the primary verdict after results are seen — they explain
+a verdict already fixed by the margins above, never substitute for one.
+
+**Ordering relative to any headline score.** This gate evaluates before any StaRK score
+is reported as meaningful — the ablation-before-score discipline REQ-81 pins for
+Phase 23.
+
