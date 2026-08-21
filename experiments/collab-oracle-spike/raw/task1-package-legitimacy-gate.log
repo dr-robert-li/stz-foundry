@@ -1,0 +1,56 @@
+Task 1 — Package legitimacy + receipt identity gate (checkpoint:human-verify, gate="blocking-human")
+Plan: 18-01
+Recorded: 2026-08-21
+
+## Why this gate ran
+
+18-RESEARCH.md's Package Legitimacy Audit (`gsd_run query package-legitimacy check
+--ecosystem pypi`) returned SUS for all four packages tools/stark-eval/setup.sh
+installs: stark-qa, and its transitive torch, torch_geometric, huggingface_hub.
+Every SUS verdict traced to the same two checker signal gaps (unknown-downloads;
+too-new misreading a recent point-release date as package age), not real
+suspicion — but protocol requires a human to confirm package identity before any
+`pip install` executes, regardless.
+
+## Evidence presented to the human (executor, this session)
+
+1. stark-qa 1.1.0 — https://pypi.org/project/stark-qa/ — project site
+   stark.stanford.edu, source github.com/snap-stanford/stark. Only release on
+   PyPI (`pip index versions stark-qa` → `stark-qa (1.1.0)`).
+2. torch — https://pypi.org/project/torch/ — pytorch.org.
+3. torch-geometric — https://pypi.org/project/torch-geometric/ — actual repo
+   github.com/pyg-team/pytorch_geometric.
+4. huggingface-hub — https://pypi.org/project/huggingface-hub/ —
+   github.com/huggingface/huggingface_hub.
+
+## Orchestrator's own live PyPI JSON verification (this session, independent of
+## the executor's evidence above)
+
+- stark-qa 1.1.0 — STaRK team <stark-qa@cs.stanford.edu>, stark.stanford.edu,
+  github.com/snap-stanford/stark
+- torch 2.13.0 — PyTorch Team <packages@pytorch.org>
+- torch-geometric 2.8.0.post1 — Matthias Fey <matthias@pyg.org>, pyg-team
+- huggingface-hub 1.28.0 — Hugging Face, Inc.
+
+These match the versions pip actually resolved during install (see
+raw/setup.log): stark-qa 1.1.0, torch 2.13.0, torch_geometric 2.8.0.post1,
+huggingface_hub resolved down to 0.36.2 by stark-qa's own transitive pin
+resolution (see raw/setup.log — pip's resolver initially collected
+huggingface_hub-1.28.0, then backtracked to huggingface_hub 0.36.2 to satisfy
+another transitive constraint; both are the genuine Hugging Face, Inc. package,
+same identity, different version).
+
+## Human decision
+
+**Approved.** All four packages confirmed legitimate — no lookalike/typosquat
+concern; SUS verdicts attributed entirely to checker signal gaps as flagged in
+RESEARCH.md.
+
+## acceptedBy identity for the committed OracleReceipt fixture (Plan 18-02)
+
+Confirmed by the human: `dr-robert-li` (matches this repo's real commit-author
+identity; RESEARCH.md Assumption A4 resolved).
+
+## Resume authorization
+
+Coordinator resumed execution at Task 2 (tracer) following this approval.
