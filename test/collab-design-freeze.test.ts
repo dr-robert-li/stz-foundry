@@ -243,4 +243,35 @@ describe("forward ancestry (ROADMAP SC-3, T-19-28)", () => {
       }
     },
   );
+
+  // Non-vacuity control (T-20-17): a red result here means the per-commit guard
+  // above has silently degraded to always-true — the classic failure mode for a
+  // shell-out guard is a swallowed error path that makes every call succeed. If
+  // this control ever goes red, the guard above's own green is worthless
+  // regardless of colour, because it would mean isAncestorOf/commitsTouching no
+  // longer discriminate at all. This block is the committed replacement for a
+  // one-time red observation: it proves, permanently and against real history,
+  // that the machinery above CAN return false.
+  it.skipIf(!GIT_AVAILABLE)(
+    GIT_AVAILABLE
+      ? "the freeze-ancestry machinery can discriminate: it returns false against the freeze commit's own parent and against real pre-freeze history"
+      : "skipped: git binary is unavailable in this environment",
+    () => {
+      // The freeze commit is not an ancestor of its own parent. Derived from the
+      // existing FREEZE_COMMIT constant, so this cannot go stale as history grows.
+      expect(isAncestorOf(FREEZE_COMMIT, `${FREEZE_COMMIT}^`)).toBe(false);
+
+      // A real, committed, pre-freeze path: docs/PAPER.md predates the freeze in
+      // its entire current history and is not a watched path, so at least one of
+      // its commits must fail the strict check the block above applies. A future
+      // post-freeze edit only adds commits — it cannot remove the older ones that
+      // make this true, so the assertion is stable over time.
+      const paperCommits = commitsTouching("docs/PAPER.md");
+      expect(paperCommits.length).toBeGreaterThan(0);
+      const hasPreFreezeCommit = paperCommits.some(
+        (commit) => commit !== FREEZE_COMMIT && !isAncestorOf(FREEZE_COMMIT, commit),
+      );
+      expect(hasPreFreezeCommit).toBe(true);
+    },
+  );
 });
