@@ -507,3 +507,121 @@ a verdict already fixed by the margins above, never substitute for one.
 is reported as meaningful — the ablation-before-score discipline REQ-81 pins for
 Phase 23.
 
+## 8. Two-prompt candidate hash
+
+Per CD-02/CD-04, one `definitionHash` identifies a collaborative candidate — the
+builder-prompt/answerer-prompt pair jointly *is* the candidate, carrying a single
+lineage, never two independently-scored halves. Per-role hashes are recorded in the
+artifact payload for diagnostics only and are never used as the candidate id (CD-04).
+
+**Why plain delimited concatenation is not specified enough.** `.planning/STATE.md`'s
+CD-04 shorthand names "delimited concatenation" as the bundling shape; this section
+specifies it exactly, because a naive delimiter is exploitable the moment either prompt
+can contain the delimiter character. Worked collision, for a delimiter of `|`: the pair
+`(builderPrompt = "a|", answererPrompt = "bc")` and the pair
+`(builderPrompt = "a", answererPrompt = "|bc")` are two distinct, structurally different
+prompt pairs — but under naive delimited concatenation, `builderPrompt + "|" +
+answererPrompt` produces `"a|" + "|" + "bc" = "a||bc"` for the first pair and
+`"a" + "|" + "|bc" = "a||bc"` for the second — byte-identical bundles, hence identical
+`definitionHash` values, for two pairs that must never share an id. The "same pair, same
+id" guarantee the hash exists to provide is broken by this construction whenever a
+delimiter character can appear inside either prompt's own text, which this design does
+not otherwise constrain.
+
+**Chosen encoding: hash-of-hashes over fixed-length digests, builder-then-answerer.**
+`definitionHash = sha256( sha256(builderPrompt) || sha256(answererPrompt) )`, where `||`
+is raw-byte concatenation of the two **full, untruncated 32-byte** sha256 digests in a
+fixed order (builder first, answerer second) — never the truncated 16-hex-character
+diagnostic form. This is the failure mode the collision example above defends against:
+because both inputs to the outer hash are fixed-length 32-byte values, there is no
+delimiter-boundary question at all — a builder-prompt digest and an answerer-prompt
+digest cannot be rearranged into a different byte split the way variable-length text
+concatenated around a delimiter can. Feeding the outer hash the *truncated* 16-hex
+per-role diagnostic hashes instead of the full 32-byte digests was considered and
+rejected: truncating each role's hash to 16 hex characters (64 bits) before combining
+them would narrow the outer hash's own effective collision resistance to that 64-bit
+surface, a needless weakening this design does not accept when the full digests are
+already computed and available.
+
+**Width, algorithm, and relationship to the existing single-prompt id.** The outer
+hash's own output is sha256, hex-encoded, truncated to the same 16-hex-character width
+`componentVariantId` already uses (`src/harness.ts:370-372`,
+`createHash("sha256").update(definitionText).digest("hex").slice(0, 16)`), so
+collaborative candidate ids read alike beside existing single-prompt component ids —
+this design introduces no new hash width or algorithm, only a new two-input composition
+in front of the existing one. The joint `definitionHash` is a **sibling identity added
+beside** the existing single-prompt id, never a redefinition of it: `componentVariantId`
+itself is unchanged, still called once per role to produce each of the two 32-byte
+digests the outer hash consumes, and every existing archived single-prompt component id
+in `.stz/60-harness/component/<slot>/MANIFEST.json` is computed exactly as it always
+was, untouched by this section.
+
+**Per-role hashes, diagnostics only.** `componentVariantId(builderPrompt)` and
+`componentVariantId(answererPrompt)` — the existing 16-hex-character truncated form —
+are each recorded in the artifact payload alongside the joint `definitionHash`, for
+diagnostics only, per CD-04's own text. Neither is ever substituted for the joint hash
+as the candidate id, and selection never scores a role's prompt independent of its
+partner (CD-02).
+
+## 9. Module names for Phases 20–22
+
+The frozen design is what the forward-ancestry guard (`test/collab-design-freeze.test.ts`,
+Plan 19-05) watches, and it can only watch paths this document names. Pinning at least
+one filename per surface ROADMAP Phase 19 SC-3 lists — `collaborative-admission.ts`, the
+scoring bridge, the collaborative runner, and the tournament shell:
+
+| Surface (ROADMAP SC-3) | Module filename | Provenance |
+|---|---|---|
+| Collaborative admission axis | `collaborative-admission.ts` | Already fixed in REQUIREMENTS.md (REQ-79, Phase 20) — reused verbatim, not renamed |
+| Node↔Python scoring bridge | `collaborative-scoring-bridge.ts` | New name, this section, matching the admission module's `collaborative-<noun>.ts` style (Phase 21, REQ-78) |
+| Collaborative runner | `collaborative-runner.ts` | New name, this section, same style (Phase 22, REQ-80) |
+| Tournament shell | `collaborative-tournament-shell.ts` | New name, this section, same style (Phase 22, REQ-80) |
+
+**Directory placement within `src/foundry/` is Phase 20's and Phase 21's to settle** —
+this section pins the top-level filenames only, the concrete watched paths the
+forward-ancestry guard needs, not the subtree layout around them.
+
+**The sealed-union constraint, alongside.** `collaborative-admission.ts` is a sibling
+table beside `src/foundry/vertical-admission.ts`'s existing `VERTICAL_ADMISSION`, never
+a widening of it: the existing five-member `Vertical` union
+(`data-ops`, `bi-analytics`, `performance-marketing`, `customer-support`,
+`revops-gtm-exec-strategy`) and its size test stay exactly as they are — no member
+added, no test edited to accommodate a widening. The collaborative mode's own admission
+axis is a wholly new, separately-typed table, not an extension of `Vertical`.
+
+## 10. Open items for the panel
+
+The design's own list of what it knows is contestable, so the panel attacks stated
+positions instead of finding gaps. For each item, what a reviewer would need to show to
+overturn it:
+
+- **The proposed margin values, δ1 = 6 queries (8.0 pp) and δ2 = 5 queries (6.7 pp)
+  (§7).** Overturn by showing either number sits outside the range ordinary
+  run-to-run agent variance on this suite would produce, with evidence (a prior run's own
+  variance, or a cited figure) rather than intuition alone.
+- **The proposed structural bounds, minimum 3 nodes and maximum 200 nodes (§5).**
+  Overturn by showing PrimeKG's typical query-linked neighbourhood at this KB's own
+  entity degree routinely falls outside this range, making the bound either
+  needlessly restrictive or too loose to constrain a degenerate subgraph.
+- **The D-04/CD-05 harmonizing reading (§5): CD-05's degenerate-graph arm is a
+  diagnostic REQ-81-family member, not a competing second verdict for D-05's primary
+  gate.** Overturn by showing CD-05's own text requires a second, independent
+  win/loss/degraded verdict that this reading's demotion to "diagnostic" would suppress.
+- **The chosen candidate-hash encoding, hash-of-hashes over full 32-byte digests (§8).**
+  Overturn by demonstrating an actual construction under which two distinct prompt pairs
+  produce the same joint `definitionHash`, or by arguing length-prefixing is preferable
+  on a concrete ground (implementation simplicity, existing precedent) this section did
+  not weigh.
+- **The handoff-immutability contract's lack of field precedent (§3).** Overturn by
+  naming an existing in-repo or external mechanism this design should have reused
+  instead of the from-scratch hash-at-handoff/verify-at-read contract.
+- **Any claim still carrying an unverified provenance qualifier.** The PrimeKG
+  **dataset's** own licence (§4 — the codebase's MIT licence is independently verified,
+  the dataset licence is not) and the "~28 MB" upstream-release size figure (§4,
+  distinct from the verified 254M processed-artifact figure). Overturn either by an
+  independent fetch of the PrimeKG dataset's own stated licence, or by verifying the
+  28 MB figure against the Harvard Dataverse artifact directly.
+
+**Status.** This is rev-1, pre-panel. The frozen revision will be recorded at the
+freeze commit (Plan 19-05).
+
