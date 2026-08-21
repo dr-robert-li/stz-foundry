@@ -18,6 +18,7 @@ JSON.parse stdout directly (D-07, execution-oracle.ts idiom).
 import argparse
 import contextlib
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -69,10 +70,14 @@ def parse_pred_dict(raw):
             key = int(k)
         except (TypeError, ValueError):
             raise ValueError(f"prediction key {k!r} does not parse as an integer node id")
+        if key in pred_dict:
+            raise ValueError(f"prediction key {k!r} duplicates node id {key} already seen")
         try:
             val = float(v)
         except (TypeError, ValueError):
             raise ValueError(f"prediction value {v!r} for key {k!r} does not parse as a float")
+        if not math.isfinite(val):
+            raise ValueError(f"prediction value {v!r} for key {k!r} must be finite (got NaN/Infinity)")
         pred_dict[key] = val
     return pred_dict
 
