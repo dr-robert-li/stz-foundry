@@ -1,0 +1,15 @@
+{
+  "cacheKeyFileSha256": {
+    "hub:qa/prime/stark_qa/stark_qa.csv": "a27e5d63da6044e562e33bc94e37f41e076f2cb4142d6adc370a0981c5ee6f16",
+    "hub:qa/prime/stark_qa/stark_qa_human_generated_eval.csv": "9194c66c195d05b7771bd3b78ea71425abe57b9ea4c7b95c68d2a650f472f19b",
+    "skb:prime/processed/edge_type_dict.pkl": "f401169ecae340ec838853a282e99439e172a8d7e1a9906cd2e470bb7a141a9c",
+    "skb:prime/processed/node_type_dict.pkl": "19ede43bbc19be8d1b48abb029830e7fa2ab206ae58c5bdd8b3a2a24623ea275",
+    "skb:prime/processed/node_types.pt": "ea26092e855e20a4ba1bd6cf5fa6b26b81b680d0ddfeab5c9475257dcf49de62"
+  },
+  "hfPin": "88269e23e90587f99476c5dd74e235a0877e69be",
+  "pythonPath": "tools/stark-eval/.venv/bin/python",
+  "pythonVersion": "3.11.15",
+  "scoreOneSha256": "c9d49aae0bbf529a86ca0958d965c6237c459f05dad055036de9cc5b74151381",
+  "starkQaVersion": "1.1.0",
+  "torchVersion": "2.13.0"
+}
