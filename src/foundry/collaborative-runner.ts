@@ -26,6 +26,7 @@
  * file should not -- source-text criteria in this plan's own verification
  * enforce that absence.
  */
+import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -47,6 +48,8 @@ import type { CollaborativeBatteryTask } from "./collaborative-battery.js";
 import {
   scorePrediction,
   runScoringPreflight,
+  SCORING_TIMEOUT_MS,
+  VENV_PYTHON_REL,
   type ScoringAttempt,
   type ScoringExecFn,
   type PoolManifest,
@@ -101,6 +104,224 @@ export interface KbNeighborhood {
 }
 
 export type KbNeighborhoodFn = (queryId: number) => KbNeighborhood;
+
+// ── D-01 live half: the real kbNeighborhoodFn dispatch (Plan 22-04) ────
+
+export const NEIGHBORHOOD_ONE_REL = "tools/stark-eval/neighborhood_one.py";
+/** FA-7 discretion (extraction parameters, Phase 23 may tune): two hops,
+ *  four hundred nodes. `NEIGHBORHOOD_MAX_NODES` must stay above
+ *  `MAX_SUBGRAPH_NODES` (200, exported below) -- a valid builder subgraph
+ *  could not fit inside a neighbourhood smaller than the structural bound
+ *  the builder is allowed to submit. */
+export const NEIGHBORHOOD_HOPS = 2;
+export const NEIGHBORHOOD_MAX_NODES = 400;
+
+/** The admission table's kb name ("stark-prime") and STaRK's own kb name
+ *  ("prime", the argv value the Python helper takes) differ -- carry the
+ *  mapping explicitly, mirroring `collaborative-scoring-bridge.ts`'s own
+ *  `SCORE_ONE_KB_ARG` precedent one module over. */
+const NEIGHBORHOOD_KB_ARG = "prime";
+
+export interface MakeDefaultKbNeighborhoodFnOpts {
+  pythonPath?: string;
+  scriptPath?: string;
+  timeoutMs?: number;
+  /** Same shape as the bridge's own `ScoringExecFn` -- this dispatch is a
+   *  second call site of the same idiom, never a second shape. */
+  execFn?: ScoringExecFn;
+}
+
+const defaultKbNeighborhoodExecFn: ScoringExecFn = (file, args, opts) => spawnSync(file, args, opts);
+
+/** Bounded (2000-char) tail, mirroring the bridge's own `boundedTail` --
+ *  not exported there, so duplicated here rather than reaching into a
+ *  sibling module's private helper. */
+function boundedTail(text: string, maxChars = 2000): string {
+  return text.length <= maxChars ? text : text.slice(-maxChars);
+}
+
+export type ParseNeighborhoodResult =
+  | { ok: true; neighborhood: KbNeighborhood }
+  | { ok: false; violation: string };
+
+/**
+ * Field-by-field, never a cast (D-05's house discipline, one module-
+ * internal neighbour over): rejects a non-object, a missing/wrongly-typed
+ * field, a node record whose id is not an integer, a malformed edge triple,
+ * and an echoed revision that differs from the pin (T-22-18). An empty seed
+ * set is ALSO a named refusal here, not an empty-but-successful
+ * neighbourhood (FA-7's stated no-silent-fallback requirement).
+ */
+export function parseNeighborhoodStdout(raw: string): ParseNeighborhoodResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw.trim());
+  } catch {
+    return { ok: false, violation: "neighbourhood helper stdout did not parse as JSON" };
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return {
+      ok: false,
+      violation: `neighbourhood helper stdout must be a JSON object, got ${Array.isArray(parsed) ? "array" : typeof parsed}`,
+    };
+  }
+  const obj = parsed as Record<string, unknown>;
+  if (typeof obj.kb !== "string") {
+    return { ok: false, violation: `field "kb" must be a string` };
+  }
+  if (typeof obj.queryId !== "number") {
+    return { ok: false, violation: `field "queryId" must be a number` };
+  }
+  if (typeof obj.revision !== "string") {
+    return { ok: false, violation: `field "revision" must be a string` };
+  }
+  const record = requireCollaborativeAdmitted("stark-prime");
+  if (obj.revision !== record.revisionSha) {
+    return {
+      ok: false,
+      violation: `echoed revision ${JSON.stringify(obj.revision)} does not match the pinned revision ${JSON.stringify(record.revisionSha)}`,
+    };
+  }
+  if (!Array.isArray(obj.seeds)) {
+    return { ok: false, violation: `field "seeds" must be an array` };
+  }
+  for (let i = 0; i < obj.seeds.length; i++) {
+    if (!Number.isInteger(obj.seeds[i])) {
+      return {
+        ok: false,
+        violation: `seed at position ${i} is not an integer node id (got ${JSON.stringify(obj.seeds[i])})`,
+      };
+    }
+  }
+  if (obj.seeds.length === 0) {
+    const reason = typeof obj.reason === "string" && obj.reason.length > 0 ? obj.reason : "no reason given";
+    return {
+      ok: false,
+      violation:
+        `the helper found no seed entity for this query -- ${reason} (an empty seed set is a refusal, ` +
+        `never an empty-but-successful neighbourhood)`,
+    };
+  }
+  if (!Array.isArray(obj.nodes)) {
+    return { ok: false, violation: `field "nodes" must be an array` };
+  }
+  const nodes: { id: number; label: string; type: string }[] = [];
+  for (let i = 0; i < obj.nodes.length; i++) {
+    const n = obj.nodes[i];
+    if (typeof n !== "object" || n === null || Array.isArray(n)) {
+      return { ok: false, violation: `node at position ${i} must be an object` };
+    }
+    const nObj = n as Record<string, unknown>;
+    if (!Number.isInteger(nObj.id)) {
+      return {
+        ok: false,
+        violation: `node at position ${i} has a non-integer "id" (got ${JSON.stringify(nObj.id)})`,
+      };
+    }
+    if (typeof nObj.label !== "string") {
+      return { ok: false, violation: `node at position ${i} has a non-string "label"` };
+    }
+    if (typeof nObj.type !== "string") {
+      return { ok: false, violation: `node at position ${i} has a non-string "type"` };
+    }
+    nodes.push({ id: nObj.id as number, label: nObj.label, type: nObj.type });
+  }
+  if (!Array.isArray(obj.edges)) {
+    return { ok: false, violation: `field "edges" must be an array` };
+  }
+  const edges: [number, number, number][] = [];
+  for (let i = 0; i < obj.edges.length; i++) {
+    const e = obj.edges[i];
+    if (!Array.isArray(e) || e.length !== 3 || !e.every((x) => Number.isInteger(x))) {
+      return {
+        ok: false,
+        violation: `edge at position ${i} must be a [source, destination, relationId] integer triple (got ${JSON.stringify(e)})`,
+      };
+    }
+    edges.push(e as [number, number, number]);
+  }
+  if (typeof obj.relationNames !== "object" || obj.relationNames === null || Array.isArray(obj.relationNames)) {
+    return { ok: false, violation: `field "relationNames" must be an object` };
+  }
+  const relationNames: Record<string, string> = {};
+  for (const [key, value] of Object.entries(obj.relationNames as Record<string, unknown>)) {
+    if (typeof value !== "string") {
+      return { ok: false, violation: `relationNames entry "${key}" must be a string` };
+    }
+    relationNames[key] = value;
+  }
+  return {
+    ok: true,
+    neighborhood: { queryId: obj.queryId, seeds: obj.seeds as number[], nodes, edges, relationNames },
+  };
+}
+
+/**
+ * The real `KbNeighborhoodFn` (D-01's live half): a Node-side dispatch to
+ * `tools/stark-eval/neighborhood_one.py` in the Phase 18 venv, mirroring
+ * `scorePrediction`'s own fail-closed branch order (T-22-19) -- timeout,
+ * signal, spawn error, non-zero exit, and only THEN parse stdout -- rather
+ * than a second, differently-ordered dispatch idiom for a second dispatch
+ * site. The pinned revision is read from `requireCollaborativeAdmitted`,
+ * never a second literal, and threaded into argv the same way
+ * `scorePrediction` threads it.
+ */
+export function makeDefaultKbNeighborhoodFn(opts: MakeDefaultKbNeighborhoodFnOpts = {}): KbNeighborhoodFn {
+  return (queryId: number): KbNeighborhood => {
+    const record = requireCollaborativeAdmitted("stark-prime");
+    const execFn = opts.execFn ?? defaultKbNeighborhoodExecFn;
+    const argv = [
+      opts.scriptPath ?? NEIGHBORHOOD_ONE_REL,
+      NEIGHBORHOOD_KB_ARG,
+      String(queryId),
+      "--hf-revision",
+      record.revisionSha,
+      "--hops",
+      String(NEIGHBORHOOD_HOPS),
+      "--cap",
+      String(NEIGHBORHOOD_MAX_NODES),
+    ];
+    const timeoutMs = opts.timeoutMs ?? SCORING_TIMEOUT_MS;
+    const result = execFn(opts.pythonPath ?? VENV_PYTHON_REL, argv, {
+      input: "",
+      timeout: timeoutMs,
+      encoding: "utf8",
+    });
+
+    // SAME branch order as scorePrediction (T-22-19): timeout, signal,
+    // spawn error, non-zero exit, only THEN a stdout parse -- never
+    // reordered, never a second idiom for a second dispatch site.
+    const errorCode = result.error !== undefined ? (result.error as NodeJS.ErrnoException).code : undefined;
+    if (errorCode === "ETIMEDOUT") {
+      throw new CollaborativeRunnerError(
+        `kbNeighborhoodFn: neighbourhood extraction for query ${queryId} timed out after ${timeoutMs}ms`,
+      );
+    }
+    if (result.signal !== null) {
+      throw new CollaborativeRunnerError(
+        `kbNeighborhoodFn: neighbourhood extraction for query ${queryId} was killed by signal ${result.signal}`,
+      );
+    }
+    if (result.error !== undefined) {
+      throw new CollaborativeRunnerError(
+        `kbNeighborhoodFn: neighbourhood extraction process for query ${queryId} could not be reached (${result.error.message})`,
+      );
+    }
+    if (result.status !== 0) {
+      throw new CollaborativeRunnerError(
+        `kbNeighborhoodFn: neighbourhood extraction for query ${queryId} exited with code ${result.status ?? -1} -- ` +
+          `stderr tail: ${boundedTail(result.stderr)}`,
+      );
+    }
+    const parsed = parseNeighborhoodStdout(result.stdout);
+    if (!parsed.ok) {
+      throw new CollaborativeRunnerError(
+        `kbNeighborhoodFn: neighbourhood extraction for query ${queryId} produced invalid output -- ${parsed.violation}`,
+      );
+    }
+    return parsed.neighborhood;
+  };
+}
 
 // ── D-05: the closed, versioned, ids-only handoff artifact ─────────────
 

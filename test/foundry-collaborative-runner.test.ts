@@ -24,10 +24,15 @@ import {
   verifyHandoffAtRead,
   describeHandoffOutcome,
   validateSubgraphAgainstNeighborhood,
+  makeDefaultKbNeighborhoodFn,
+  parseNeighborhoodStdout,
   HANDOFF_OUTCOME_KINDS,
   MIN_SUBGRAPH_NODES,
   MAX_SUBGRAPH_NODES,
   SUBGRAPH_SCHEMA_VERSION,
+  NEIGHBORHOOD_ONE_REL,
+  NEIGHBORHOOD_HOPS,
+  NEIGHBORHOOD_MAX_NODES,
   type CollaborativeCandidate,
   type KbNeighborhood,
   type RunCollaborativeBatteryArgs,
@@ -1022,5 +1027,207 @@ describe("runCollaborativeBattery — D-11 preflight cadence (Plan 22-02 Task 3)
     );
     expect(err.message).toContain("tasks is empty");
     expect(preflightCalls).toBe(0);
+  });
+});
+
+// ── Plan 22-04 Task 2: the real dispatch behind the seam ────────────────
+
+const NEIGHBORHOOD_HAPPY_STDOUT = JSON.stringify({
+  kb: "prime",
+  queryId: 42,
+  revision: ADMISSION_RECORD.revisionSha,
+  seeds: [1, 2],
+  nodes: [
+    { id: 1, label: "Node A", type: "drug" },
+    { id: 2, label: "Node B", type: "gene/protein" },
+  ],
+  edges: [[1, 2, 3]],
+  relationNames: { "3": "target" },
+});
+
+describe("parseNeighborhoodStdout — field-by-field validation (Plan 22-04 Task 2)", () => {
+  it("parses well-formed stdout into the same KbNeighborhood shape the fixtures satisfy", () => {
+    const result = parseNeighborhoodStdout(NEIGHBORHOOD_HAPPY_STDOUT);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok result");
+    expect(result.neighborhood).toEqual({
+      queryId: 42,
+      seeds: [1, 2],
+      nodes: [
+        { id: 1, label: "Node A", type: "drug" },
+        { id: 2, label: "Node B", type: "gene/protein" },
+      ],
+      edges: [[1, 2, 3]],
+      relationNames: { "3": "target" },
+    });
+  });
+
+  it("rejects stdout that is not valid JSON, naming the parse condition", () => {
+    const result = parseNeighborhoodStdout("not json at all");
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a violation");
+    expect(result.violation).toContain("did not parse as JSON");
+  });
+
+  it("rejects a non-object JSON value", () => {
+    const result = parseNeighborhoodStdout("[1,2,3]");
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a violation");
+    expect(result.violation).toContain("must be a JSON object");
+  });
+
+  it("rejects an echoed revision that differs from the pin, naming both", () => {
+    const raw = JSON.stringify({
+      kb: "prime",
+      queryId: 42,
+      revision: "deadbeef",
+      seeds: [1],
+      nodes: [{ id: 1, label: "A", type: "drug" }],
+      edges: [],
+      relationNames: {},
+    });
+    const result = parseNeighborhoodStdout(raw);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a violation");
+    expect(result.violation).toContain("deadbeef");
+    expect(result.violation).toContain(ADMISSION_RECORD.revisionSha);
+  });
+
+  it("rejects a node record whose id is not an integer", () => {
+    const raw = JSON.stringify({
+      kb: "prime",
+      queryId: 42,
+      revision: ADMISSION_RECORD.revisionSha,
+      seeds: [1],
+      nodes: [{ id: 1.5, label: "A", type: "drug" }],
+      edges: [],
+      relationNames: {},
+    });
+    const result = parseNeighborhoodStdout(raw);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a violation");
+    expect(result.violation).toContain("non-integer");
+  });
+
+  it("rejects a malformed edge triple", () => {
+    const raw = JSON.stringify({
+      kb: "prime",
+      queryId: 42,
+      revision: ADMISSION_RECORD.revisionSha,
+      seeds: [1],
+      nodes: [{ id: 1, label: "A", type: "drug" }],
+      edges: [[1, 2]],
+      relationNames: {},
+    });
+    const result = parseNeighborhoodStdout(raw);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a violation");
+    expect(result.violation).toContain("integer triple");
+  });
+
+  it("an empty seed set is a named refusal, not an empty-but-successful neighbourhood", () => {
+    const raw = JSON.stringify({
+      kb: "prime",
+      queryId: 42,
+      revision: ADMISSION_RECORD.revisionSha,
+      seeds: [],
+      reason: "no KB node name matched the query text",
+    });
+    const result = parseNeighborhoodStdout(raw);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a violation");
+    expect(result.violation).toContain("no seed entity");
+    expect(result.violation).toContain("no KB node name matched the query text");
+  });
+});
+
+describe("makeDefaultKbNeighborhoodFn — the real dispatch behind the seam (Plan 22-04 Task 2)", () => {
+  it("returns a parsed neighbourhood when the exec seam returns well-formed JSON on exit code zero", () => {
+    const execFn: ScoringExecFn = () => fakeResult({ stdout: NEIGHBORHOOD_HAPPY_STDOUT });
+    const fn = makeDefaultKbNeighborhoodFn({ execFn });
+    const nb = fn(42);
+    expect(nb.queryId).toBe(42);
+    expect(nb.seeds).toEqual([1, 2]);
+    expect(nb.nodes).toHaveLength(2);
+    expect(nb.edges).toEqual([[1, 2, 3]]);
+  });
+
+  it("the exec seam receives an argv array asserted element by element, revision compared to the admission record", () => {
+    let capturedFile: string | undefined;
+    let capturedArgv: string[] | undefined;
+    const execFn: ScoringExecFn = (file, args) => {
+      capturedFile = file;
+      capturedArgv = args;
+      return fakeResult({ stdout: NEIGHBORHOOD_HAPPY_STDOUT });
+    };
+    makeDefaultKbNeighborhoodFn({ execFn })(42);
+    expect(capturedFile).toBe(VENV_PYTHON_REL);
+    expect(capturedArgv).toEqual([
+      NEIGHBORHOOD_ONE_REL,
+      "prime",
+      "42",
+      "--hf-revision",
+      ADMISSION_RECORD.revisionSha,
+      "--hops",
+      String(NEIGHBORHOOD_HOPS),
+      "--cap",
+      String(NEIGHBORHOOD_MAX_NODES),
+    ]);
+    expect(capturedArgv?.[4]).toBe(requireCollaborativeAdmitted("stark-prime").revisionSha);
+  });
+
+  it("a timeout produces a named refusal and never reaches the stdout parser", () => {
+    const execFn: ScoringExecFn = () =>
+      fakeResult({
+        error: Object.assign(new Error("spawnSync ETIMEDOUT"), { code: "ETIMEDOUT" }) as NodeJS.ErrnoException,
+        signal: "SIGTERM",
+        stdout: "this would fail to parse as JSON",
+      });
+    const err = thrown(() => makeDefaultKbNeighborhoodFn({ execFn })(42));
+    expect(err.message).toContain("timed out");
+    expect(err.message).not.toContain("did not parse as JSON");
+  });
+
+  it("a signal termination produces a named refusal distinct from timeout, and never reaches the stdout parser", () => {
+    const execFn: ScoringExecFn = () =>
+      fakeResult({ signal: "SIGKILL", stdout: "this would fail to parse as JSON" });
+    const err = thrown(() => makeDefaultKbNeighborhoodFn({ execFn })(42));
+    expect(err.message).toContain("SIGKILL");
+    expect(err.message).not.toContain("did not parse as JSON");
+  });
+
+  it("a spawn error (process unreachable) produces a named refusal naming the process condition", () => {
+    const execFn: ScoringExecFn = () =>
+      fakeResult({
+        error: Object.assign(new Error("spawnSync ENOENT"), { code: "ENOENT" }) as NodeJS.ErrnoException,
+        status: null,
+        stdout: "this would fail to parse as JSON",
+      });
+    const err = thrown(() => makeDefaultKbNeighborhoodFn({ execFn })(42));
+    expect(err.message).toContain("could not be reached");
+    expect(err.message).toContain("ENOENT");
+    expect(err.message).not.toContain("did not parse as JSON");
+  });
+
+  it("a non-zero exit produces a named refusal carrying a bounded stderr tail, and never reaches the stdout parser", () => {
+    const execFn: ScoringExecFn = () =>
+      fakeResult({ status: 1, stderr: "Traceback: something broke", stdout: "this would fail to parse as JSON" });
+    const err = thrown(() => makeDefaultKbNeighborhoodFn({ execFn })(42));
+    expect(err.message).toContain("exited with code 1");
+    expect(err.message).toContain("Traceback: something broke");
+    expect(err.message).not.toContain("did not parse as JSON");
+  });
+
+  it("an empty-seed helper response surfaces as a named refusal through the dispatch, not an empty neighbourhood", () => {
+    const raw = JSON.stringify({
+      kb: "prime",
+      queryId: 42,
+      revision: ADMISSION_RECORD.revisionSha,
+      seeds: [],
+      reason: "no KB node name matched the query text",
+    });
+    const execFn: ScoringExecFn = () => fakeResult({ stdout: raw });
+    const err = thrown(() => makeDefaultKbNeighborhoodFn({ execFn })(42));
+    expect(err.message).toContain("no seed entity");
   });
 });
