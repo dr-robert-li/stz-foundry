@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import {
   buildCollaborativeBattery,
   tasksFromFixture,
+  taskForQueryId,
   CollaborativeBatteryRefusedError,
 } from "../src/foundry/collaborative-battery.js";
 import { requireCollaborativeAdmitted } from "../src/foundry/collaborative-admission.js";
@@ -92,5 +93,55 @@ describe("tasksFromFixture — the heldout pool is refused, never loaded (D-05, 
     expect(tasks[0]!.queryId).toBe(1);
     expect(tasks[1]!.queryId).toBe(2);
     expect(tasks[0]!.id).toBe("stark-prime:1");
+  });
+
+  it("a pair with a non-numeric query_id is refused, naming the pair position", () => {
+    const fixture = {
+      meta: { pool: "selection" },
+      pairs: [
+        { query_id: 1, query: "first", answer_ids: [1] },
+        { query_id: "not-a-number", query: "second", answer_ids: [2] },
+      ],
+    };
+    const err = thrown(() => tasksFromFixture(fixture as never));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("1");
+  });
+
+  it("a pair with empty query text is refused", () => {
+    const fixture = {
+      meta: { pool: "selection" },
+      pairs: [{ query_id: 1, query: "", answer_ids: [1] }],
+    };
+    const err = thrown(() => tasksFromFixture(fixture as never));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("0");
+  });
+});
+
+describe("taskForQueryId — defined failures on both ends of the query_id lookup (D-13)", () => {
+  it("returns the task whose queryId matches the requested id", () => {
+    const tasks = buildCollaborativeBattery();
+    const task = taskForQueryId(tasks, 97);
+    expect(task.queryId).toBe(97);
+    expect(task.id).toBe("stark-prime:97");
+  });
+
+  it("throws naming the id when no task carries it — never resolved to undefined", () => {
+    const tasks = buildCollaborativeBattery();
+    const err = thrown(() => taskForQueryId(tasks, -1));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("-1");
+  });
+
+  it("throws naming the match count when more than one task carries the requested id — never the first match", () => {
+    const tasks = [
+      { id: "a", queryId: 5, prompt: "x" },
+      { id: "b", queryId: 5, prompt: "y" },
+    ];
+    const err = thrown(() => taskForQueryId(tasks, 5));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("5");
+    expect(err.message).toContain("2");
   });
 });
