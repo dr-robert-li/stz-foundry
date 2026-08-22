@@ -119,6 +119,52 @@ describe("tasksFromFixture — the heldout pool is refused, never loaded (D-05, 
   });
 });
 
+describe("buildCollaborativeBattery — byte-stable across loads (D-07)", () => {
+  it("two consecutive calls serialise to byte-identical JSON, not merely deep-equal objects", () => {
+    const first = JSON.stringify(buildCollaborativeBattery());
+    const second = JSON.stringify(buildCollaborativeBattery());
+    expect(first).toBe(second);
+  });
+});
+
+describe("buildCollaborativeBattery — the 75-task census against the fixture's own query_id set", () => {
+  it("the constructed queryId set equals the fixture's query_id set, both size 75, and meta.sample_size agrees", () => {
+    const fixture = loadFixture("prime-selection.json") as {
+      meta: { sample_size: number };
+      pairs: { query_id: number }[];
+    };
+    const tasks = buildCollaborativeBattery();
+    const taskIds = new Set(tasks.map((t) => t.queryId));
+    const fixtureIds = new Set(fixture.pairs.map((p) => p.query_id));
+    expect(taskIds.size).toBe(75);
+    expect(fixtureIds.size).toBe(75);
+    expect(taskIds).toStrictEqual(fixtureIds);
+    expect(fixture.meta.sample_size).toBe(75);
+  });
+});
+
+describe("tasksFromFixture — the pool guard is an allowlist, not a denylist of one value (D-06)", () => {
+  it("refuses a pool value that is neither \"selection\" nor \"heldout\"", () => {
+    const fixture = {
+      meta: { pool: "unanticipated-third-value" },
+      pairs: [],
+    };
+    const err = thrown(() => tasksFromFixture(fixture as never));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("unanticipated-third-value");
+  });
+});
+
+describe("buildCollaborativeBattery — routed through the admission record's own selectionFixturePath, not a path of its own (D-04)", () => {
+  it("equals tasksFromFixture applied to the fixture parsed from requireCollaborativeAdmitted(\"stark-prime\").selectionFixturePath — an entry point that stopped consulting the record fails here", () => {
+    const record = requireCollaborativeAdmitted("stark-prime");
+    const fixture = JSON.parse(readFileSync(join(repoRoot, record.selectionFixturePath), "utf8"));
+    const expected = tasksFromFixture(fixture);
+    const actual = buildCollaborativeBattery();
+    expect(actual).toStrictEqual(expected);
+  });
+});
+
 describe("taskForQueryId — defined failures on both ends of the query_id lookup (D-13)", () => {
   it("returns the task whose queryId matches the requested id", () => {
     const tasks = buildCollaborativeBattery();
