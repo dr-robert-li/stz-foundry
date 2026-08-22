@@ -57,6 +57,21 @@ export const SKB_DATA_ROOT_REL = "tools/stark-eval/data";
  *  differ — carry the mapping explicitly rather than slicing a prefix. */
 const SCORE_ONE_KB_ARG = "prime";
 
+/**
+ * The version-probe's `-c` source (G-21-1/CR-01/WR-01, Task 1). Reads
+ * distribution metadata rather than module attributes — the same mechanism
+ * `tools/stark-eval/capture_fingerprint.py` used to write the committed
+ * fingerprint-manifest.json's three version fields (FA-A, FA-B), so the
+ * live re-derivation and the committed record are produced by the same
+ * expressions and can actually agree. Importing neither `torch` nor
+ * `stark_qa` means nothing prints `stark_qa`'s own import-time WARNING
+ * line, and dropping `torch` (also unneeded for its version) makes the
+ * probe faster too.
+ */
+const VERSION_PROBE_PY =
+  "import platform; from importlib.metadata import version as pkg_version; " +
+  "print(platform.python_version()); print(pkg_version('torch')); print(pkg_version('stark-qa'))";
+
 export class ScoringPreflightError extends Error {
   constructor(message: string) {
     super(`[foundry:collaborative-scoring-bridge] ${message}`);
@@ -713,18 +728,53 @@ function observeFingerprint(
   const pythonPath = deps.pythonPath ?? VENV_PYTHON_REL;
   const scriptPath = deps.scriptPath ?? SCORE_ONE_REL;
 
-  const versionResult = execFn(
-    pythonPath,
-    [
-      "-c",
-      "import sys, torch, stark_qa; print(sys.version.split()[0]); print(torch.__version__); print(stark_qa.__version__)",
-    ],
-    { input: "", timeout: SCORING_TIMEOUT_MS, encoding: "utf8" },
-  );
-  const versionLines = versionResult.stdout.trim().split("\n");
-  const pythonVersion = versionLines[0] ?? "";
-  const torchVersion = versionLines[1] ?? "";
-  const starkQaVersion = versionLines[2] ?? "";
+  const versionResult = execFn(pythonPath, ["-c", VERSION_PROBE_PY], {
+    input: "",
+    timeout: SCORING_TIMEOUT_MS,
+    encoding: "utf8",
+  });
+  // T-21-29 / CR-01 / WR-01: the same branch-order discipline scorePrediction
+  // applies to the real scoring call, a few lines below in this module —
+  // refuse BEFORE any read of versionResult.stdout. Without this guard the
+  // probe's own failure was invisible: a dead subprocess's partial/empty
+  // stdout was parsed as though it were three valid version strings,
+  // producing a misleading downstream field-mismatch error instead of
+  // naming the dead probe.
+  if (versionResult.error !== undefined || versionResult.signal !== null || versionResult.status !== 0) {
+    const errorCode =
+      versionResult.error !== undefined ? (versionResult.error as NodeJS.ErrnoException).code : undefined;
+    throw new ScoringPreflightError(
+      `version-probe subprocess failed (error=${versionResult.error?.message ?? "none"}, code=${errorCode}, ` +
+        `status=${versionResult.status}, signal=${versionResult.signal}); ` +
+        `stderr: ${boundedTail(versionResult.stderr ?? "")}`,
+    );
+  }
+  const nonEmptyVersionLines = versionResult.stdout
+    .trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  // T-21-33's "short stdout" case: a probe that exits 0 but somehow prints
+  // fewer than three usable lines must be refused by name, never silently
+  // yield empty-string version fields that a downstream mismatch message
+  // would then misreport as the observed values.
+  if (nonEmptyVersionLines.length < 3) {
+    throw new ScoringPreflightError(
+      `version-probe stdout had only ${nonEmptyVersionLines.length} non-empty line(s) after parsing ` +
+        `(need 3): ${boundedTail(versionResult.stdout)}`,
+    );
+  }
+  // T-21-30 braces: read the LAST three non-empty lines, not the first
+  // three, so leading import-time chatter from any future source cannot
+  // shift the fields — the belt is VERSION_PROBE_PY not importing the
+  // package that used to emit the chatter at all. The `?? ""` fallbacks
+  // noUncheckedIndexedAccess forces here are unreachable (the length guard
+  // above already proved 3 elements exist) — that ordering is the
+  // difference between a default and a silent misparse.
+  const lastThreeVersionLines = nonEmptyVersionLines.slice(-3);
+  const pythonVersion = lastThreeVersionLines[0] ?? "";
+  const torchVersion = lastThreeVersionLines[1] ?? "";
+  const starkQaVersion = lastThreeVersionLines[2] ?? "";
 
   const scoreOneSha256 = hashBytes(readFileFn(scriptPath));
 

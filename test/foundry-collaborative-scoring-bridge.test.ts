@@ -624,6 +624,63 @@ describe("runScoringPreflight — field-by-field fingerprint, pin cross-check, w
     expect(() => runScoringPreflight(baseArgs({ execFn }))).toThrow();
   });
 
+  // G-21-1 / CR-01 / WR-01 / WR-05: the version-probe subprocess result must
+  // be checked BEFORE its stdout is trusted, mirroring scorePrediction's own
+  // pinned branch-order discipline. This is the regression coverage for the
+  // real-environment failure mode (a probe that exits non-zero, or whose
+  // stdout carries fewer than three usable lines) that the offline suite
+  // previously had zero coverage for.
+  describe("the version-probe subprocess is checked before its output is trusted (G-21-1/CR-01/WR-01/WR-05)", () => {
+    it("a probe stub returning a non-zero status is refused by name — NOT as a field mismatch", () => {
+      const execFn: ScoringExecFn = (_file, args) => {
+        if (args[0] === "-c") return fakeResult({ status: 1, stdout: "", stderr: "custom probe stderr text" });
+        return fakeResult({ stdout: HAPPY_STDOUT });
+      };
+      const err = thrown(() => runScoringPreflight(baseArgs({ execFn })));
+      expect(err.message).toContain("version-probe");
+      expect(err.message).toContain("custom probe stderr text");
+      // The load-bearing half of this test: the dead probe must be reported
+      // as a dead probe, never as a downstream field-mismatch message.
+      expect(err.message).not.toContain("pythonVersion");
+    });
+
+    it("a probe stub returning an ENOENT-shaped error is refused by name, carrying the error's own message", () => {
+      const execFn: ScoringExecFn = (_file, args) => {
+        if (args[0] === "-c") {
+          const enoentError = Object.assign(new Error("spawnSync /fake/interpreter/path ENOENT"), {
+            code: "ENOENT",
+          });
+          return fakeResult({ error: enoentError, status: null, signal: null, stdout: "", stderr: "" });
+        }
+        return fakeResult({ stdout: HAPPY_STDOUT });
+      };
+      const err = thrown(() => runScoringPreflight(baseArgs({ execFn })));
+      expect(err.message).toContain("version-probe");
+      expect(err.message).toContain("spawnSync /fake/interpreter/path ENOENT");
+    });
+
+    it("a probe stub with an unrelated leading stdout line still parses to the three correct version fields", () => {
+      const execFn: ScoringExecFn = (_file, args) => {
+        if (args[0] === "-c") {
+          return fakeResult({ stdout: "NOTICE: synthetic import-time chatter\n3.11.15\n2.13.0\n1.1.0\n" });
+        }
+        return fakeResult({ stdout: HAPPY_STDOUT });
+      };
+      const report = runScoringPreflight(baseArgs({ execFn }));
+      expect(report.fingerprintOk).toBe(true);
+    });
+
+    it("a probe stub whose stdout has fewer than three non-empty lines is refused by name, reporting the count seen", () => {
+      const execFn: ScoringExecFn = (_file, args) => {
+        if (args[0] === "-c") return fakeResult({ stdout: "3.11.15\n2.13.0\n" });
+        return fakeResult({ stdout: HAPPY_STDOUT });
+      };
+      const err = thrown(() => runScoringPreflight(baseArgs({ execFn })));
+      expect(err.message).toContain("version-probe");
+      expect(err.message).toContain("2 non-empty line");
+    });
+  });
+
   it("scorePrediction succeeds with no fingerprint manifest supplied at all — runScoringPreflight is not called from inside it", () => {
     const outputDir = scratchDir();
     const manifest = boundsManifest(0, 999);
