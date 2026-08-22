@@ -85,9 +85,9 @@ function worktreeDiffLines(commit: string, relPath: string): string[] {
   return diff.split("\n").filter((line) => line.length > 0);
 }
 
-function isAncestorOfHead(commit: string): boolean {
+function isAncestorOf(commit: string, target: string): boolean {
   try {
-    execFileSync("git", ["merge-base", "--is-ancestor", commit, "HEAD"], {
+    execFileSync("git", ["merge-base", "--is-ancestor", commit, target], {
       cwd: repoRoot,
       stdio: "pipe",
     });
@@ -101,6 +101,20 @@ function isAncestorOfHead(commit: string): boolean {
     if ((err as { status?: number }).status === 1) return false;
     throw err;
   }
+}
+
+function isAncestorOfHead(commit: string): boolean {
+  return isAncestorOf(commit, "HEAD");
+}
+
+function commitsTouching(relPath: string): string[] {
+  return execFileSync("git", ["log", "--format=%H", "--", relPath], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  })
+    .trim()
+    .split("\n")
+    .filter((s) => s.length > 0);
 }
 
 function frozenDesignText(): string {
@@ -193,21 +207,71 @@ describe("forward ancestry (ROADMAP SC-3, T-19-28)", () => {
     },
   );
 
-  // Vacuous today: none of WATCHED_IMPL_PATHS exists yet, so this loop asserts
-  // nothing and the block below runs zero times. From Phase 20 onward, as each
-  // module in the list lands, this starts carrying the ancestry claim ROADMAP SC-3
-  // actually makes — that the freeze commit precedes the implementation commits —
-  // scoped per watched path so a failure names which path's presence triggered it.
+  // Per-commit, strict-ancestry check (D-11): HEAD-ancestry alone (the block
+  // above) is transitively true for the whole history the moment any commit
+  // lands on a freeze-descended branch, so it would still pass for a pre-freeze
+  // implementation commit merged in afterwards — exactly the scenario ROADMAP
+  // SC-3 exists to exclude. This block instead walks each existing watched
+  // path's own `git log` and checks every commit individually. `--is-ancestor`
+  // is reflexive (a commit is trivially its own ancestor), so an ancestry check
+  // alone would let the freeze commit count as its own strict predecessor;
+  // pairing it with an explicit inequality against FREEZE_COMMIT is what makes
+  // the claim strict, as D-11 requires.
   it.skipIf(!GIT_AVAILABLE)(
     GIT_AVAILABLE
-      ? "for every watched path that exists, the freeze commit is still an ancestor of HEAD"
+      ? "every commit touching an existing watched path has the freeze commit as a strict ancestor"
       : "skipped: git binary is unavailable in this environment",
     () => {
       for (const path of WATCHED_IMPL_PATHS) {
-        if (existsSync(join(repoRoot, path))) {
-          expect(isAncestorOfHead(FREEZE_COMMIT)).toBe(true);
+        if (!existsSync(join(repoRoot, path))) continue;
+        for (const commit of commitsTouching(path)) {
+          if (commit === FREEZE_COMMIT) {
+            throw new Error(
+              `${path}@${commit}: this commit IS the freeze commit, which is not a ` +
+                `strict ancestor of itself — --is-ancestor is reflexive, so this ` +
+                `inequality is required, not redundant with the ancestry check below`,
+            );
+          }
+          if (!isAncestorOf(FREEZE_COMMIT, commit)) {
+            throw new Error(
+              `${path}@${commit}: this commit does not have freeze commit ` +
+                `${FREEZE_COMMIT} as an ancestor — a pre-freeze implementation ` +
+                `commit landed on a §9-pinned collaborative module path`,
+            );
+          }
         }
       }
+    },
+  );
+
+  // Non-vacuity control (T-20-17): a red result here means the per-commit guard
+  // above has silently degraded to always-true — the classic failure mode for a
+  // shell-out guard is a swallowed error path that makes every call succeed. If
+  // this control ever goes red, the guard above's own green is worthless
+  // regardless of colour, because it would mean isAncestorOf/commitsTouching no
+  // longer discriminate at all. This block is the committed replacement for a
+  // one-time red observation: it proves, permanently and against real history,
+  // that the machinery above CAN return false.
+  it.skipIf(!GIT_AVAILABLE)(
+    GIT_AVAILABLE
+      ? "the freeze-ancestry machinery can discriminate: it returns false against the freeze commit's own parent and against real pre-freeze history"
+      : "skipped: git binary is unavailable in this environment",
+    () => {
+      // The freeze commit is not an ancestor of its own parent. Derived from the
+      // existing FREEZE_COMMIT constant, so this cannot go stale as history grows.
+      expect(isAncestorOf(FREEZE_COMMIT, `${FREEZE_COMMIT}^`)).toBe(false);
+
+      // A real, committed, pre-freeze path: docs/PAPER.md predates the freeze in
+      // its entire current history and is not a watched path, so at least one of
+      // its commits must fail the strict check the block above applies. A future
+      // post-freeze edit only adds commits — it cannot remove the older ones that
+      // make this true, so the assertion is stable over time.
+      const paperCommits = commitsTouching("docs/PAPER.md");
+      expect(paperCommits.length).toBeGreaterThan(0);
+      const hasPreFreezeCommit = paperCommits.some(
+        (commit) => commit !== FREEZE_COMMIT && !isAncestorOf(FREEZE_COMMIT, commit),
+      );
+      expect(hasPreFreezeCommit).toBe(true);
     },
   );
 });
