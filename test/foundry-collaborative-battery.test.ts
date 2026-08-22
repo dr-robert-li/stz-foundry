@@ -143,6 +143,20 @@ describe("buildCollaborativeBattery — the 75-task census against the fixture's
   });
 });
 
+describe("tasksFromFixture — fails closed on a malformed fixture shape, never a raw TypeError (WR-01)", () => {
+  it("a fixture with pairs but no meta object is refused, naming the missing meta", () => {
+    const err = thrown(() => tasksFromFixture({ pairs: [] } as never));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("meta");
+  });
+
+  it("a fixture with meta but no pairs array is refused, naming the missing pairs", () => {
+    const err = thrown(() => tasksFromFixture({ meta: { pool: "selection" } } as never));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("pairs");
+  });
+});
+
 describe("tasksFromFixture — the pool guard is an allowlist, not a denylist of one value (D-06)", () => {
   it("refuses a pool value that is neither \"selection\" nor \"heldout\"", () => {
     const fixture = {

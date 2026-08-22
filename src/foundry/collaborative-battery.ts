@@ -62,6 +62,16 @@ interface StarkFixture {
  * split data).
  */
 export function tasksFromFixture(fixture: StarkFixture): CollaborativeBatteryTask[] {
+  if (typeof fixture?.meta !== "object" || fixture.meta === null) {
+    throw new CollaborativeBatteryRefusedError(
+      `fixture.meta is ${JSON.stringify(fixture?.meta)} — a fixture with no meta object cannot be admitted`,
+    );
+  }
+  if (!Array.isArray(fixture.pairs)) {
+    throw new CollaborativeBatteryRefusedError(
+      `fixture.pairs is ${JSON.stringify(fixture.pairs)}, expected an array`,
+    );
+  }
   if (fixture.meta.pool !== "selection") {
     throw new CollaborativeBatteryRefusedError(
       `fixture pool ${JSON.stringify(fixture.meta.pool)} is not "selection" — only the sealed ` +
