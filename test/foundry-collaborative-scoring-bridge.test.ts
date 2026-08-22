@@ -20,6 +20,7 @@ import {
   SKB_DATA_ROOT_REL,
   parsePoolManifest,
   preFilterPredictions,
+  validatePredDict,
   scorePrediction,
   runScoringPreflight,
   parseFingerprintManifest,
@@ -28,6 +29,7 @@ import {
   type ScoringExecFn,
 } from "../src/foundry/collaborative-scoring-bridge.js";
 import { requireCollaborativeAdmitted } from "../src/foundry/collaborative-admission.js";
+import { validateReceipt } from "../src/foundry/battery-types.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureDir = join(repoRoot, "test", "fixtures", "stark");
@@ -235,6 +237,170 @@ describe("scorePrediction — end to end happy path (Task 1)", () => {
     expect(execFnCalled).toBe(false);
     expect(attempt.outcome).toEqual({ outcome: "prefilter-miss", forfeitedIds: ["1", "2"] });
     expect(attempt.wallTimeMs).toBe(0);
+  });
+});
+
+// ── Task 1: the six pre-invocation outcomes ─────────────────────────────
+
+describe("validatePredDict / scorePrediction — pre-invocation outcomes decided before a process is spawned (Task 1)", () => {
+  function countingExecFn(): { execFn: ScoringExecFn; count: () => number } {
+    let execFnCallCount = 0;
+    const execFn: ScoringExecFn = () => {
+      execFnCallCount++;
+      return fakeResult({ stdout: HAPPY_STDOUT });
+    };
+    return { execFn, count: () => execFnCallCount };
+  }
+
+  it("an empty predDict resolves to empty-prediction and never calls execFn", () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const { execFn, count } = countingExecFn();
+    const attempt = scorePrediction({ queryId: 1, predDict: {}, outputDir, poolManifest: manifest, execFn });
+    expect(attempt.outcome).toEqual({ outcome: "empty-prediction" });
+    expect(count()).toBe(0);
+  });
+
+  it("an empty-prediction attempt still writes an artifact on disk and carries a receipt that passes validateReceipt", () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const { execFn } = countingExecFn();
+    const attempt = scorePrediction({ queryId: 1, predDict: {}, outputDir, poolManifest: manifest, execFn });
+    expect(attempt.artifactPath.length).toBeGreaterThan(0);
+    const onDisk = JSON.parse(readFileSync(attempt.artifactPath, "utf8"));
+    expect(onDisk).toEqual(attempt);
+    expect(() => validateReceipt(attempt.receipt, "test")).not.toThrow();
+  });
+
+  it("21 entries resolves to over-cap carrying entryCount, and never calls execFn", () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const predDict: Record<string, number> = {};
+    for (let i = 0; i < 21; i++) predDict[String(i)] = i / 21;
+    const { execFn, count } = countingExecFn();
+    const attempt = scorePrediction({ queryId: 1, predDict, outputDir, poolManifest: manifest, execFn });
+    expect(attempt.outcome).toEqual({ outcome: "over-cap", entryCount: 21 });
+    expect(count()).toBe(0);
+  });
+
+  it("the cap is checked on the caller's own list before filtering: 21 entries of which 5 are out of pool still resolves to over-cap, never a filtered 16-entry call", () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(100, 999); // ids 0-4 below are all out of pool
+    const predDict: Record<string, number> = {};
+    for (let i = 0; i < 21; i++) predDict[String(i)] = i / 21;
+    const { execFn, count } = countingExecFn();
+    const attempt = scorePrediction({ queryId: 1, predDict, outputDir, poolManifest: manifest, execFn });
+    expect(attempt.outcome).toEqual({ outcome: "over-cap", entryCount: 21 });
+    expect(count()).toBe(0);
+  });
+
+  it('{"7": 0.9, "007": 0.8} resolves to duplicate-prediction-id naming nodeId 7, and never calls execFn', () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const { execFn, count } = countingExecFn();
+    const attempt = scorePrediction({
+      queryId: 1,
+      predDict: { "7": 0.9, "007": 0.8 },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+    });
+    expect(attempt.outcome).toEqual({ outcome: "duplicate-prediction-id", nodeId: 7 });
+    expect(count()).toBe(0);
+  });
+
+  it('{"abc": 0.5} resolves to non-integer-prediction-id naming key "abc"', () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const { execFn, count } = countingExecFn();
+    const attempt = scorePrediction({
+      queryId: 1,
+      predDict: { abc: 0.5 },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+    });
+    expect(attempt.outcome).toEqual({ outcome: "non-integer-prediction-id", key: "abc" });
+    expect(count()).toBe(0);
+  });
+
+  it('{"7.5": 0.5} also resolves to non-integer-prediction-id naming key "7.5"', () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const { execFn, count } = countingExecFn();
+    const attempt = scorePrediction({
+      queryId: 1,
+      predDict: { "7.5": 0.5 },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+    });
+    expect(attempt.outcome).toEqual({ outcome: "non-integer-prediction-id", key: "7.5" });
+    expect(count()).toBe(0);
+  });
+
+  it('{"7": NaN} resolves to non-finite-score naming key "7", and never calls execFn', () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const { execFn, count } = countingExecFn();
+    const attempt = scorePrediction({
+      queryId: 1,
+      predDict: { "7": Number.NaN },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+    });
+    expect(attempt.outcome).toEqual({ outcome: "non-finite-score", key: "7" });
+    expect(count()).toBe(0);
+  });
+
+  it('{"7": Infinity} also resolves to non-finite-score naming key "7"', () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const { execFn, count } = countingExecFn();
+    const attempt = scorePrediction({
+      queryId: 1,
+      predDict: { "7": Number.POSITIVE_INFINITY },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+    });
+    expect(attempt.outcome).toEqual({ outcome: "non-finite-score", key: "7" });
+    expect(count()).toBe(0);
+  });
+
+  it("a non-numeric value resolves to non-finite-score naming the key", () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const { execFn, count } = countingExecFn();
+    const attempt = scorePrediction({
+      queryId: 1,
+      predDict: { "7": "not-a-number" as unknown as number },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+    });
+    expect(attempt.outcome).toEqual({ outcome: "non-finite-score", key: "7" });
+    expect(count()).toBe(0);
+  });
+
+  it("a predDict whose every id is outside the manifest's bounds resolves to prefilter-miss listing all of them, and never calls execFn", () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(100, 999);
+    const { execFn, count } = countingExecFn();
+    const attempt = scorePrediction({
+      queryId: 1,
+      predDict: { "1": 0.1, "2": 0.2 },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+    });
+    expect(attempt.outcome).toEqual({ outcome: "prefilter-miss", forfeitedIds: ["1", "2"] });
+    expect(count()).toBe(0);
+  });
+
+  it("validatePredDict returns null for an acceptable input", () => {
+    expect(validatePredDict({ "1": 0.9, "2": 0.1 })).toBeNull();
   });
 });
 

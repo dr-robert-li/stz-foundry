@@ -87,11 +87,29 @@ export interface PoolManifest {
   ids?: number[];
 }
 
-/** Two members in this task — `scored` and `prefilter-miss`. A discriminated
- *  union on `outcome` so a later plan widens it without restructuring. */
+/**
+ * The complete §6 fail-closed outcome table (Plans 21-01 and 21-03). A
+ * discriminated union on `outcome`, thirteen members total: the happy path,
+ * six decided before any process is spawned (`validatePredDict` and the
+ * pre-filter), and six decided from the `spawnSync` result object's plain
+ * fields, in the pinned branch order. `SCORING_OUTCOME_KINDS` and
+ * `describeScoringOutcome` below make growing this union without handling
+ * every member a compile error.
+ */
 export type ScoringOutcome =
   | { outcome: "scored"; metrics: Record<string, number> }
-  | { outcome: "prefilter-miss"; forfeitedIds: string[] };
+  | { outcome: "empty-prediction" }
+  | { outcome: "over-cap"; entryCount: number }
+  | { outcome: "non-integer-prediction-id"; key: string }
+  | { outcome: "duplicate-prediction-id"; nodeId: number }
+  | { outcome: "non-finite-score"; key: string }
+  | { outcome: "prefilter-miss"; forfeitedIds: string[] }
+  | { outcome: "timeout"; timeoutMs: number }
+  | { outcome: "signal-terminated"; signal: string }
+  | { outcome: "process-unreachable"; errorMessage: string }
+  | { outcome: "nonzero-exit"; exitCode: number; stderrTail: string }
+  | { outcome: "malformed-stdout"; reason: "not-json" | "not-object" | "multiple-json"; stdoutTail: string }
+  | { outcome: "missing-metrics"; missingKeys: string[] };
 
 export interface ScoringAttempt {
   attemptId: string;
@@ -105,6 +123,69 @@ export interface ScoringAttempt {
   wallTimeMs: number;
   receipt: OracleReceipt;
   artifactPath: string;
+  /** Bounded (2000-char) tail of the subprocess's stderr, recorded for EVERY
+   *  attempt regardless of outcome. Diagnostic evidence only — this field is
+   *  never read to decide an outcome (Pitfall 6 / kept prohibition). Empty
+   *  string for the pre-invocation outcomes, since no process is spawned. */
+  stderrTail: string;
+}
+
+/** The cap CD-01 sets on a submitted prediction's entry count — checked on
+ *  the caller's own list, before the pre-filter runs (so a caller cannot get
+ *  25 entries past the cap by having some of them filtered out). */
+const CD01_MAX_PREDICTION_ENTRIES = 20;
+
+/** Bounded to the last `maxChars` characters so a torch traceback or a huge
+ *  stdout blob cannot make an attempt artifact unreadable or oversized
+ *  (T-21-21, accepted residual: the truncation could in principle hide the
+ *  tail of a very long diagnostic — the full stream stays available to an
+ *  operator re-running the call by hand). */
+function boundedTail(text: string, maxChars = 2000): string {
+  return text.length <= maxChars ? text : text.slice(-maxChars);
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The six pre-invocation outcomes, decided bridge-side BEFORE
+ * `score_one.py` is ever spawned (Pitfall 6, option (a) — never a stderr
+ * substring match). Checks in this fixed order, per entry in insertion
+ * order, mirroring `score_one.py`'s own stdin-parser sequence so the two
+ * sides agree on semantics without the bridge depending on the Python
+ * side's messages. `score_one.py`'s own equivalent checks stay in place as
+ * defense in depth and are deliberately not the bridge's primary gate.
+ * Returns the first violating outcome, or `null` when the input is
+ * acceptable to send onward to the pre-filter.
+ */
+export function validatePredDict(predDict: Record<string, number>): ScoringOutcome | null {
+  const entryCount = Object.keys(predDict).length;
+  if (entryCount === 0) {
+    return { outcome: "empty-prediction" };
+  }
+  if (entryCount > CD01_MAX_PREDICTION_ENTRIES) {
+    return { outcome: "over-cap", entryCount };
+  }
+  const seenNodeIds = new Set<number>();
+  for (const [key, value] of Object.entries(predDict)) {
+    const nodeId = Number(key);
+    if (!Number.isInteger(nodeId)) {
+      return { outcome: "non-integer-prediction-id", key };
+    }
+    // The collision "7" vs "007" cannot exist in the raw JSON object (keys
+    // are already unique there) and only appears after this integer parse —
+    // that is the whole reason this check is not redundant with JSON's own
+    // key uniqueness.
+    if (seenNodeIds.has(nodeId)) {
+      return { outcome: "duplicate-prediction-id", nodeId };
+    }
+    seenNodeIds.add(nodeId);
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return { outcome: "non-finite-score", key };
+    }
+  }
+  return null;
 }
 
 /**
@@ -249,6 +330,30 @@ export function scorePrediction(args: ScorePredictionArgs): ScoringAttempt {
   const artifactPath = join(args.outputDir, `attempt-${attemptId}.json`);
   const receipt = buildReceiptForPrediction(record);
 
+  // Pre-invocation validation runs BEFORE the pre-filter, so the CD-01 cap
+  // (and the other four checks) apply to the caller's own list rather than
+  // to the post-filter remainder — a caller cannot get 25 entries past the
+  // cap by having 5 of them filtered out first.
+  const preValidationOutcome = validatePredDict(args.predDict);
+  if (preValidationOutcome !== null) {
+    const attempt: ScoringAttempt = {
+      attemptId,
+      queryId: args.queryId,
+      kb: "prime",
+      hfRevision: record.revisionSha,
+      submittedPredDict: {},
+      forfeitedIds: [],
+      forfeitedCount: 0,
+      outcome: preValidationOutcome,
+      wallTimeMs: 0,
+      receipt,
+      artifactPath,
+      stderrTail: "",
+    };
+    writeAttemptArtifact(args.outputDir, attempt);
+    return attempt;
+  }
+
   const { filtered, forfeitedIds } = preFilterPredictions(args.predDict, args.poolManifest);
 
   if (Object.keys(filtered).length === 0) {
@@ -264,6 +369,7 @@ export function scorePrediction(args: ScorePredictionArgs): ScoringAttempt {
       wallTimeMs: 0,
       receipt,
       artifactPath,
+      stderrTail: "",
     };
     writeAttemptArtifact(args.outputDir, attempt);
     return attempt;
@@ -343,6 +449,10 @@ export function scorePrediction(args: ScorePredictionArgs): ScoringAttempt {
     wallTimeMs,
     receipt,
     artifactPath,
+    // ponytail: placeholder until Task 2 replaces this whole branch skeleton
+    // with the real post-invocation outcomes and starts recording
+    // `result.stderr`'s bounded tail here.
+    stderrTail: "",
   };
   writeAttemptArtifact(args.outputDir, attempt);
   return attempt;
