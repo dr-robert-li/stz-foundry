@@ -9,7 +9,7 @@
  * argument -- same house rule as `test/foundry-collaborative-scoring-bridge.test.ts`.
  */
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -606,6 +606,7 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
         violation: { condition: "below-minimum", nodeCount: 2 },
       },
       "bridge-non-success": { kind: "bridge-non-success", scoringOutcomeKind: "timeout" },
+      "artifact-unreadable": { kind: "artifact-unreadable", path: "/tmp/nowhere-readable", code: "EISDIR" },
     };
     expect(Object.keys(sampleByKind).sort()).toEqual([...HANDOFF_OUTCOME_KINDS].sort());
     const descriptions = HANDOFF_OUTCOME_KINDS.map((kind) => describeHandoffOutcome(sampleByKind[kind]!));
@@ -689,6 +690,100 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
     const result = verifyHandoffAtRead(5, record);
     expect(result.kind).toBe("success");
     expect(result.kind === "success" && result.artifact.queryId).toBe(5);
+  });
+
+  // ── WR-01/WR-02: verifyHandoffAtRead validates BOTH identity bindings ──
+
+  it("a record whose own queryId disagrees with the requested queryId is record-corrupt, naming both numbers (WR-02)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "stz-collab-handoff-recordid-"));
+    const path = join(dir, "artifact.json");
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 9,
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      nodes: [1, 2],
+      edges: [[1, 2, 1]],
+    };
+    const bytes = Buffer.from(JSON.stringify(artifact));
+    writeFileSync(path, bytes);
+    const record: HandoffRecord = {
+      queryId: 9, // the record's own (trusted) binding
+      attemptId: "a9",
+      definitionHash: "d9",
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      artifactPath: path,
+      artifactSha256: createHash("sha256").update(bytes).digest("hex"),
+    };
+    const result = verifyHandoffAtRead(4, record); // requested a DIFFERENT queryId
+    expect(result.kind).toBe("record-corrupt");
+    expect(result.kind === "record-corrupt" && result.violation).toContain("9");
+    expect(result.kind === "record-corrupt" && result.violation).toContain("4");
+  });
+
+  it("the existing missing-binding corrupt-record case still resolves on the missing binding even when the record is ALSO mis-keyed -- binding presence runs first (FA-C)", () => {
+    // Mirrors the pre-existing corrupt-record fixture above: attemptId is
+    // empty (missing binding) AND record.queryId (1) disagrees with the
+    // requested queryId (3). The missing-binding check must win.
+    const dir = mkdtempSync(join(tmpdir(), "stz-collab-handoff-both-"));
+    const path = join(dir, "never-written.json");
+    const record: HandoffRecord = {
+      queryId: 1,
+      attemptId: "",
+      definitionHash: "d1",
+      kbRevision: "rev",
+      artifactPath: path,
+      artifactSha256: "irrelevant",
+    };
+    const result = verifyHandoffAtRead(3, record);
+    expect(result.kind).toBe("record-corrupt");
+    expect(result.kind === "record-corrupt" && result.violation).toContain("attemptId");
+  });
+
+  it("an artifact whose own queryId field disagrees with the requested queryId is schema-invalid, naming the field and both numbers (WR-01)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "stz-collab-handoff-artifactid-"));
+    const path = join(dir, "artifact.json");
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 999, // the artifact's OWN claimed queryId -- builder-controlled, wrong
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      nodes: [1, 2],
+      edges: [[1, 2, 1]],
+    };
+    const bytes = Buffer.from(JSON.stringify(artifact));
+    writeFileSync(path, bytes);
+    const record: HandoffRecord = {
+      queryId: 6, // the record's own (trusted) binding -- matches the request
+      attemptId: "a6",
+      definitionHash: "d6",
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      artifactPath: path,
+      artifactSha256: createHash("sha256").update(bytes).digest("hex"),
+    };
+    const result = verifyHandoffAtRead(6, record);
+    expect(result.kind).toBe("schema-invalid");
+    expect(result.kind === "schema-invalid" && result.violation).toContain("queryId");
+    expect(result.kind === "schema-invalid" && result.violation).toContain("999");
+    expect(result.kind === "schema-invalid" && result.violation).toContain("6");
+  });
+
+  // ── WR-04: an unreadable path is not reported as an absent one ─────────
+
+  it("a record whose artifactPath resolves to a DIRECTORY yields artifact-unreadable (not artifact-absent), carrying the path and a non-empty errno code (WR-04)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "stz-collab-handoff-unreadable-"));
+    const unreadablePath = join(dir, "not-a-file");
+    mkdirSync(unreadablePath);
+    const record: HandoffRecord = {
+      queryId: 7,
+      attemptId: "a7",
+      definitionHash: "d7",
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      artifactPath: unreadablePath,
+      artifactSha256: "irrelevant",
+    };
+    const result = verifyHandoffAtRead(7, record);
+    expect(result.kind).toBe("artifact-unreadable");
+    expect(result.kind === "artifact-unreadable" && result.path).toBe(unreadablePath);
+    expect(result.kind === "artifact-unreadable" && result.code.length).toBeGreaterThan(0);
   });
 });
 

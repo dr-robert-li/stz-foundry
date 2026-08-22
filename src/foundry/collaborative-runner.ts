@@ -546,6 +546,7 @@ export type Cd05Violation =
 export type HandoffOutcome =
   | { kind: "success"; artifact: SubgraphArtifactV1 }
   | { kind: "artifact-absent"; path: string }
+  | { kind: "artifact-unreadable"; path: string; code: string }
   | { kind: "unparseable"; reason: "not-json" | "not-object"; path: string }
   | { kind: "schema-invalid"; violation: string }
   | { kind: "record-absent"; queryId: number }
@@ -567,6 +568,7 @@ export type HandoffOutcomeKind = HandoffOutcome["kind"];
 const ALL_HANDOFF_OUTCOME_KINDS: Record<HandoffOutcomeKind, true> = {
   success: true,
   "artifact-absent": true,
+  "artifact-unreadable": true,
   unparseable: true,
   "schema-invalid": true,
   "record-absent": true,
@@ -613,6 +615,8 @@ export function describeHandoffOutcome(outcome: HandoffOutcome): string {
       return `success: verified subgraph for query ${outcome.artifact.queryId}`;
     case "artifact-absent":
       return `fail-closed: no artifact found at ${outcome.path}`;
+    case "artifact-unreadable":
+      return `fail-closed: artifact at ${outcome.path} could not be read (errno ${outcome.code})`;
     case "unparseable":
       return `fail-closed: artifact at ${outcome.path} did not parse (${outcome.reason})`;
     case "schema-invalid":
@@ -638,6 +642,7 @@ export function describeHandoffOutcome(outcome: HandoffOutcome): string {
 
 type ReadJsonResult =
   | { status: "absent" }
+  | { status: "unreadable"; code: string }
   | { status: "unparseable" }
   | { status: "ok"; sha256: string; value: unknown };
 
@@ -650,13 +655,23 @@ type ReadJsonResult =
  * read in this module -- the builder's subgraph at hash-at-handoff, the
  * same subgraph again at verify-at-read, and the answerer's ranked list --
  * routes through this single function.
+ *
+ * WR-04: the catch classifies by errno rather than folding every failure
+ * into "absent". A genuinely missing path (ENOENT) is the only case that
+ * reports absence; anything else (a permissions error, the path resolving
+ * to a directory, a symlink loop, ...) is a real, distinct infrastructure
+ * problem and is reported as such -- fail-closed behaviour is unchanged
+ * (the caller still treats it as a per-task failure, D-03), only the
+ * diagnostic changes from false to true.
  */
 function readJsonArtifact(path: string): ReadJsonResult {
   let buf: Buffer;
   try {
     buf = readFileSync(path);
-  } catch {
-    return { status: "absent" };
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return { status: "absent" };
+    return { status: "unreadable", code: code ?? "unknown" };
   }
   const sha256 = createHash("sha256").update(buf).digest("hex");
   try {
@@ -669,12 +684,14 @@ function readJsonArtifact(path: string): ReadJsonResult {
 
 type ReadSubgraphResult =
   | { status: "absent" }
+  | { status: "unreadable"; code: string }
   | { status: "unparseable"; reason: "not-json" | "not-object" }
   | { status: "ok"; sha256: string; value: Record<string, unknown> };
 
 function readSubgraphArtifact(path: string): ReadSubgraphResult {
   const r = readJsonArtifact(path);
   if (r.status === "absent") return { status: "absent" };
+  if (r.status === "unreadable") return { status: "unreadable", code: r.code };
   if (r.status === "unparseable") return { status: "unparseable", reason: "not-json" };
   if (typeof r.value !== "object" || r.value === null || Array.isArray(r.value)) {
     return { status: "unparseable", reason: "not-object" };
@@ -698,6 +715,11 @@ function findMissingHandoffBinding(record: HandoffRecord): string | null {
 
 /**
  * D-08's verify-at-read half of the hash-at-handoff/verify-at-read contract.
+ * WR-01/WR-02: this function VALIDATES the identifiers it is given rather
+ * than echoing them -- both the caller-supplied `queryId` against the
+ * record's own binding, and (once the artifact parses) the artifact's own
+ * `queryId` field against the same requested value. No `success` outcome
+ * can carry a mismatch on either binding.
  * Exported directly for unit testing: `record-absent`, `record-corrupt` and
  * `hash-mismatch` cannot be driven through the full `runCollaborativeBattery`
  * pipeline (the hash-at-handoff and verify-at-read loops run synchronously,
@@ -717,9 +739,23 @@ export function verifyHandoffAtRead(
   if (missing) {
     return { kind: "record-corrupt", violation: missing };
   }
+  // WR-02: the record's OWN queryId binding is validated against the
+  // requested one, not merely echoed back -- run AFTER the missing-binding
+  // check above (so a record that is both mis-keyed and missing a binding
+  // still reports the missing binding, preserving that test's meaning) and
+  // BEFORE the read.
+  if (record.queryId !== queryId) {
+    return {
+      kind: "record-corrupt",
+      violation: `handoff record queryId (${record.queryId}) does not match the requested queryId (${queryId})`,
+    };
+  }
   const read = readSubgraphArtifact(record.artifactPath);
   if (read.status === "absent") {
     return { kind: "artifact-absent", path: record.artifactPath };
+  }
+  if (read.status === "unreadable") {
+    return { kind: "artifact-unreadable", path: record.artifactPath, code: read.code };
   }
   if (read.status === "unparseable") {
     return { kind: "unparseable", reason: read.reason, path: record.artifactPath };
@@ -730,6 +766,17 @@ export function verifyHandoffAtRead(
   const schemaResult = parseSubgraphArtifact(read.value);
   if (!schemaResult.ok) {
     return { kind: "schema-invalid", violation: schemaResult.violation };
+  }
+  // WR-01: the artifact's OWN queryId field (builder-controlled, only
+  // typeof-checked so far) is cross-checked against the requested queryId
+  // here, the choke point every surviving task passes through before an
+  // answerer prompt is composed -- no `success` outcome can carry an
+  // artifact built for a different query.
+  if (schemaResult.artifact.queryId !== queryId) {
+    return {
+      kind: "schema-invalid",
+      violation: `field "queryId" (${schemaResult.artifact.queryId}) does not match the requested queryId (${queryId})`,
+    };
   }
   return { kind: "success", artifact: schemaResult.artifact };
 }
@@ -1141,6 +1188,10 @@ export async function runCollaborativeBattery(
     const read = readSubgraphArtifact(artifactPath);
     if (read.status === "absent") {
       failedOutcomeByTaskId.set(task.id, { kind: "artifact-absent", path: artifactPath });
+      continue;
+    }
+    if (read.status === "unreadable") {
+      failedOutcomeByTaskId.set(task.id, { kind: "artifact-unreadable", path: artifactPath, code: read.code });
       continue;
     }
     if (read.status === "unparseable") {
