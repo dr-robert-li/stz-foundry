@@ -29,6 +29,7 @@ import {
   HANDOFF_OUTCOME_KINDS,
   MIN_SUBGRAPH_NODES,
   MAX_SUBGRAPH_NODES,
+  MAX_SUBGRAPH_EDGES,
   SUBGRAPH_SCHEMA_VERSION,
   NEIGHBORHOOD_ONE_REL,
   NEIGHBORHOOD_HOPS,
@@ -536,6 +537,42 @@ describe("parseSubgraphArtifact — D-05 closed, ids-only schema (Plan 22-02 Tas
     expect(result.ok).toBe(false);
     expect(!result.ok && result.violation).toContain("98");
   });
+
+  // ── CR-01a/T-22-12: duplicate node ids padded past MIN_SUBGRAPH_NODES ──
+
+  it("rejects a nodes array containing a duplicate id, naming the field (CR-01a)", () => {
+    const result = parseSubgraphArtifact({ ...validRaw, nodes: [11, 12, 11] });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.violation).toContain("nodes");
+  });
+
+  // ── CR-01b: the edge list is bounded at the schema layer ────────────────
+
+  it("rejects an edges array containing a repeated [src, dst, rel] triple, naming the triple (CR-01b)", () => {
+    const result = parseSubgraphArtifact({
+      ...validRaw,
+      edges: [
+        [11, 12, 1],
+        [11, 12, 1],
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.violation).toContain("11");
+    expect(!result.ok && result.violation).toContain("12");
+  });
+
+  it("rejects an edges array longer than MAX_SUBGRAPH_EDGES, naming the count and the cap (CR-01b)", () => {
+    // Every generated triple must be distinct so this fails on the CAP, not
+    // the duplicate-triple check -- vary the relation id per entry.
+    const overCapEdges: [number, number, number][] = Array.from(
+      { length: MAX_SUBGRAPH_EDGES + 1 },
+      (_, i) => [11, 12, i + 1],
+    );
+    const result = parseSubgraphArtifact({ ...validRaw, edges: overCapEdges });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.violation).toContain(String(overCapEdges.length));
+    expect(!result.ok && result.violation).toContain(String(MAX_SUBGRAPH_EDGES));
+  });
 });
 
 // ── D-08: HandoffOutcome — named, exhaustive, fail-closed ───────────────
@@ -903,6 +940,104 @@ describe("validateSubgraphAgainstNeighborhood — CD-05 structural bounds (Plan 
     };
     expect(validateSubgraphAgainstNeighborhood(artifact, neighborhood).ok).toBe(true);
   });
+
+  // ── CR-02/T-22-12: artifact edges verified against the KB's real edges ──
+
+  it("rejects a fabricated relation between two real, in-neighbourhood, connected nodes -- a relation id the neighbourhood never records at all (CR-02)", () => {
+    const neighborhood: KbNeighborhood = {
+      queryId: 9005,
+      seeds: [1],
+      nodes: [1, 2, 3].map((id) => ({ id, label: `n${id}`, type: "gene" })),
+      edges: [
+        [1, 2, 1],
+        [2, 3, 2],
+      ],
+      relationNames: { "1": "assoc", "2": "part" },
+    };
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 9005,
+      kbRevision: "rev",
+      nodes: [1, 2, 3],
+      edges: [
+        [1, 2, 1],
+        [2, 3, 2],
+        [1, 3, 99], // fabricated: relation 99 never recorded between 1 and 3
+      ],
+    };
+    const result = validateSubgraphAgainstNeighborhood(artifact, neighborhood);
+    if (result.ok) throw new Error("expected failure");
+    expect(result.violation.condition).toBe("fabricated-edge");
+    if (result.violation.condition !== "fabricated-edge") throw new Error("wrong condition");
+    expect(result.violation.src).toBe(1);
+    expect(result.violation.dst).toBe(3);
+    expect(result.violation.relationId).toBe(99);
+  });
+
+  it("rejects a wrong relation between two nodes that ARE adjacent in the neighbourhood, using a relation id that is real elsewhere (CR-02)", () => {
+    const neighborhood: KbNeighborhood = {
+      queryId: 9006,
+      seeds: [1],
+      nodes: [1, 2, 3].map((id) => ({ id, label: `n${id}`, type: "gene" })),
+      edges: [
+        [1, 2, 1],
+        [2, 3, 2],
+      ],
+      relationNames: { "1": "assoc", "2": "part" },
+    };
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 9006,
+      kbRevision: "rev",
+      nodes: [1, 2, 3],
+      edges: [
+        [1, 2, 1],
+        [2, 3, 1], // real nodes, really adjacent (via relation 2) -- but relation 1 is wrong here
+      ],
+    };
+    const result = validateSubgraphAgainstNeighborhood(artifact, neighborhood);
+    if (result.ok) throw new Error("expected failure");
+    expect(result.violation.condition).toBe("fabricated-edge");
+    if (result.violation.condition !== "fabricated-edge") throw new Error("wrong condition");
+    expect(result.violation.src).toBe(2);
+    expect(result.violation.dst).toBe(3);
+    expect(result.violation.relationId).toBe(1);
+  });
+
+  it("accepts an artifact edge listed in the opposite orientation to the neighbourhood's own triple (FA-E, undirected comparison)", () => {
+    const neighborhood: KbNeighborhood = {
+      queryId: 9007,
+      seeds: [11],
+      nodes: [11, 12, 13].map((id) => ({ id, label: `n${id}`, type: "gene" })),
+      edges: [
+        [11, 12, 1],
+        [12, 13, 2],
+      ],
+      relationNames: { "1": "assoc", "2": "part" },
+    };
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 9007,
+      kbRevision: "rev",
+      nodes: [11, 12, 13],
+      edges: [
+        [12, 11, 1], // opposite orientation to the neighbourhood's [11, 12, 1]
+        [12, 13, 2],
+      ],
+    };
+    expect(validateSubgraphAgainstNeighborhood(artifact, neighborhood).ok).toBe(true);
+  });
+
+  it("describeHandoffOutcome renders a fabricated-edge violation to a non-empty string naming the two node ids and the relation id", () => {
+    const description = describeHandoffOutcome({
+      kind: "cd05-violation",
+      violation: { condition: "fabricated-edge", src: 7, dst: 8, relationId: 42 },
+    });
+    expect(description.length).toBeGreaterThan(0);
+    expect(description).toContain("7");
+    expect(description).toContain("8");
+    expect(description).toContain("42");
+  });
 });
 
 describe("runCollaborativeBattery — CD-05 wired at handoff, D-03 denominator (Plan 22-02 Task 2)", () => {
@@ -943,6 +1078,58 @@ describe("runCollaborativeBattery — CD-05 wired at handoff, D-03 denominator (
     // 1 preflight warm-up call + 3 real per-task calls -- task-d's failed
     // handoff never reaches the bridge at all.
     expect(scoreCalls).toBe(4);
+  });
+
+  it("a builder-padded artifact (a real 2-node subgraph repeating one id to read as 3) resolves to schema-invalid, not cd05-violation -- proof the duplicate-id rejection precedes the count check (CR-01a/T-22-12), while other tasks still score", async () => {
+    const taskD: CollaborativeBatteryTask = {
+      id: "task-d",
+      queryId: 1004,
+      prompt: "Which entity does this describe (task D)?",
+    };
+    const { provider: normalProvider } = makeProvider({ 1001: [11], 1002: [21], 1004: [41] });
+    const paddedNodeProvider: Provider = {
+      kind: "openai",
+      baseUrl: "http://test-provider.invalid",
+      async chat(req: ChatRequest): Promise<ChatResponse> {
+        const system = req.system ?? "";
+        const userText = req.messages[0]?.content ?? "";
+        const match = userText.match(/QUERY_ID: (\d+)/);
+        const queryId = match ? Number(match[1]) : NaN;
+        if (system.includes("BUILDER-ROLE") && queryId === 1004) {
+          // Fixture 1004 really has 2 nodes (41, 42) -- padding 41 a second
+          // time reads as 3 entries (>= MIN_SUBGRAPH_NODES) under a raw
+          // array-length count, the exact CR-01a bypass.
+          const artifact = {
+            schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+            queryId,
+            kbRevision: ADMISSION_RECORD.revisionSha,
+            nodes: [41, 42, 41],
+            edges: [[41, 42, 3]],
+          };
+          return {
+            text: "```path=subgraph.json\n" + JSON.stringify(artifact) + "\n```",
+            model: req.model,
+            usage: ZERO_USAGE,
+          };
+        }
+        return normalProvider.chat(req);
+      },
+    };
+    const record = await runCollaborativeBattery(
+      baseArgs({
+        tasks: [...TASKS, taskD],
+        execFn: makeExecFn({ 1001: 1, 1002: 1, 1004: 1 }),
+        runOpts: { providerImpl: paddedNodeProvider },
+      }),
+    );
+    const outcomeD = record.outcomes.find((o) => o.queryId === 1004)!;
+    expect(outcomeD.handoffOutcome.kind).toBe("schema-invalid");
+    expect(outcomeD.hit1).toBe(0);
+    expect(outcomeD.attempt).toBeUndefined();
+    const outcomeA = record.outcomes.find((o) => o.queryId === 1001)!;
+    const outcomeB = record.outcomes.find((o) => o.queryId === 1002)!;
+    expect(outcomeA.attempt).toBeDefined();
+    expect(outcomeB.attempt).toBeDefined();
   });
 });
 
