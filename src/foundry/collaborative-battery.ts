@@ -71,7 +71,19 @@ export function tasksFromFixture(fixture: StarkFixture): CollaborativeBatteryTas
   }
   const seen = new Set<number>();
   const tasks: CollaborativeBatteryTask[] = [];
-  for (const pair of fixture.pairs) {
+  fixture.pairs.forEach((pair, index) => {
+    if (typeof pair.query_id !== "number") {
+      throw new CollaborativeBatteryRefusedError(
+        `pair at position ${index} has query_id ${JSON.stringify(pair.query_id)}, not a number — a ` +
+          `pair with no usable id must not become a task whose identity is undefined (D-13)`,
+      );
+    }
+    if (typeof pair.query !== "string" || pair.query.length === 0) {
+      throw new CollaborativeBatteryRefusedError(
+        `pair at position ${index} has query ${JSON.stringify(pair.query)}, expected a non-empty ` +
+          `string (D-13)`,
+      );
+    }
     if (seen.has(pair.query_id)) {
       throw new CollaborativeBatteryRefusedError(
         `duplicate query_id ${JSON.stringify(pair.query_id)} in fixture — never taking whichever ` +
@@ -84,8 +96,43 @@ export function tasksFromFixture(fixture: StarkFixture): CollaborativeBatteryTas
       queryId: pair.query_id,
       prompt: pair.query,
     });
-  }
+  });
   return tasks;
+}
+
+/**
+ * Resolves a task by its own `queryId` — never by position, never by
+ * `Array.prototype.find` (a `find` returns the first match and cannot tell
+ * one match from several, the exact "never first-match" behaviour D-13
+ * forbids). Both failure modes are named, thrown refusals:
+ *
+ * - zero matches: an id absent from the battery is never resolved to
+ *   `undefined` — the caller is Phase 21's bridge rejoining gold, and an
+ *   `undefined` task there becomes a silently unscored or mis-scored query
+ *   rather than a stopped run.
+ * - more than one match: unreachable through `tasksFromFixture` (construction
+ *   already refuses duplicates), and stated anyway so the two guards stay
+ *   independent — a later change that weakens construction cannot quietly
+ *   make this lookup ambiguous.
+ */
+export function taskForQueryId(
+  tasks: CollaborativeBatteryTask[],
+  queryId: number,
+): CollaborativeBatteryTask {
+  const matches = tasks.filter((task) => task.queryId === queryId);
+  if (matches.length === 0) {
+    throw new CollaborativeBatteryRefusedError(
+      `no task carries query_id ${JSON.stringify(queryId)} — an id absent from the battery is never ` +
+        `resolved to a default`,
+    );
+  }
+  if (matches.length > 1) {
+    throw new CollaborativeBatteryRefusedError(
+      `query_id ${JSON.stringify(queryId)} matches ${matches.length} tasks — never resolved by ` +
+        `taking whichever matched first`,
+    );
+  }
+  return matches[0]!;
 }
 
 /**
