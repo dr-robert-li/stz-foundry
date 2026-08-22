@@ -23,7 +23,10 @@ import {
   parseSubgraphArtifact,
   verifyHandoffAtRead,
   describeHandoffOutcome,
+  validateSubgraphAgainstNeighborhood,
   HANDOFF_OUTCOME_KINDS,
+  MIN_SUBGRAPH_NODES,
+  MAX_SUBGRAPH_NODES,
   SUBGRAPH_SCHEMA_VERSION,
   type CollaborativeCandidate,
   type KbNeighborhood,
@@ -775,5 +778,178 @@ describe("runCollaborativeBattery — D-03 per-task fail-closed, run continues (
     expect(outcomeB.handoffOutcome.kind).toBe("unparseable");
     expect(outcomeB.handoffOutcome.kind === "unparseable" && outcomeB.handoffOutcome.reason).toBe("not-object");
     expect(outcomeC.attempt).toBeDefined();
+  });
+});
+
+// ── D-07/CD-05: structural bounds (Plan 22-02 Task 2) ───────────────────
+
+function chainOfNodes(n: number): { artifact: SubgraphArtifactV1; neighborhood: KbNeighborhood } {
+  const nodes = Array.from({ length: n }, (_, i) => i + 1);
+  const edges: [number, number, number][] = [];
+  for (let i = 0; i < n - 1; i++) edges.push([nodes[i]!, nodes[i + 1]!, 1]);
+  const artifact: SubgraphArtifactV1 = {
+    schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+    queryId: 9001,
+    kbRevision: "rev",
+    nodes,
+    edges,
+  };
+  const neighborhood: KbNeighborhood = {
+    queryId: 9001,
+    seeds: nodes.length > 0 ? [nodes[0]!] : [],
+    nodes: nodes.map((id) => ({ id, label: `n${id}`, type: "gene" })),
+    edges,
+    relationNames: { "1": "linked" },
+  };
+  return { artifact, neighborhood };
+}
+
+describe("validateSubgraphAgainstNeighborhood — CD-05 structural bounds (Plan 22-02 Task 2)", () => {
+  it(`rejects exactly ${MIN_SUBGRAPH_NODES - 1} nodes as below-minimum`, () => {
+    const { artifact, neighborhood } = chainOfNodes(MIN_SUBGRAPH_NODES - 1);
+    const result = validateSubgraphAgainstNeighborhood(artifact, neighborhood);
+    if (result.ok) throw new Error("expected failure");
+    expect(result.violation.condition).toBe("below-minimum");
+  });
+
+  it(`accepts exactly ${MIN_SUBGRAPH_NODES} nodes`, () => {
+    const { artifact, neighborhood } = chainOfNodes(MIN_SUBGRAPH_NODES);
+    expect(validateSubgraphAgainstNeighborhood(artifact, neighborhood).ok).toBe(true);
+  });
+
+  it(`accepts exactly ${MAX_SUBGRAPH_NODES} nodes`, () => {
+    const { artifact, neighborhood } = chainOfNodes(MAX_SUBGRAPH_NODES);
+    expect(validateSubgraphAgainstNeighborhood(artifact, neighborhood).ok).toBe(true);
+  });
+
+  it(`rejects ${MAX_SUBGRAPH_NODES + 1} nodes as above-maximum`, () => {
+    const { artifact, neighborhood } = chainOfNodes(MAX_SUBGRAPH_NODES + 1);
+    const result = validateSubgraphAgainstNeighborhood(artifact, neighborhood);
+    if (result.ok) throw new Error("expected failure");
+    expect(result.violation.condition).toBe("above-maximum");
+  });
+
+  it("rejects a disconnected subgraph, naming a node from the orphaned component", () => {
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 9002,
+      kbRevision: "rev",
+      nodes: [1, 2, 3, 4],
+      edges: [[1, 2, 1]],
+    };
+    const neighborhood: KbNeighborhood = {
+      queryId: 9002,
+      seeds: [1],
+      nodes: [1, 2, 3, 4].map((id) => ({ id, label: `n${id}`, type: "gene" })),
+      edges: artifact.edges,
+      relationNames: { "1": "linked" },
+    };
+    const result = validateSubgraphAgainstNeighborhood(artifact, neighborhood);
+    if (result.ok) throw new Error("expected failure");
+    expect(result.violation.condition).toBe("disconnected");
+    if (result.violation.condition !== "disconnected") throw new Error("wrong condition");
+    expect([3, 4]).toContain(result.violation.unreachableNodeId);
+  });
+
+  it("rejects a node id outside the pre-extracted neighbourhood, naming that id -- against the runner-held neighbourhood, not the artifact's own self-consistency", () => {
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 9003,
+      kbRevision: "rev",
+      nodes: [1, 2, 3],
+      edges: [
+        [1, 2, 1],
+        [2, 3, 1],
+      ],
+    };
+    const neighborhood: KbNeighborhood = {
+      queryId: 9003,
+      seeds: [1],
+      nodes: [1, 2].map((id) => ({ id, label: `n${id}`, type: "gene" })), // 3 is deliberately absent
+      edges: [[1, 2, 1]],
+      relationNames: { "1": "linked" },
+    };
+    const result = validateSubgraphAgainstNeighborhood(artifact, neighborhood);
+    if (result.ok) throw new Error("expected failure");
+    expect(result.violation.condition).toBe("outside-neighborhood");
+    if (result.violation.condition !== "outside-neighborhood") throw new Error("wrong condition");
+    expect(result.violation.nodeId).toBe(3);
+  });
+
+  it("treats edges as undirected for connectivity (FA-5): a subgraph whose edges all point INTO the BFS start node is connected", () => {
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 9004,
+      kbRevision: "rev",
+      nodes: [1, 2, 3],
+      edges: [
+        [2, 1, 1],
+        [3, 1, 1],
+      ], // both edges point INTO node 1, the walk's own starting node
+    };
+    const neighborhood: KbNeighborhood = {
+      queryId: 9004,
+      seeds: [1],
+      nodes: [1, 2, 3].map((id) => ({ id, label: `n${id}`, type: "gene" })),
+      edges: artifact.edges,
+      relationNames: { "1": "linked" },
+    };
+    expect(validateSubgraphAgainstNeighborhood(artifact, neighborhood).ok).toBe(true);
+  });
+});
+
+describe("runCollaborativeBattery — CD-05 wired at handoff, D-03 denominator (Plan 22-02 Task 2)", () => {
+  it("a four-task run with one CD-05 failure (below-minimum, fixture query 1004 has 2 nodes) yields testPassRate exactly 0.75, and the scoring seam records exactly three real task calls", async () => {
+    const taskC: CollaborativeBatteryTask = {
+      id: "task-c",
+      queryId: 1003,
+      prompt: "Which entity does this describe (task C)?",
+    };
+    const taskD: CollaborativeBatteryTask = {
+      id: "task-d",
+      queryId: 1004,
+      prompt: "Which entity does this describe (task D)?",
+    };
+    const { provider } = makeProvider({ 1001: [11], 1002: [21], 1003: [31] });
+    let scoreCalls = 0;
+    const countingExecFn: ScoringExecFn = (file, args, opts) => {
+      const inner = makeExecFn({ 1001: 1, 1002: 1, 1003: 1 });
+      if (args[0] !== "-c") scoreCalls++;
+      return inner(file, args, opts);
+    };
+    const record = await runCollaborativeBattery(
+      baseArgs({
+        tasks: [...TASKS, taskC, taskD],
+        execFn: countingExecFn,
+        runOpts: { providerImpl: provider },
+      }),
+    );
+    expect(record.outcomes).toHaveLength(4);
+    expect(record.fitnessRun.result.testPassRate).toBe(0.75);
+    const outcomeD = record.outcomes.find((o) => o.queryId === 1004)!;
+    expect(outcomeD.handoffOutcome.kind).toBe("cd05-violation");
+    expect(outcomeD.handoffOutcome.kind === "cd05-violation" && outcomeD.handoffOutcome.violation.condition).toBe(
+      "below-minimum",
+    );
+    expect(outcomeD.hit1).toBe(0);
+    expect(outcomeD.attempt).toBeUndefined();
+    // 1 preflight warm-up call + 3 real per-task calls -- task-d's failed
+    // handoff never reaches the bridge at all.
+    expect(scoreCalls).toBe(4);
+  });
+});
+
+// ── D-06: frozen inputs, the early behavioural half of SC-1 (Task 2) ────
+
+describe("runCollaborativeBattery — D-06 frozen inputs (Plan 22-02 Task 2)", () => {
+  it("the builder's free-text sentinel appears in no answerer task prompt and nowhere in the returned run record", async () => {
+    const { provider } = makeProvider({ 1001: [11], 1002: [21] });
+    const record = await runCollaborativeBattery(
+      baseArgs({ execFn: makeExecFn({ 1001: 1, 1002: 1 }), runOpts: { providerImpl: provider } }),
+    );
+    for (const task of record.answererBattery.tasks) {
+      expect(task.prompt).not.toContain(BUILDER_SENTINEL);
+    }
+    expect(JSON.stringify(record)).not.toContain(BUILDER_SENTINEL);
   });
 });

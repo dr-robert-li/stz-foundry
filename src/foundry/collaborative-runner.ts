@@ -465,6 +465,77 @@ export function verifyHandoffAtRead(
   return { kind: "success", artifact: schemaResult.artifact };
 }
 
+// ── D-07: CD-05 structural bounds ───────────────────────────────────────
+
+/** Panel-tested structural bounds (D-07). Phase 23 may tune these -- they
+ *  are exported constants, not inlined literals, precisely so a later phase
+ *  can retune without touching the validator's logic. */
+export const MIN_SUBGRAPH_NODES = 3;
+export const MAX_SUBGRAPH_NODES = 200;
+
+export type Cd05Result = { ok: true } | { ok: false; violation: Cd05Violation };
+
+/**
+ * CD-05's three structural bounds, each independently named (D-07), checked
+ * in this fixed order -- never one compound boolean, so a Phase 23 report
+ * can tell "too few nodes" from "too many" from "not connected" from
+ * "outside the query's own neighbourhood":
+ *
+ *   1. Node count -- below `MIN_SUBGRAPH_NODES` and above
+ *      `MAX_SUBGRAPH_NODES` are two distinct named conditions.
+ *   2. Connectivity -- derived from the artifact's own edges, treated as
+ *      UNDIRECTED (FA-5): a subgraph whose edges all point away from one
+ *      node is still one connected neighbourhood. Walked from the first
+ *      listed node; every other listed node must be reachable.
+ *   3. Neighbourhood membership -- every listed node id must be a member of
+ *      the `KbNeighborhood` the runner passed to the builder for this
+ *      query, never the artifact's own self-consistency. This is what makes
+ *      "query-linked" checkable offline (T-22-12).
+ */
+export function validateSubgraphAgainstNeighborhood(
+  artifact: SubgraphArtifactV1,
+  neighborhood: KbNeighborhood,
+): Cd05Result {
+  const nodeCount = artifact.nodes.length;
+  if (nodeCount < MIN_SUBGRAPH_NODES) {
+    return { ok: false, violation: { condition: "below-minimum", nodeCount } };
+  }
+  if (nodeCount > MAX_SUBGRAPH_NODES) {
+    return { ok: false, violation: { condition: "above-maximum", nodeCount } };
+  }
+
+  const adjacency = new Map<number, Set<number>>();
+  for (const id of artifact.nodes) adjacency.set(id, new Set());
+  for (const [src, dst] of artifact.edges) {
+    adjacency.get(src)?.add(dst);
+    adjacency.get(dst)?.add(src);
+  }
+  const startId = artifact.nodes[0]!;
+  const visited = new Set<number>([startId]);
+  const stack = [startId];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    for (const neighbor of adjacency.get(current) ?? []) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        stack.push(neighbor);
+      }
+    }
+  }
+  const unreachable = artifact.nodes.find((id) => !visited.has(id));
+  if (unreachable !== undefined) {
+    return { ok: false, violation: { condition: "disconnected", unreachableNodeId: unreachable } };
+  }
+
+  const neighborhoodIds = new Set(neighborhood.nodes.map((n) => n.id));
+  const outside = artifact.nodes.find((id) => !neighborhoodIds.has(id));
+  if (outside !== undefined) {
+    return { ok: false, violation: { condition: "outside-neighborhood", nodeId: outside } };
+  }
+
+  return { ok: true };
+}
+
 // ── D-10: one receipt, minted once per round ────────────────────────────
 
 /**
@@ -735,6 +806,13 @@ export async function runCollaborativeBattery(
     const schemaResult = parseSubgraphArtifact(read.value);
     if (!schemaResult.ok) {
       failedOutcomeByTaskId.set(task.id, { kind: "schema-invalid", violation: schemaResult.violation });
+      continue;
+    }
+    // CD-05 (D-07): checked immediately after schema validation, before any
+    // answerer prompt is composed from the artifact.
+    const cd05 = validateSubgraphAgainstNeighborhood(schemaResult.artifact, neighbourhoodByTask.get(task.id)!);
+    if (!cd05.ok) {
+      failedOutcomeByTaskId.set(task.id, { kind: "cd05-violation", violation: cd05.violation });
       continue;
     }
     handoffRecordByTaskId.set(task.id, {
