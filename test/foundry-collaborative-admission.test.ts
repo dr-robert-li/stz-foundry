@@ -118,6 +118,64 @@ describe("assertAdmittedVerdict — the refusal branch, driven directly against 
   });
 });
 
+// The WR-03 residual (G-20-1): the sealed table has exactly one row with verdict
+// "admitted", and D-12 forbids adding a second row just to reach the "pending"/
+// "refused" branch — so deleting the assertAdmittedVerdict call from
+// requireCollaborativeAdmitted's body leaves every behavioural test in this file
+// green. No behavioural test can catch that deletion. A source-text guard is the
+// only honest proof available without widening the table: the require gate's own
+// LOOKUP step (admitCollaborative) and THROW step (assertAdmittedVerdict) are two
+// named steps, and this describe block asserts both are present in the extracted
+// function body — proven by a red-then-restored mutation, per 20-04-PLAN.md
+// <tdd_gate>, not by a first-run failure (the call already exists today).
+describe("requireCollaborativeAdmitted — the LOOKUP step and the THROW step are two steps, both performed (WR-03)", () => {
+  const admissionSrcPath = join(repoRoot, "src", "foundry", "collaborative-admission.ts");
+  const fullSource = readFileSync(admissionSrcPath, "utf8");
+
+  // Slices out requireCollaborativeAdmitted's own function body: finds the
+  // export declaration line, takes the remainder, and cuts at the first
+  // line-start closing brace. requireCollaborativeAdmitted is the last
+  // function in the file, so this brace is unambiguously its own.
+  function requireGateBody(): string {
+    const marker = "export function requireCollaborativeAdmitted";
+    const startIdx = fullSource.indexOf(marker);
+    if (startIdx === -1) {
+      throw new Error(`could not find "${marker}" in ${admissionSrcPath}`);
+    }
+    const remainder = fullSource.slice(startIdx);
+    const closeMatch = remainder.match(/\n\}/);
+    if (closeMatch === null || closeMatch.index === undefined) {
+      throw new Error(
+        "could not find a line-start closing brace after the require gate's export declaration",
+      );
+    }
+    return remainder.slice(0, closeMatch.index + closeMatch[0].length);
+  }
+
+  it("the extraction found something and narrowed: the slice is non-empty and strictly shorter than the whole file", () => {
+    const body = requireGateBody();
+    expect(body.length).toBeGreaterThan(0);
+    expect(body.length).toBeLessThan(fullSource.length);
+  });
+
+  it("the extracted body calls both admitCollaborative (LOOKUP) and assertAdmittedVerdict (THROW)", () => {
+    const body = requireGateBody();
+    expect(body).toContain("admitCollaborative(");
+    expect(body).toContain("assertAdmittedVerdict(");
+  });
+
+  it("non-vacuity control: the slice does not contain the table-read expression that lives only in admitCollaborative's own body", () => {
+    // Chosen by reading the file (src/foundry/collaborative-admission.ts:78):
+    // occurs exactly once, inside admitCollaborative's body, never in
+    // requireCollaborativeAdmitted's. Asserting the whole file DOES contain it
+    // first rules out the vacuous "absent everywhere" false positive.
+    const CONTROL_MARKER = "COLLABORATIVE_ADMISSION.get(";
+    expect(fullSource).toContain(CONTROL_MARKER);
+    const body = requireGateBody();
+    expect(body).not.toContain(CONTROL_MARKER);
+  });
+});
+
 describe("admitCollaborative — unknown kb fails closed (never defaults to admitted or pending)", () => {
   it("a kb absent from the table throws, naming the unknown key and listing the known ones", () => {
     const err = thrown(() => admitCollaborative("stark-other" as CollaborativeKB));
