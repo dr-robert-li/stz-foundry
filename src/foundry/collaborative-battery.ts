@@ -89,12 +89,45 @@ export function tasksFromFixture(
         `search-side code path until Phase 23 (D-05, D-06)`,
     );
   }
+  // Allowlist on STaRK's own kb name for the single admitted row, same shape
+  // as the pool guard above — an unrecognised value is refused as firmly as
+  // a known-wrong one (T-20-18). "prime" is STaRK's own name for the kb;
+  // "stark-prime" (`CollaborativeKB`, the admission-table row id) is a
+  // different string for the same kb (FA-3), pinned independently by
+  // `test/stark-fixtures.test.ts`.
+  if (fixture.meta.kb !== "prime") {
+    throw new CollaborativeBatteryRefusedError(
+      `fixture kb ${JSON.stringify(fixture.meta.kb)} is not "prime" — only the admitted STaRK kb's ` +
+        `own fixtures may be materialised into tasks`,
+    );
+  }
   if (typeof fixture.meta.hf_revision !== "string" || fixture.meta.hf_revision !== expectedRevisionSha) {
     throw new CollaborativeBatteryRefusedError(
       `fixture hf_revision ${JSON.stringify(fixture.meta.hf_revision)} does not match the admission ` +
         `record's pinned revisionSha ${JSON.stringify(expectedRevisionSha)} — a fixture harvested at ` +
         `a different KB snapshot than the pin claims must not be scored as though it were the ` +
         `pinned one (mirrors tools/stark-eval/score_one.py's assert_pinned_revision)`,
+    );
+  }
+  // A battery with no tasks trivially passes every candidate agent — restates,
+  // at this altitude, the refusal `battery-types.ts` already performs one
+  // altitude up, which this phase's plain task list does not currently route
+  // through (T-20-16). Sits after the pool and kb guards so a fixture that is
+  // already invalid on pool or kb keeps refusing there, not here.
+  if (fixture.pairs.length === 0) {
+    throw new CollaborativeBatteryRefusedError(
+      `fixture pairs is an empty array (0 pairs) — a battery with no tasks trivially passes ` +
+        `every candidate agent, so a zero-row fixture is never a valid battery input`,
+    );
+  }
+  // Internal consistency only: the expected count comes from the fixture's
+  // own declared metadata, never from a count written into this file — a
+  // literal standing in for either side would make the loader lie the moment
+  // the fixture is legitimately resampled (T-20-17).
+  if (typeof fixture.meta.sample_size !== "number" || fixture.meta.sample_size !== fixture.pairs.length) {
+    throw new CollaborativeBatteryRefusedError(
+      `fixture declares meta.sample_size ${JSON.stringify(fixture.meta.sample_size)} but pairs.length ` +
+        `is ${fixture.pairs.length} — a truncated or over-long fixture must not load cleanly`,
     );
   }
   const seen = new Set<number>();

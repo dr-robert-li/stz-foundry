@@ -245,6 +245,82 @@ describe("tasksFromFixture — the fixture's own hf_revision is pinned to the ad
   });
 });
 
+describe("tasksFromFixture — meta.kb is an allowlist on STaRK's own kb name, not a denylist of known-wrong names (T-20-18)", () => {
+  it("refuses a plausible sibling STaRK kb name that is not the admitted one, naming the offending value", () => {
+    const fixture = {
+      meta: validMeta({ kb: "amazon", sample_size: 2 }),
+      pairs: [
+        { query_id: 1, query: "first", answer_ids: [1] },
+        { query_id: 2, query: "second", answer_ids: [2] },
+      ],
+    };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("amazon");
+  });
+});
+
+describe("tasksFromFixture — a well-formed fixture with an empty pairs array is refused (T-20-16)", () => {
+  it("refuses pairs: [], naming the zero count", () => {
+    const fixture = { meta: validMeta({ sample_size: 0 }), pairs: [] };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("0");
+  });
+
+  it("is refused even when sample_size agrees with the empty array — a consistent zero is still zero", () => {
+    const fixture = { meta: validMeta({ sample_size: 0 }), pairs: [] };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("no tasks");
+  });
+});
+
+describe("tasksFromFixture — pairs.length is checked against the fixture's own declared meta.sample_size (T-20-17)", () => {
+  it("refuses when the declared count is larger than the actual pairs count, naming both numbers", () => {
+    const fixture = {
+      meta: validMeta({ sample_size: 3 }),
+      pairs: [
+        { query_id: 1, query: "first", answer_ids: [1] },
+        { query_id: 2, query: "second", answer_ids: [2] },
+      ],
+    };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("3");
+    expect(err.message).toContain("2");
+  });
+
+  it("refuses when the actual pairs count is larger than the declared count, naming both numbers", () => {
+    const fixture = {
+      meta: validMeta({ sample_size: 1 }),
+      pairs: [
+        { query_id: 1, query: "first", answer_ids: [1] },
+        { query_id: 2, query: "second", answer_ids: [2] },
+      ],
+    };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("1");
+    expect(err.message).toContain("2");
+  });
+
+  it("refuses when sample_size is deleted entirely, rather than passing on a loose comparison", () => {
+    const meta = validMeta({ sample_size: 2 });
+    delete (meta as Record<string, unknown>).sample_size;
+    const fixture = {
+      meta,
+      pairs: [
+        { query_id: 1, query: "first", answer_ids: [1] },
+        { query_id: 2, query: "second", answer_ids: [2] },
+      ],
+    };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("undefined");
+  });
+});
+
 describe("buildCollaborativeBattery — routed through the admission record's own selectionFixturePath, not a path of its own (D-04)", () => {
   it("equals tasksFromFixture applied to the fixture parsed from requireCollaborativeAdmitted(\"stark-prime\").selectionFixturePath — an entry point that stopped consulting the record fails here", () => {
     const record = requireCollaborativeAdmitted("stark-prime");
