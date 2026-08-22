@@ -18,15 +18,18 @@ import {
   VENV_PYTHON_REL,
   SCORE_ONE_REL,
   SKB_DATA_ROOT_REL,
+  SCORING_OUTCOME_KINDS,
   parsePoolManifest,
   preFilterPredictions,
   validatePredDict,
+  describeScoringOutcome,
   scorePrediction,
   runScoringPreflight,
   parseFingerprintManifest,
   type PoolManifest,
   type FingerprintManifest,
   type ScoringExecFn,
+  type ScoringOutcome,
 } from "../src/foundry/collaborative-scoring-bridge.js";
 import { requireCollaborativeAdmitted } from "../src/foundry/collaborative-admission.js";
 import { validateReceipt } from "../src/foundry/battery-types.js";
@@ -828,5 +831,96 @@ describe("scorePrediction — SC-2 hardening: two signals, pinned branch order, 
     });
     expect(readFileSync(sentinelPath, "utf8")).toBe(sentinelContents);
     expect(attempt.artifactPath).not.toBe(sentinelPath);
+  });
+});
+
+// ── 21-03 Task 3: exhaustiveness and distinctness ───────────────────────
+
+describe("SCORING_OUTCOME_KINDS / describeScoringOutcome — exhaustiveness and distinctness (21-03 Task 3)", () => {
+  // §6 COLLAB-DESIGN.md, the paragraph beginning "The bridge must also log
+  // and differentiate its own pre-filter misses": "an expected, defined
+  // outcome" must read distinctly in the log from "genuine oracle-process
+  // failures such as OOM or a segfault" — never presented identically as
+  // "non-zero exit, empty stdout."
+
+  /** A minimal, arbitrary instance of each member — only the discriminant
+   *  and whatever fields TypeScript requires matter for these tests. */
+  function minimalInstanceFor(kind: (typeof SCORING_OUTCOME_KINDS)[number]): ScoringOutcome {
+    switch (kind) {
+      case "scored":
+        return { outcome: "scored", metrics: { mrr: 0.5 } };
+      case "empty-prediction":
+        return { outcome: "empty-prediction" };
+      case "over-cap":
+        return { outcome: "over-cap", entryCount: 21 };
+      case "non-integer-prediction-id":
+        return { outcome: "non-integer-prediction-id", key: "abc" };
+      case "duplicate-prediction-id":
+        return { outcome: "duplicate-prediction-id", nodeId: 7 };
+      case "non-finite-score":
+        return { outcome: "non-finite-score", key: "7" };
+      case "prefilter-miss":
+        return { outcome: "prefilter-miss", forfeitedIds: ["1", "2"] };
+      case "timeout":
+        return { outcome: "timeout", timeoutMs: 600_000 };
+      case "signal-terminated":
+        return { outcome: "signal-terminated", signal: "SIGKILL" };
+      case "process-unreachable":
+        return { outcome: "process-unreachable", errorMessage: "ENOENT" };
+      case "nonzero-exit":
+        return { outcome: "nonzero-exit", exitCode: 1, stderrTail: "boom" };
+      case "malformed-stdout":
+        return { outcome: "malformed-stdout", reason: "not-json", stdoutTail: "garbage" };
+      case "missing-metrics":
+        return { outcome: "missing-metrics", missingKeys: ["hit@5"] };
+    }
+  }
+
+  it("SCORING_OUTCOME_KINDS contains exactly thirteen discriminants", () => {
+    expect(SCORING_OUTCOME_KINDS.length).toBe(13);
+  });
+
+  it("describeScoringOutcome produces a distinct, non-empty description for every one of the thirteen members", () => {
+    const descriptions = SCORING_OUTCOME_KINDS.map((kind) => describeScoringOutcome(minimalInstanceFor(kind)));
+    for (const description of descriptions) {
+      expect(description.length).toBeGreaterThan(0);
+    }
+    expect(new Set(descriptions).size).toBe(13);
+  });
+
+  it("discrimination control: two different members' descriptions are unequal on a pair a naive constant-returning implementation would collapse", () => {
+    // A stub implementation that ignored its argument and always returned
+    // e.g. "scoring outcome" would make every description identical — this
+    // assertion is capable of catching exactly that regression.
+    const scoredDescription = describeScoringOutcome(minimalInstanceFor("scored"));
+    const timeoutDescription = describeScoringOutcome(minimalInstanceFor("timeout"));
+    expect(scoredDescription).not.toBe(timeoutDescription);
+  });
+
+  it("a prefilter-miss outcome and a nonzero-exit outcome are not structurally confusable", () => {
+    const prefilterMiss = minimalInstanceFor("prefilter-miss") as Record<string, unknown>;
+    const nonzeroExit = minimalInstanceFor("nonzero-exit") as Record<string, unknown>;
+    expect(prefilterMiss.exitCode).toBeUndefined();
+    expect(prefilterMiss.stderrTail).toBeUndefined();
+    expect(prefilterMiss.signal).toBeUndefined();
+    expect(nonzeroExit.forfeitedIds).toBeUndefined();
+  });
+
+  it("describeScoringOutcome on a prefilter-miss contains 'expected'; on every process-failure member it does not", () => {
+    const prefilterDescription = describeScoringOutcome(minimalInstanceFor("prefilter-miss"));
+    expect(prefilterDescription).toContain("expected");
+
+    const processFailureKinds = [
+      "timeout",
+      "signal-terminated",
+      "process-unreachable",
+      "nonzero-exit",
+      "malformed-stdout",
+      "missing-metrics",
+    ] as const;
+    for (const kind of processFailureKinds) {
+      const description = describeScoringOutcome(minimalInstanceFor(kind));
+      expect(description).not.toContain("expected");
+    }
   });
 });

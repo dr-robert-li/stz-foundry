@@ -489,6 +489,96 @@ export function scorePrediction(args: ScorePredictionArgs): ScoringAttempt {
   return attempt;
 }
 
+// ── Task 3: exhaustiveness and distinctness ─────────────────────────────
+
+type ScoringOutcomeKind = ScoringOutcome["outcome"];
+
+/**
+ * Every key of `ScoringOutcome`'s own discriminant, assigned to an object
+ * literal typed `Record<ScoringOutcomeKind, true>`. This is the exhaustiveness
+ * mechanism, not `SCORING_OUTCOME_KINDS` itself: TypeScript requires EVERY
+ * key of `ScoringOutcomeKind` to be present in an object literal assigned to
+ * a `Record` of that key type, and rejects any key NOT in that type (excess
+ * property check on the literal) — so a member added to `ScoringOutcome`
+ * without a matching key here, or a stray key that doesn't match any member,
+ * is a typecheck failure. Order here is stable and documented: happy path
+ * first, then the six pre-invocation members in `validatePredDict`'s own
+ * check order, then the six post-invocation members in `scorePrediction`'s
+ * branch order — `Object.keys` preserves insertion order for non-numeric
+ * string keys, so this order is what `SCORING_OUTCOME_KINDS` carries.
+ */
+const ALL_SCORING_OUTCOME_KINDS: Record<ScoringOutcomeKind, true> = {
+  scored: true,
+  "empty-prediction": true,
+  "over-cap": true,
+  "non-integer-prediction-id": true,
+  "duplicate-prediction-id": true,
+  "non-finite-score": true,
+  "prefilter-miss": true,
+  timeout: true,
+  "signal-terminated": true,
+  "process-unreachable": true,
+  "nonzero-exit": true,
+  "malformed-stdout": true,
+  "missing-metrics": true,
+};
+
+/** The full failure-outcome table's discriminants, in the stable order
+ *  documented on `ALL_SCORING_OUTCOME_KINDS` above — for table-driven tests
+ *  and Phase 22's logging. */
+export const SCORING_OUTCOME_KINDS: readonly ScoringOutcomeKind[] = Object.keys(
+  ALL_SCORING_OUTCOME_KINDS,
+) as ScoringOutcomeKind[];
+
+/**
+ * One-line, human-readable description of any `ScoringOutcome`, worded so a
+ * log reader can tell an EXPECTED pre-filter miss apart from a genuine
+ * process failure without reading the discriminant (§6's own requirement —
+ * this wording is contract, not cosmetics). The `default` arm's `never`
+ * assignment is the point of this function: it makes growing `ScoringOutcome`
+ * without adding a matching arm here a compile error, and gives Phase 22's
+ * runner a ready-made log line as a side effect.
+ */
+export function describeScoringOutcome(outcome: ScoringOutcome): string {
+  switch (outcome.outcome) {
+    case "scored":
+      return `scored: metrics ${JSON.stringify(outcome.metrics)}`;
+    case "empty-prediction":
+      return "invalid input: the submitted prediction object had zero entries";
+    case "over-cap":
+      return `invalid input: submitted ${outcome.entryCount} entries, CD-01 caps at 20`;
+    case "non-integer-prediction-id":
+      return `invalid input: key "${outcome.key}" does not parse to an integer node id`;
+    case "duplicate-prediction-id":
+      return `invalid input: node id ${outcome.nodeId} appeared more than once after integer parsing`;
+    case "non-finite-score":
+      return `invalid input: key "${outcome.key}"'s value is not a finite number`;
+    case "prefilter-miss":
+      return (
+        `expected pre-filter miss: every one of the ${outcome.forfeitedIds.length} submitted id(s) fell ` +
+        `outside the committed candidate pool — this is a defined, expected outcome, not a process failure`
+      );
+    case "timeout":
+      return `process failure: the scoring process exceeded the enforced ${outcome.timeoutMs}ms timeout`;
+    case "signal-terminated":
+      return `process failure: the scoring process was killed by signal ${outcome.signal}`;
+    case "process-unreachable":
+      return `process failure: the scoring process could not be reached (${outcome.errorMessage})`;
+    case "nonzero-exit":
+      return `process failure: the scoring process exited with code ${outcome.exitCode}`;
+    case "malformed-stdout":
+      return `process failure: the scoring process's stdout was not a single valid JSON object (${outcome.reason})`;
+    case "missing-metrics":
+      return `process failure: the scoring process's metrics omitted ${outcome.missingKeys.join(", ")}`;
+    default: {
+      const _exhaustive: never = outcome;
+      throw new ScoringPreflightError(
+        `describeScoringOutcome: unhandled outcome kind ${JSON.stringify(_exhaustive)}`,
+      );
+    }
+  }
+}
+
 // ── Task 2: environment fingerprint preflight ───────────────────────────
 
 const HEX64_RE = /^[0-9a-f]{64}$/;
