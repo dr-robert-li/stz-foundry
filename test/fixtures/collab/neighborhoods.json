@@ -1,0 +1,74 @@
+{
+  "_note": "Synthetic, fabricated knowledge-base neighbourhoods keyed by STaRK query_id, for offline builder-pass tests. These node ids, labels, types, edges, and relation names are deliberately made up -- they are NOT copies of real STaRK/PrimeKG rows.",
+  "neighborhoods": {
+    "1001": {
+      "seeds": [11],
+      "nodes": [
+        { "id": 11, "label": "Fixture-Node-Alpha", "type": "gene" },
+        { "id": 12, "label": "Fixture-Node-Bravo", "type": "disease" },
+        { "id": 13, "label": "Fixture-Node-Charlie", "type": "pathway" },
+        { "id": 14, "label": "Fixture-Node-Delta", "type": "drug" },
+        { "id": 15, "label": "Fixture-Node-Echo", "type": "phenotype" }
+      ],
+      "edges": [
+        [11, 12, 1],
+        [12, 13, 2],
+        [13, 14, 1],
+        [14, 15, 3]
+      ],
+      "relationNames": {
+        "1": "associated_with",
+        "2": "participates_in",
+        "3": "indicates"
+      }
+    },
+    "1002": {
+      "seeds": [21],
+      "nodes": [
+        { "id": 21, "label": "Fixture-Node-Foxtrot", "type": "gene" },
+        { "id": 22, "label": "Fixture-Node-Golf", "type": "protein" },
+        { "id": 23, "label": "Fixture-Node-Hotel", "type": "disease" }
+      ],
+      "edges": [
+        [21, 22, 4],
+        [22, 23, 1]
+      ],
+      "relationNames": {
+        "4": "encodes",
+        "1": "associated_with"
+      }
+    },
+    "1003": {
+      "seeds": [31],
+      "nodes": [
+        { "id": 31, "label": "Fixture-Node-India", "type": "drug" },
+        { "id": 32, "label": "Fixture-Node-Juliet", "type": "gene" },
+        { "id": 33, "label": "Fixture-Node-Kilo", "type": "pathway" },
+        { "id": 34, "label": "Fixture-Node-Lima", "type": "disease" }
+      ],
+      "edges": [
+        [31, 32, 5],
+        [32, 33, 2],
+        [33, 34, 1]
+      ],
+      "relationNames": {
+        "5": "targets",
+        "2": "participates_in",
+        "1": "associated_with"
+      }
+    },
+    "1004": {
+      "seeds": [41],
+      "nodes": [
+        { "id": 41, "label": "Fixture-Node-Mike", "type": "phenotype" },
+        { "id": 42, "label": "Fixture-Node-November", "type": "disease" }
+      ],
+      "edges": [
+        [41, 42, 3]
+      ],
+      "relationNames": {
+        "3": "indicates"
+      }
+    }
+  }
+}
