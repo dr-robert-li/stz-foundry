@@ -97,6 +97,9 @@ import type { ChatRequest, ChatResponse, Provider } from "../src/foundry/provide
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const runnerSrcPath = join(repoRoot, "src", "foundry", "collaborative-runner.ts");
 const bridgeSrcPath = join(repoRoot, "src", "foundry", "collaborative-scoring-bridge.ts");
+const liveSmokeSrcPath = join(repoRoot, "test", "collaborative-runner-live-smoke.test.ts");
+const runnerTestSrcPath = join(repoRoot, "test", "foundry-collaborative-runner.test.ts");
+const shellTestSrcPath = join(repoRoot, "test", "foundry-collaborative-tournament-shell.test.ts");
 
 const ADMISSION_RECORD = requireCollaborativeAdmitted("stark-prime");
 
@@ -502,5 +505,53 @@ describe("collaborative-runner-handoff-boundary (SC-1, REQ-80) -- taint-probe si
     const artifactPath = join(artifactDir, "builder", cd05Task.id, "subgraph.json");
     const actualBytes = readFileSync(artifactPath);
     expect(actualBytes.equals(expectedBytes)).toBe(true);
+  });
+});
+
+// ── D-04 offline guarantee guard (Task 2) ───────────────────────────────
+
+describe("collaborative-runner-handoff-boundary -- D-04 offline guarantee guard", () => {
+  const liveSmokeSource = readFileSync(liveSmokeSrcPath, "utf8");
+
+  function testDeclarationCounts(text: string): { gated: number; total: number } {
+    const gated = (text.match(/\bit\.skipIf\(/g) ?? []).length;
+    const plain = (text.match(/\bit\(/g) ?? []).length;
+    return { gated, total: gated + plain };
+  }
+
+  function childProcessImportLines(text: string): string[] {
+    return text.split("\n").filter((line) => /from\s+["']node:child_process["']/.test(line));
+  }
+
+  function isTypeOnlyImportLine(line: string): boolean {
+    return /^\s*import\s+type\s+/.test(line);
+  }
+
+  it("non-vacuity control: the live-smoke file was found and is non-empty", () => {
+    expect(liveSmokeSource.length).toBeGreaterThan(0);
+  });
+
+  it("every test declaration in the live-smoke file is gated on STZ_LIVE_STARK: the gated-declaration count equals the total declaration count, and is at least 1", () => {
+    const { gated, total } = testDeclarationCounts(liveSmokeSource);
+    expect(total).toBeGreaterThanOrEqual(1);
+    expect(gated).toBe(total);
+  });
+
+  it("neither offline suite (foundry-collaborative-runner.test.ts, foundry-collaborative-tournament-shell.test.ts) holds a runtime import of node:child_process -- every import line from it in each is `import type`", () => {
+    for (const path of [runnerTestSrcPath, shellTestSrcPath]) {
+      const text = readFileSync(path, "utf8");
+      const lines = childProcessImportLines(text);
+      expect(lines.length).toBeGreaterThan(0); // non-vacuity: the file DOES import from node:child_process (SpawnSyncReturns)
+      for (const line of lines) {
+        expect(isTypeOnlyImportLine(line)).toBe(true);
+      }
+    }
+  });
+
+  it("non-vacuity control: the same type-only-import detector correctly reports a runtime import for a module that DOES hold runtime subprocess capability (collaborative-scoring-bridge.ts)", () => {
+    const bridgeText = readFileSync(bridgeSrcPath, "utf8");
+    const lines = childProcessImportLines(bridgeText);
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.some((line) => !isTypeOnlyImportLine(line))).toBe(true);
   });
 });
