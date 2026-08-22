@@ -3,7 +3,9 @@
  * axis battery, Plan 20-01, REQ-79). Seeded here as the end-to-end happy-path
  * proof of the tracer slice: sealed table → require gate → 75 gold-free tasks
  * keyed by their own `query_id`. Expanded into the full D-13 contract suite by
- * Plan 20-02.
+ * Plan 20-02, and closed for G-20-1's four loader-invariant gap by Plan 20-04
+ * (the revision pin, the kb allowlist, the empty-pairs refusal, and the
+ * sample-size consistency guard).
  *
  * House rule (mirrors `test/foundry-vertical-admission.test.ts`): every
  * throwing assertion inspects the thrown message's content, never a bare
@@ -36,6 +38,19 @@ function thrown(fn: () => unknown): Error {
     return e as Error;
   }
   throw new Error("expected fn to throw, it did not");
+}
+
+// The admission record's pinned sha, read once at module scope — never
+// pasted as a second literal (D-04). The one legitimate literal copy in this
+// suite is the pin assertion at line 44 above, which exists to pin it.
+const PIN = requireCollaborativeAdmitted("stark-prime").revisionSha;
+
+// Every synthetic fixture in this suite is fully valid except the single
+// field under test (the synthetic-fixture rule, 20-04-PLAN.md <gap_context>):
+// a fixture built through this helper reaches only the guard the test means
+// to drive, never an earlier one, by construction.
+function validMeta(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return { pool: "selection", kb: "prime", hf_revision: PIN, sample_size: 0, ...overrides };
 }
 
 describe("requireCollaborativeAdmitted — the pin and lineage the loader reads (D-04)", () => {
@@ -76,20 +91,20 @@ describe("buildCollaborativeBattery — the end-to-end tracer slice", () => {
 describe("tasksFromFixture — the heldout pool is refused, never loaded (D-05, D-06)", () => {
   it("throws CollaborativeBatteryRefusedError naming the offending pool value", () => {
     const heldout = loadFixture("prime-heldout.json");
-    const err = thrown(() => tasksFromFixture(heldout as never));
+    const err = thrown(() => tasksFromFixture(heldout as never, PIN));
     expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
     expect(err.message).toContain("heldout");
   });
 
   it("a two-pair fixture with pool \"selection\" returns two tasks keyed by their own query_ids", () => {
     const fixture = {
-      meta: { pool: "selection" },
+      meta: validMeta({ sample_size: 2 }),
       pairs: [
         { query_id: 1, query: "first", answer_ids: [1] },
         { query_id: 2, query: "second", answer_ids: [2] },
       ],
     };
-    const tasks = tasksFromFixture(fixture as never);
+    const tasks = tasksFromFixture(fixture as never, PIN);
     expect(tasks.length).toBe(2);
     expect(tasks[0]!.queryId).toBe(1);
     expect(tasks[1]!.queryId).toBe(2);
@@ -98,23 +113,23 @@ describe("tasksFromFixture — the heldout pool is refused, never loaded (D-05, 
 
   it("a pair with a non-numeric query_id is refused, naming the pair position", () => {
     const fixture = {
-      meta: { pool: "selection" },
+      meta: validMeta({ sample_size: 2 }),
       pairs: [
         { query_id: 1, query: "first", answer_ids: [1] },
         { query_id: "not-a-number", query: "second", answer_ids: [2] },
       ],
     };
-    const err = thrown(() => tasksFromFixture(fixture as never));
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
     expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
     expect(err.message).toContain("1");
   });
 
   it("a pair with empty query text is refused", () => {
     const fixture = {
-      meta: { pool: "selection" },
+      meta: validMeta({ sample_size: 1 }),
       pairs: [{ query_id: 1, query: "", answer_ids: [1] }],
     };
-    const err = thrown(() => tasksFromFixture(fixture as never));
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
     expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
     expect(err.message).toContain("0");
   });
@@ -146,13 +161,13 @@ describe("buildCollaborativeBattery — the 75-task census against the fixture's
 
 describe("tasksFromFixture — fails closed on a malformed fixture shape, never a raw TypeError (WR-01)", () => {
   it("a fixture with pairs but no meta object is refused, naming the missing meta", () => {
-    const err = thrown(() => tasksFromFixture({ pairs: [] } as never));
+    const err = thrown(() => tasksFromFixture({ pairs: [] } as never, PIN));
     expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
     expect(err.message).toContain("meta");
   });
 
   it("a fixture with meta but no pairs array is refused, naming the missing pairs", () => {
-    const err = thrown(() => tasksFromFixture({ meta: { pool: "selection" } } as never));
+    const err = thrown(() => tasksFromFixture({ meta: { pool: "selection" } } as never, PIN));
     expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
     expect(err.message).toContain("pairs");
   });
@@ -184,9 +199,125 @@ describe("tasksFromFixture — the pool guard is an allowlist, not a denylist of
       meta: { pool: "unanticipated-third-value" },
       pairs: [],
     };
-    const err = thrown(() => tasksFromFixture(fixture as never));
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
     expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
     expect(err.message).toContain("unanticipated-third-value");
+  });
+});
+
+describe("tasksFromFixture — the fixture's own hf_revision is pinned to the admission record's revisionSha at load", () => {
+  it("a fixture whose hf_revision differs from expectedRevisionSha is refused, message naming both shas", () => {
+    const fixture = {
+      meta: validMeta({
+        hf_revision: "0000000000000000000000000000000000000000",
+        sample_size: 2,
+      }),
+      pairs: [
+        { query_id: 1, query: "first", answer_ids: [1] },
+        { query_id: 2, query: "second", answer_ids: [2] },
+      ],
+    };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("0000000000000000000000000000000000000000");
+    expect(err.message).toContain(PIN);
+  });
+
+  it("a fixture with no hf_revision key at all is refused, message naming the missing value", () => {
+    const meta = validMeta({ sample_size: 2 });
+    delete (meta as Record<string, unknown>).hf_revision;
+    const fixture = {
+      meta,
+      pairs: [
+        { query_id: 1, query: "first", answer_ids: [1] },
+        { query_id: 2, query: "second", answer_ids: [2] },
+      ],
+    };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("undefined");
+  });
+
+  it("the real fixture read via readFixtureOrRefuse builds tasks without throwing when passed the record's own revisionSha — the pin does not refuse the fixture it is pinned to", () => {
+    const record = requireCollaborativeAdmitted("stark-prime");
+    const fixture = readFixtureOrRefuse(record.selectionFixturePath);
+    expect(() => tasksFromFixture(fixture, record.revisionSha)).not.toThrow();
+  });
+});
+
+describe("tasksFromFixture — meta.kb is an allowlist on STaRK's own kb name, not a denylist of known-wrong names (T-20-18)", () => {
+  it("refuses a plausible sibling STaRK kb name that is not the admitted one, naming the offending value", () => {
+    const fixture = {
+      meta: validMeta({ kb: "amazon", sample_size: 2 }),
+      pairs: [
+        { query_id: 1, query: "first", answer_ids: [1] },
+        { query_id: 2, query: "second", answer_ids: [2] },
+      ],
+    };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("amazon");
+  });
+});
+
+describe("tasksFromFixture — a well-formed fixture with an empty pairs array is refused (T-20-16)", () => {
+  it("refuses pairs: [], naming the zero count", () => {
+    const fixture = { meta: validMeta({ sample_size: 0 }), pairs: [] };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("0");
+  });
+
+  it("is refused even when sample_size agrees with the empty array — a consistent zero is still zero", () => {
+    const fixture = { meta: validMeta({ sample_size: 0 }), pairs: [] };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("no tasks");
+  });
+});
+
+describe("tasksFromFixture — pairs.length is checked against the fixture's own declared meta.sample_size (T-20-17)", () => {
+  it("refuses when the declared count is larger than the actual pairs count, naming both numbers", () => {
+    const fixture = {
+      meta: validMeta({ sample_size: 3 }),
+      pairs: [
+        { query_id: 1, query: "first", answer_ids: [1] },
+        { query_id: 2, query: "second", answer_ids: [2] },
+      ],
+    };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("3");
+    expect(err.message).toContain("2");
+  });
+
+  it("refuses when the actual pairs count is larger than the declared count, naming both numbers", () => {
+    const fixture = {
+      meta: validMeta({ sample_size: 1 }),
+      pairs: [
+        { query_id: 1, query: "first", answer_ids: [1] },
+        { query_id: 2, query: "second", answer_ids: [2] },
+      ],
+    };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("1");
+    expect(err.message).toContain("2");
+  });
+
+  it("refuses when sample_size is deleted entirely, rather than passing on a loose comparison", () => {
+    const meta = validMeta({ sample_size: 2 });
+    delete (meta as Record<string, unknown>).sample_size;
+    const fixture = {
+      meta,
+      pairs: [
+        { query_id: 1, query: "first", answer_ids: [1] },
+        { query_id: 2, query: "second", answer_ids: [2] },
+      ],
+    };
+    const err = thrown(() => tasksFromFixture(fixture as never, PIN));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("undefined");
   });
 });
 
@@ -194,7 +325,7 @@ describe("buildCollaborativeBattery — routed through the admission record's ow
   it("equals tasksFromFixture applied to the fixture parsed from requireCollaborativeAdmitted(\"stark-prime\").selectionFixturePath — an entry point that stopped consulting the record fails here", () => {
     const record = requireCollaborativeAdmitted("stark-prime");
     const fixture = JSON.parse(readFileSync(join(repoRoot, record.selectionFixturePath), "utf8"));
-    const expected = tasksFromFixture(fixture);
+    const expected = tasksFromFixture(fixture, record.revisionSha);
     const actual = buildCollaborativeBattery();
     expect(actual).toStrictEqual(expected);
   });
