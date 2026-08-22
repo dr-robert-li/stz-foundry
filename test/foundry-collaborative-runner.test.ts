@@ -9,7 +9,7 @@
  * argument -- same house rule as `test/foundry-collaborative-scoring-bridge.test.ts`.
  */
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,11 +20,17 @@ import {
   makeCollaborativeCandidate,
   canonicalSubgraphBytes,
   hashSubgraphArtifact,
+  parseSubgraphArtifact,
+  verifyHandoffAtRead,
+  describeHandoffOutcome,
+  HANDOFF_OUTCOME_KINDS,
   SUBGRAPH_SCHEMA_VERSION,
   type CollaborativeCandidate,
   type KbNeighborhood,
   type RunCollaborativeBatteryArgs,
   type SubgraphArtifactV1,
+  type HandoffOutcome,
+  type HandoffRecord,
 } from "../src/foundry/collaborative-runner.js";
 import type { CollaborativeBatteryTask } from "../src/foundry/collaborative-battery.js";
 import {
@@ -196,10 +202,16 @@ function makeProvider(answerListsByQueryId: Record<number, unknown[]>): {
           kbRevision: ADMISSION_RECORD.revisionSha,
           nodes: nb.nodes.map((n) => n.id),
           edges: nb.edges,
-          note: BUILDER_SENTINEL,
         };
+        // BUILDER_SENTINEL lives in free text OUTSIDE the fenced artifact
+        // block -- D-05's closed schema now rejects any unknown key inside
+        // the artifact itself, so this is the only place a builder's own
+        // free text can appear in its raw response (D-06's frozen-inputs
+        // case: this text must never reach the answerer, the handoff
+        // record, or the returned run record).
         return {
-          text: "```path=subgraph.json\n" + JSON.stringify(artifact) + "\n```",
+          text:
+            BUILDER_SENTINEL + "\n```path=subgraph.json\n" + JSON.stringify(artifact) + "\n```",
           model: req.model,
           usage: ZERO_USAGE,
         };
@@ -312,7 +324,7 @@ describe("runCollaborativeBattery — end to end, offline (Task 2)", () => {
       baseArgs({ execFn: makeExecFn({ 1001: 1, 1002: 1 }), runOpts: { providerImpl: provider } }),
     );
     for (const outcome of record.outcomes) {
-      const matching = record.attempts.find((a) => a.attemptId === outcome.attempt.attemptId);
+      const matching = record.attempts.find((a) => a.attemptId === outcome.attempt!.attemptId);
       expect(Object.is(outcome.attempt, matching)).toBe(true);
     }
   });
@@ -375,9 +387,9 @@ describe("runCollaborativeBattery — end to end, offline (Task 2)", () => {
       baseArgs({ execFn: makeExecFn({ 1001: 0, 1002: 1 }), runOpts: { providerImpl: provider } }),
     );
     const outcomeA = record.outcomes.find((o) => o.queryId === 1001)!;
-    expect(Object.keys(outcomeA.attempt.submittedPredDict)).toHaveLength(20);
-    expect(outcomeA.attempt.submittedPredDict["300"]).toBeDefined();
-    expect(outcomeA.attempt.submittedPredDict["not-an-integer"]).toBeUndefined();
+    expect(Object.keys(outcomeA.attempt!.submittedPredDict)).toHaveLength(20);
+    expect(outcomeA.attempt!.submittedPredDict["300"]).toBeDefined();
+    expect(outcomeA.attempt!.submittedPredDict["not-an-integer"]).toBeUndefined();
   });
 
   it("the handoff record carries all four D-08 bindings and its recorded sha256 equals the artifact file's own bytes", async () => {
@@ -454,5 +466,314 @@ describe("canonicalSubgraphBytes / hashSubgraphArtifact — D-05 ratified canoni
       edges: [...base.edges].reverse(),
     };
     expect(hashSubgraphArtifact(base)).toBe(hashSubgraphArtifact(reordered));
+  });
+});
+
+// ── D-05: closed schema — parseSubgraphArtifact ─────────────────────────
+
+describe("parseSubgraphArtifact — D-05 closed, ids-only schema (Plan 22-02 Task 1)", () => {
+  const validRaw = {
+    schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+    queryId: 1001,
+    kbRevision: ADMISSION_RECORD.revisionSha,
+    nodes: [11, 12],
+    edges: [[11, 12, 1]],
+  };
+
+  it("accepts a valid, closed artifact", () => {
+    const result = parseSubgraphArtifact(validRaw);
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects an artifact carrying one extra key, naming that key", () => {
+    const result = parseSubgraphArtifact({ ...validRaw, freeText: "smuggled" });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.violation).toContain("freeText");
+  });
+
+  it("rejects a wrong schemaVersion, naming both found and expected", () => {
+    const result = parseSubgraphArtifact({ ...validRaw, schemaVersion: 2 });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.violation).toContain("2");
+    expect(!result.ok && result.violation).toContain(String(SUBGRAPH_SCHEMA_VERSION));
+  });
+
+  it("rejects a non-integer node id, naming its position", () => {
+    const result = parseSubgraphArtifact({ ...validRaw, nodes: [11, 12.5] });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.violation).toContain("position 1");
+  });
+
+  it("rejects a non-integer relation id inside an edge triple", () => {
+    const result = parseSubgraphArtifact({ ...validRaw, edges: [[11, 12, 1.5]] });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.violation).toMatch(/edge/);
+  });
+
+  it("rejects an edge triple of the wrong length", () => {
+    const result = parseSubgraphArtifact({ ...validRaw, edges: [[11, 12]] });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects an edge whose source is absent from the artifact's own node list, naming that id", () => {
+    const result = parseSubgraphArtifact({ ...validRaw, edges: [[99, 12, 1]] });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.violation).toContain("99");
+  });
+
+  it("rejects an edge whose destination is absent from the artifact's own node list, naming that id", () => {
+    const result = parseSubgraphArtifact({ ...validRaw, edges: [[11, 98, 1]] });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.violation).toContain("98");
+  });
+});
+
+// ── D-08: HandoffOutcome — named, exhaustive, fail-closed ───────────────
+
+describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)", () => {
+  it("HANDOFF_OUTCOME_KINDS enumerates every member exactly once", () => {
+    expect(HANDOFF_OUTCOME_KINDS.length).toBeGreaterThan(0);
+    expect(new Set(HANDOFF_OUTCOME_KINDS).size).toBe(HANDOFF_OUTCOME_KINDS.length);
+  });
+
+  it("describeHandoffOutcome produces a non-empty, distinct description for every kind", () => {
+    const sampleByKind: Record<string, HandoffOutcome> = {
+      success: {
+        kind: "success",
+        artifact: {
+          schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+          queryId: 1001,
+          kbRevision: ADMISSION_RECORD.revisionSha,
+          nodes: [11],
+          edges: [],
+        },
+      },
+      "artifact-absent": { kind: "artifact-absent", path: "/tmp/nowhere" },
+      unparseable: { kind: "unparseable", reason: "not-json", path: "/tmp/nowhere" },
+      "schema-invalid": { kind: "schema-invalid", violation: "bad field" },
+      "record-absent": { kind: "record-absent", queryId: 1001 },
+      "record-corrupt": { kind: "record-corrupt", violation: "missing attemptId" },
+      "hash-mismatch": { kind: "hash-mismatch", recordedSha256: "aaa", observedSha256: "bbb" },
+      "cd05-violation": {
+        kind: "cd05-violation",
+        violation: { condition: "below-minimum", nodeCount: 2 },
+      },
+      "bridge-non-success": { kind: "bridge-non-success", scoringOutcomeKind: "timeout" },
+    };
+    expect(Object.keys(sampleByKind).sort()).toEqual([...HANDOFF_OUTCOME_KINDS].sort());
+    const descriptions = HANDOFF_OUTCOME_KINDS.map((kind) => describeHandoffOutcome(sampleByKind[kind]!));
+    for (const d of descriptions) {
+      expect(d.length).toBeGreaterThan(0);
+    }
+    expect(new Set(descriptions).size).toBe(descriptions.length);
+  });
+
+  it("artifact-absent, record-absent, record-corrupt and hash-mismatch are four distinct outcome kinds", () => {
+    const dir = mkdtempSync(join(tmpdir(), "stz-collab-handoff-"));
+
+    // artifact-absent: record points at a path that was never written.
+    const absentPath = join(dir, "never-written.json");
+    const absentRecord: HandoffRecord = {
+      queryId: 1,
+      attemptId: "a1",
+      definitionHash: "d1",
+      kbRevision: "rev",
+      artifactPath: absentPath,
+      artifactSha256: "irrelevant",
+    };
+    const artifactAbsent = verifyHandoffAtRead(1, absentRecord);
+    expect(artifactAbsent.kind).toBe("artifact-absent");
+
+    // record-absent: no record was ever recorded for this query.
+    const recordAbsent = verifyHandoffAtRead(2, undefined);
+    expect(recordAbsent.kind).toBe("record-absent");
+
+    // record-corrupt: the record itself is missing a required binding.
+    const corruptRecord = { ...absentRecord, attemptId: "" } as HandoffRecord;
+    const recordCorrupt = verifyHandoffAtRead(3, corruptRecord);
+    expect(recordCorrupt.kind).toBe("record-corrupt");
+
+    // hash-mismatch: a real file on disk whose bytes disagree with the
+    // record's recorded digest.
+    const mismatchPath = join(dir, "artifact.json");
+    const realArtifact = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 4,
+      kbRevision: "rev",
+      nodes: [1, 2],
+      edges: [[1, 2, 1]],
+    };
+    writeFileSync(mismatchPath, JSON.stringify(realArtifact));
+    const mismatchRecord: HandoffRecord = {
+      queryId: 4,
+      attemptId: "a4",
+      definitionHash: "d4",
+      kbRevision: "rev",
+      artifactPath: mismatchPath,
+      artifactSha256: "0".repeat(64), // deliberately wrong
+    };
+    const hashMismatch = verifyHandoffAtRead(4, mismatchRecord);
+    expect(hashMismatch.kind).toBe("hash-mismatch");
+
+    const kinds = [artifactAbsent.kind, recordAbsent.kind, recordCorrupt.kind, hashMismatch.kind];
+    expect(new Set(kinds).size).toBe(4);
+  });
+
+  it("verifyHandoffAtRead returns success with the parsed artifact for a genuine matching record", () => {
+    const dir = mkdtempSync(join(tmpdir(), "stz-collab-handoff-ok-"));
+    const path = join(dir, "artifact.json");
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 5,
+      kbRevision: "rev",
+      nodes: [1, 2],
+      edges: [[1, 2, 1]],
+    };
+    const bytes = Buffer.from(JSON.stringify(artifact));
+    writeFileSync(path, bytes);
+    const record: HandoffRecord = {
+      queryId: 5,
+      attemptId: "a5",
+      definitionHash: "d5",
+      kbRevision: "rev",
+      artifactPath: path,
+      artifactSha256: createHash("sha256").update(bytes).digest("hex"),
+    };
+    const result = verifyHandoffAtRead(5, record);
+    expect(result.kind).toBe("success");
+    expect(result.kind === "success" && result.artifact.queryId).toBe(5);
+  });
+});
+
+// ── D-03: fail-closed task = scored 0, run continues ────────────────────
+
+describe("runCollaborativeBattery — D-03 per-task fail-closed, run continues (Plan 22-02 Task 1)", () => {
+  it("a task whose builder never emits an artifact is scored 0 and never reaches the bridge, while the other task still scores", async () => {
+    const { provider } = makeProvider({ 1002: [21] }); // task-a (1001) gets no answer entry either
+    // Override the builder response so task-a's builder emits nothing usable.
+    const noArtifactProvider: Provider = {
+      kind: "openai",
+      baseUrl: "http://test-provider.invalid",
+      async chat(req: ChatRequest): Promise<ChatResponse> {
+        const system = req.system ?? "";
+        const userText = req.messages[0]?.content ?? "";
+        const match = userText.match(/QUERY_ID: (\d+)/);
+        const queryId = match ? Number(match[1]) : NaN;
+        if (system.includes("BUILDER-ROLE") && queryId === 1001) {
+          return { text: "no artifact here", model: req.model, usage: ZERO_USAGE };
+        }
+        return provider.chat(req);
+      },
+    };
+    let scoreCalls = 0;
+    const countingExecFn: ScoringExecFn = (file, args, opts) => {
+      const inner = makeExecFn({ 1002: 1 });
+      if (args[0] !== "-c") scoreCalls++;
+      return inner(file, args, opts);
+    };
+    const record = await runCollaborativeBattery(
+      baseArgs({ execFn: countingExecFn, runOpts: { providerImpl: noArtifactProvider } }),
+    );
+    expect(record.outcomes).toHaveLength(2);
+    const outcomeA = record.outcomes.find((o) => o.queryId === 1001)!;
+    const outcomeB = record.outcomes.find((o) => o.queryId === 1002)!;
+    expect(outcomeA.hit1).toBe(0);
+    expect(outcomeA.attempt).toBeUndefined();
+    expect(outcomeA.handoffOutcome.kind).toBe("artifact-absent");
+    expect(outcomeB.attempt).toBeDefined();
+    // The preflight's own warm-up call (D-11) also goes through this execFn,
+    // so the total is 1 (warm-up) + 1 (task-b) -- task-a's failed handoff
+    // never reaches the bridge at all.
+    expect(scoreCalls).toBe(2);
+  });
+
+  it("an artifact carrying an unknown key is rejected schema-invalid at handoff, not scored, run continues", async () => {
+    const badKeyProvider: Provider = {
+      kind: "openai",
+      baseUrl: "http://test-provider.invalid",
+      async chat(req: ChatRequest): Promise<ChatResponse> {
+        const system = req.system ?? "";
+        const userText = req.messages[0]?.content ?? "";
+        const match = userText.match(/QUERY_ID: (\d+)/);
+        const queryId = match ? Number(match[1]) : NaN;
+        if (system.includes("BUILDER-ROLE") && queryId === 1001) {
+          const artifact = {
+            schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+            queryId,
+            kbRevision: ADMISSION_RECORD.revisionSha,
+            nodes: [11, 12],
+            edges: [[11, 12, 1]],
+            extra: "smuggled free text",
+          };
+          return {
+            text: "```path=subgraph.json\n" + JSON.stringify(artifact) + "\n```",
+            model: req.model,
+            usage: ZERO_USAGE,
+          };
+        }
+        const { provider } = makeProvider({ 1002: [21] });
+        return provider.chat(req);
+      },
+    };
+    const record = await runCollaborativeBattery(
+      baseArgs({ execFn: makeExecFn({ 1002: 1 }), runOpts: { providerImpl: badKeyProvider } }),
+    );
+    const outcomeA = record.outcomes.find((o) => o.queryId === 1001)!;
+    expect(outcomeA.handoffOutcome.kind).toBe("schema-invalid");
+    expect(outcomeA.hit1).toBe(0);
+    expect(record.outcomes).toHaveLength(2);
+  });
+
+  it("unparseable bytes (not JSON) and a JSON value that is not an object both yield the unparseable outcome, distinguishing the two reasons", async () => {
+    // A third, surviving task (query 1003, present in the fixture) is
+    // required here: if every task in the run fails at handoff, the
+    // answerer battery has zero tasks and `makeBattery` itself refuses
+    // (a documented boundary, not something this test exercises).
+    const taskC: CollaborativeBatteryTask = {
+      id: "task-c",
+      queryId: 1003,
+      prompt: "Which entity does this describe (task C)?",
+    };
+    const { provider: normalProvider } = makeProvider({ 1003: [31] });
+    const malformedProvider: Provider = {
+      kind: "openai",
+      baseUrl: "http://test-provider.invalid",
+      async chat(req: ChatRequest): Promise<ChatResponse> {
+        const system = req.system ?? "";
+        const userText = req.messages[0]?.content ?? "";
+        const match = userText.match(/QUERY_ID: (\d+)/);
+        const queryId = match ? Number(match[1]) : NaN;
+        if (system.includes("BUILDER-ROLE") && queryId === 1001) {
+          return {
+            text: "```path=subgraph.json\nNOT VALID JSON{{{\n```",
+            model: req.model,
+            usage: ZERO_USAGE,
+          };
+        }
+        if (system.includes("BUILDER-ROLE") && queryId === 1002) {
+          return {
+            text: "```path=subgraph.json\n[1,2,3]\n```",
+            model: req.model,
+            usage: ZERO_USAGE,
+          };
+        }
+        return normalProvider.chat(req);
+      },
+    };
+    const record = await runCollaborativeBattery(
+      baseArgs({
+        tasks: [...TASKS, taskC],
+        execFn: makeExecFn({ 1003: 1 }),
+        runOpts: { providerImpl: malformedProvider },
+      }),
+    );
+    const outcomeA = record.outcomes.find((o) => o.queryId === 1001)!;
+    const outcomeB = record.outcomes.find((o) => o.queryId === 1002)!;
+    const outcomeC = record.outcomes.find((o) => o.queryId === 1003)!;
+    expect(outcomeA.handoffOutcome.kind).toBe("unparseable");
+    expect(outcomeA.handoffOutcome.kind === "unparseable" && outcomeA.handoffOutcome.reason).toBe("not-json");
+    expect(outcomeB.handoffOutcome.kind).toBe("unparseable");
+    expect(outcomeB.handoffOutcome.kind === "unparseable" && outcomeB.handoffOutcome.reason).toBe("not-object");
+    expect(outcomeC.attempt).toBeDefined();
   });
 });
