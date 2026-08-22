@@ -72,6 +72,15 @@ const VERSION_PROBE_PY =
   "import platform; from importlib.metadata import version as pkg_version; " +
   "print(platform.python_version()); print(pkg_version('torch')); print(pkg_version('stark-qa'))";
 
+/** Anchored, digits-only (optional leading minus) pattern — a pre-condition
+ *  on the KEY's spelling, not on the parsed number's magnitude (IN-01). A
+ *  round-trip check (`String(nodeId) === key`) would reject a zero-padded
+ *  key like `"007"`, which is exactly the collision the
+ *  `duplicate-prediction-id` outcome three lines below exists to catch
+ *  (FA-C) — this regex admits `"007"` while still rejecting `"0x10"`,
+ *  `"1e2"`, `"+7"`, `" 7 "`, `"1.0"`. */
+const INTEGER_KEY_RE = /^-?\d+$/;
+
 export class ScoringPreflightError extends Error {
   constructor(message: string) {
     super(`[foundry:collaborative-scoring-bridge] ${message}`);
@@ -185,7 +194,12 @@ export function validatePredDict(predDict: Record<string, number>): ScoringOutco
   const seenNodeIds = new Set<number>();
   for (const [key, value] of Object.entries(predDict)) {
     const nodeId = Number(key);
-    if (!Number.isInteger(nodeId)) {
+    // IN-01: the numeric test alone accepts key spellings JSON.stringify of
+    // an integer would never itself produce (hex-like, exponent-notation,
+    // whitespace-padded, a leading "+") — the regex is a pre-condition on
+    // the key's spelling, in addition to (never instead of) the magnitude
+    // check the duplicate/`007` case below still needs.
+    if (!INTEGER_KEY_RE.test(key) || !Number.isInteger(nodeId)) {
       return { outcome: "non-integer-prediction-id", key };
     }
     // The collision "7" vs "007" cannot exist in the raw JSON object (keys
@@ -205,7 +219,9 @@ export function validatePredDict(predDict: Record<string, number>): ScoringOutco
 
 /**
  * Field-by-field explicit checks, never a spread or a cast. Rejects naming
- * the offending field (ASVS V5).
+ * the offending field (ASVS V5). The explicit-form `ids` array is validated
+ * element-by-element (WR-02) before its cast to `number[]` below, so that
+ * cast rests on a check rather than on hope.
  */
 export function parsePoolManifest(raw: unknown): PoolManifest {
   if (typeof raw !== "object" || raw === null) {
@@ -250,6 +266,17 @@ export function parsePoolManifest(raw: unknown): PoolManifest {
         `pool manifest form "explicit" requires a non-empty "ids" array`,
       );
     }
+    // WR-02: element-by-element, not a spread/cast on faith. Without this,
+    // a non-integer entry (a numeric string, a float) passed parse silently
+    // and turned every submitted prediction into an undiagnosed pre-filter
+    // miss downstream instead of a clear parse-time refusal here.
+    obj.ids.forEach((entry, i) => {
+      if (!Number.isInteger(entry)) {
+        throw new ScoringPreflightError(
+          `pool manifest field "ids"[${i}] must be an integer, got ${JSON.stringify(entry)}`,
+        );
+      }
+    });
   }
   if (obj.form === "bounds" && count !== max - min + 1) {
     throw new ScoringPreflightError(
@@ -735,9 +762,9 @@ function observeFingerprint(
   });
   // T-21-29 / CR-01 / WR-01: the same branch-order discipline scorePrediction
   // applies to the real scoring call, a few lines below in this module —
-  // refuse BEFORE any read of versionResult.stdout. Without this guard the
-  // probe's own failure was invisible: a dead subprocess's partial/empty
-  // stdout was parsed as though it were three valid version strings,
+  // this guard runs before any parsing of the probe's output. Without it
+  // the probe's own failure was invisible: a dead subprocess's partial/empty
+  // output was parsed as though it were three valid version strings,
   // producing a misleading downstream field-mismatch error instead of
   // naming the dead probe.
   if (versionResult.error !== undefined || versionResult.signal !== null || versionResult.status !== 0) {
@@ -880,6 +907,16 @@ export function runScoringPreflight(args: RunScoringPreflightArgs): PreflightRep
   if (args.fingerprintManifest.hfPin !== record.revisionSha) {
     throw new ScoringPreflightError(
       `hfPin mismatch: expected ${record.revisionSha}, fingerprint manifest declares ${args.fingerprintManifest.hfPin}`,
+    );
+  }
+  // WR-03/T-21-32: the admission table's row id ("stark-prime") and STaRK's
+  // own kb name ("prime", the argv value score_one.py takes and the name
+  // harvest_pool.py writes into the committed manifest) are different
+  // strings for the same KB — this check reads the manifest's own
+  // vocabulary, a field that until now was parsed and never read.
+  if (args.poolManifest.kb !== SCORE_ONE_KB_ARG) {
+    throw new ScoringPreflightError(
+      `pool manifest kb mismatch: expected "${SCORE_ONE_KB_ARG}", manifest declares "${args.poolManifest.kb}"`,
     );
   }
   if (args.poolManifest.hfRevision !== record.revisionSha) {

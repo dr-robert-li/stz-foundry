@@ -79,7 +79,10 @@ function idListDigest(ids: number[]): string {
 function boundsManifest(min: number, max: number): PoolManifest {
   const ids = Array.from({ length: max - min + 1 }, (_, i) => min + i);
   return {
-    kb: "stark-prime",
+    // FA-D: the manifest's own kb vocabulary ("prime", the argv name
+    // score_one.py takes and harvest_pool.py writes), not the admission
+    // table's row id ("stark-prime") — matching the committed fixture.
+    kb: "prime",
     hfRevision: ADMISSION_RECORD.revisionSha,
     form: "bounds",
     count: max - min + 1,
@@ -407,6 +410,54 @@ describe("validatePredDict / scorePrediction — pre-invocation outcomes decided
   });
 });
 
+// ── IN-01: canonical integer-string prediction keys only ────────────────
+
+describe("validatePredDict — canonical integer-string keys only, never a bare Number() coercion (IN-01)", () => {
+  function countingExecFn(): { execFn: ScoringExecFn; count: () => number } {
+    let execFnCallCount = 0;
+    const execFn: ScoringExecFn = () => {
+      execFnCallCount++;
+      return fakeResult({ stdout: HAPPY_STDOUT });
+    };
+    return { execFn, count: () => execFnCallCount };
+  }
+
+  it.each([
+    ["a hex-like key", "0x1a"],
+    ["an exponent-notation key", "1e3"],
+    ["a whitespace-padded key", " 12 "],
+    ["a decimal-point key", "1.0"],
+    ["a leading-plus key", "+7"],
+  ])("%s resolves to non-integer-prediction-id naming the key, and never calls execFn", (_label, key) => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const { execFn, count } = countingExecFn();
+    const attempt = scorePrediction({
+      queryId: 1,
+      predDict: { [key]: 0.5 },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+    });
+    expect(attempt.outcome).toEqual({ outcome: "non-integer-prediction-id", key });
+    expect(count()).toBe(0);
+  });
+
+  it("a plain positive and a negative integer key both reach the pre-filter", () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(-20, 999);
+    const execFn: ScoringExecFn = () => fakeResult({ stdout: HAPPY_STDOUT });
+    const attempt = scorePrediction({
+      queryId: 1,
+      predDict: { "12": 0.5, "-12": 0.4 },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+    });
+    expect(attempt.outcome.outcome).toBe("scored");
+  });
+});
+
 describe("preFilterPredictions — order preservation and bounds membership", () => {
   it("adds no sorting or re-ranking of its own: the surviving key order matches Object.entries(predDict)'s own order verbatim", () => {
     // Node ids are integer-like strings, so the JS engine itself always
@@ -425,7 +476,8 @@ describe("preFilterPredictions — order preservation and bounds membership", ()
 describe("parsePoolManifest — fail-closed field-by-field parsing", () => {
   function validRaw(): Record<string, unknown> {
     return {
-      kb: "stark-prime",
+      // FA-D: the manifest's own kb vocabulary, matching the committed fixture.
+      kb: "prime",
       hfRevision: ADMISSION_RECORD.revisionSha,
       form: "bounds",
       count: 10,
@@ -472,6 +524,58 @@ describe("parsePoolManifest — fail-closed field-by-field parsing", () => {
 
   it("accepts a valid manifest", () => {
     expect(() => parsePoolManifest(validRaw())).not.toThrow();
+  });
+
+  // WR-02: an unvalidated cast on explicit-form `ids` let non-integer
+  // elements pass parse silently, turning every submitted prediction into
+  // an undiagnosed pre-filter miss downstream instead of a clear parse-time
+  // refusal naming the field and index.
+
+  it("rejects an explicit-form manifest whose ids contains a numeric string, naming the field and offending index", () => {
+    const ids = [0, 1, "2", 3];
+    const raw = {
+      ...validRaw(),
+      form: "explicit",
+      ids,
+      count: ids.length,
+      min: 0,
+      max: 3,
+      idListSha256: idListDigest([0, 1, 2, 3]),
+    };
+    const err = thrown(() => parsePoolManifest(raw));
+    expect(err.message).toContain("ids");
+    expect(err.message).toContain('[2]');
+  });
+
+  it("rejects an explicit-form manifest whose ids contains a float, naming the field and offending index", () => {
+    const ids = [0, 1, 2.5, 3];
+    const raw = {
+      ...validRaw(),
+      form: "explicit",
+      ids,
+      count: ids.length,
+      min: 0,
+      max: 3,
+      idListSha256: idListDigest([0, 1, 2, 3]),
+    };
+    const err = thrown(() => parsePoolManifest(raw));
+    expect(err.message).toContain("ids");
+    expect(err.message).toContain('[2]');
+  });
+
+  it("an all-integer explicit-form manifest still parses, and its ids survive into the returned object unchanged", () => {
+    const ids = [5, 3, 9];
+    const raw = {
+      ...validRaw(),
+      form: "explicit",
+      ids,
+      count: ids.length,
+      min: 3,
+      max: 9,
+      idListSha256: idListDigest([3, 5, 9]),
+    };
+    const manifest = parsePoolManifest(raw);
+    expect(manifest.ids).toEqual(ids);
   });
 });
 
@@ -621,7 +725,34 @@ describe("runScoringPreflight — field-by-field fingerprint, pin cross-check, w
       if (args[0] === "-c") return fakeResult({ stdout: "3.11.15\n2.13.0\n1.1.0\n" });
       return fakeResult({ status: 1, stdout: "", stderr: "boom" });
     };
-    expect(() => runScoringPreflight(baseArgs({ execFn }))).toThrow();
+    // WR-04: a bare `.toThrow()` here would pass identically if
+    // runScoringPreflight threw for an unrelated reason — assert content.
+    const err = thrown(() => runScoringPreflight(baseArgs({ execFn })));
+    expect(err.message).toContain('did not reach the "scored" outcome');
+    expect(err.message).toContain("nonzero-exit");
+  });
+
+  // WR-03 / T-21-32: the manifest's kb field was parsed but never
+  // cross-checked against anything — a pool manifest harvested for a
+  // different STaRK KB would silently forfeit every prediction downstream
+  // instead of being refused here, by name.
+  describe("a pool manifest's kb field is cross-checked against the argv name the bridge spawns with (WR-03)", () => {
+    it("a pool manifest declaring a different kb is refused, naming both the expected and the declared kb", () => {
+      const manifest = boundsManifest(0, 9);
+      const badManifest = { ...manifest, kb: "mag" };
+      const err = thrown(() => runScoringPreflight(baseArgs({ poolManifest: badManifest })));
+      expect(err.message).toContain("kb");
+      expect(err.message).toContain("prime");
+      expect(err.message).toContain("mag");
+    });
+
+    it("a pool manifest wrong in both kb and hfRevision refuses naming the kb, not the revision", () => {
+      const manifest = boundsManifest(0, 9);
+      const badManifest = { ...manifest, kb: "mag", hfRevision: "deadbeef" };
+      const err = thrown(() => runScoringPreflight(baseArgs({ poolManifest: badManifest })));
+      expect(err.message).toContain("kb mismatch");
+      expect(err.message).not.toContain("hfRevision mismatch");
+    });
   });
 
   // G-21-1 / CR-01 / WR-01 / WR-05: the version-probe subprocess result must
