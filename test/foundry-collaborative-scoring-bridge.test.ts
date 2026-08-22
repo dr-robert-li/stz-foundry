@@ -20,7 +20,10 @@ import {
   parsePoolManifest,
   preFilterPredictions,
   scorePrediction,
+  runScoringPreflight,
+  parseFingerprintManifest,
   type PoolManifest,
+  type FingerprintManifest,
   type ScoringExecFn,
 } from "../src/foundry/collaborative-scoring-bridge.js";
 import { requireCollaborativeAdmitted } from "../src/foundry/collaborative-admission.js";
@@ -299,5 +302,163 @@ describe("parsePoolManifest — fail-closed field-by-field parsing", () => {
 
   it("accepts a valid manifest", () => {
     expect(() => parsePoolManifest(validRaw())).not.toThrow();
+  });
+});
+
+// ── Task 2: runScoringPreflight ─────────────────────────────────────────
+
+describe("runScoringPreflight — field-by-field fingerprint, pin cross-check, warm-up (Task 2)", () => {
+  const HUB_CACHE_ROOT = "/fake/hub/cache";
+  const SCORE_ONE_BYTES = Buffer.from("score_one.py contents");
+  const SKB_BYTES = Buffer.from("skb marker bytes");
+  const HUB_BYTES = Buffer.from("hub marker bytes");
+  const SKB_KEY = "skb:prime/processed/marker.bin";
+  const HUB_KEY = "hub:qa/prime/stark_qa/marker.csv";
+  const SKB_PATH = join("tools/stark-eval/data", "prime/processed/marker.bin");
+  const HUB_PATH = join(
+    HUB_CACHE_ROOT,
+    "datasets--snap-stanford--stark",
+    "snapshots",
+    ADMISSION_RECORD.revisionSha,
+    "qa/prime/stark_qa/marker.csv",
+  );
+
+  function sha256(bytes: Buffer): string {
+    return createHash("sha256").update(bytes).digest("hex");
+  }
+
+  function validFingerprintManifest(overrides: Partial<FingerprintManifest> = {}): FingerprintManifest {
+    return {
+      pythonPath: VENV_PYTHON_REL,
+      pythonVersion: "3.11.15",
+      starkQaVersion: "1.1.0",
+      torchVersion: "2.13.0",
+      hfPin: ADMISSION_RECORD.revisionSha,
+      scoreOneSha256: sha256(SCORE_ONE_BYTES),
+      cacheKeyFileSha256: {
+        [SKB_KEY]: sha256(SKB_BYTES),
+        [HUB_KEY]: sha256(HUB_BYTES),
+      },
+      ...overrides,
+    };
+  }
+
+  function makeReadFileFn(): (path: string) => Buffer {
+    return (path: string) => {
+      if (path === SCORE_ONE_REL) return SCORE_ONE_BYTES;
+      if (path === SKB_PATH) return SKB_BYTES;
+      if (path === HUB_PATH) return HUB_BYTES;
+      throw new Error(`unexpected path in test readFileFn: ${path}`);
+    };
+  }
+
+  function makeExecFn(): ScoringExecFn {
+    return (_file, args) => {
+      if (args[0] === "-c") {
+        return fakeResult({ stdout: "3.11.15\n2.13.0\n1.1.0\n" });
+      }
+      return fakeResult({ stdout: HAPPY_STDOUT });
+    };
+  }
+
+  function baseArgs(overrides: {
+    fingerprintManifest?: FingerprintManifest;
+    poolManifest?: PoolManifest;
+    execFn?: ScoringExecFn;
+  } = {}) {
+    return {
+      fingerprintManifest: overrides.fingerprintManifest ?? validFingerprintManifest(),
+      poolManifest: overrides.poolManifest ?? boundsManifest(0, 9),
+      outputDir: scratchDir(),
+      warmUp: { queryId: 523, predDict: { "1": 0.9 } },
+      execFn: overrides.execFn ?? makeExecFn(),
+      readFileFn: makeReadFileFn(),
+      hubCacheRoot: HUB_CACHE_ROOT,
+    };
+  }
+
+  it("passes when every field matches and returns a PreflightReport carrying the warm-up's wallTimeMs", () => {
+    const report = runScoringPreflight(baseArgs());
+    expect(report.fingerprintOk).toBe(true);
+    expect(report.warmUpWallTimeMs).toBe(report.warmUpAttempt.wallTimeMs);
+    expect(report.warmUpAttempt.outcome.outcome).toBe("scored");
+  });
+
+  it("a manifest differing in pythonVersion throws naming pythonVersion, expected, and observed", () => {
+    const err = thrown(() =>
+      runScoringPreflight(baseArgs({ fingerprintManifest: validFingerprintManifest({ pythonVersion: "3.12.0" }) })),
+    );
+    expect(err.message).toContain("pythonVersion");
+    expect(err.message).toContain("3.12.0");
+    expect(err.message).toContain("3.11.15");
+  });
+
+  it("a manifest differing in BOTH pythonVersion and torchVersion throws naming pythonVersion only", () => {
+    const err = thrown(() =>
+      runScoringPreflight(
+        baseArgs({
+          fingerprintManifest: validFingerprintManifest({ pythonVersion: "3.12.0", torchVersion: "9.9.9" }),
+        }),
+      ),
+    );
+    expect(err.message).toContain("pythonVersion");
+    expect(err.message).not.toContain("torchVersion");
+  });
+
+  it("a manifest differing only in a cacheKeyFileSha256 entry throws naming that entry's key", () => {
+    const err = thrown(() =>
+      runScoringPreflight(
+        baseArgs({
+          fingerprintManifest: validFingerprintManifest({
+            cacheKeyFileSha256: { [SKB_KEY]: "f".repeat(64), [HUB_KEY]: sha256(HUB_BYTES) },
+          }),
+        }),
+      ),
+    );
+    expect(err.message).toContain(SKB_KEY);
+  });
+
+  it("a fingerprint manifest with only skb: keys is rejected at parse, naming cacheKeyFileSha256", () => {
+    const raw = { ...validFingerprintManifest(), cacheKeyFileSha256: { [SKB_KEY]: sha256(SKB_BYTES) } };
+    const err = thrown(() => parseFingerprintManifest(raw));
+    expect(err.message).toContain("cacheKeyFileSha256");
+  });
+
+  it("a fingerprint manifest with only hub: keys is rejected at parse, naming cacheKeyFileSha256", () => {
+    const raw = { ...validFingerprintManifest(), cacheKeyFileSha256: { [HUB_KEY]: sha256(HUB_BYTES) } };
+    const err = thrown(() => parseFingerprintManifest(raw));
+    expect(err.message).toContain("cacheKeyFileSha256");
+  });
+
+  it("a pool manifest whose hfRevision differs from the admission record's revisionSha throws naming hfRevision", () => {
+    const manifest = boundsManifest(0, 9);
+    const badManifest = { ...manifest, hfRevision: "deadbeef" };
+    const err = thrown(() => runScoringPreflight(baseArgs({ poolManifest: badManifest })));
+    expect(err.message).toContain("hfRevision");
+    expect(err.message).toContain("deadbeef");
+    expect(err.message).toContain(ADMISSION_RECORD.revisionSha);
+  });
+
+  it("a bounds pool manifest whose idListSha256 doesn't match the implied contiguous id list is rejected naming idListSha256", () => {
+    const manifest = boundsManifest(0, 9);
+    const badManifest = { ...manifest, idListSha256: "f".repeat(64) };
+    const err = thrown(() => runScoringPreflight(baseArgs({ poolManifest: badManifest })));
+    expect(err.message).toContain("idListSha256");
+  });
+
+  it("a warm-up call whose outcome is not scored throws rather than returning a report", () => {
+    const execFn: ScoringExecFn = (_file, args) => {
+      if (args[0] === "-c") return fakeResult({ stdout: "3.11.15\n2.13.0\n1.1.0\n" });
+      return fakeResult({ status: 1, stdout: "", stderr: "boom" });
+    };
+    expect(() => runScoringPreflight(baseArgs({ execFn }))).toThrow();
+  });
+
+  it("scorePrediction succeeds with no fingerprint manifest supplied at all — runScoringPreflight is not called from inside it", () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const execFn: ScoringExecFn = () => fakeResult({ stdout: HAPPY_STDOUT });
+    const attempt = scorePrediction({ queryId: 523, predDict: { "1": 0.9 }, outputDir, poolManifest: manifest, execFn });
+    expect(attempt.outcome.outcome).toBe("scored");
   });
 });

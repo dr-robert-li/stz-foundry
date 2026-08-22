@@ -20,8 +20,9 @@
  * fail-closed semantics, matching the spike-verified contract exactly.
  */
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   requireCollaborativeAdmitted,
@@ -306,4 +307,310 @@ export function scorePrediction(args: ScorePredictionArgs): ScoringAttempt {
   };
   writeAttemptArtifact(args.outputDir, attempt);
   return attempt;
+}
+
+// ── Task 2: environment fingerprint preflight ───────────────────────────
+
+const HEX64_RE = /^[0-9a-f]{64}$/;
+
+/**
+ * Captured at provisioning time (D-05). Two namespaces in
+ * `cacheKeyFileSha256` because the KB load path touches two independent
+ * on-disk caches — the project-local processed-artifact directory and the
+ * Hugging Face hub snapshot directory named for the pinned sha
+ * (RESEARCH Pitfall 4, D-06): `skb:<path relative to tools/stark-eval/data>`
+ * and `hub:<path relative to the pinned snapshot directory>`.
+ */
+export interface FingerprintManifest {
+  pythonPath: string;
+  pythonVersion: string;
+  starkQaVersion: string;
+  torchVersion: string;
+  hfPin: string;
+  scoreOneSha256: string;
+  cacheKeyFileSha256: Record<string, string>;
+}
+
+/**
+ * Same explicit field-by-field discipline as `parsePoolManifest`. The D-06
+ * clause: reject a manifest missing at least one `skb:`-prefixed key or at
+ * least one `hub:`-prefixed key — "manifest-lite" still means both cache
+ * locations, not either.
+ */
+export function parseFingerprintManifest(raw: unknown): FingerprintManifest {
+  if (typeof raw !== "object" || raw === null) {
+    throw new ScoringPreflightError(`fingerprint manifest must be an object, got ${typeof raw}`);
+  }
+  const obj = raw as Record<string, unknown>;
+  const stringFields = [
+    "pythonPath",
+    "pythonVersion",
+    "starkQaVersion",
+    "torchVersion",
+    "hfPin",
+    "scoreOneSha256",
+  ] as const;
+  for (const field of stringFields) {
+    if (typeof obj[field] !== "string") {
+      throw new ScoringPreflightError(`fingerprint manifest field "${field}" must be a string`);
+    }
+  }
+  if (
+    typeof obj.cacheKeyFileSha256 !== "object" ||
+    obj.cacheKeyFileSha256 === null ||
+    Array.isArray(obj.cacheKeyFileSha256)
+  ) {
+    throw new ScoringPreflightError(`fingerprint manifest field "cacheKeyFileSha256" must be an object`);
+  }
+  const cacheEntries = obj.cacheKeyFileSha256 as Record<string, unknown>;
+  const cacheKeys = Object.keys(cacheEntries);
+  if (cacheKeys.length === 0) {
+    throw new ScoringPreflightError(`fingerprint manifest field "cacheKeyFileSha256" must not be empty`);
+  }
+  const validatedEntries: Record<string, string> = {};
+  for (const key of cacheKeys) {
+    const value = cacheEntries[key];
+    if (typeof value !== "string" || !HEX64_RE.test(value)) {
+      throw new ScoringPreflightError(
+        `fingerprint manifest cacheKeyFileSha256 entry "${key}" must be a 64-character lowercase hex string`,
+      );
+    }
+    validatedEntries[key] = value;
+  }
+  if (!cacheKeys.some((key) => key.startsWith("skb:"))) {
+    throw new ScoringPreflightError(
+      `fingerprint manifest field "cacheKeyFileSha256" has no key prefixed "skb:" — D-06 requires both cache locations`,
+    );
+  }
+  if (!cacheKeys.some((key) => key.startsWith("hub:"))) {
+    throw new ScoringPreflightError(
+      `fingerprint manifest field "cacheKeyFileSha256" has no key prefixed "hub:" — D-06 requires both cache locations`,
+    );
+  }
+  return {
+    pythonPath: obj.pythonPath as string,
+    pythonVersion: obj.pythonVersion as string,
+    starkQaVersion: obj.starkQaVersion as string,
+    torchVersion: obj.torchVersion as string,
+    hfPin: obj.hfPin as string,
+    scoreOneSha256: obj.scoreOneSha256 as string,
+    cacheKeyFileSha256: validatedEntries,
+  };
+}
+
+function hashBytes(bytes: Buffer): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+/** Resolve a namespaced cache key against its own on-disk location — the
+ *  two independent caches D-06 requires covering. */
+function resolveCacheKeyPath(key: string, record: CollaborativeAdmissionRecord, hubCacheRoot: string): string {
+  if (key.startsWith("hub:")) {
+    const relPath = key.slice("hub:".length);
+    return join(hubCacheRoot, "datasets--snap-stanford--stark", "snapshots", record.revisionSha, relPath);
+  }
+  if (key.startsWith("skb:")) {
+    const relPath = key.slice("skb:".length);
+    return join("tools/stark-eval/data", relPath);
+  }
+  throw new ScoringPreflightError(
+    `cacheKeyFileSha256 key "${key}" has neither the "skb:" nor "hub:" namespace prefix`,
+  );
+}
+
+interface ObserveFingerprintDeps {
+  execFn?: ScoringExecFn;
+  readFileFn?: (path: string) => Buffer;
+  hubCacheRoot?: string;
+  pythonPath?: string;
+  scriptPath?: string;
+}
+
+/** Re-derives every fact the committed fingerprint manifest records, live.
+ *  Every seam is injectable so the whole comparison is unit-testable with
+ *  no venv, no network, and no real cache. */
+function observeFingerprint(
+  expected: FingerprintManifest,
+  record: CollaborativeAdmissionRecord,
+  deps: ObserveFingerprintDeps,
+): FingerprintManifest {
+  const execFn = deps.execFn ?? defaultScoringExecFn;
+  const readFileFn = deps.readFileFn ?? readFileSync;
+  const hubCacheRoot =
+    deps.hubCacheRoot ??
+    process.env.HF_HUB_CACHE ??
+    join(process.env.HF_HOME ?? join(homedir(), ".cache", "huggingface"), "hub");
+  const pythonPath = deps.pythonPath ?? VENV_PYTHON_REL;
+  const scriptPath = deps.scriptPath ?? SCORE_ONE_REL;
+
+  const versionResult = execFn(
+    pythonPath,
+    [
+      "-c",
+      "import sys, torch, stark_qa; print(sys.version.split()[0]); print(torch.__version__); print(stark_qa.__version__)",
+    ],
+    { input: "", timeout: SCORING_TIMEOUT_MS, encoding: "utf8" },
+  );
+  const versionLines = versionResult.stdout.trim().split("\n");
+  const pythonVersion = versionLines[0] ?? "";
+  const torchVersion = versionLines[1] ?? "";
+  const starkQaVersion = versionLines[2] ?? "";
+
+  const scoreOneSha256 = hashBytes(readFileFn(scriptPath));
+
+  const cacheKeyFileSha256: Record<string, string> = {};
+  for (const key of Object.keys(expected.cacheKeyFileSha256)) {
+    const path = resolveCacheKeyPath(key, record, hubCacheRoot);
+    cacheKeyFileSha256[key] = hashBytes(readFileFn(path));
+  }
+
+  return {
+    pythonPath,
+    pythonVersion,
+    starkQaVersion,
+    torchVersion,
+    hfPin: record.revisionSha,
+    scoreOneSha256,
+    cacheKeyFileSha256,
+  };
+}
+
+/**
+ * One named `if` per field, in a fixed, documented order — never one
+ * compound boolean. Each throws naming the FIRST mismatching field; sorted
+ * cache-key order makes "first mismatching field" deterministic across
+ * runs (D-05).
+ */
+function assertFingerprintMatches(expected: FingerprintManifest, observed: FingerprintManifest): void {
+  if (observed.pythonPath !== expected.pythonPath) {
+    throw new ScoringPreflightError(
+      `pythonPath mismatch: expected ${expected.pythonPath}, observed ${observed.pythonPath}`,
+    );
+  }
+  if (observed.pythonVersion !== expected.pythonVersion) {
+    throw new ScoringPreflightError(
+      `pythonVersion mismatch: expected ${expected.pythonVersion}, observed ${observed.pythonVersion}`,
+    );
+  }
+  if (observed.starkQaVersion !== expected.starkQaVersion) {
+    throw new ScoringPreflightError(
+      `starkQaVersion mismatch: expected ${expected.starkQaVersion}, observed ${observed.starkQaVersion}`,
+    );
+  }
+  if (observed.torchVersion !== expected.torchVersion) {
+    throw new ScoringPreflightError(
+      `torchVersion mismatch: expected ${expected.torchVersion}, observed ${observed.torchVersion}`,
+    );
+  }
+  if (observed.hfPin !== expected.hfPin) {
+    throw new ScoringPreflightError(`hfPin mismatch: expected ${expected.hfPin}, observed ${observed.hfPin}`);
+  }
+  if (observed.scoreOneSha256 !== expected.scoreOneSha256) {
+    throw new ScoringPreflightError(
+      `scoreOneSha256 mismatch: expected ${expected.scoreOneSha256}, observed ${observed.scoreOneSha256}`,
+    );
+  }
+  const sortedKeys = Object.keys(expected.cacheKeyFileSha256).sort();
+  for (const key of sortedKeys) {
+    const expectedHash = expected.cacheKeyFileSha256[key];
+    const observedHash = observed.cacheKeyFileSha256[key];
+    if (observedHash !== expectedHash) {
+      throw new ScoringPreflightError(
+        `cacheKeyFileSha256 entry "${key}" mismatch: expected ${expectedHash}, observed ${observedHash}`,
+      );
+    }
+  }
+}
+
+function idListDigest(ids: number[]): string {
+  return createHash("sha256").update(ids.join("\n")).digest("hex");
+}
+
+export interface PreflightReport {
+  fingerprintOk: true;
+  warmUpWallTimeMs: number;
+  warmUpAttempt: ScoringAttempt;
+}
+
+export interface RunScoringPreflightArgs {
+  fingerprintManifest: FingerprintManifest;
+  poolManifest: PoolManifest;
+  outputDir: string;
+  warmUp: { queryId: number; predDict: Record<string, number> };
+  execFn?: ScoringExecFn;
+  readFileFn?: (path: string) => Buffer;
+  hubCacheRoot?: string;
+  timeoutMs?: number;
+  pythonPath?: string;
+  scriptPath?: string;
+}
+
+/**
+ * Deliberately NOT called from inside `scorePrediction` — Phase 22's runner
+ * chooses the cadence (once per battery or once per call, RESEARCH Open
+ * Question 2). Steps in order, each failing closed before the next: pin
+ * cross-check, pool manifest self-consistency, fingerprint comparison, then
+ * one warm-up `scorePrediction` call. If that call's outcome is not
+ * `scored`, throws naming the outcome — a systemically broken or slow
+ * environment is caught here, before a battery starts (D-08).
+ */
+export function runScoringPreflight(args: RunScoringPreflightArgs): PreflightReport {
+  const record = requireCollaborativeAdmitted("stark-prime");
+
+  if (args.fingerprintManifest.hfPin !== record.revisionSha) {
+    throw new ScoringPreflightError(
+      `hfPin mismatch: expected ${record.revisionSha}, fingerprint manifest declares ${args.fingerprintManifest.hfPin}`,
+    );
+  }
+  if (args.poolManifest.hfRevision !== record.revisionSha) {
+    throw new ScoringPreflightError(
+      `hfRevision mismatch: expected ${record.revisionSha}, pool manifest declares ${args.poolManifest.hfRevision}`,
+    );
+  }
+
+  const impliedIds =
+    args.poolManifest.form === "bounds"
+      ? Array.from(
+          { length: args.poolManifest.max - args.poolManifest.min + 1 },
+          (_, i) => args.poolManifest.min + i,
+        )
+      : [...(args.poolManifest.ids ?? [])].sort((a, b) => a - b);
+  const derivedIdListSha256 = idListDigest(impliedIds);
+  if (derivedIdListSha256 !== args.poolManifest.idListSha256) {
+    throw new ScoringPreflightError(
+      `idListSha256 mismatch: expected ${args.poolManifest.idListSha256}, derived ${derivedIdListSha256}`,
+    );
+  }
+
+  const observed = observeFingerprint(args.fingerprintManifest, record, {
+    execFn: args.execFn,
+    readFileFn: args.readFileFn,
+    hubCacheRoot: args.hubCacheRoot,
+    pythonPath: args.pythonPath,
+    scriptPath: args.scriptPath,
+  });
+  assertFingerprintMatches(args.fingerprintManifest, observed);
+
+  const warmUpAttempt = scorePrediction({
+    queryId: args.warmUp.queryId,
+    predDict: args.warmUp.predDict,
+    outputDir: args.outputDir,
+    poolManifest: args.poolManifest,
+    ...(args.execFn ? { execFn: args.execFn } : {}),
+    ...(args.timeoutMs !== undefined ? { timeoutMs: args.timeoutMs } : {}),
+    ...(args.pythonPath ? { pythonPath: args.pythonPath } : {}),
+    ...(args.scriptPath ? { scriptPath: args.scriptPath } : {}),
+  });
+  if (warmUpAttempt.outcome.outcome !== "scored") {
+    throw new ScoringPreflightError(
+      `preflight warm-up call did not reach the "scored" outcome (got "${warmUpAttempt.outcome.outcome}") — ` +
+        `a systemically broken or slow environment is caught here, before a battery starts`,
+    );
+  }
+
+  return {
+    fingerprintOk: true,
+    warmUpWallTimeMs: warmUpAttempt.wallTimeMs,
+    warmUpAttempt,
+  };
 }
