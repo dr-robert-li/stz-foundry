@@ -360,7 +360,23 @@ export function canonicalSubgraphBytes(artifact: SubgraphArtifactV1): Buffer {
   return Buffer.from(JSON.stringify(canonical), "utf8");
 }
 
-/** Handoff hash = sha256 over exactly the canonical bytes above (1a). */
+/**
+ * D-05's canonical handoff hash: sha256 over exactly the canonical bytes
+ * above. Recorded on every `HandoffRecord` as `canonicalSha256` (WR-05), for
+ * replay and audit -- two byte-different but semantically identical
+ * submissions produce the SAME `canonicalSha256`, which is what makes it
+ * useful for comparing artifacts across differently-ordered serializations.
+ *
+ * This is NOT the digest verified at read or at promotion. That digest is
+ * `HandoffRecord.artifactSha256` -- the raw-bytes sha256 of the artifact
+ * exactly as the builder wrote it to disk, computed inside `readJsonArtifact`
+ * and re-verified at both `verifyHandoffAtRead` and
+ * `promoteWinnerSubgraphs`' destination-side copy check (T-22-13). Only a
+ * raw digest can prove a byte-for-byte copy survived transit; a canonicalized
+ * digest is equal across differently-serialized inputs BY CONSTRUCTION,
+ * which is exactly what makes it the wrong tool for that proof. Do not
+ * conflate the two, and do not repoint either verify site at this function.
+ */
 export function hashSubgraphArtifact(artifact: SubgraphArtifactV1): string {
   return createHash("sha256").update(canonicalSubgraphBytes(artifact)).digest("hex");
 }
@@ -518,6 +534,10 @@ export interface HandoffRecord {
   kbRevision: string;
   artifactPath: string;
   artifactSha256: string;
+  /** D-05's canonical handoff hash (WR-05) -- NOT the digest verified at
+   *  read or promotion (that stays `artifactSha256`, the raw on-disk bytes).
+   *  See `hashSubgraphArtifact`'s doc comment for the full distinction. */
+  canonicalSha256: string;
 }
 
 // ── D-03/D-07/D-08: the named, exhaustive fail-closed handoff outcome ──
@@ -709,6 +729,9 @@ function findMissingHandoffBinding(record: HandoffRecord): string | null {
   }
   if (typeof record.kbRevision !== "string" || record.kbRevision.length === 0) {
     return `handoff record missing binding "kbRevision"`;
+  }
+  if (typeof record.canonicalSha256 !== "string" || record.canonicalSha256.length === 0) {
+    return `handoff record missing binding "canonicalSha256"`;
   }
   return null;
 }
@@ -988,6 +1011,36 @@ const SUBGRAPH_ARTIFACT_REL_PATH = "subgraph.json";
 const ANSWER_ARTIFACT_REL_PATH = "answer.json";
 const CD01_MAX_ENTRIES = 20;
 
+/**
+ * IN-03: `task.id` is joined into artifact paths below and must be guarded
+ * before any join happens -- the same discipline
+ * `collaborative-tournament-shell.ts`'s `promoteWinnerSubgraphs` applies to
+ * `winnerVariantId`/`slot` via `assertSafePathSegment`. That shared helper
+ * is deliberately NOT imported here, for two independent reasons verified
+ * during planning (FA-B):
+ *   1. the real pool mints ids as `stark-prime:${query_id}`
+ *      (`collaborative-battery.ts`) -- a colon, which
+ *      `assertSafePathSegment`'s `[A-Za-z0-9_-]+` character class rejects.
+ *      Applying that shared regex verbatim would refuse every real task.
+ *   2. importing it would add `../taxonomy.js` to this module's direct
+ *      imports, failing `PINNED_RUNNER_IMPORT_ALLOWLIST`'s exact-equality
+ *      assertion -- and `taxonomy.ts` itself imports `node:fs/promises`
+ *      write APIs, which SC-1's absent-write-capability claim cannot admit
+ *      into this module's import set even transitively.
+ * So: a module-local, anchored regex admitting the repo's own id vocabulary
+ * (alphanumerics, underscore, hyphen, colon) -- no dot, so a
+ * parent-directory traversal sequence cannot be spelled at all.
+ */
+const SAFE_TASK_ID_RE = /^[A-Za-z0-9_:-]+$/;
+
+function assertSafeTaskId(id: string): void {
+  if (!SAFE_TASK_ID_RE.test(id)) {
+    throw new CollaborativeRunnerError(
+      `runCollaborativeBattery refused: task id ${JSON.stringify(id)} is not a safe path segment (expected ${SAFE_TASK_ID_RE})`,
+    );
+  }
+}
+
 function renderNeighbourhoodLines(nb: KbNeighborhood): string {
   const nodeLines = nb.nodes
     .map((n) => `  - id=${n.id} label=${JSON.stringify(n.label)} type=${JSON.stringify(n.type)}`)
@@ -1033,10 +1086,13 @@ function buildAnswererTaskPrompt(
   const nodesById = new Map(nb.nodes.map((n) => [n.id, n] as const));
   const nodeLines = artifact.nodes
     .map((id) => {
-      const n = nodesById.get(id);
-      return n
-        ? `  - id=${id} label=${JSON.stringify(n.label)} type=${JSON.stringify(n.type)}`
-        : `  - id=${id}`;
+      // IN-02: no label-less fallback -- verifyHandoffAtRead only returns
+      // "success" for an artifact that already passed CD-05's
+      // neighbourhood-membership check (check 3), which guarantees every
+      // artifact.nodes entry is a key in nodesById above. A miss here would
+      // mean CD-05 ran after this function, which it structurally cannot.
+      const n = nodesById.get(id)!;
+      return `  - id=${id} label=${JSON.stringify(n.label)} type=${JSON.stringify(n.type)}`;
     })
     .join("\n");
   const edgeLines = artifact.edges
@@ -1129,6 +1185,13 @@ export async function runCollaborativeBattery(
     );
   }
 
+  // 0b. IN-03: every task id is refused by name, before any path is joined
+  // and before any provider call spends a token -- iterating the (already
+  // non-empty) task list here is a no-op for the zero-task case above.
+  for (const task of args.tasks) {
+    assertSafeTaskId(task.id);
+  }
+
   // 1. Preflight once (D-11), before any provider call and before the
   // builder battery is minted.
   const preflightArgs = {
@@ -1217,6 +1280,10 @@ export async function runCollaborativeBattery(
       kbRevision: schemaResult.artifact.kbRevision,
       artifactPath,
       artifactSha256: read.sha256,
+      // WR-05: D-05's canonical hash gains its production call site here --
+      // recorded BESIDE the raw-bytes artifactSha256 above, never in place
+      // of it (FA-A/see hashSubgraphArtifact's doc comment).
+      canonicalSha256: hashSubgraphArtifact(schemaResult.artifact),
     });
   }
 

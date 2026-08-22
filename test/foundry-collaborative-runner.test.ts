@@ -478,6 +478,20 @@ describe("canonicalSubgraphBytes / hashSubgraphArtifact — D-05 ratified canoni
     };
     expect(hashSubgraphArtifact(base)).toBe(hashSubgraphArtifact(reordered));
   });
+
+  it("two byte-different, semantically-identical serializations produce DIFFERENT raw digests but the SAME hashSubgraphArtifact (WR-05/D-05's replay/audit property)", () => {
+    const reordered: SubgraphArtifactV1 = {
+      ...base,
+      nodes: [...base.nodes].reverse(),
+      edges: [...base.edges].reverse(),
+    };
+    const rawBytes1 = Buffer.from(JSON.stringify(base));
+    const rawBytes2 = Buffer.from(JSON.stringify(reordered, null, 2)); // differing whitespace too
+    const rawDigest1 = createHash("sha256").update(rawBytes1).digest("hex");
+    const rawDigest2 = createHash("sha256").update(rawBytes2).digest("hex");
+    expect(rawDigest1).not.toBe(rawDigest2);
+    expect(hashSubgraphArtifact(base)).toBe(hashSubgraphArtifact(reordered));
+  });
 });
 
 // ── D-05: closed schema — parseSubgraphArtifact ─────────────────────────
@@ -628,6 +642,7 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
       kbRevision: "rev",
       artifactPath: absentPath,
       artifactSha256: "irrelevant",
+      canonicalSha256: "c1",
     };
     const artifactAbsent = verifyHandoffAtRead(1, absentRecord);
     expect(artifactAbsent.kind).toBe("artifact-absent");
@@ -659,6 +674,7 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
       kbRevision: "rev",
       artifactPath: mismatchPath,
       artifactSha256: "0".repeat(64), // deliberately wrong
+      canonicalSha256: "c4",
     };
     const hashMismatch = verifyHandoffAtRead(4, mismatchRecord);
     expect(hashMismatch.kind).toBe("hash-mismatch");
@@ -686,6 +702,7 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
       kbRevision: ADMISSION_RECORD.revisionSha,
       artifactPath: path,
       artifactSha256: createHash("sha256").update(bytes).digest("hex"),
+      canonicalSha256: "c5",
     };
     const result = verifyHandoffAtRead(5, record);
     expect(result.kind).toBe("success");
@@ -713,6 +730,7 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
       kbRevision: ADMISSION_RECORD.revisionSha,
       artifactPath: path,
       artifactSha256: createHash("sha256").update(bytes).digest("hex"),
+      canonicalSha256: "c9",
     };
     const result = verifyHandoffAtRead(4, record); // requested a DIFFERENT queryId
     expect(result.kind).toBe("record-corrupt");
@@ -733,6 +751,7 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
       kbRevision: "rev",
       artifactPath: path,
       artifactSha256: "irrelevant",
+      canonicalSha256: "c1b",
     };
     const result = verifyHandoffAtRead(3, record);
     expect(result.kind).toBe("record-corrupt");
@@ -758,6 +777,7 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
       kbRevision: ADMISSION_RECORD.revisionSha,
       artifactPath: path,
       artifactSha256: createHash("sha256").update(bytes).digest("hex"),
+      canonicalSha256: "c6",
     };
     const result = verifyHandoffAtRead(6, record);
     expect(result.kind).toBe("schema-invalid");
@@ -779,11 +799,40 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
       kbRevision: ADMISSION_RECORD.revisionSha,
       artifactPath: unreadablePath,
       artifactSha256: "irrelevant",
+      canonicalSha256: "c7",
     };
     const result = verifyHandoffAtRead(7, record);
     expect(result.kind).toBe("artifact-unreadable");
     expect(result.kind === "artifact-unreadable" && result.path).toBe(unreadablePath);
     expect(result.kind === "artifact-unreadable" && result.code.length).toBeGreaterThan(0);
+  });
+
+  // ── WR-05: canonicalSha256 is a required handoff-record binding ────────
+
+  it("a record whose canonicalSha256 is empty is record-corrupt, named like every other missing binding (WR-05)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "stz-collab-handoff-canonical-"));
+    const path = join(dir, "artifact.json");
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 8,
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      nodes: [1, 2],
+      edges: [[1, 2, 1]],
+    };
+    const bytes = Buffer.from(JSON.stringify(artifact));
+    writeFileSync(path, bytes);
+    const record: HandoffRecord = {
+      queryId: 8,
+      attemptId: "a8",
+      definitionHash: "d8",
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      artifactPath: path,
+      artifactSha256: createHash("sha256").update(bytes).digest("hex"),
+      canonicalSha256: "",
+    };
+    const result = verifyHandoffAtRead(8, record);
+    expect(result.kind).toBe("record-corrupt");
+    expect(result.kind === "record-corrupt" && result.violation).toContain("canonicalSha256");
   });
 });
 
@@ -1240,6 +1289,53 @@ describe("runCollaborativeBattery — D-06 frozen inputs (Plan 22-02 Task 2)", (
       expect(task.prompt).not.toContain(BUILDER_SENTINEL);
     }
     expect(JSON.stringify(record)).not.toContain(BUILDER_SENTINEL);
+  });
+});
+
+// ── WR-05/IN-03: canonicalSha256 recorded, task-id guarded (Plan 22-06 Task 3) ──
+
+describe("runCollaborativeBattery — WR-05 canonicalSha256 recorded, IN-03 task-id guard (Plan 22-06 Task 3)", () => {
+  it("every surviving handoff record's canonicalSha256 equals hashSubgraphArtifact over the verified artifact, and artifactSha256 still equals the on-disk raw bytes' own digest (WR-05/FA-A)", async () => {
+    const { provider } = makeProvider({ 1001: [11], 1002: [21] });
+    const record = await runCollaborativeBattery(
+      baseArgs({ execFn: makeExecFn({ 1001: 1, 1002: 1 }), runOpts: { providerImpl: provider } }),
+    );
+    expect(record.handoffRecords.length).toBeGreaterThan(0);
+    for (const handoff of record.handoffRecords) {
+      const onDiskBytes = readFileSync(handoff.artifactPath);
+      expect(handoff.artifactSha256).toBe(createHash("sha256").update(onDiskBytes).digest("hex"));
+      const parsedArtifact: unknown = JSON.parse(onDiskBytes.toString("utf8"));
+      const schemaResult = parseSubgraphArtifact(parsedArtifact);
+      expect(schemaResult.ok).toBe(true);
+      expect(handoff.canonicalSha256).toBe(schemaResult.ok ? hashSubgraphArtifact(schemaResult.artifact) : undefined);
+    }
+  });
+
+  it("rejects a task whose id contains a traversal sequence, naming the id, before any provider call is made (IN-03)", async () => {
+    const { provider, callCount } = makeProvider({});
+    const badTask: CollaborativeBatteryTask = {
+      id: "../evil",
+      queryId: 1001,
+      prompt: "Which entity does this describe?",
+    };
+    const err = await thrownAsync(() =>
+      runCollaborativeBattery(baseArgs({ tasks: [badTask], runOpts: { providerImpl: provider } })),
+    );
+    expect(err.message).toContain("../evil");
+    expect(callCount()).toBe(0);
+  });
+
+  it("accepts the real pool's stark-prime:<query_id> task id shape (FA-B)", async () => {
+    const realIdTask: CollaborativeBatteryTask = {
+      id: "stark-prime:1001",
+      queryId: 1001,
+      prompt: "Which entity does this describe?",
+    };
+    const { provider } = makeProvider({ 1001: [11] });
+    const record = await runCollaborativeBattery(
+      baseArgs({ tasks: [realIdTask], execFn: makeExecFn({ 1001: 1 }), runOpts: { providerImpl: provider } }),
+    );
+    expect(record.outcomes).toHaveLength(1);
   });
 });
 
