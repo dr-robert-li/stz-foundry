@@ -40,9 +40,11 @@ import {
   SCORE_ONE_REL,
   SKB_DATA_ROOT_REL,
   VENV_PYTHON_REL,
+  runScoringPreflight,
   type FingerprintManifest,
   type PoolManifest,
   type ScoringExecFn,
+  type RunScoringPreflightArgs,
 } from "../src/foundry/collaborative-scoring-bridge.js";
 import { requireCollaborativeAdmitted } from "../src/foundry/collaborative-admission.js";
 import type { ChatRequest, ChatResponse, Provider } from "../src/foundry/provider.js";
@@ -951,5 +953,74 @@ describe("runCollaborativeBattery — D-06 frozen inputs (Plan 22-02 Task 2)", (
       expect(task.prompt).not.toContain(BUILDER_SENTINEL);
     }
     expect(JSON.stringify(record)).not.toContain(BUILDER_SENTINEL);
+  });
+});
+
+// ── D-11: preflight cadence — once, before anything is spent (Task 3) ───
+
+describe("runCollaborativeBattery — D-11 preflight cadence (Plan 22-02 Task 3)", () => {
+  it("invokes the preflight exactly once, regardless of task count", async () => {
+    const { provider } = makeProvider({ 1001: [11], 1002: [21] });
+    let preflightCalls = 0;
+    const preflightFn = (a: RunScoringPreflightArgs) => {
+      preflightCalls++;
+      return runScoringPreflight(a);
+    };
+    await runCollaborativeBattery(
+      baseArgs({
+        preflightFn,
+        execFn: makeExecFn({ 1001: 1, 1002: 1 }),
+        runOpts: { providerImpl: provider },
+      }),
+    );
+    expect(preflightCalls).toBe(1);
+  });
+
+  it("the run record's preflight report carries the SAME warm-up ScoringAttempt object the seam produced, by identity", async () => {
+    const { provider } = makeProvider({ 1001: [11], 1002: [21] });
+    let captured: ReturnType<typeof runScoringPreflight> | undefined;
+    const preflightFn = (a: RunScoringPreflightArgs) => {
+      const report = runScoringPreflight(a);
+      captured = report;
+      return report;
+    };
+    const record = await runCollaborativeBattery(
+      baseArgs({
+        preflightFn,
+        execFn: makeExecFn({ 1001: 1, 1002: 1 }),
+        runOpts: { providerImpl: provider },
+      }),
+    );
+    expect(captured).toBeDefined();
+    expect(Object.is(record.preflight, captured)).toBe(true);
+    expect(Object.is(record.preflight.warmUpAttempt, captured!.warmUpAttempt)).toBe(true);
+  });
+
+  it("a preflight failure propagates as a thrown error naming the condition, converted into no per-task outcome", async () => {
+    const { provider } = makeProvider({ 1001: [11], 1002: [21] });
+    const badFingerprint = { ...FINGERPRINT_MANIFEST, pythonVersion: "9.9.9-mismatch" };
+    const err = await thrownAsync(() =>
+      runCollaborativeBattery(
+        baseArgs({
+          fingerprintManifest: badFingerprint,
+          execFn: makeExecFn({ 1001: 1, 1002: 1 }),
+          runOpts: { providerImpl: provider },
+        }),
+      ),
+    );
+    expect(err.message).toContain("pythonVersion");
+  });
+
+  it("a zero-task run is refused before the preflight is called, naming the empty-task condition, with zero preflight calls recorded", async () => {
+    let preflightCalls = 0;
+    const preflightFn = (a: RunScoringPreflightArgs) => {
+      preflightCalls++;
+      return runScoringPreflight(a);
+    };
+    const err = await thrownAsync(() =>
+      runCollaborativeBattery(baseArgs({ tasks: [], preflightFn })),
+    );
+    expect(err.message).toContain("tasks is empty");
+    expect(preflightCalls).toBe(0);
   });
 });

@@ -614,6 +614,16 @@ export interface RunCollaborativeBatteryArgs {
    */
   readFileFn?: (path: string) => Buffer;
   hubCacheRoot?: string;
+  /**
+   * Additive testability seam (Rule 3, same precedent as `readFileFn`/
+   * `hubCacheRoot` above): `runScoringPreflight`'s own warm-up call mints a
+   * fresh, nonce'd `ScoringAttempt` on every invocation, so there is no way
+   * for a test to independently reconstruct the SAME object and assert
+   * `Object.is` identity against it without wrapping the call site itself.
+   * Absent, this behaves exactly as the plan's pinned signature describes:
+   * the module calls the real `runScoringPreflight` directly.
+   */
+  preflightFn?: typeof runScoringPreflight;
 }
 
 const SUBGRAPH_ARTIFACT_REL_PATH = "subgraph.json";
@@ -731,17 +741,39 @@ function rankedListToPredDict(
 }
 
 /**
- * One collaborative candidate pair, end to end, offline: preflight, builder
- * pass, hash-at-handoff, verify-at-read, answerer pass, bridge scoring, and
- * the D-09 adapter fitness. A per-task handoff or scoring failure is a
- * named, continuable `HandoffOutcome` (D-03) -- it costs that task hit@1 of
- * zero and the run continues; it never aborts the battery.
+ * One collaborative candidate pair, end to end, offline: a zero-task refusal,
+ * preflight, builder pass, hash-at-handoff, verify-at-read, answerer pass,
+ * bridge scoring, and the D-09 adapter fitness. A per-task handoff or
+ * scoring failure is a named, continuable `HandoffOutcome` (D-03) -- it
+ * costs that task hit@1 of zero and the run continues; it never aborts the
+ * battery. A preflight failure is different in kind (D-11): it is not one
+ * query's problem, so it propagates out unchanged rather than becoming a
+ * per-task outcome.
+ *
+ * Preflight cadence (D-11): called exactly ONCE per battery run, before the
+ * builder battery is minted and before any provider call -- never once per
+ * query. This answers the open question Phase 21's own `runScoringPreflight`
+ * doc comment left to this module: a fingerprint check per query would spend
+ * a subprocess per task for evidence that cannot change mid-run, so the cost
+ * is paid once, up front, before anything else is spent.
  */
 export async function runCollaborativeBattery(
   args: RunCollaborativeBatteryArgs,
 ): Promise<CollaborativeRunRecord> {
-  // 1. Preflight once (D-11), before any provider call.
-  const preflight = runScoringPreflight({
+  // 0. Refuse a zero-task run BEFORE the preflight is even called -- an
+  // empty run would otherwise report a vacuous perfect or zero score, and
+  // this is cheaper here than discovering a division by zero in the
+  // adapter's own mean (mirrors `makeBattery`'s zero-task refusal one
+  // altitude up, `battery-types.ts`).
+  if (args.tasks.length === 0) {
+    throw new CollaborativeRunnerError(
+      `runCollaborativeBattery refused: tasks is empty (0 tasks) -- an empty run would report a vacuous score`,
+    );
+  }
+
+  // 1. Preflight once (D-11), before any provider call and before the
+  // builder battery is minted.
+  const preflightArgs = {
     fingerprintManifest: args.fingerprintManifest,
     poolManifest: args.poolManifest,
     outputDir: args.scoringOutputDir,
@@ -749,7 +781,8 @@ export async function runCollaborativeBattery(
     ...(args.execFn ? { execFn: args.execFn } : {}),
     ...(args.readFileFn ? { readFileFn: args.readFileFn } : {}),
     ...(args.hubCacheRoot ? { hubCacheRoot: args.hubCacheRoot } : {}),
-  });
+  };
+  const preflight = args.preflightFn ? args.preflightFn(preflightArgs) : runScoringPreflight(preflightArgs);
 
   const record = requireCollaborativeAdmitted("stark-prime");
   const kbRevision = record.revisionSha;
