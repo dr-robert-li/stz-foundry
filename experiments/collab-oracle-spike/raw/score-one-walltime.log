@@ -1,0 +1,104 @@
+=== What this measures, and why it did not exist before ===
+SPIKE-FINDINGS.md states plainly: "No transcript from Plans 18-01/18-02
+captured install/download wall-clock timing... This is recorded here as an
+honest gap rather than a fabricated number." That gap covers download time,
+not per-call scoring time, but the same honesty rule applies to
+SCORING_TIMEOUT_MS (src/foundry/collaborative-scoring-bridge.ts): its
+600000ms value has been a reasoned default since Plan 21-01 ("A reasoned
+default, not a measured one... `runScoringPreflight`'s probe-first warm-up
+call is what produces the FIRST real measurement (Plan 21-04), not a re-read
+of this comment") because no raw/ transcript anywhere in this repo carries a
+real per-call wall-clock number for score_one.py. THIS log is that first real
+measurement: one live runScoringPreflight warm-up call, run against the real
+provisioned venv, the real score_one.py, the real revision-pinned KB, and the
+committed prime-pool-manifest.json / fingerprint-manifest.json fixtures as
+the expected side.
+
+=== The command run ===
+A throwaway script (never committed — needs network, the 254MB KB load, and
+minutes of wall clock in the general case, none of which belong in `npm
+test`), invoked from the main repo root so the bridge's repo-relative path
+constants resolve to the real venv/data:
+
+  $ cd <repo-root> && npx tsx <scratch>/score-one-walltime-probe.ts
+
+The script: reads the two committed manifest fixtures, parses them through
+the bridge's own parsePoolManifest/parseFingerprintManifest, builds a
+plausible 20-entry ranked prediction over real in-pool ids (1..20, bounds
+0..129374), and calls runScoringPreflight with queryId=97 (read from
+test/fixtures/stark/prime-selection.json's own meta/first-pair query_id
+field only — no gold field was read or referenced) against the real venv
+(tools/stark-eval/.venv/bin/python) and the real tools/stark-eval/score_one.py.
+
+=== A pre-existing bug this run surfaced, and the workaround used to reach the timed call ===
+observeFingerprint's version-probe (Plan 21-01, src/foundry/collaborative-
+scoring-bridge.ts, UNCHANGED by this plan) issues one python -c call:
+`import sys, torch, stark_qa; print(sys.version.split()[0]);
+print(torch.__version__); print(stark_qa.__version__)`. Against the REAL
+provisioned venv this call itself fails two independent ways, confirmed live
+this session:
+  (a) `import stark_qa` prints "WARNING: faiss must be imported for
+      indexing" to STDOUT (a real stark_qa startup wart) ahead of the three
+      expected print lines, shifting every subsequent line index by one.
+  (b) `stark_qa.__version__` does not exist as an attribute at all —
+      confirmed live: `AttributeError: module 'stark_qa' has no attribute
+      '__version__'`. The whole `-c` call exits non-zero before its third
+      print line ever runs. observeFingerprint never checks this call's
+      exit status/error before parsing its stdout, so the resulting
+      "observed" values are wrong in a way the fingerprint comparison then
+      (correctly, given wrong inputs) reports as a mismatch.
+Neither is fixed in src/ (this plan edits no src/ file — see the plan's own
+kept scope). The throwaway probe script's injected execFn substitutes, ONLY
+for this one "-c" version-probe call, `importlib.metadata.version()` (the
+same mechanism Plan 21-02's own capture_fingerprint.py already uses, and
+which RESEARCH.md verified live) — this changes HOW the version facts are
+queried, never WHAT the environment's real facts are: independently
+confirmed this session via `sha256sum` that scoreOneSha256 and both
+cacheKeyFileSha256 entries (skb: and hub:) match the committed
+fingerprint-manifest.json byte-for-byte, and the corrected version-probe
+reproduces the committed manifest's pythonVersion/torchVersion/
+starkQaVersion exactly (3.11.15 / 2.13.0 / 1.1.0). The REAL score_one.py
+invocation (the one being timed) is passed straight through to the
+unmodified spawnSync in every run below — this workaround never touches it.
+This bug BLOCKS Phase 22's runner from calling stock runScoringPreflight
+against this real environment with the default execFn and should be fixed
+before Phase 22 begins (see the SUMMARY's finding).
+
+=== Raw stderr from the real score_one.py subprocess (second run, in full) ===
+revision pin OK: snap-stanford/stark@88269e23e90587f99476c5dd74e235a0877e69be
+loading skb for kb='prime' (download_processed=True) ...
+loading qa dataset for kb='prime' ...
+resolved query_id=97 at subscript idx=97 (row's own query_id field=97)
+WARNING: faiss must be imported for indexing
+Loading from /home/robert_li/Desktop/projects/stz-foundry/tools/stark-eval/data/prime/processed!
+Use file from /home/robert_li/.cache/huggingface/hub/datasets--snap-stanford--stark/snapshots/88269e23e90587f99476c5dd74e235a0877e69be/qa/prime/stark_qa/stark_qa_human_generated_eval.csv.
+
+=== Measured wall time ===
+Two consecutive successful runs, both reaching the "scored" outcome:
+
+  run 1: warmUpWallTimeMs = 9755   (report.warmUpWallTimeMs, first run to reach the real KB load)
+  run 2: warmUpWallTimeMs = 9147   (report.warmUpWallTimeMs, second run, immediately after run 1)
+
+SCORING_TIMEOUT_MS = 600000 (src/foundry/collaborative-scoring-bridge.ts,
+unchanged by this plan). Ratio of ceiling to measured wall time:
+  600000 / 9755 = 61.5x headroom (run 1)
+  600000 / 9147 = 65.6x headroom (run 2)
+
+=== What this measurement does and does not establish ===
+This is two consecutive warm-cache runs on one machine, not a distribution,
+and not a cold-start measurement: before either run, this session had
+already run `sha256sum` directly against the same processed SKB files
+(tools/stark-eval/data/prime/processed/*.pkl, *.pt) and the same Hugging
+Face hub snapshot CSVs to verify the fingerprint manifest's committed
+hashes, which would have populated the OS page cache for those files ahead
+of time. A genuinely cold machine (fresh boot, empty page cache, or the
+254MB KB artifact not yet touched by anything in the current session) could
+plausibly take longer, particularly for the SKB load's first disk read. The
+61-66x headroom this session measured is therefore a lower bound on how much
+slack the 600000ms ceiling has in a warm-cache scenario, not a worst-case
+figure — Phase 23's detached-run planning should treat this as a real,
+warm-cache number to plan a further, deliberately cold measurement from, not
+as a final word on cold-start cost. No number here was inferred from file
+modification timestamps or any other proxy; both figures above are
+`report.warmUpWallTimeMs`, returned directly by runScoringPreflight's own
+Date.now() delta around the real score_one.py subprocess call.
