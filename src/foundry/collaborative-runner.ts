@@ -144,46 +144,101 @@ export function hashSubgraphArtifact(artifact: SubgraphArtifactV1): string {
   return createHash("sha256").update(canonicalSubgraphBytes(artifact)).digest("hex");
 }
 
+export type SchemaValidationResult =
+  | { ok: true; artifact: SubgraphArtifactV1 }
+  | { ok: false; violation: string };
+
+const RATIFIED_ARTIFACT_KEYS = ["schemaVersion", "queryId", "kbRevision", "nodes", "edges"] as const;
+
 /**
- * Field presence and type checks plus rejection of a wrong `schemaVersion`
- * only -- unknown-key rejection and CD-05's structural bounds are Plan
- * 22-02's addition, deliberately deferred here.
+ * Field-by-field, never a cast, never a throw (Plan 22-02 replaces the
+ * tracer's throw-on-anything posture with named, continuable outcomes,
+ * D-03): rejects a non-object, any key outside the ratified field set
+ * (D-05's smuggling-channel closure -- the clause the tracer deliberately
+ * deferred), a wrong `schemaVersion`, a non-integer node id, a non-integer
+ * relation id, an edge triple of the wrong length, and an edge referencing
+ * a node id absent from the artifact's own node list. Unknown keys are
+ * never stripped and never tolerated -- rejected, naming the offending key.
  */
-export function parseSubgraphArtifact(raw: unknown): SubgraphArtifactV1 {
-  if (typeof raw !== "object" || raw === null) {
-    throw new CollaborativeRunnerError(`subgraph artifact must be an object, got ${typeof raw}`);
+export function parseSubgraphArtifact(raw: unknown): SchemaValidationResult {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return {
+      ok: false,
+      violation: `subgraph artifact must be a plain object, got ${Array.isArray(raw) ? "array" : typeof raw}`,
+    };
   }
   const obj = raw as Record<string, unknown>;
+  const extraKeys = Object.keys(obj).filter(
+    (k) => !(RATIFIED_ARTIFACT_KEYS as readonly string[]).includes(k),
+  );
+  if (extraKeys.length > 0) {
+    return {
+      ok: false,
+      violation: `subgraph artifact carries unknown key(s) outside the ratified schema: ${extraKeys.join(", ")}`,
+    };
+  }
   if (obj.schemaVersion !== SUBGRAPH_SCHEMA_VERSION) {
-    throw new CollaborativeRunnerError(
-      `subgraph artifact schemaVersion ${JSON.stringify(obj.schemaVersion)} does not equal ${SUBGRAPH_SCHEMA_VERSION}`,
-    );
+    return {
+      ok: false,
+      violation: `subgraph artifact schemaVersion ${JSON.stringify(obj.schemaVersion)} does not equal expected ${SUBGRAPH_SCHEMA_VERSION}`,
+    };
   }
   if (typeof obj.queryId !== "number") {
-    throw new CollaborativeRunnerError(`subgraph artifact field "queryId" must be a number`);
+    return { ok: false, violation: `field "queryId" must be a number, got ${typeof obj.queryId}` };
   }
   if (typeof obj.kbRevision !== "string") {
-    throw new CollaborativeRunnerError(`subgraph artifact field "kbRevision" must be a string`);
+    return { ok: false, violation: `field "kbRevision" must be a string, got ${typeof obj.kbRevision}` };
   }
-  if (!Array.isArray(obj.nodes) || !obj.nodes.every((n) => typeof n === "number")) {
-    throw new CollaborativeRunnerError(`subgraph artifact field "nodes" must be an array of numbers`);
+  if (!Array.isArray(obj.nodes)) {
+    return { ok: false, violation: `field "nodes" must be an array` };
   }
-  if (
-    !Array.isArray(obj.edges) ||
-    !obj.edges.every(
-      (e) => Array.isArray(e) && e.length === 3 && e.every((x) => typeof x === "number"),
-    )
-  ) {
-    throw new CollaborativeRunnerError(
-      `subgraph artifact field "edges" must be an array of [source, destination, relationId] triples`,
-    );
+  for (let i = 0; i < obj.nodes.length; i++) {
+    if (!Number.isInteger(obj.nodes[i])) {
+      return {
+        ok: false,
+        violation: `node at position ${i} is not an integer node id (got ${JSON.stringify(obj.nodes[i])})`,
+      };
+    }
+  }
+  if (!Array.isArray(obj.edges)) {
+    return { ok: false, violation: `field "edges" must be an array` };
+  }
+  for (let i = 0; i < obj.edges.length; i++) {
+    const e: unknown = obj.edges[i];
+    if (!Array.isArray(e) || e.length !== 3 || !e.every((x) => Number.isInteger(x))) {
+      return {
+        ok: false,
+        violation: `edge at position ${i} must be a [source, destination, relationId] integer triple (got ${JSON.stringify(e)})`,
+      };
+    }
+  }
+  const nodeIds = obj.nodes as number[];
+  const nodeSet = new Set(nodeIds);
+  const edges = obj.edges as [number, number, number][];
+  for (let i = 0; i < edges.length; i++) {
+    const [src, dst] = edges[i] as [number, number, number];
+    if (!nodeSet.has(src)) {
+      return {
+        ok: false,
+        violation: `edge at position ${i} references source node id ${src} absent from the artifact's own node list`,
+      };
+    }
+    if (!nodeSet.has(dst)) {
+      return {
+        ok: false,
+        violation: `edge at position ${i} references destination node id ${dst} absent from the artifact's own node list`,
+      };
+    }
   }
   return {
-    schemaVersion: SUBGRAPH_SCHEMA_VERSION,
-    queryId: obj.queryId,
-    kbRevision: obj.kbRevision,
-    nodes: obj.nodes as number[],
-    edges: obj.edges as [number, number, number][],
+    ok: true,
+    artifact: {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: obj.queryId,
+      kbRevision: obj.kbRevision,
+      nodes: nodeIds,
+      edges,
+    },
   };
 }
 
@@ -197,6 +252,288 @@ export interface HandoffRecord {
   kbRevision: string;
   artifactPath: string;
   artifactSha256: string;
+}
+
+// ── D-03/D-07/D-08: the named, exhaustive fail-closed handoff outcome ──
+
+/**
+ * CD-05's three named structural conditions (Plan 22-02 Task 2). Declared
+ * here, in full, so `HandoffOutcome`'s `cd05-violation` member is pinned
+ * before Task 2 writes `validateSubgraphAgainstNeighborhood` -- Task 2
+ * widens the validator's body, never this type or the union's member list.
+ */
+export type Cd05Violation =
+  | { condition: "below-minimum"; nodeCount: number }
+  | { condition: "above-maximum"; nodeCount: number }
+  | { condition: "disconnected"; unreachableNodeId: number }
+  | { condition: "outside-neighborhood"; nodeId: number };
+
+/**
+ * Every way a task can fail to reach a scored bridge outcome, mirroring
+ * `ScoringOutcome`'s own discriminated-union/exhaustiveness idiom one
+ * module over (`collaborative-scoring-bridge.ts`). `success` is the only
+ * member that is not itself a D-03 fail-closed condition. Never collapsed:
+ * each failure mode is its own named kind so Phase 23 can report *why* a
+ * candidate lost (T-22-11).
+ */
+export type HandoffOutcome =
+  | { kind: "success"; artifact: SubgraphArtifactV1 }
+  | { kind: "artifact-absent"; path: string }
+  | { kind: "unparseable"; reason: "not-json" | "not-object"; path: string }
+  | { kind: "schema-invalid"; violation: string }
+  | { kind: "record-absent"; queryId: number }
+  | { kind: "record-corrupt"; violation: string }
+  | { kind: "hash-mismatch"; recordedSha256: string; observedSha256: string }
+  | { kind: "cd05-violation"; violation: Cd05Violation }
+  | { kind: "bridge-non-success"; scoringOutcomeKind: string };
+
+export type HandoffOutcomeKind = HandoffOutcome["kind"];
+
+/**
+ * Every key of `HandoffOutcome`'s own discriminant, assigned to a
+ * `Record<HandoffOutcomeKind, true>` literal -- the same excess/missing
+ * property exhaustiveness mechanism `collaborative-scoring-bridge.ts` uses
+ * for `SCORING_OUTCOME_KINDS`: a member added to `HandoffOutcome` without a
+ * matching key here, or a stray key matching no member, is a typecheck
+ * failure.
+ */
+const ALL_HANDOFF_OUTCOME_KINDS: Record<HandoffOutcomeKind, true> = {
+  success: true,
+  "artifact-absent": true,
+  unparseable: true,
+  "schema-invalid": true,
+  "record-absent": true,
+  "record-corrupt": true,
+  "hash-mismatch": true,
+  "cd05-violation": true,
+  "bridge-non-success": true,
+};
+
+/** The full outcome table's discriminants, in the stable order documented
+ *  on `ALL_HANDOFF_OUTCOME_KINDS` above. */
+export const HANDOFF_OUTCOME_KINDS: readonly HandoffOutcomeKind[] = Object.keys(
+  ALL_HANDOFF_OUTCOME_KINDS,
+) as HandoffOutcomeKind[];
+
+function describeCd05Violation(v: Cd05Violation): string {
+  switch (v.condition) {
+    case "below-minimum":
+      return `${v.nodeCount} nodes, below MIN_SUBGRAPH_NODES`;
+    case "above-maximum":
+      return `${v.nodeCount} nodes, above MAX_SUBGRAPH_NODES`;
+    case "disconnected":
+      return `node ${v.unreachableNodeId} unreachable from the rest of the subgraph (undirected, FA-5)`;
+    case "outside-neighborhood":
+      return `node ${v.nodeId} is not a member of the pre-extracted neighborhood`;
+    default: {
+      const _exhaustive: never = v;
+      throw new CollaborativeRunnerError(
+        `describeCd05Violation: unhandled condition ${JSON.stringify(_exhaustive)}`,
+      );
+    }
+  }
+}
+
+/** One-line, human-readable description of any `HandoffOutcome` -- mirrors
+ *  `describeScoringOutcome`'s house idiom one module over, including the
+ *  `never`-typed default arm that makes growing the union without a
+ *  matching case here a compile error. */
+export function describeHandoffOutcome(outcome: HandoffOutcome): string {
+  switch (outcome.kind) {
+    case "success":
+      return `success: verified subgraph for query ${outcome.artifact.queryId}`;
+    case "artifact-absent":
+      return `fail-closed: no artifact found at ${outcome.path}`;
+    case "unparseable":
+      return `fail-closed: artifact at ${outcome.path} did not parse (${outcome.reason})`;
+    case "schema-invalid":
+      return `fail-closed: artifact schema violation -- ${outcome.violation}`;
+    case "record-absent":
+      return `fail-closed: no handoff record recorded for query ${outcome.queryId}`;
+    case "record-corrupt":
+      return `fail-closed: handoff record corrupt -- ${outcome.violation}`;
+    case "hash-mismatch":
+      return `fail-closed: artifact hash mismatch -- recorded ${outcome.recordedSha256}, observed ${outcome.observedSha256}`;
+    case "cd05-violation":
+      return `fail-closed: CD-05 structural violation -- ${describeCd05Violation(outcome.violation)}`;
+    case "bridge-non-success":
+      return `fail-closed: bridge did not score -- outcome "${outcome.scoringOutcomeKind}"`;
+    default: {
+      const _exhaustive: never = outcome;
+      throw new CollaborativeRunnerError(
+        `describeHandoffOutcome: unhandled outcome kind ${JSON.stringify(_exhaustive)}`,
+      );
+    }
+  }
+}
+
+type ReadJsonResult =
+  | { status: "absent" }
+  | { status: "unparseable" }
+  | { status: "ok"; sha256: string; value: unknown };
+
+/**
+ * The ONE read call site in this module (D-08 structural proof, grep-checked
+ * by this plan's acceptance criteria): opens `path` into a buffer exactly
+ * once, and returns both that buffer's sha256 digest and its parse result
+ * computed from the SAME buffer -- no code path may hash one open and parse
+ * another (the TOCTOU window COLLAB-DESIGN.md sec3 names). Every artifact
+ * read in this module -- the builder's subgraph at hash-at-handoff, the
+ * same subgraph again at verify-at-read, and the answerer's ranked list --
+ * routes through this single function.
+ */
+function readJsonArtifact(path: string): ReadJsonResult {
+  let buf: Buffer;
+  try {
+    buf = readFileSync(path);
+  } catch {
+    return { status: "absent" };
+  }
+  const sha256 = createHash("sha256").update(buf).digest("hex");
+  try {
+    const value: unknown = JSON.parse(buf.toString("utf8"));
+    return { status: "ok", sha256, value };
+  } catch {
+    return { status: "unparseable" };
+  }
+}
+
+type ReadSubgraphResult =
+  | { status: "absent" }
+  | { status: "unparseable"; reason: "not-json" | "not-object" }
+  | { status: "ok"; sha256: string; value: Record<string, unknown> };
+
+function readSubgraphArtifact(path: string): ReadSubgraphResult {
+  const r = readJsonArtifact(path);
+  if (r.status === "absent") return { status: "absent" };
+  if (r.status === "unparseable") return { status: "unparseable", reason: "not-json" };
+  if (typeof r.value !== "object" || r.value === null || Array.isArray(r.value)) {
+    return { status: "unparseable", reason: "not-object" };
+  }
+  return { status: "ok", sha256: r.sha256, value: r.value as Record<string, unknown> };
+}
+
+function findMissingHandoffBinding(record: HandoffRecord): string | null {
+  if (typeof record.queryId !== "number") return `handoff record missing binding "queryId"`;
+  if (typeof record.attemptId !== "string" || record.attemptId.length === 0) {
+    return `handoff record missing binding "attemptId"`;
+  }
+  if (typeof record.definitionHash !== "string" || record.definitionHash.length === 0) {
+    return `handoff record missing binding "definitionHash"`;
+  }
+  if (typeof record.kbRevision !== "string" || record.kbRevision.length === 0) {
+    return `handoff record missing binding "kbRevision"`;
+  }
+  return null;
+}
+
+/**
+ * D-08's verify-at-read half of the hash-at-handoff/verify-at-read contract.
+ * Exported directly for unit testing: `record-absent`, `record-corrupt` and
+ * `hash-mismatch` cannot be driven through the full `runCollaborativeBattery`
+ * pipeline (the hash-at-handoff and verify-at-read loops run synchronously,
+ * back to back, in the same tick -- there is no interleave point for a test
+ * to inject a stale or missing record between them), mirroring how
+ * `collaborative-scoring-bridge.ts` unit-tests `validatePredDict` directly
+ * rather than only through `scorePrediction`.
+ */
+export function verifyHandoffAtRead(
+  queryId: number,
+  record: HandoffRecord | undefined,
+): HandoffOutcome {
+  if (!record) {
+    return { kind: "record-absent", queryId };
+  }
+  const missing = findMissingHandoffBinding(record);
+  if (missing) {
+    return { kind: "record-corrupt", violation: missing };
+  }
+  const read = readSubgraphArtifact(record.artifactPath);
+  if (read.status === "absent") {
+    return { kind: "artifact-absent", path: record.artifactPath };
+  }
+  if (read.status === "unparseable") {
+    return { kind: "unparseable", reason: read.reason, path: record.artifactPath };
+  }
+  if (read.sha256 !== record.artifactSha256) {
+    return { kind: "hash-mismatch", recordedSha256: record.artifactSha256, observedSha256: read.sha256 };
+  }
+  const schemaResult = parseSubgraphArtifact(read.value);
+  if (!schemaResult.ok) {
+    return { kind: "schema-invalid", violation: schemaResult.violation };
+  }
+  return { kind: "success", artifact: schemaResult.artifact };
+}
+
+// ── D-07: CD-05 structural bounds ───────────────────────────────────────
+
+/** Panel-tested structural bounds (D-07). Phase 23 may tune these -- they
+ *  are exported constants, not inlined literals, precisely so a later phase
+ *  can retune without touching the validator's logic. */
+export const MIN_SUBGRAPH_NODES = 3;
+export const MAX_SUBGRAPH_NODES = 200;
+
+export type Cd05Result = { ok: true } | { ok: false; violation: Cd05Violation };
+
+/**
+ * CD-05's three structural bounds, each independently named (D-07), checked
+ * in this fixed order -- never one compound boolean, so a Phase 23 report
+ * can tell "too few nodes" from "too many" from "not connected" from
+ * "outside the query's own neighbourhood":
+ *
+ *   1. Node count -- below `MIN_SUBGRAPH_NODES` and above
+ *      `MAX_SUBGRAPH_NODES` are two distinct named conditions.
+ *   2. Connectivity -- derived from the artifact's own edges, treated as
+ *      UNDIRECTED (FA-5): a subgraph whose edges all point away from one
+ *      node is still one connected neighbourhood. Walked from the first
+ *      listed node; every other listed node must be reachable.
+ *   3. Neighbourhood membership -- every listed node id must be a member of
+ *      the `KbNeighborhood` the runner passed to the builder for this
+ *      query, never the artifact's own self-consistency. This is what makes
+ *      "query-linked" checkable offline (T-22-12).
+ */
+export function validateSubgraphAgainstNeighborhood(
+  artifact: SubgraphArtifactV1,
+  neighborhood: KbNeighborhood,
+): Cd05Result {
+  const nodeCount = artifact.nodes.length;
+  if (nodeCount < MIN_SUBGRAPH_NODES) {
+    return { ok: false, violation: { condition: "below-minimum", nodeCount } };
+  }
+  if (nodeCount > MAX_SUBGRAPH_NODES) {
+    return { ok: false, violation: { condition: "above-maximum", nodeCount } };
+  }
+
+  const adjacency = new Map<number, Set<number>>();
+  for (const id of artifact.nodes) adjacency.set(id, new Set());
+  for (const [src, dst] of artifact.edges) {
+    adjacency.get(src)?.add(dst);
+    adjacency.get(dst)?.add(src);
+  }
+  const startId = artifact.nodes[0]!;
+  const visited = new Set<number>([startId]);
+  const stack = [startId];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    for (const neighbor of adjacency.get(current) ?? []) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        stack.push(neighbor);
+      }
+    }
+  }
+  const unreachable = artifact.nodes.find((id) => !visited.has(id));
+  if (unreachable !== undefined) {
+    return { ok: false, violation: { condition: "disconnected", unreachableNodeId: unreachable } };
+  }
+
+  const neighborhoodIds = new Set(neighborhood.nodes.map((n) => n.id));
+  const outside = artifact.nodes.find((id) => !neighborhoodIds.has(id));
+  if (outside !== undefined) {
+    return { ok: false, violation: { condition: "outside-neighborhood", nodeId: outside } };
+  }
+
+  return { ok: true };
 }
 
 // ── D-10: one receipt, minted once per round ────────────────────────────
@@ -222,9 +559,15 @@ export function mintCollaborativeReceipt(): OracleReceipt {
 
 export interface CollaborativeTaskOutcome {
   queryId: number;
-  handoff: HandoffRecord;
-  attempt: ScoringAttempt;
-  /** hit@1 when the attempt's outcome is "scored", 0 otherwise. */
+  /** The named, fail-closed outcome (D-03/D-08): `"success"` when the
+   *  bridge scored the task, one of the eight failure kinds otherwise. */
+  handoffOutcome: HandoffOutcome;
+  /** Present only when the task actually reached the bridge -- a task that
+   *  fails at handoff is never sent to `scorePrediction` (D-03), so it never
+   *  gets an attempt. */
+  attempt?: ScoringAttempt;
+  /** hit@1 when the bridge scored the attempt, 0 otherwise -- including
+   *  every handoff failure and every non-"scored" bridge outcome. */
   hit1: number;
   /** Every other metric the bridge reported, diagnostics only -- never fed
    *  to selection or promotion (D-09). Empty when the attempt did not score. */
@@ -271,6 +614,16 @@ export interface RunCollaborativeBatteryArgs {
    */
   readFileFn?: (path: string) => Buffer;
   hubCacheRoot?: string;
+  /**
+   * Additive testability seam (Rule 3, same precedent as `readFileFn`/
+   * `hubCacheRoot` above): `runScoringPreflight`'s own warm-up call mints a
+   * fresh, nonce'd `ScoringAttempt` on every invocation, so there is no way
+   * for a test to independently reconstruct the SAME object and assert
+   * `Object.is` identity against it without wrapping the call site itself.
+   * Absent, this behaves exactly as the plan's pinned signature describes:
+   * the module calls the real `runScoringPreflight` directly.
+   */
+  preflightFn?: typeof runScoringPreflight;
 }
 
 const SUBGRAPH_ARTIFACT_REL_PATH = "subgraph.json";
@@ -388,48 +741,39 @@ function rankedListToPredDict(
 }
 
 /**
- * Opens the artifact ONE time into a buffer that is both hashed and parsed
- * from that same buffer -- never a re-hash of a path followed by a second
- * open (the TOCTOU window COLLAB-DESIGN.md sec3 names). Called once at
- * handoff and once at verify-at-read; each call is its own single-open
- * operation.
- */
-function openHashParse(
-  artifactPath: string,
-  contextLabel: string,
-): { sha256: string; parsed: unknown } {
-  let buf: Buffer;
-  try {
-    buf = readFileSync(artifactPath);
-  } catch (e) {
-    throw new CollaborativeRunnerError(
-      `${contextLabel}: could not read artifact at ${artifactPath}: ${(e as Error).message}`,
-    );
-  }
-  const sha256 = createHash("sha256").update(buf).digest("hex");
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(buf.toString("utf8"));
-  } catch (e) {
-    throw new CollaborativeRunnerError(
-      `${contextLabel}: artifact at ${artifactPath} did not parse as JSON: ${(e as Error).message}`,
-    );
-  }
-  return { sha256, parsed };
-}
-
-/**
- * One collaborative candidate pair, end to end, offline: preflight, builder
- * pass, hash-at-handoff, verify-at-read, answerer pass, bridge scoring, and
- * the D-09 adapter fitness. A missing or unparseable handoff artifact throws
- * `CollaborativeRunnerError` in this task -- Plan 22-02 replaces that throw
- * with the named fail-closed outcomes D-03 requires.
+ * One collaborative candidate pair, end to end, offline: a zero-task refusal,
+ * preflight, builder pass, hash-at-handoff, verify-at-read, answerer pass,
+ * bridge scoring, and the D-09 adapter fitness. A per-task handoff or
+ * scoring failure is a named, continuable `HandoffOutcome` (D-03) -- it
+ * costs that task hit@1 of zero and the run continues; it never aborts the
+ * battery. A preflight failure is different in kind (D-11): it is not one
+ * query's problem, so it propagates out unchanged rather than becoming a
+ * per-task outcome.
+ *
+ * Preflight cadence (D-11): called exactly ONCE per battery run, before the
+ * builder battery is minted and before any provider call -- never once per
+ * query. This answers the open question Phase 21's own `runScoringPreflight`
+ * doc comment left to this module: a fingerprint check per query would spend
+ * a subprocess per task for evidence that cannot change mid-run, so the cost
+ * is paid once, up front, before anything else is spent.
  */
 export async function runCollaborativeBattery(
   args: RunCollaborativeBatteryArgs,
 ): Promise<CollaborativeRunRecord> {
-  // 1. Preflight once (D-11), before any provider call.
-  const preflight = runScoringPreflight({
+  // 0. Refuse a zero-task run BEFORE the preflight is even called -- an
+  // empty run would otherwise report a vacuous perfect or zero score, and
+  // this is cheaper here than discovering a division by zero in the
+  // adapter's own mean (mirrors `makeBattery`'s zero-task refusal one
+  // altitude up, `battery-types.ts`).
+  if (args.tasks.length === 0) {
+    throw new CollaborativeRunnerError(
+      `runCollaborativeBattery refused: tasks is empty (0 tasks) -- an empty run would report a vacuous score`,
+    );
+  }
+
+  // 1. Preflight once (D-11), before any provider call and before the
+  // builder battery is minted.
+  const preflightArgs = {
     fingerprintManifest: args.fingerprintManifest,
     poolManifest: args.poolManifest,
     outputDir: args.scoringOutputDir,
@@ -437,7 +781,8 @@ export async function runCollaborativeBattery(
     ...(args.execFn ? { execFn: args.execFn } : {}),
     ...(args.readFileFn ? { readFileFn: args.readFileFn } : {}),
     ...(args.hubCacheRoot ? { hubCacheRoot: args.hubCacheRoot } : {}),
-  });
+  };
+  const preflight = args.preflightFn ? args.preflightFn(preflightArgs) : runScoringPreflight(preflightArgs);
 
   const record = requireCollaborativeAdmitted("stark-prime");
   const kbRevision = record.revisionSha;
@@ -473,47 +818,69 @@ export async function runCollaborativeBattery(
     artifactDir: builderArtifactDir,
   });
 
-  // 4. Hash at handoff -- the runner hashes, never the builder.
-  const handoffRecords: HandoffRecord[] = args.tasks.map((task) => {
+  // 4. Hash at handoff -- the runner hashes, never the builder. A task whose
+  // artifact is absent, unparseable, or schema-invalid gets its outcome
+  // recorded here and never proceeds to verify-at-read or the answerer pass
+  // (D-03: no scoring call is ever made for a structurally invalid subgraph).
+  const handoffRecordByTaskId = new Map<string, HandoffRecord>();
+  const failedOutcomeByTaskId = new Map<string, HandoffOutcome>();
+
+  for (const task of args.tasks) {
     const artifactPath = join(builderArtifactDir, task.id, SUBGRAPH_ARTIFACT_REL_PATH);
-    const opened = openHashParse(
-      artifactPath,
-      `handoff for task "${task.id}" (query ${task.queryId})`,
-    );
-    const artifact = parseSubgraphArtifact(opened.parsed);
-    return {
+    const read = readSubgraphArtifact(artifactPath);
+    if (read.status === "absent") {
+      failedOutcomeByTaskId.set(task.id, { kind: "artifact-absent", path: artifactPath });
+      continue;
+    }
+    if (read.status === "unparseable") {
+      failedOutcomeByTaskId.set(task.id, { kind: "unparseable", reason: read.reason, path: artifactPath });
+      continue;
+    }
+    const schemaResult = parseSubgraphArtifact(read.value);
+    if (!schemaResult.ok) {
+      failedOutcomeByTaskId.set(task.id, { kind: "schema-invalid", violation: schemaResult.violation });
+      continue;
+    }
+    // CD-05 (D-07): checked immediately after schema validation, before any
+    // answerer prompt is composed from the artifact.
+    const cd05 = validateSubgraphAgainstNeighborhood(schemaResult.artifact, neighbourhoodByTask.get(task.id)!);
+    if (!cd05.ok) {
+      failedOutcomeByTaskId.set(task.id, { kind: "cd05-violation", violation: cd05.violation });
+      continue;
+    }
+    handoffRecordByTaskId.set(task.id, {
       queryId: task.queryId,
       attemptId: randomUUID(),
       definitionHash: args.candidate.id,
-      kbRevision: artifact.kbRevision,
+      kbRevision: schemaResult.artifact.kbRevision,
       artifactPath,
-      artifactSha256: opened.sha256,
-    };
-  });
+      artifactSha256: read.sha256,
+    });
+  }
 
   // 5. Verify at read, then render the answerer's prompt from verified ids
-  // joined against the SAME pre-extracted neighbourhood (D-06).
+  // joined against the SAME pre-extracted neighbourhood (D-06). Only tasks
+  // that survived step 4 are attempted here -- a task already failed never
+  // reaches verify-at-read, let alone the answerer pass or the bridge.
   const answererPromptByTask = new Map<string, string>();
+  const verifiedArtifactByTask = new Map<string, SubgraphArtifactV1>();
   for (const task of args.tasks) {
-    const handoffRecord = handoffRecords.find((h) => h.queryId === task.queryId)!;
-    const opened = openHashParse(
-      handoffRecord.artifactPath,
-      `verify-at-read for task "${task.id}" (query ${task.queryId})`,
-    );
-    if (opened.sha256 !== handoffRecord.artifactSha256) {
-      throw new CollaborativeRunnerError(
-        `verify-at-read for task "${task.id}" (query ${task.queryId}): artifact hash mismatch -- ` +
-          `recorded ${handoffRecord.artifactSha256}, observed ${opened.sha256}`,
-      );
+    if (failedOutcomeByTaskId.has(task.id)) continue;
+    const verify = verifyHandoffAtRead(task.queryId, handoffRecordByTaskId.get(task.id));
+    if (verify.kind !== "success") {
+      failedOutcomeByTaskId.set(task.id, verify);
+      continue;
     }
-    const artifact = parseSubgraphArtifact(opened.parsed);
+    verifiedArtifactByTask.set(task.id, verify.artifact);
     answererPromptByTask.set(
       task.id,
-      buildAnswererTaskPrompt(task, artifact, neighbourhoodByTask.get(task.id)!),
+      buildAnswererTaskPrompt(task, verify.artifact, neighbourhoodByTask.get(task.id)!),
     );
   }
 
-  const answererTasks: BatteryTask[] = args.tasks.map((task) => ({
+  const survivingTasks = args.tasks.filter((task) => !failedOutcomeByTaskId.has(task.id));
+
+  const answererTasks: BatteryTask[] = survivingTasks.map((task) => ({
     id: task.id,
     prompt: answererPromptByTask.get(task.id)!,
     checks: [
@@ -528,7 +895,11 @@ export async function runCollaborativeBattery(
   }));
   // Explicit gateThreshold, never left to default -- an absent threshold is
   // the perfection bar, which eliminates every realistic candidate at the
-  // eval gate (checkpoint decision 3a).
+  // eval gate (checkpoint decision 3a). NOTE: if every task fails at
+  // handoff, `survivingTasks` is empty and `makeBattery` itself refuses a
+  // zero-task battery (`battery-types.ts`) -- a documented boundary this
+  // plan does not build machinery around, since a wholly-failed run has
+  // nothing left to score or select on.
   const answererBattery = makeBattery({
     id: `${args.batteryIdPrefix}:answerer`,
     tasks: answererTasks,
@@ -547,17 +918,27 @@ export async function runCollaborativeBattery(
     artifactDir: answererArtifactDir,
   });
 
-  // 7/8/9. Ranked list -> predDict (CD-01) -> bridge score -> outcome.
+  // 7/8/9. Ranked list -> predDict (CD-01) -> bridge score -> outcome. Tasks
+  // that already failed at handoff are recorded here too, with hit1 = 0 and
+  // no attempt -- the run's own outcome count still includes them (D-03's
+  // denominator cannot be gamed by failing more handoffs).
   const attempts: ScoringAttempt[] = [];
   const outcomes: CollaborativeTaskOutcome[] = [];
+  const handoffRecords: HandoffRecord[] = [];
   for (const task of args.tasks) {
+    const failedOutcome = failedOutcomeByTaskId.get(task.id);
+    if (failedOutcome) {
+      outcomes.push({ queryId: task.queryId, handoffOutcome: failedOutcome, hit1: 0, diagnostics: {} });
+      continue;
+    }
+    const handoffRecord = handoffRecordByTaskId.get(task.id)!;
+    handoffRecords.push(handoffRecord);
+
     const answerPath = join(answererArtifactDir, task.id, ANSWER_ARTIFACT_REL_PATH);
     let rawList: unknown[] = [];
-    try {
-      const parsed: unknown = JSON.parse(readFileSync(answerPath, "utf8"));
-      if (Array.isArray(parsed)) rawList = parsed;
-    } catch {
-      rawList = [];
+    const answerRead = readJsonArtifact(answerPath);
+    if (answerRead.status === "ok" && Array.isArray(answerRead.value)) {
+      rawList = answerRead.value;
     }
     const { predDict } = rankedListToPredDict(rawList);
     const attempt = scorePrediction({
@@ -568,17 +949,14 @@ export async function runCollaborativeBattery(
       ...(args.execFn ? { execFn: args.execFn } : {}),
     });
     attempts.push(attempt);
-    const handoffRecord = handoffRecords.find((h) => h.queryId === task.queryId)!;
-    const outcome = attempt.outcome;
-    const hit1 = outcome.outcome === "scored" ? (outcome.metrics["hit@1"] ?? 0) : 0;
-    const diagnostics = outcome.outcome === "scored" ? outcome.metrics : {};
-    outcomes.push({
-      queryId: task.queryId,
-      handoff: handoffRecord,
-      attempt,
-      hit1,
-      diagnostics,
-    });
+    const attemptOutcome = attempt.outcome;
+    const scored = attemptOutcome.outcome === "scored";
+    const hit1 = attemptOutcome.outcome === "scored" ? (attemptOutcome.metrics["hit@1"] ?? 0) : 0;
+    const diagnostics = attemptOutcome.outcome === "scored" ? attemptOutcome.metrics : {};
+    const handoffOutcome: HandoffOutcome = scored
+      ? { kind: "success", artifact: verifiedArtifactByTask.get(task.id)! }
+      : { kind: "bridge-non-success", scoringOutcomeKind: attemptOutcome.outcome };
+    outcomes.push({ queryId: task.queryId, handoffOutcome, attempt, hit1, diagnostics });
   }
 
   // 10. The D-09 adapter fitness -- hand-built from bridge metrics, never
