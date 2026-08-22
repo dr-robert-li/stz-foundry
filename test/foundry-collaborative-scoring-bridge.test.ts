@@ -17,6 +17,7 @@ import {
   SCORING_TIMEOUT_MS,
   VENV_PYTHON_REL,
   SCORE_ONE_REL,
+  SKB_DATA_ROOT_REL,
   parsePoolManifest,
   preFilterPredictions,
   scorePrediction,
@@ -313,14 +314,14 @@ describe("runScoringPreflight — field-by-field fingerprint, pin cross-check, w
   const SKB_BYTES = Buffer.from("skb marker bytes");
   const HUB_BYTES = Buffer.from("hub marker bytes");
   const SKB_KEY = "skb:prime/processed/marker.bin";
-  const HUB_KEY = "hub:qa/prime/stark_qa/marker.csv";
-  const SKB_PATH = join("tools/stark-eval/data", "prime/processed/marker.bin");
+  const HUB_KEY = "hub:qa/prime/eval-cache/marker.csv";
+  const SKB_PATH = join(SKB_DATA_ROOT_REL, "prime/processed/marker.bin");
   const HUB_PATH = join(
     HUB_CACHE_ROOT,
     "datasets--snap-stanford--stark",
     "snapshots",
     ADMISSION_RECORD.revisionSha,
-    "qa/prime/stark_qa/marker.csv",
+    "qa/prime/eval-cache/marker.csv",
   );
 
   function sha256(bytes: Buffer): string {
@@ -460,5 +461,80 @@ describe("runScoringPreflight — field-by-field fingerprint, pin cross-check, w
     const execFn: ScoringExecFn = () => fakeResult({ stdout: HAPPY_STDOUT });
     const attempt = scorePrediction({ queryId: 523, predDict: { "1": 0.9 }, outputDir, poolManifest: manifest, execFn });
     expect(attempt.outcome.outcome).toBe("scored");
+  });
+});
+
+// ── Task 3: SC-2 hardening ───────────────────────────────────────────────
+
+describe("scorePrediction — SC-2 hardening: two signals, pinned branch order, no read-back (Task 3)", () => {
+  it("a timeout-coded error AND a SIGTERM signal together resolve to the timeout branch, not the signal branch", () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const timeoutError = Object.assign(new Error("spawnSync ETIMEDOUT"), { code: "ETIMEDOUT" });
+    const execFn: ScoringExecFn = () =>
+      fakeResult({ error: timeoutError, signal: "SIGTERM", status: null, stdout: "", stderr: "" });
+    const err = thrown(() =>
+      scorePrediction({ queryId: 1, predDict: { "1": 0.9 }, outputDir, poolManifest: manifest, execFn }),
+    );
+    expect(err.message).toContain("timeout");
+    expect(err.message).not.toContain("signal");
+  });
+
+  it("status 0 with error set never resolves to scored — both signals are required, neither inferred from the other", () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const execFn: ScoringExecFn = () =>
+      fakeResult({ error: new Error("spawn failed"), status: 0, signal: null, stdout: HAPPY_STDOUT });
+    const err = thrown(() =>
+      scorePrediction({ queryId: 1, predDict: { "1": 0.9 }, outputDir, poolManifest: manifest, execFn }),
+    );
+    expect(err.message).toContain("process-unreachable");
+    expect(err.message).not.toContain("scored");
+  });
+
+  it("error undefined and status 0 but empty stdout never resolves to scored", () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const execFn: ScoringExecFn = () => fakeResult({ status: 0, error: undefined, signal: null, stdout: "" });
+    const err = thrown(() =>
+      scorePrediction({ queryId: 1, predDict: { "1": 0.9 }, outputDir, poolManifest: manifest, execFn }),
+    );
+    expect(err.message).toContain("malformed-stdout");
+  });
+
+  it("fifty consecutive calls into one outputDir produce fifty distinct artifactPath values", () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    const execFn: ScoringExecFn = () => fakeResult({ stdout: HAPPY_STDOUT });
+    const paths = new Set<string>();
+    for (let i = 0; i < 50; i++) {
+      const attempt = scorePrediction({
+        queryId: i,
+        predDict: { "1": 0.9 },
+        outputDir,
+        poolManifest: manifest,
+        execFn,
+      });
+      paths.add(attempt.artifactPath);
+    }
+    expect(paths.size).toBe(50);
+  });
+
+  it("a pre-existing sentinel file in outputDir is neither read nor overwritten by a fresh call", () => {
+    const outputDir = scratchDir();
+    const sentinelPath = join(outputDir, "attempt-stale.json");
+    const sentinelContents = JSON.stringify({ stale: true });
+    writeFileSync(sentinelPath, sentinelContents);
+    const manifest = boundsManifest(0, 999);
+    const execFn: ScoringExecFn = () => fakeResult({ stdout: HAPPY_STDOUT });
+    const attempt = scorePrediction({
+      queryId: 1,
+      predDict: { "1": 0.9 },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+    });
+    expect(readFileSync(sentinelPath, "utf8")).toBe(sentinelContents);
+    expect(attempt.artifactPath).not.toBe(sentinelPath);
   });
 });

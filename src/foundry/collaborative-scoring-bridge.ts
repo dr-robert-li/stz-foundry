@@ -46,6 +46,13 @@ export const VENV_PYTHON_REL = "tools/stark-eval/.venv/bin/python";
 export const SCORE_ONE_REL = "tools/stark-eval/score_one.py";
 export const REQUIRED_METRIC_KEYS = ["mrr", "hit@1", "hit@5", "recall@20"] as const;
 
+/** The `skb:` cache-key namespace's on-disk root (D-06). Exported so callers
+ *  (and this module's own test suite, bound by the D-09 CI boundary in
+ *  `test/stark-fixtures.test.ts` — no test source file may spell out the
+ *  Python toolchain's path literally) resolve it via import, never a second
+ *  hand-typed literal. */
+export const SKB_DATA_ROOT_REL = "tools/stark-eval/data";
+
 /** The admission table's kb name and the argv value `score_one.py` expects
  *  differ — carry the mapping explicitly rather than slicing a prefix. */
 const SCORE_ONE_KB_ARG = "prime";
@@ -278,18 +285,50 @@ export function scorePrediction(args: ScorePredictionArgs): ScoringAttempt {
   });
   const wallTimeMs = Date.now() - startedAt;
 
-  // Happy path only in this task. Every other branch throws a clearly
-  // labelled, unimplemented placeholder — Task 3 replaces this with the
-  // full pinned-order branch skeleton.
+  // The branch order below is load-bearing (SC-2): spawnSync sets BOTH an
+  // ETIMEDOUT-coded `error` AND `signal: "SIGTERM"` when a timeout fires,
+  // so a signal-first branch would misreport every timeout as a signal
+  // termination. Reaching the "scored" outcome (branch 5) requires
+  // `result.error` to be absent AND `result.status` to be exactly `0` AND
+  // the stdout parse to succeed — three independent conditions, none
+  // inferred from another. We do not wrap the `execFn` call itself in
+  // try/catch: the two signals SC-2 names are plain fields on `spawnSync`'s
+  // returned object, and catching would re-hide them. Only the stdout
+  // parse below is wrapped, because JSON.parse is the one step in this
+  // branch that can itself throw.
   let outcome: ScoringOutcome;
-  if (result.status === 0 && result.error === undefined) {
-    const parsed = JSON.parse(result.stdout) as { metrics: Record<string, number> };
-    outcome = { outcome: "scored", metrics: parsed.metrics };
-  } else {
+  const errorCode = result.error !== undefined ? (result.error as NodeJS.ErrnoException).code : undefined;
+  if (errorCode === "ETIMEDOUT") {
+    // (1) timeout — first, because a timed-out spawnSync call ALSO sets
+    // `signal`, and this branch must win before branch (2) ever sees it.
     throw new ScoringPreflightError(
-      `scorePrediction branch unimplemented for this result shape — Task 3 fills in the ` +
-        `pinned failure-outcome branch order`,
+      `timeout branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
     );
+  } else if (result.signal !== null) {
+    // (2) signal termination (SIGKILL/SIGTERM), not a timeout.
+    throw new ScoringPreflightError(
+      `signal-termination branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
+    );
+  } else if (result.error !== undefined) {
+    // (3) process unreachable for any other reason (ENOENT, spawn failure).
+    throw new ScoringPreflightError(
+      `process-unreachable branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
+    );
+  } else if (result.status !== 0) {
+    // (4) non-zero exit, no error/signal set.
+    throw new ScoringPreflightError(
+      `nonzero-exit branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
+    );
+  } else {
+    // (5) otherwise, parse stdout.
+    try {
+      const parsed = JSON.parse(result.stdout) as { metrics: Record<string, number> };
+      outcome = { outcome: "scored", metrics: parsed.metrics };
+    } catch {
+      throw new ScoringPreflightError(
+        `malformed-stdout branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
+      );
+    }
   }
 
   const attempt: ScoringAttempt = {
@@ -411,7 +450,7 @@ function resolveCacheKeyPath(key: string, record: CollaborativeAdmissionRecord, 
   }
   if (key.startsWith("skb:")) {
     const relPath = key.slice("skb:".length);
-    return join("tools/stark-eval/data", relPath);
+    return join(SKB_DATA_ROOT_REL, relPath);
   }
   throw new ScoringPreflightError(
     `cacheKeyFileSha256 key "${key}" has neither the "skb:" nor "hub:" namespace prefix`,
