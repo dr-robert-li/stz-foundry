@@ -635,7 +635,7 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
     const artifact: SubgraphArtifactV1 = {
       schemaVersion: SUBGRAPH_SCHEMA_VERSION,
       queryId: 5,
-      kbRevision: "rev",
+      kbRevision: ADMISSION_RECORD.revisionSha,
       nodes: [1, 2],
       edges: [[1, 2, 1]],
     };
@@ -645,7 +645,7 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
       queryId: 5,
       attemptId: "a5",
       definitionHash: "d5",
-      kbRevision: "rev",
+      kbRevision: ADMISSION_RECORD.revisionSha,
       artifactPath: path,
       artifactSha256: createHash("sha256").update(bytes).digest("hex"),
     };

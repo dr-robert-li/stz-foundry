@@ -410,6 +410,17 @@ export function parseSubgraphArtifact(raw: unknown): SchemaValidationResult {
   if (typeof obj.kbRevision !== "string") {
     return { ok: false, violation: `field "kbRevision" must be a string, got ${typeof obj.kbRevision}` };
   }
+  // T-22-03/SC-1 (Plan 22-05): kbRevision is pin-checked here, mirroring
+  // parseNeighborhoodStdout's own revision check one function over -- the
+  // builder's own artifact must echo the SAME pinned revision, never an
+  // arbitrary string. The violation names the FIELD, never the offending
+  // VALUE: this string lands in the returned run record (record.outcomes /
+  // a HandoffOutcome), an agent-visible surface (FA-8), unlike
+  // parseNeighborhoodStdout's sink, an operator-facing thrown error.
+  const admissionRecord = requireCollaborativeAdmitted("stark-prime");
+  if (obj.kbRevision !== admissionRecord.revisionSha) {
+    return { ok: false, violation: `field "kbRevision" does not match the pinned KB revision` };
+  }
   if (!Array.isArray(obj.nodes)) {
     return { ok: false, violation: `field "nodes" must be an array` };
   }
