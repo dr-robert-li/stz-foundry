@@ -87,11 +87,29 @@ export interface PoolManifest {
   ids?: number[];
 }
 
-/** Two members in this task — `scored` and `prefilter-miss`. A discriminated
- *  union on `outcome` so a later plan widens it without restructuring. */
+/**
+ * The complete §6 fail-closed outcome table (Plans 21-01 and 21-03). A
+ * discriminated union on `outcome`, thirteen members total: the happy path,
+ * six decided before any process is spawned (`validatePredDict` and the
+ * pre-filter), and six decided from the `spawnSync` result object's plain
+ * fields, in the pinned branch order. `SCORING_OUTCOME_KINDS` and
+ * `describeScoringOutcome` below make growing this union without handling
+ * every member a compile error.
+ */
 export type ScoringOutcome =
   | { outcome: "scored"; metrics: Record<string, number> }
-  | { outcome: "prefilter-miss"; forfeitedIds: string[] };
+  | { outcome: "empty-prediction" }
+  | { outcome: "over-cap"; entryCount: number }
+  | { outcome: "non-integer-prediction-id"; key: string }
+  | { outcome: "duplicate-prediction-id"; nodeId: number }
+  | { outcome: "non-finite-score"; key: string }
+  | { outcome: "prefilter-miss"; forfeitedIds: string[] }
+  | { outcome: "timeout"; timeoutMs: number }
+  | { outcome: "signal-terminated"; signal: string }
+  | { outcome: "process-unreachable"; errorMessage: string }
+  | { outcome: "nonzero-exit"; exitCode: number; stderrTail: string }
+  | { outcome: "malformed-stdout"; reason: "not-json" | "not-object" | "multiple-json"; stdoutTail: string }
+  | { outcome: "missing-metrics"; missingKeys: string[] };
 
 export interface ScoringAttempt {
   attemptId: string;
@@ -105,6 +123,69 @@ export interface ScoringAttempt {
   wallTimeMs: number;
   receipt: OracleReceipt;
   artifactPath: string;
+  /** Bounded (2000-char) tail of the subprocess's stderr, recorded for EVERY
+   *  attempt regardless of outcome. Diagnostic evidence only — this field is
+   *  never read to decide an outcome (Pitfall 6 / kept prohibition). Empty
+   *  string for the pre-invocation outcomes, since no process is spawned. */
+  stderrTail: string;
+}
+
+/** The cap CD-01 sets on a submitted prediction's entry count — checked on
+ *  the caller's own list, before the pre-filter runs (so a caller cannot get
+ *  25 entries past the cap by having some of them filtered out). */
+const CD01_MAX_PREDICTION_ENTRIES = 20;
+
+/** Bounded to the last `maxChars` characters so a torch traceback or a huge
+ *  stdout blob cannot make an attempt artifact unreadable or oversized
+ *  (T-21-21, accepted residual: the truncation could in principle hide the
+ *  tail of a very long diagnostic — the full stream stays available to an
+ *  operator re-running the call by hand). */
+function boundedTail(text: string, maxChars = 2000): string {
+  return text.length <= maxChars ? text : text.slice(-maxChars);
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The six pre-invocation outcomes, decided bridge-side BEFORE
+ * `score_one.py` is ever spawned (Pitfall 6, option (a) — never a stderr
+ * substring match). Checks in this fixed order, per entry in insertion
+ * order, mirroring `score_one.py`'s own stdin-parser sequence so the two
+ * sides agree on semantics without the bridge depending on the Python
+ * side's messages. `score_one.py`'s own equivalent checks stay in place as
+ * defense in depth and are deliberately not the bridge's primary gate.
+ * Returns the first violating outcome, or `null` when the input is
+ * acceptable to send onward to the pre-filter.
+ */
+export function validatePredDict(predDict: Record<string, number>): ScoringOutcome | null {
+  const entryCount = Object.keys(predDict).length;
+  if (entryCount === 0) {
+    return { outcome: "empty-prediction" };
+  }
+  if (entryCount > CD01_MAX_PREDICTION_ENTRIES) {
+    return { outcome: "over-cap", entryCount };
+  }
+  const seenNodeIds = new Set<number>();
+  for (const [key, value] of Object.entries(predDict)) {
+    const nodeId = Number(key);
+    if (!Number.isInteger(nodeId)) {
+      return { outcome: "non-integer-prediction-id", key };
+    }
+    // The collision "7" vs "007" cannot exist in the raw JSON object (keys
+    // are already unique there) and only appears after this integer parse —
+    // that is the whole reason this check is not redundant with JSON's own
+    // key uniqueness.
+    if (seenNodeIds.has(nodeId)) {
+      return { outcome: "duplicate-prediction-id", nodeId };
+    }
+    seenNodeIds.add(nodeId);
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return { outcome: "non-finite-score", key };
+    }
+  }
+  return null;
 }
 
 /**
@@ -249,6 +330,30 @@ export function scorePrediction(args: ScorePredictionArgs): ScoringAttempt {
   const artifactPath = join(args.outputDir, `attempt-${attemptId}.json`);
   const receipt = buildReceiptForPrediction(record);
 
+  // Pre-invocation validation runs BEFORE the pre-filter, so the CD-01 cap
+  // (and the other four checks) apply to the caller's own list rather than
+  // to the post-filter remainder — a caller cannot get 25 entries past the
+  // cap by having 5 of them filtered out first.
+  const preValidationOutcome = validatePredDict(args.predDict);
+  if (preValidationOutcome !== null) {
+    const attempt: ScoringAttempt = {
+      attemptId,
+      queryId: args.queryId,
+      kb: "prime",
+      hfRevision: record.revisionSha,
+      submittedPredDict: {},
+      forfeitedIds: [],
+      forfeitedCount: 0,
+      outcome: preValidationOutcome,
+      wallTimeMs: 0,
+      receipt,
+      artifactPath,
+      stderrTail: "",
+    };
+    writeAttemptArtifact(args.outputDir, attempt);
+    return attempt;
+  }
+
   const { filtered, forfeitedIds } = preFilterPredictions(args.predDict, args.poolManifest);
 
   if (Object.keys(filtered).length === 0) {
@@ -264,6 +369,7 @@ export function scorePrediction(args: ScorePredictionArgs): ScoringAttempt {
       wallTimeMs: 0,
       receipt,
       artifactPath,
+      stderrTail: "",
     };
     writeAttemptArtifact(args.outputDir, attempt);
     return attempt;
@@ -298,36 +404,67 @@ export function scorePrediction(args: ScorePredictionArgs): ScoringAttempt {
   // branch that can itself throw.
   let outcome: ScoringOutcome;
   const errorCode = result.error !== undefined ? (result.error as NodeJS.ErrnoException).code : undefined;
+  const enforcedTimeoutMs = args.timeoutMs ?? SCORING_TIMEOUT_MS;
   if (errorCode === "ETIMEDOUT") {
     // (1) timeout — first, because a timed-out spawnSync call ALSO sets
     // `signal`, and this branch must win before branch (2) ever sees it.
-    throw new ScoringPreflightError(
-      `timeout branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
-    );
+    outcome = { outcome: "timeout", timeoutMs: enforcedTimeoutMs };
   } else if (result.signal !== null) {
-    // (2) signal termination (SIGKILL/SIGTERM), not a timeout.
-    throw new ScoringPreflightError(
-      `signal-termination branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
-    );
+    // (2) signal termination (SIGKILL/SIGTERM), not a timeout. Only reached
+    // when branch (1) did not fire, which is what keeps a real timeout out
+    // of this member.
+    outcome = { outcome: "signal-terminated", signal: result.signal };
   } else if (result.error !== undefined) {
     // (3) process unreachable for any other reason (ENOENT, spawn failure).
-    throw new ScoringPreflightError(
-      `process-unreachable branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
-    );
+    // Carries the error's message verbatim — this is the surface that means
+    // the venv or the script is not where the bridge thought.
+    outcome = { outcome: "process-unreachable", errorMessage: result.error.message };
   } else if (result.status !== 0) {
-    // (4) non-zero exit, no error/signal set.
-    throw new ScoringPreflightError(
-      `nonzero-exit branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
-    );
+    // (4) non-zero exit, no error/signal set. Carries a bounded stderr tail
+    // so a torch traceback cannot make the attempt artifact unreadable —
+    // this records the text, it never interprets it.
+    outcome = {
+      // ponytail: status is typed number|null, but branches (1)-(3) above
+      // rule out every case Node itself documents for a null status here
+      // (timeout, signal, spawn error) — the -1 fallback only fires if a
+      // future Node release adds a new null-status case this branch order
+      // doesn't yet know about.
+      outcome: "nonzero-exit",
+      exitCode: result.status ?? -1,
+      stderrTail: boundedTail(result.stderr),
+    };
   } else {
-    // (5) otherwise, parse stdout.
+    // (5) otherwise, parse stdout. The ONLY try/catch in this module — only
+    // around JSON.parse, which is the one step in this branch that can
+    // itself throw.
+    const trimmedStdout = result.stdout.trim();
     try {
-      const parsed = JSON.parse(result.stdout) as { metrics: Record<string, number> };
-      outcome = { outcome: "scored", metrics: parsed.metrics };
+      const parsed: unknown = JSON.parse(trimmedStdout);
+      if (!isPlainObject(parsed)) {
+        outcome = { outcome: "malformed-stdout", reason: "not-object", stdoutTail: boundedTail(trimmedStdout) };
+      } else {
+        const metricsRaw = (parsed as Record<string, unknown>).metrics;
+        const metricsObj = isPlainObject(metricsRaw) ? metricsRaw : {};
+        const missingKeys = REQUIRED_METRIC_KEYS.filter(
+          (key) => !Object.prototype.hasOwnProperty.call(metricsObj, key),
+        );
+        if (missingKeys.length > 0) {
+          outcome = { outcome: "missing-metrics", missingKeys };
+        } else {
+          outcome = { outcome: "scored", metrics: metricsObj as Record<string, number> };
+        }
+      }
     } catch {
-      throw new ScoringPreflightError(
-        `malformed-stdout branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
-      );
+      // Two concatenated JSON objects take exactly one distinguishing
+      // shape: a "}" followed by whitespace then a "{" — JSON.parse itself
+      // cannot succeed on that text (only one root value is legal), so the
+      // shape test happens here, in the catch, deterministically.
+      const looksLikeMultipleJson = /\}\s*\{/.test(trimmedStdout);
+      outcome = {
+        outcome: "malformed-stdout",
+        reason: looksLikeMultipleJson ? "multiple-json" : "not-json",
+        stdoutTail: boundedTail(trimmedStdout),
+      };
     }
   }
 
@@ -343,9 +480,103 @@ export function scorePrediction(args: ScorePredictionArgs): ScoringAttempt {
     wallTimeMs,
     receipt,
     artifactPath,
+    // Recorded for EVERY post-invocation outcome, including "scored" — this
+    // is diagnostic evidence only and is never read to decide the outcome
+    // above (Pitfall 6 / kept prohibition).
+    stderrTail: boundedTail(result.stderr),
   };
   writeAttemptArtifact(args.outputDir, attempt);
   return attempt;
+}
+
+// ── Task 3: exhaustiveness and distinctness ─────────────────────────────
+
+type ScoringOutcomeKind = ScoringOutcome["outcome"];
+
+/**
+ * Every key of `ScoringOutcome`'s own discriminant, assigned to an object
+ * literal typed `Record<ScoringOutcomeKind, true>`. This is the exhaustiveness
+ * mechanism, not `SCORING_OUTCOME_KINDS` itself: TypeScript requires EVERY
+ * key of `ScoringOutcomeKind` to be present in an object literal assigned to
+ * a `Record` of that key type, and rejects any key NOT in that type (excess
+ * property check on the literal) — so a member added to `ScoringOutcome`
+ * without a matching key here, or a stray key that doesn't match any member,
+ * is a typecheck failure. Order here is stable and documented: happy path
+ * first, then the six pre-invocation members in `validatePredDict`'s own
+ * check order, then the six post-invocation members in `scorePrediction`'s
+ * branch order — `Object.keys` preserves insertion order for non-numeric
+ * string keys, so this order is what `SCORING_OUTCOME_KINDS` carries.
+ */
+const ALL_SCORING_OUTCOME_KINDS: Record<ScoringOutcomeKind, true> = {
+  scored: true,
+  "empty-prediction": true,
+  "over-cap": true,
+  "non-integer-prediction-id": true,
+  "duplicate-prediction-id": true,
+  "non-finite-score": true,
+  "prefilter-miss": true,
+  timeout: true,
+  "signal-terminated": true,
+  "process-unreachable": true,
+  "nonzero-exit": true,
+  "malformed-stdout": true,
+  "missing-metrics": true,
+};
+
+/** The full failure-outcome table's discriminants, in the stable order
+ *  documented on `ALL_SCORING_OUTCOME_KINDS` above — for table-driven tests
+ *  and Phase 22's logging. */
+export const SCORING_OUTCOME_KINDS: readonly ScoringOutcomeKind[] = Object.keys(
+  ALL_SCORING_OUTCOME_KINDS,
+) as ScoringOutcomeKind[];
+
+/**
+ * One-line, human-readable description of any `ScoringOutcome`, worded so a
+ * log reader can tell an EXPECTED pre-filter miss apart from a genuine
+ * process failure without reading the discriminant (§6's own requirement —
+ * this wording is contract, not cosmetics). The `default` arm's `never`
+ * assignment is the point of this function: it makes growing `ScoringOutcome`
+ * without adding a matching arm here a compile error, and gives Phase 22's
+ * runner a ready-made log line as a side effect.
+ */
+export function describeScoringOutcome(outcome: ScoringOutcome): string {
+  switch (outcome.outcome) {
+    case "scored":
+      return `scored: metrics ${JSON.stringify(outcome.metrics)}`;
+    case "empty-prediction":
+      return "invalid input: the submitted prediction object had zero entries";
+    case "over-cap":
+      return `invalid input: submitted ${outcome.entryCount} entries, CD-01 caps at 20`;
+    case "non-integer-prediction-id":
+      return `invalid input: key "${outcome.key}" does not parse to an integer node id`;
+    case "duplicate-prediction-id":
+      return `invalid input: node id ${outcome.nodeId} appeared more than once after integer parsing`;
+    case "non-finite-score":
+      return `invalid input: key "${outcome.key}"'s value is not a finite number`;
+    case "prefilter-miss":
+      return (
+        `expected pre-filter miss: every one of the ${outcome.forfeitedIds.length} submitted id(s) fell ` +
+        `outside the committed candidate pool — this is a defined, expected outcome, not a process failure`
+      );
+    case "timeout":
+      return `process failure: the scoring process exceeded the enforced ${outcome.timeoutMs}ms timeout`;
+    case "signal-terminated":
+      return `process failure: the scoring process was killed by signal ${outcome.signal}`;
+    case "process-unreachable":
+      return `process failure: the scoring process could not be reached (${outcome.errorMessage})`;
+    case "nonzero-exit":
+      return `process failure: the scoring process exited with code ${outcome.exitCode}`;
+    case "malformed-stdout":
+      return `process failure: the scoring process's stdout was not a single valid JSON object (${outcome.reason})`;
+    case "missing-metrics":
+      return `process failure: the scoring process's metrics omitted ${outcome.missingKeys.join(", ")}`;
+    default: {
+      const _exhaustive: never = outcome;
+      throw new ScoringPreflightError(
+        `describeScoringOutcome: unhandled outcome kind ${JSON.stringify(_exhaustive)}`,
+      );
+    }
+  }
 }
 
 // ── Task 2: environment fingerprint preflight ───────────────────────────
