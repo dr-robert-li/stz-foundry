@@ -16,7 +16,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [20, 22]
+        # BI oracle (src/foundry/bi-oracle.ts) requires node:sqlite — absent on
+        # Node 20, flag-gated on 22 (NODE_OPTIONS below), stable on 24.
+        node-version: [22, 24]
     steps:
       - uses: actions/checkout@v5
 
@@ -41,6 +43,10 @@ jobs:
         run: npm run typecheck
 
       - name: Test
+        env:
+          # node:sqlite is flag-gated on Node 22 (stable unflagged on 24; the
+          # flag is still accepted there, so setting it unconditionally is safe).
+          NODE_OPTIONS: --experimental-sqlite
         run: npm test
 
       # The published package ships dist/, so the emit must be exercised on every
@@ -75,4 +81,7 @@ jobs:
         run: npm run typecheck
 
       - name: Test
+        env:
+          # node:sqlite is flag-gated on Node 22 (BI oracle requires it).
+          NODE_OPTIONS: --experimental-sqlite
         run: npm test
