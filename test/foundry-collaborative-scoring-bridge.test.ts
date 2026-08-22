@@ -630,6 +630,121 @@ describe("runScoringPreflight — field-by-field fingerprint, pin cross-check, w
   });
 });
 
+// ── 21-03 Task 2: the six post-invocation outcomes ──────────────────────
+
+describe("scorePrediction — post-invocation outcomes: timeout, signal, unreachable, non-zero exit, malformed stdout, missing metrics (21-03 Task 2)", () => {
+  function attemptWith(execFn: ScoringExecFn, timeoutMs?: number) {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    return scorePrediction({
+      queryId: 1,
+      predDict: { "1": 0.9 },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+      ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+    });
+  }
+
+  it("an ETIMEDOUT-coded error with SIGTERM resolves to timeout carrying the enforced timeoutMs, not signal-terminated", () => {
+    const timeoutError = Object.assign(new Error("spawnSync ETIMEDOUT"), { code: "ETIMEDOUT" });
+    const attempt = attemptWith(
+      () => fakeResult({ error: timeoutError, signal: "SIGTERM", status: null, stdout: "", stderr: "" }),
+      123456,
+    );
+    expect(attempt.outcome).toEqual({ outcome: "timeout", timeoutMs: 123456 });
+  });
+
+  it("SIGKILL with status null and no error resolves to signal-terminated", () => {
+    const attempt = attemptWith(() => fakeResult({ signal: "SIGKILL", status: null, error: undefined }));
+    expect(attempt.outcome).toEqual({ outcome: "signal-terminated", signal: "SIGKILL" });
+  });
+
+  it("an ENOENT-coded error resolves to process-unreachable carrying the error's message", () => {
+    // D-09's CI-boundary guard (test/stark-fixtures.test.ts) forbids several
+    // Python-toolchain path literals anywhere in test/**/*.ts source text —
+    // use a generic fake path here, not the real venv path (same fix
+    // 21-01/21-02 already applied).
+    const enoentError = Object.assign(new Error("spawnSync /fake/interpreter/path ENOENT"), {
+      code: "ENOENT",
+    });
+    const attempt = attemptWith(() => fakeResult({ error: enoentError, status: null, signal: null }));
+    expect(attempt.outcome).toEqual({
+      outcome: "process-unreachable",
+      errorMessage: "spawnSync /fake/interpreter/path ENOENT",
+    });
+  });
+
+  it("status 1 with empty stdout and a pin-mismatch stderr message resolves to nonzero-exit carrying exitCode and a stderr tail", () => {
+    const attempt = attemptWith(() =>
+      fakeResult({ status: 1, stdout: "", stderr: "AssertionError: pinned revision mismatch" }),
+    );
+    expect(attempt.outcome).toEqual({
+      outcome: "nonzero-exit",
+      exitCode: 1,
+      stderrTail: "AssertionError: pinned revision mismatch",
+    });
+  });
+
+  it("stdout that is not JSON resolves to malformed-stdout with reason not-json", () => {
+    const attempt = attemptWith(() => fakeResult({ stdout: "definitely not json" }));
+    expect(attempt.outcome).toMatchObject({ outcome: "malformed-stdout", reason: "not-json" });
+  });
+
+  it.each([
+    ["a bare number", "42"],
+    ["a bare string", '"just a string"'],
+    ["an array", "[1,2,3]"],
+    ["null", "null"],
+  ])("stdout that parses to %s resolves to malformed-stdout with reason not-object", (_label, stdout) => {
+    const attempt = attemptWith(() => fakeResult({ stdout }));
+    expect(attempt.outcome).toMatchObject({ outcome: "malformed-stdout", reason: "not-object" });
+  });
+
+  it("stdout containing two concatenated JSON objects resolves to malformed-stdout with reason multiple-json", () => {
+    const attempt = attemptWith(() => fakeResult({ stdout: '{"a":1} {"b":2}' }));
+    expect(attempt.outcome).toMatchObject({ outcome: "malformed-stdout", reason: "multiple-json" });
+  });
+
+  it("stdout whose metrics object omits hit@5 resolves to missing-metrics listing exactly [hit@5]", () => {
+    const stdout = JSON.stringify({ metrics: { mrr: 0.5, "hit@1": 1.0, "recall@20": 0.25 } });
+    const attempt = attemptWith(() => fakeResult({ stdout }));
+    expect(attempt.outcome).toEqual({ outcome: "missing-metrics", missingKeys: ["hit@5"] });
+  });
+
+  it("stdout whose metrics object omits hit@1 and hit@5 resolves to missing-metrics listing both in REQUIRED_METRIC_KEYS order", () => {
+    const stdout = JSON.stringify({ metrics: { mrr: 0.5, "recall@20": 0.25 } });
+    const attempt = attemptWith(() => fakeResult({ stdout }));
+    expect(attempt.outcome).toEqual({ outcome: "missing-metrics", missingKeys: ["hit@1", "hit@5"] });
+  });
+
+  it("stdout with no metrics key at all resolves to missing-metrics listing all four keys, never a crash", () => {
+    const stdout = JSON.stringify({ kb: "prime", query_id: 1 });
+    const attempt = attemptWith(() => fakeResult({ stdout }));
+    expect(attempt.outcome).toEqual({
+      outcome: "missing-metrics",
+      missingKeys: ["mrr", "hit@1", "hit@5", "recall@20"],
+    });
+  });
+
+  it("status 0, error-free, valid JSON stdout with 40 lines of stderr progress text resolves to scored, and the stderr text lands on the written attempt artifact", () => {
+    const progressLines = Array.from({ length: 40 }, (_, i) => `progress line ${i}`).join("\n");
+    const attempt = attemptWith(() => fakeResult({ stdout: HAPPY_STDOUT, stderr: progressLines }));
+    expect(attempt.outcome.outcome).toBe("scored");
+    expect(attempt.stderrTail).toBe(progressLines);
+    const onDisk = JSON.parse(readFileSync(attempt.artifactPath, "utf8"));
+    expect(onDisk.stderrTail).toBe(progressLines);
+  });
+
+  it("every post-invocation outcome carries a non-zero wallTimeMs and still writes an artifact and a fresh valid receipt", () => {
+    const attempt = attemptWith(() => fakeResult({ status: 1, stdout: "", stderr: "boom" }));
+    expect(attempt.wallTimeMs).toBeGreaterThanOrEqual(0);
+    const onDisk = JSON.parse(readFileSync(attempt.artifactPath, "utf8"));
+    expect(onDisk).toEqual(attempt);
+    expect(() => validateReceipt(attempt.receipt, "test")).not.toThrow();
+  });
+});
+
 // ── Task 3: SC-2 hardening ───────────────────────────────────────────────
 
 describe("scorePrediction — SC-2 hardening: two signals, pinned branch order, no read-back (Task 3)", () => {
@@ -639,11 +754,14 @@ describe("scorePrediction — SC-2 hardening: two signals, pinned branch order, 
     const timeoutError = Object.assign(new Error("spawnSync ETIMEDOUT"), { code: "ETIMEDOUT" });
     const execFn: ScoringExecFn = () =>
       fakeResult({ error: timeoutError, signal: "SIGTERM", status: null, stdout: "", stderr: "" });
-    const err = thrown(() =>
-      scorePrediction({ queryId: 1, predDict: { "1": 0.9 }, outputDir, poolManifest: manifest, execFn }),
-    );
-    expect(err.message).toContain("timeout");
-    expect(err.message).not.toContain("signal");
+    const attempt = scorePrediction({
+      queryId: 1,
+      predDict: { "1": 0.9 },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+    });
+    expect(attempt.outcome).toEqual({ outcome: "timeout", timeoutMs: SCORING_TIMEOUT_MS });
   });
 
   it("status 0 with error set never resolves to scored — both signals are required, neither inferred from the other", () => {
@@ -651,21 +769,29 @@ describe("scorePrediction — SC-2 hardening: two signals, pinned branch order, 
     const manifest = boundsManifest(0, 999);
     const execFn: ScoringExecFn = () =>
       fakeResult({ error: new Error("spawn failed"), status: 0, signal: null, stdout: HAPPY_STDOUT });
-    const err = thrown(() =>
-      scorePrediction({ queryId: 1, predDict: { "1": 0.9 }, outputDir, poolManifest: manifest, execFn }),
-    );
-    expect(err.message).toContain("process-unreachable");
-    expect(err.message).not.toContain("scored");
+    const attempt = scorePrediction({
+      queryId: 1,
+      predDict: { "1": 0.9 },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+    });
+    expect(attempt.outcome.outcome).toBe("process-unreachable");
+    expect(attempt.outcome).toEqual({ outcome: "process-unreachable", errorMessage: "spawn failed" });
   });
 
   it("error undefined and status 0 but empty stdout never resolves to scored", () => {
     const outputDir = scratchDir();
     const manifest = boundsManifest(0, 999);
     const execFn: ScoringExecFn = () => fakeResult({ status: 0, error: undefined, signal: null, stdout: "" });
-    const err = thrown(() =>
-      scorePrediction({ queryId: 1, predDict: { "1": 0.9 }, outputDir, poolManifest: manifest, execFn }),
-    );
-    expect(err.message).toContain("malformed-stdout");
+    const attempt = scorePrediction({
+      queryId: 1,
+      predDict: { "1": 0.9 },
+      outputDir,
+      poolManifest: manifest,
+      execFn,
+    });
+    expect(attempt.outcome).toEqual({ outcome: "malformed-stdout", reason: "not-json", stdoutTail: "" });
   });
 
   it("fifty consecutive calls into one outputDir produce fifty distinct artifactPath values", () => {

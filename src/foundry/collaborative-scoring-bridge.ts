@@ -404,36 +404,67 @@ export function scorePrediction(args: ScorePredictionArgs): ScoringAttempt {
   // branch that can itself throw.
   let outcome: ScoringOutcome;
   const errorCode = result.error !== undefined ? (result.error as NodeJS.ErrnoException).code : undefined;
+  const enforcedTimeoutMs = args.timeoutMs ?? SCORING_TIMEOUT_MS;
   if (errorCode === "ETIMEDOUT") {
     // (1) timeout — first, because a timed-out spawnSync call ALSO sets
     // `signal`, and this branch must win before branch (2) ever sees it.
-    throw new ScoringPreflightError(
-      `timeout branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
-    );
+    outcome = { outcome: "timeout", timeoutMs: enforcedTimeoutMs };
   } else if (result.signal !== null) {
-    // (2) signal termination (SIGKILL/SIGTERM), not a timeout.
-    throw new ScoringPreflightError(
-      `signal-termination branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
-    );
+    // (2) signal termination (SIGKILL/SIGTERM), not a timeout. Only reached
+    // when branch (1) did not fire, which is what keeps a real timeout out
+    // of this member.
+    outcome = { outcome: "signal-terminated", signal: result.signal };
   } else if (result.error !== undefined) {
     // (3) process unreachable for any other reason (ENOENT, spawn failure).
-    throw new ScoringPreflightError(
-      `process-unreachable branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
-    );
+    // Carries the error's message verbatim — this is the surface that means
+    // the venv or the script is not where the bridge thought.
+    outcome = { outcome: "process-unreachable", errorMessage: result.error.message };
   } else if (result.status !== 0) {
-    // (4) non-zero exit, no error/signal set.
-    throw new ScoringPreflightError(
-      `nonzero-exit branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
-    );
+    // (4) non-zero exit, no error/signal set. Carries a bounded stderr tail
+    // so a torch traceback cannot make the attempt artifact unreadable —
+    // this records the text, it never interprets it.
+    outcome = {
+      // ponytail: status is typed number|null, but branches (1)-(3) above
+      // rule out every case Node itself documents for a null status here
+      // (timeout, signal, spawn error) — the -1 fallback only fires if a
+      // future Node release adds a new null-status case this branch order
+      // doesn't yet know about.
+      outcome: "nonzero-exit",
+      exitCode: result.status ?? -1,
+      stderrTail: boundedTail(result.stderr),
+    };
   } else {
-    // (5) otherwise, parse stdout.
+    // (5) otherwise, parse stdout. The ONLY try/catch in this module — only
+    // around JSON.parse, which is the one step in this branch that can
+    // itself throw.
+    const trimmedStdout = result.stdout.trim();
     try {
-      const parsed = JSON.parse(result.stdout) as { metrics: Record<string, number> };
-      outcome = { outcome: "scored", metrics: parsed.metrics };
+      const parsed: unknown = JSON.parse(trimmedStdout);
+      if (!isPlainObject(parsed)) {
+        outcome = { outcome: "malformed-stdout", reason: "not-object", stdoutTail: boundedTail(trimmedStdout) };
+      } else {
+        const metricsRaw = (parsed as Record<string, unknown>).metrics;
+        const metricsObj = isPlainObject(metricsRaw) ? metricsRaw : {};
+        const missingKeys = REQUIRED_METRIC_KEYS.filter(
+          (key) => !Object.prototype.hasOwnProperty.call(metricsObj, key),
+        );
+        if (missingKeys.length > 0) {
+          outcome = { outcome: "missing-metrics", missingKeys };
+        } else {
+          outcome = { outcome: "scored", metrics: metricsObj as Record<string, number> };
+        }
+      }
     } catch {
-      throw new ScoringPreflightError(
-        `malformed-stdout branch unimplemented for this result shape — a later plan fills in the pinned failure-outcome branch order`,
-      );
+      // Two concatenated JSON objects take exactly one distinguishing
+      // shape: a "}" followed by whitespace then a "{" — JSON.parse itself
+      // cannot succeed on that text (only one root value is legal), so the
+      // shape test happens here, in the catch, deterministically.
+      const looksLikeMultipleJson = /\}\s*\{/.test(trimmedStdout);
+      outcome = {
+        outcome: "malformed-stdout",
+        reason: looksLikeMultipleJson ? "multiple-json" : "not-json",
+        stdoutTail: boundedTail(trimmedStdout),
+      };
     }
   }
 
@@ -449,10 +480,10 @@ export function scorePrediction(args: ScorePredictionArgs): ScoringAttempt {
     wallTimeMs,
     receipt,
     artifactPath,
-    // ponytail: placeholder until Task 2 replaces this whole branch skeleton
-    // with the real post-invocation outcomes and starts recording
-    // `result.stderr`'s bounded tail here.
-    stderrTail: "",
+    // Recorded for EVERY post-invocation outcome, including "scored" — this
+    // is diagnostic evidence only and is never read to decide the outcome
+    // above (Pitfall 6 / kept prohibition).
+    stderrTail: boundedTail(result.stderr),
   };
   writeAttemptArtifact(args.outputDir, attempt);
   return attempt;
