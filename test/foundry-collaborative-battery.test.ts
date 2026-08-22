@@ -17,6 +17,7 @@ import {
   buildCollaborativeBattery,
   tasksFromFixture,
   taskForQueryId,
+  readFixtureOrRefuse,
   CollaborativeBatteryRefusedError,
 } from "../src/foundry/collaborative-battery.js";
 import { requireCollaborativeAdmitted } from "../src/foundry/collaborative-admission.js";
@@ -154,6 +155,26 @@ describe("tasksFromFixture — fails closed on a malformed fixture shape, never 
     const err = thrown(() => tasksFromFixture({ meta: { pool: "selection" } } as never));
     expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
     expect(err.message).toContain("pairs");
+  });
+});
+
+describe("readFixtureOrRefuse — the filesystem boundary fails closed, never a raw ENOENT/SyntaxError (WR-02)", () => {
+  it("a missing fixture path is refused, naming the path and the underlying error", () => {
+    const err = thrown(() => readFixtureOrRefuse("test/fixtures/stark/does-not-exist.json"));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("does-not-exist.json");
+  });
+
+  it("a fixture that is not valid JSON is refused, naming the path", () => {
+    // README.md exists in the repo root and is not valid JSON.
+    const err = thrown(() => readFixtureOrRefuse("README.md"));
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("README.md");
+  });
+
+  it("the real selection fixture still parses via readFixtureOrRefuse (happy path unaffected)", () => {
+    const fixture = readFixtureOrRefuse("test/fixtures/stark/prime-selection.json");
+    expect(fixture.meta.pool).toBe("selection");
   });
 });
 

@@ -155,7 +155,34 @@ export function taskForQueryId(
  */
 export function buildCollaborativeBattery(): CollaborativeBatteryTask[] {
   const record = requireCollaborativeAdmitted("stark-prime");
-  const raw = readFileSync(join(repoRoot, record.selectionFixturePath), "utf8");
-  const fixture = JSON.parse(raw) as StarkFixture;
+  const fixture = readFixtureOrRefuse(record.selectionFixturePath);
   return tasksFromFixture(fixture);
+}
+
+/**
+ * The one place this module touches the filesystem — reads and parses the
+ * fixture named by an admission record's `selectionFixturePath`, re-throwing
+ * both a missing file and malformed JSON as a named `CollaborativeBatteryRefusedError`
+ * rather than a raw `ENOENT`/`SyntaxError`. Exported (not inlined into
+ * `buildCollaborativeBattery`) so a future refactor that lets the fixture
+ * path vary (D-01's stated amendment path) can drive this exact guard with a
+ * fixture path of its own, without needing to delete the real committed
+ * fixture to exercise the failure branch.
+ */
+export function readFixtureOrRefuse(fixturePath: string): StarkFixture {
+  let raw: string;
+  try {
+    raw = readFileSync(join(repoRoot, fixturePath), "utf8");
+  } catch (err) {
+    throw new CollaborativeBatteryRefusedError(
+      `could not read fixture at ${fixturePath}: ${(err as Error).message}`,
+    );
+  }
+  try {
+    return JSON.parse(raw) as StarkFixture;
+  } catch (err) {
+    throw new CollaborativeBatteryRefusedError(
+      `could not parse fixture at ${fixturePath} as JSON: ${(err as Error).message}`,
+    );
+  }
 }
