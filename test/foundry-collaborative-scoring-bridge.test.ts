@@ -924,3 +924,99 @@ describe("SCORING_OUTCOME_KINDS / describeScoringOutcome — exhaustiveness and 
     }
   });
 });
+
+// ── 21-04 Task 3: committed-manifest integration (offline half) ─────────
+//
+// The one check that closes the seam between Plans 21-01 and 21-02, written
+// in the same wave against a key vocabulary stated in both: if the Python
+// harvest tool and this module's own TypeScript parsers disagree on a field
+// name or a namespace prefix, THIS is where it surfaces. Neither fixture is
+// imported from any src/ module — this test reads them and hands them to
+// the bridge's own parsers as data.
+
+describe("committed pool and fingerprint manifests parse through the bridge's own parsers (21-04 Task 3)", () => {
+  const committedPoolManifestRaw = JSON.parse(readFileSync(join(fixtureDir, "prime-pool-manifest.json"), "utf8"));
+  const committedFingerprintManifestRaw = JSON.parse(
+    readFileSync(join(fixtureDir, "fingerprint-manifest.json"), "utf8"),
+  );
+
+  it("the committed pool manifest parses without throwing, and its hfRevision equals the admission record's revisionSha", () => {
+    const manifest = parsePoolManifest(committedPoolManifestRaw);
+    expect(manifest.hfRevision).toBe(ADMISSION_RECORD.revisionSha);
+  });
+
+  it("the committed fingerprint manifest parses without throwing, and its cacheKeyFileSha256 satisfies the both-namespace requirement", () => {
+    const manifest = parseFingerprintManifest(committedFingerprintManifestRaw);
+    const keys = Object.keys(manifest.cacheKeyFileSha256);
+    expect(keys.some((key) => key.startsWith("skb:"))).toBe(true);
+    expect(keys.some((key) => key.startsWith("hub:"))).toBe(true);
+  });
+
+  it("the committed pool manifest's idListSha256 passes runScoringPreflight's self-consistency check, driven entirely offline via injected execFn and fingerprint seams", () => {
+    // The pool manifest is the REAL committed fixture (harvested by
+    // Plan 21-02's Python harvest tool) — if its idListSha256
+    // didn't match the bounds it declares, runScoringPreflight would throw
+    // naming "idListSha256" before ever reaching the fingerprint comparison
+    // below, and this test would fail with that thrown error rather than
+    // returning a report.
+    const committedPoolManifest = parsePoolManifest(committedPoolManifestRaw);
+
+    // The fingerprint seams are entirely synthetic and self-consistent
+    // (never the real committed fingerprint-manifest.json, which records
+    // hashes of real on-disk bytes this offline test does not have) — this
+    // is what lets the test prove the idListSha256 self-check without any
+    // venv, network, or real cache.
+    const SCORE_ONE_BYTES = Buffer.from("offline-integration score_one.py stand-in");
+    const SKB_BYTES = Buffer.from("offline-integration skb marker bytes");
+    const HUB_BYTES = Buffer.from("offline-integration hub marker bytes");
+    const SKB_KEY = "skb:prime/processed/offline-marker.bin";
+    const HUB_KEY = "hub:qa/prime/eval-cache/offline-marker.csv";
+    const HUB_CACHE_ROOT = "/fake/hub/cache/offline-integration";
+    const SKB_PATH = join(SKB_DATA_ROOT_REL, "prime/processed/offline-marker.bin");
+    const HUB_PATH = join(
+      HUB_CACHE_ROOT,
+      "datasets--snap-stanford--stark",
+      "snapshots",
+      ADMISSION_RECORD.revisionSha,
+      "qa/prime/eval-cache/offline-marker.csv",
+    );
+    function sha256(bytes: Buffer): string {
+      return createHash("sha256").update(bytes).digest("hex");
+    }
+    const syntheticFingerprintManifest: FingerprintManifest = {
+      pythonPath: VENV_PYTHON_REL,
+      pythonVersion: "3.11.15",
+      starkQaVersion: "1.1.0",
+      torchVersion: "2.13.0",
+      hfPin: ADMISSION_RECORD.revisionSha,
+      scoreOneSha256: sha256(SCORE_ONE_BYTES),
+      cacheKeyFileSha256: {
+        [SKB_KEY]: sha256(SKB_BYTES),
+        [HUB_KEY]: sha256(HUB_BYTES),
+      },
+    };
+    const readFileFn = (path: string) => {
+      if (path === SCORE_ONE_REL) return SCORE_ONE_BYTES;
+      if (path === SKB_PATH) return SKB_BYTES;
+      if (path === HUB_PATH) return HUB_BYTES;
+      throw new Error(`unexpected path in offline-integration test readFileFn: ${path}`);
+    };
+    const execFn: ScoringExecFn = (_file, args) => {
+      if (args[0] === "-c") {
+        return fakeResult({ stdout: "3.11.15\n2.13.0\n1.1.0\n" });
+      }
+      return fakeResult({ stdout: HAPPY_STDOUT });
+    };
+
+    const report = runScoringPreflight({
+      fingerprintManifest: syntheticFingerprintManifest,
+      poolManifest: committedPoolManifest,
+      outputDir: scratchDir(),
+      warmUp: { queryId: 523, predDict: { "1": 0.9 } },
+      execFn,
+      readFileFn,
+      hubCacheRoot: HUB_CACHE_ROOT,
+    });
+    expect(report.fingerprintOk).toBe(true);
+  });
+});

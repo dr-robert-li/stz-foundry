@@ -139,6 +139,8 @@ $ du -sh tools/stark-eval/data/prime/split
 ```
 No transcript from Plans 18-01/18-02 captured install/download wall-clock timing — `setup.log` records the pip install phase for `stark-qa` and its transitive dependencies (`torch`, `torch_geometric`, `huggingface_hub`, and a long dependency chain — see `raw/setup.log`'s `Successfully installed` line), not the KB download, which happens lazily inside `load_skb`/`load_qa` on first use and was observed only indirectly (`raw/tracer-score-one.log` line 12, `"Loading from .../data/prime/processed!"`). This is recorded here as an honest gap rather than a fabricated number.
 
+**Per-call scoring wall time — the first real measurement (Plan 21-04, `raw/score-one-walltime.log`).** The gap above covers download/install timing, not per-call scoring timing; the same honesty rule applied there. Plan 21-01 set `SCORING_TIMEOUT_MS = 600000` as a reasoned default specifically because this transcript did not yet exist. `raw/score-one-walltime.log` closes that gap: two consecutive live `runScoringPreflight` warm-up calls against the real venv, the real `score_one.py`, and the committed pool/fingerprint manifests measured `warmUpWallTimeMs` of 9755ms and 9147ms (61-66x headroom under the 600000ms ceiling) — a warm-cache measurement on one machine, not a cold-start distribution, per that log's own closing caveat.
+
 ## Corrections to the C-01 dossier assumption
 
 The dossier's original assumption (`experiments/graph-engineering-harness/CANDIDATE-DOSSIERS.md`, "Exogenous-oracle analysis" section):
@@ -177,3 +179,4 @@ One additional refutation the hands-on run surfaced beyond RESEARCH's own assump
 | `raw/d09-guard-red-proof.log` | `test/stark-fixtures.test.ts` run against a deliberately marker-injected `test/budget.test.ts` | (Background — proves the D-09 CI-boundary guard's own failure mode; cited in 18-02-SUMMARY.md, not itself a scoring-shape finding but present in `raw/` and must be cited here to satisfy the evidence-citation guard) |
 | `raw/download-size.log` | `du -sh` over `tools/stark-eval/data` and its subdirectories, run at the start of this plan | Download size and wall-clock |
 | `raw/wr03-harvest-refresh.log` | Post-WR-03-fix `harvest_gold.py` re-run (fixture regen + fresh scratch-dir re-run + diff), after dropping `meta.harvested_at` | Sample seeds and pools |
+| `raw/score-one-walltime.log` | Two live `runScoringPreflight` warm-up calls via a throwaway script, Plan 21-04 | Download size and wall-clock |
