@@ -87,17 +87,28 @@ export function admitCollaborative(kb: CollaborativeKB): CollaborativeAdmissionR
 }
 
 /**
- * The separately-named THROW step (two named sequential steps, never one
- * compound boolean, so a mutation can disable exactly one — mirrors
- * `requireAdmitted`).
+ * The verdict guard, pulled out of `requireCollaborativeAdmitted` so it can
+ * be driven directly against a synthetic record in a unit test. The sealed
+ * table has exactly one row (verdict `"admitted"`), and D-12 forbids adding
+ * a second row just to reach the "pending"/"refused" branch — this is the
+ * only way to exercise that branch without widening the table (WR-03).
  */
-export function requireCollaborativeAdmitted(kb: CollaborativeKB): CollaborativeAdmissionRecord {
-  const record = admitCollaborative(kb);
+export function assertAdmittedVerdict(kb: CollaborativeKB, record: CollaborativeAdmissionRecord): void {
   if (record.verdict !== "admitted") {
     throw new CollaborativeRefusedError(
       `kb ${JSON.stringify(kb)} has verdict ${JSON.stringify(record.verdict)} — no judge substitutes ` +
         `for a missing oracle; refusal is stated in the product, not papered over`,
     );
   }
+}
+
+/**
+ * The separately-named THROW step (two named sequential steps, never one
+ * compound boolean, so a mutation can disable exactly one — mirrors
+ * `requireAdmitted`).
+ */
+export function requireCollaborativeAdmitted(kb: CollaborativeKB): CollaborativeAdmissionRecord {
+  const record = admitCollaborative(kb);
+  assertAdmittedVerdict(kb, record);
   return record;
 }

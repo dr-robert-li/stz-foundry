@@ -19,6 +19,7 @@ import {
   CollaborativeRefusedError,
   admitCollaborative,
   requireCollaborativeAdmitted,
+  assertAdmittedVerdict,
   type CollaborativeKB,
   type CollaborativeAdmissionRecord,
 } from "../src/foundry/collaborative-admission.js";
@@ -80,6 +81,40 @@ describe("requireCollaborativeAdmitted — the verdict (D-03)", () => {
   it("returns the record for stark-prime and does not throw", () => {
     const record = requireCollaborativeAdmitted("stark-prime");
     expect(record.verdict).toBe("admitted");
+  });
+});
+
+describe("assertAdmittedVerdict — the refusal branch, driven directly against synthetic records (WR-03)", () => {
+  // The sealed table has exactly one row and D-12 forbids widening it just to
+  // reach "pending"/"refused" — a hand-built record bypassing the table is
+  // the only way to exercise this branch. A mutation flipping `!==` to `===`,
+  // or deleting the guard entirely, must turn one of these two tests red.
+  const baseRecord: CollaborativeAdmissionRecord = {
+    kb: "stark-prime",
+    verdict: "admitted",
+    revisionSha: "synthetic",
+    selectionFixturePath: "synthetic",
+    heldoutFixturePath: "synthetic",
+    lineage: "synthetic",
+    acceptedBy: "synthetic",
+  };
+
+  it("a synthetic record with verdict \"pending\" throws, naming the kb and verdict", () => {
+    const err = thrown(() => assertAdmittedVerdict("stark-prime", { ...baseRecord, verdict: "pending" }));
+    expect(err).toBeInstanceOf(CollaborativeRefusedError);
+    expect(err.message).toContain("stark-prime");
+    expect(err.message).toContain("pending");
+  });
+
+  it("a synthetic record with verdict \"refused\" throws, naming the kb and verdict", () => {
+    const err = thrown(() => assertAdmittedVerdict("stark-prime", { ...baseRecord, verdict: "refused" }));
+    expect(err).toBeInstanceOf(CollaborativeRefusedError);
+    expect(err.message).toContain("stark-prime");
+    expect(err.message).toContain("refused");
+  });
+
+  it("a synthetic record with verdict \"admitted\" does not throw", () => {
+    expect(() => assertAdmittedVerdict("stark-prime", baseRecord)).not.toThrow();
   });
 });
 
