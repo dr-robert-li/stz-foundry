@@ -46,7 +46,7 @@ interface StarkFixturePair {
 }
 
 interface StarkFixture {
-  meta: { pool: string; [key: string]: unknown };
+  meta: { pool: string; kb: string; hf_revision: string; sample_size: number; [key: string]: unknown };
   pairs: StarkFixturePair[];
 }
 
@@ -60,8 +60,18 @@ interface StarkFixture {
  * Derives the task `id` from the pair's own `query_id`, never the loop index
  * (the Phase-18 spike measured `query_id` and subscript diverging on real
  * split data).
+ *
+ * `expectedRevisionSha` is required, not optional (G-20-1/T-20-15): an
+ * optional pin is a pin a future direct caller silently skips, the same
+ * "routed around" species this guard closes. The value must come from
+ * `buildCollaborativeBattery`'s own `record.revisionSha` read — the admission
+ * record stays its single typed home (D-04) — so the check cannot be routed
+ * around by a second literal either.
  */
-export function tasksFromFixture(fixture: StarkFixture): CollaborativeBatteryTask[] {
+export function tasksFromFixture(
+  fixture: StarkFixture,
+  expectedRevisionSha: string,
+): CollaborativeBatteryTask[] {
   if (typeof fixture?.meta !== "object" || fixture.meta === null) {
     throw new CollaborativeBatteryRefusedError(
       `fixture.meta is ${JSON.stringify(fixture?.meta)} — a fixture with no meta object cannot be admitted`,
@@ -77,6 +87,14 @@ export function tasksFromFixture(fixture: StarkFixture): CollaborativeBatteryTas
       `fixture pool ${JSON.stringify(fixture.meta.pool)} is not "selection" — only the sealed ` +
         `selection pool may be materialised into tasks; the heldout pool stays out of every ` +
         `search-side code path until Phase 23 (D-05, D-06)`,
+    );
+  }
+  if (typeof fixture.meta.hf_revision !== "string" || fixture.meta.hf_revision !== expectedRevisionSha) {
+    throw new CollaborativeBatteryRefusedError(
+      `fixture hf_revision ${JSON.stringify(fixture.meta.hf_revision)} does not match the admission ` +
+        `record's pinned revisionSha ${JSON.stringify(expectedRevisionSha)} — a fixture harvested at ` +
+        `a different KB snapshot than the pin claims must not be scored as though it were the ` +
+        `pinned one (mirrors tools/stark-eval/score_one.py's assert_pinned_revision)`,
     );
   }
   const seen = new Set<number>();
@@ -156,7 +174,7 @@ export function taskForQueryId(
 export function buildCollaborativeBattery(): CollaborativeBatteryTask[] {
   const record = requireCollaborativeAdmitted("stark-prime");
   const fixture = readFixtureOrRefuse(record.selectionFixturePath);
-  return tasksFromFixture(fixture);
+  return tasksFromFixture(fixture, record.revisionSha);
 }
 
 /**
