@@ -360,7 +360,23 @@ export function canonicalSubgraphBytes(artifact: SubgraphArtifactV1): Buffer {
   return Buffer.from(JSON.stringify(canonical), "utf8");
 }
 
-/** Handoff hash = sha256 over exactly the canonical bytes above (1a). */
+/**
+ * D-05's canonical handoff hash: sha256 over exactly the canonical bytes
+ * above. Recorded on every `HandoffRecord` as `canonicalSha256` (WR-05), for
+ * replay and audit -- two byte-different but semantically identical
+ * submissions produce the SAME `canonicalSha256`, which is what makes it
+ * useful for comparing artifacts across differently-ordered serializations.
+ *
+ * This is NOT the digest verified at read or at promotion. That digest is
+ * `HandoffRecord.artifactSha256` -- the raw-bytes sha256 of the artifact
+ * exactly as the builder wrote it to disk, computed inside `readJsonArtifact`
+ * and re-verified at both `verifyHandoffAtRead` and
+ * `promoteWinnerSubgraphs`' destination-side copy check (T-22-13). Only a
+ * raw digest can prove a byte-for-byte copy survived transit; a canonicalized
+ * digest is equal across differently-serialized inputs BY CONSTRUCTION,
+ * which is exactly what makes it the wrong tool for that proof. Do not
+ * conflate the two, and do not repoint either verify site at this function.
+ */
 export function hashSubgraphArtifact(artifact: SubgraphArtifactV1): string {
   return createHash("sha256").update(canonicalSubgraphBytes(artifact)).digest("hex");
 }
@@ -377,9 +393,13 @@ const RATIFIED_ARTIFACT_KEYS = ["schemaVersion", "queryId", "kbRevision", "nodes
  * D-03): rejects a non-object, any key outside the ratified field set
  * (D-05's smuggling-channel closure -- the clause the tracer deliberately
  * deferred), a wrong `schemaVersion`, a non-integer node id, a non-integer
- * relation id, an edge triple of the wrong length, and an edge referencing
- * a node id absent from the artifact's own node list. Unknown keys are
- * never stripped and never tolerated -- rejected, naming the offending key.
+ * relation id, an edge triple of the wrong length, an edge referencing
+ * a node id absent from the artifact's own node list, a `nodes` array
+ * containing a repeated id (CR-01a -- a duplicate would otherwise let a
+ * padded artifact clear `MIN_SUBGRAPH_NODES`'s raw-length count downstream),
+ * a repeated `[src, dst, rel]` edge triple, and an edge list longer than
+ * `MAX_SUBGRAPH_EDGES` (CR-01b). Unknown keys are never stripped and never
+ * tolerated -- rejected, naming the offending key.
  */
 export function parseSubgraphArtifact(raw: unknown): SchemaValidationResult {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -432,6 +452,17 @@ export function parseSubgraphArtifact(raw: unknown): SchemaValidationResult {
       };
     }
   }
+  const nodeIds = obj.nodes as number[];
+  // CR-01a/T-22-12: reject a padded node list here, before any count is
+  // taken downstream -- MIN_SUBGRAPH_NODES is compared against a node COUNT
+  // in validateSubgraphAgainstNeighborhood, and a raw array length counts a
+  // repeated id once per repeat, letting a below-minimum subgraph pad past
+  // the bound. The Set built here is reused for the edge-endpoint
+  // membership loop below -- one construction, two uses.
+  const nodeIdSet = new Set(nodeIds);
+  if (nodeIdSet.size !== nodeIds.length) {
+    return { ok: false, violation: `field "nodes" contains one or more duplicate node ids` };
+  }
   if (!Array.isArray(obj.edges)) {
     return { ok: false, violation: `field "edges" must be an array` };
   }
@@ -444,18 +475,37 @@ export function parseSubgraphArtifact(raw: unknown): SchemaValidationResult {
       };
     }
   }
-  const nodeIds = obj.nodes as number[];
-  const nodeSet = new Set(nodeIds);
   const edges = obj.edges as [number, number, number][];
+  // CR-01b: the cap is checked first, so a pathological list is refused
+  // before the duplicate-triple scan below (or the endpoint loop further
+  // down) ever walks it. Once the fourth CD-05 check (fabricated-edge)
+  // ships, artifact edges are also bounded by |neighborhood.edges| -- but
+  // that neighbourhood context is not available here, which is exactly why
+  // this cap belongs at the schema layer: cheap and exhaustive on an
+  // ids-only structure, holding even for a caller that skips CD-05.
+  if (edges.length > MAX_SUBGRAPH_EDGES) {
+    return {
+      ok: false,
+      violation: `field "edges" has ${edges.length} entries, exceeding the cap of ${MAX_SUBGRAPH_EDGES}`,
+    };
+  }
+  const edgeKeySet = new Set<string>();
+  for (const [src, dst, rel] of edges) {
+    const key = `${src}|${dst}|${rel}`;
+    if (edgeKeySet.has(key)) {
+      return { ok: false, violation: `field "edges" contains a duplicate triple [${src}, ${dst}, ${rel}]` };
+    }
+    edgeKeySet.add(key);
+  }
   for (let i = 0; i < edges.length; i++) {
     const [src, dst] = edges[i] as [number, number, number];
-    if (!nodeSet.has(src)) {
+    if (!nodeIdSet.has(src)) {
       return {
         ok: false,
         violation: `edge at position ${i} references source node id ${src} absent from the artifact's own node list`,
       };
     }
-    if (!nodeSet.has(dst)) {
+    if (!nodeIdSet.has(dst)) {
       return {
         ok: false,
         violation: `edge at position ${i} references destination node id ${dst} absent from the artifact's own node list`,
@@ -484,6 +534,10 @@ export interface HandoffRecord {
   kbRevision: string;
   artifactPath: string;
   artifactSha256: string;
+  /** D-05's canonical handoff hash (WR-05) -- NOT the digest verified at
+   *  read or promotion (that stays `artifactSha256`, the raw on-disk bytes).
+   *  See `hashSubgraphArtifact`'s doc comment for the full distinction. */
+  canonicalSha256: string;
 }
 
 // ── D-03/D-07/D-08: the named, exhaustive fail-closed handoff outcome ──
@@ -498,7 +552,8 @@ export type Cd05Violation =
   | { condition: "below-minimum"; nodeCount: number }
   | { condition: "above-maximum"; nodeCount: number }
   | { condition: "disconnected"; unreachableNodeId: number }
-  | { condition: "outside-neighborhood"; nodeId: number };
+  | { condition: "outside-neighborhood"; nodeId: number }
+  | { condition: "fabricated-edge"; src: number; dst: number; relationId: number };
 
 /**
  * Every way a task can fail to reach a scored bridge outcome, mirroring
@@ -511,6 +566,7 @@ export type Cd05Violation =
 export type HandoffOutcome =
   | { kind: "success"; artifact: SubgraphArtifactV1 }
   | { kind: "artifact-absent"; path: string }
+  | { kind: "artifact-unreadable"; path: string; code: string }
   | { kind: "unparseable"; reason: "not-json" | "not-object"; path: string }
   | { kind: "schema-invalid"; violation: string }
   | { kind: "record-absent"; queryId: number }
@@ -532,6 +588,7 @@ export type HandoffOutcomeKind = HandoffOutcome["kind"];
 const ALL_HANDOFF_OUTCOME_KINDS: Record<HandoffOutcomeKind, true> = {
   success: true,
   "artifact-absent": true,
+  "artifact-unreadable": true,
   unparseable: true,
   "schema-invalid": true,
   "record-absent": true,
@@ -557,6 +614,8 @@ function describeCd05Violation(v: Cd05Violation): string {
       return `node ${v.unreachableNodeId} unreachable from the rest of the subgraph (undirected, FA-5)`;
     case "outside-neighborhood":
       return `node ${v.nodeId} is not a member of the pre-extracted neighborhood`;
+    case "fabricated-edge":
+      return `edge ${v.src} -> ${v.dst} (relation ${v.relationId}) is not a relation the neighborhood records between those two nodes`;
     default: {
       const _exhaustive: never = v;
       throw new CollaborativeRunnerError(
@@ -576,6 +635,8 @@ export function describeHandoffOutcome(outcome: HandoffOutcome): string {
       return `success: verified subgraph for query ${outcome.artifact.queryId}`;
     case "artifact-absent":
       return `fail-closed: no artifact found at ${outcome.path}`;
+    case "artifact-unreadable":
+      return `fail-closed: artifact at ${outcome.path} could not be read (errno ${outcome.code})`;
     case "unparseable":
       return `fail-closed: artifact at ${outcome.path} did not parse (${outcome.reason})`;
     case "schema-invalid":
@@ -601,6 +662,7 @@ export function describeHandoffOutcome(outcome: HandoffOutcome): string {
 
 type ReadJsonResult =
   | { status: "absent" }
+  | { status: "unreadable"; code: string }
   | { status: "unparseable" }
   | { status: "ok"; sha256: string; value: unknown };
 
@@ -613,13 +675,23 @@ type ReadJsonResult =
  * read in this module -- the builder's subgraph at hash-at-handoff, the
  * same subgraph again at verify-at-read, and the answerer's ranked list --
  * routes through this single function.
+ *
+ * WR-04: the catch classifies by errno rather than folding every failure
+ * into "absent". A genuinely missing path (ENOENT) is the only case that
+ * reports absence; anything else (a permissions error, the path resolving
+ * to a directory, a symlink loop, ...) is a real, distinct infrastructure
+ * problem and is reported as such -- fail-closed behaviour is unchanged
+ * (the caller still treats it as a per-task failure, D-03), only the
+ * diagnostic changes from false to true.
  */
 function readJsonArtifact(path: string): ReadJsonResult {
   let buf: Buffer;
   try {
     buf = readFileSync(path);
-  } catch {
-    return { status: "absent" };
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return { status: "absent" };
+    return { status: "unreadable", code: code ?? "unknown" };
   }
   const sha256 = createHash("sha256").update(buf).digest("hex");
   try {
@@ -632,12 +704,14 @@ function readJsonArtifact(path: string): ReadJsonResult {
 
 type ReadSubgraphResult =
   | { status: "absent" }
+  | { status: "unreadable"; code: string }
   | { status: "unparseable"; reason: "not-json" | "not-object" }
   | { status: "ok"; sha256: string; value: Record<string, unknown> };
 
 function readSubgraphArtifact(path: string): ReadSubgraphResult {
   const r = readJsonArtifact(path);
   if (r.status === "absent") return { status: "absent" };
+  if (r.status === "unreadable") return { status: "unreadable", code: r.code };
   if (r.status === "unparseable") return { status: "unparseable", reason: "not-json" };
   if (typeof r.value !== "object" || r.value === null || Array.isArray(r.value)) {
     return { status: "unparseable", reason: "not-object" };
@@ -656,11 +730,19 @@ function findMissingHandoffBinding(record: HandoffRecord): string | null {
   if (typeof record.kbRevision !== "string" || record.kbRevision.length === 0) {
     return `handoff record missing binding "kbRevision"`;
   }
+  if (typeof record.canonicalSha256 !== "string" || record.canonicalSha256.length === 0) {
+    return `handoff record missing binding "canonicalSha256"`;
+  }
   return null;
 }
 
 /**
  * D-08's verify-at-read half of the hash-at-handoff/verify-at-read contract.
+ * WR-01/WR-02: this function VALIDATES the identifiers it is given rather
+ * than echoing them -- both the caller-supplied `queryId` against the
+ * record's own binding, and (once the artifact parses) the artifact's own
+ * `queryId` field against the same requested value. No `success` outcome
+ * can carry a mismatch on either binding.
  * Exported directly for unit testing: `record-absent`, `record-corrupt` and
  * `hash-mismatch` cannot be driven through the full `runCollaborativeBattery`
  * pipeline (the hash-at-handoff and verify-at-read loops run synchronously,
@@ -680,9 +762,23 @@ export function verifyHandoffAtRead(
   if (missing) {
     return { kind: "record-corrupt", violation: missing };
   }
+  // WR-02: the record's OWN queryId binding is validated against the
+  // requested one, not merely echoed back -- run AFTER the missing-binding
+  // check above (so a record that is both mis-keyed and missing a binding
+  // still reports the missing binding, preserving that test's meaning) and
+  // BEFORE the read.
+  if (record.queryId !== queryId) {
+    return {
+      kind: "record-corrupt",
+      violation: `handoff record queryId (${record.queryId}) does not match the requested queryId (${queryId})`,
+    };
+  }
   const read = readSubgraphArtifact(record.artifactPath);
   if (read.status === "absent") {
     return { kind: "artifact-absent", path: record.artifactPath };
+  }
+  if (read.status === "unreadable") {
+    return { kind: "artifact-unreadable", path: record.artifactPath, code: read.code };
   }
   if (read.status === "unparseable") {
     return { kind: "unparseable", reason: read.reason, path: record.artifactPath };
@@ -693,6 +789,17 @@ export function verifyHandoffAtRead(
   const schemaResult = parseSubgraphArtifact(read.value);
   if (!schemaResult.ok) {
     return { kind: "schema-invalid", violation: schemaResult.violation };
+  }
+  // WR-01: the artifact's OWN queryId field (builder-controlled, only
+  // typeof-checked so far) is cross-checked against the requested queryId
+  // here, the choke point every surviving task passes through before an
+  // answerer prompt is composed -- no `success` outcome can carry an
+  // artifact built for a different query.
+  if (schemaResult.artifact.queryId !== queryId) {
+    return {
+      kind: "schema-invalid",
+      violation: `field "queryId" (${schemaResult.artifact.queryId}) does not match the requested queryId (${queryId})`,
+    };
   }
   return { kind: "success", artifact: schemaResult.artifact };
 }
@@ -705,13 +812,29 @@ export function verifyHandoffAtRead(
 export const MIN_SUBGRAPH_NODES = 3;
 export const MAX_SUBGRAPH_NODES = 200;
 
+/** CR-01b's schema-layer edge-list bound (checked in `parseSubgraphArtifact`,
+ *  which has no neighbourhood context -- exactly why the cap lives there:
+ *  a context-free, cheap, exhaustive bound on an ids-only structure, holding
+ *  even for a caller that validates schema without ever running CD-05. A
+ *  connected subgraph at `MAX_SUBGRAPH_NODES` (200) needs at least 199 edges
+ *  and would realistically carry a few hundred, so 2000 is an order of
+ *  magnitude of headroom over any legitimate submission while bounding the
+ *  answerer's rendered prompt. Exported, not inlined -- same posture as the
+ *  node bounds above, so Phase 23 can retune without touching validator
+ *  logic. Once the fourth CD-05 check ships, the true bound in practice is
+ *  |neighborhood.edges| -- but that neighbourhood is itself capped at 400
+ *  nodes, whose induced edge set can still be large in a dense KB region, so
+ *  this schema-layer cap earns its place independently. */
+export const MAX_SUBGRAPH_EDGES = 2000;
+
 export type Cd05Result = { ok: true } | { ok: false; violation: Cd05Violation };
 
 /**
- * CD-05's three structural bounds, each independently named (D-07), checked
+ * CD-05's four structural bounds, each independently named (D-07), checked
  * in this fixed order -- never one compound boolean, so a Phase 23 report
  * can tell "too few nodes" from "too many" from "not connected" from
- * "outside the query's own neighbourhood":
+ * "outside the query's own neighbourhood" from "a relation the KB never
+ * recorded":
  *
  *   1. Node count -- below `MIN_SUBGRAPH_NODES` and above
  *      `MAX_SUBGRAPH_NODES` are two distinct named conditions.
@@ -723,6 +846,15 @@ export type Cd05Result = { ok: true } | { ok: false; violation: Cd05Violation };
  *      the `KbNeighborhood` the runner passed to the builder for this
  *      query, never the artifact's own self-consistency. This is what makes
  *      "query-linked" checkable offline (T-22-12).
+ *   4. Edge authenticity (CR-02, checked AFTER membership -- FA-D) -- every
+ *      artifact edge must correspond to a real triple in
+ *      `neighborhood.edges`, the KB's own induced edges the runner already
+ *      holds. Two verified, in-neighbourhood node ids joined by a relation
+ *      the KB never recorded between them is refused by name, never
+ *      accepted on node-identity alone. Compared UNDIRECTED (FA-E,
+ *      mirroring check 2's own posture): the live neighbourhood helper
+ *      emits both orientations of its edge tensor, and an artifact listing
+ *      the opposite orientation of a real triple is not a fabrication.
  */
 export function validateSubgraphAgainstNeighborhood(
   artifact: SubgraphArtifactV1,
@@ -763,6 +895,23 @@ export function validateSubgraphAgainstNeighborhood(
   const outside = artifact.nodes.find((id) => !neighborhoodIds.has(id));
   if (outside !== undefined) {
     return { ok: false, violation: { condition: "outside-neighborhood", nodeId: outside } };
+  }
+
+  // CR-02/T-22-12 (check 4, FA-D -- runs only after node identity is fully
+  // verified above): the neighbourhood's own induced edges are the KB's
+  // ground truth, already held by the runner, and were sitting unused two
+  // fields from the check that needed them. Keyed both orientations (FA-E)
+  // so an artifact edge in the opposite orientation to a real triple is not
+  // treated as fabricated.
+  const realEdgeKeys = new Set<string>();
+  for (const [src, dst, rel] of neighborhood.edges) {
+    realEdgeKeys.add(`${src}|${dst}|${rel}`);
+    realEdgeKeys.add(`${dst}|${src}|${rel}`);
+  }
+  for (const [src, dst, rel] of artifact.edges) {
+    if (!realEdgeKeys.has(`${src}|${dst}|${rel}`)) {
+      return { ok: false, violation: { condition: "fabricated-edge", src, dst, relationId: rel } };
+    }
   }
 
   return { ok: true };
@@ -862,6 +1011,36 @@ const SUBGRAPH_ARTIFACT_REL_PATH = "subgraph.json";
 const ANSWER_ARTIFACT_REL_PATH = "answer.json";
 const CD01_MAX_ENTRIES = 20;
 
+/**
+ * IN-03: `task.id` is joined into artifact paths below and must be guarded
+ * before any join happens -- the same discipline
+ * `collaborative-tournament-shell.ts`'s `promoteWinnerSubgraphs` applies to
+ * `winnerVariantId`/`slot` via `assertSafePathSegment`. That shared helper
+ * is deliberately NOT imported here, for two independent reasons verified
+ * during planning (FA-B):
+ *   1. the real pool mints ids as `stark-prime:${query_id}`
+ *      (`collaborative-battery.ts`) -- a colon, which
+ *      `assertSafePathSegment`'s `[A-Za-z0-9_-]+` character class rejects.
+ *      Applying that shared regex verbatim would refuse every real task.
+ *   2. importing it would add `../taxonomy.js` to this module's direct
+ *      imports, failing `PINNED_RUNNER_IMPORT_ALLOWLIST`'s exact-equality
+ *      assertion -- and `taxonomy.ts` itself imports `node:fs/promises`
+ *      write APIs, which SC-1's absent-write-capability claim cannot admit
+ *      into this module's import set even transitively.
+ * So: a module-local, anchored regex admitting the repo's own id vocabulary
+ * (alphanumerics, underscore, hyphen, colon) -- no dot, so a
+ * parent-directory traversal sequence cannot be spelled at all.
+ */
+const SAFE_TASK_ID_RE = /^[A-Za-z0-9_:-]+$/;
+
+function assertSafeTaskId(id: string): void {
+  if (!SAFE_TASK_ID_RE.test(id)) {
+    throw new CollaborativeRunnerError(
+      `runCollaborativeBattery refused: task id ${JSON.stringify(id)} is not a safe path segment (expected ${SAFE_TASK_ID_RE})`,
+    );
+  }
+}
+
 function renderNeighbourhoodLines(nb: KbNeighborhood): string {
   const nodeLines = nb.nodes
     .map((n) => `  - id=${n.id} label=${JSON.stringify(n.label)} type=${JSON.stringify(n.type)}`)
@@ -907,10 +1086,13 @@ function buildAnswererTaskPrompt(
   const nodesById = new Map(nb.nodes.map((n) => [n.id, n] as const));
   const nodeLines = artifact.nodes
     .map((id) => {
-      const n = nodesById.get(id);
-      return n
-        ? `  - id=${id} label=${JSON.stringify(n.label)} type=${JSON.stringify(n.type)}`
-        : `  - id=${id}`;
+      // IN-02: no label-less fallback -- verifyHandoffAtRead only returns
+      // "success" for an artifact that already passed CD-05's
+      // neighbourhood-membership check (check 3), which guarantees every
+      // artifact.nodes entry is a key in nodesById above. A miss here would
+      // mean CD-05 ran after this function, which it structurally cannot.
+      const n = nodesById.get(id)!;
+      return `  - id=${id} label=${JSON.stringify(n.label)} type=${JSON.stringify(n.type)}`;
     })
     .join("\n");
   const edgeLines = artifact.edges
@@ -1003,6 +1185,13 @@ export async function runCollaborativeBattery(
     );
   }
 
+  // 0b. IN-03: every task id is refused by name, before any path is joined
+  // and before any provider call spends a token -- iterating the (already
+  // non-empty) task list here is a no-op for the zero-task case above.
+  for (const task of args.tasks) {
+    assertSafeTaskId(task.id);
+  }
+
   // 1. Preflight once (D-11), before any provider call and before the
   // builder battery is minted.
   const preflightArgs = {
@@ -1064,6 +1253,10 @@ export async function runCollaborativeBattery(
       failedOutcomeByTaskId.set(task.id, { kind: "artifact-absent", path: artifactPath });
       continue;
     }
+    if (read.status === "unreadable") {
+      failedOutcomeByTaskId.set(task.id, { kind: "artifact-unreadable", path: artifactPath, code: read.code });
+      continue;
+    }
     if (read.status === "unparseable") {
       failedOutcomeByTaskId.set(task.id, { kind: "unparseable", reason: read.reason, path: artifactPath });
       continue;
@@ -1087,6 +1280,10 @@ export async function runCollaborativeBattery(
       kbRevision: schemaResult.artifact.kbRevision,
       artifactPath,
       artifactSha256: read.sha256,
+      // WR-05: D-05's canonical hash gains its production call site here --
+      // recorded BESIDE the raw-bytes artifactSha256 above, never in place
+      // of it (FA-A/see hashSubgraphArtifact's doc comment).
+      canonicalSha256: hashSubgraphArtifact(schemaResult.artifact),
     });
   }
 

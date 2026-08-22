@@ -31,6 +31,7 @@ parse partial stdout.
 """
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -72,17 +73,24 @@ def find_seeds(skb, query_text):
     """KB node names matched against the query text -- the implementable,
     gold-free reading of "the query's entry points into the KB" (no
     candidate id and no gold-adjacent field is ever consulted). Case-
-    insensitive substring match; names shorter than MIN_SEED_NAME_LEN are
-    skipped to avoid noise-prone single-token collisions. Deterministic:
-    node ids are visited in ascending order, so the returned seed list is
-    always ascending too."""
+    insensitive, WORD-BOUNDARY-AWARE match (IN-01): a name only seeds when
+    the characters immediately before and after its occurrence are not
+    alphanumeric, so a short name (e.g. "Sun") no longer seeds off sitting
+    inside an unrelated longer word (e.g. "Sunday"). Lookaround assertions
+    are used rather than \\b: several KB entity names begin or end with a
+    non-word character (parentheses, commas, hyphens), and \\b asserts a
+    WORD/non-word transition, which silently inverts its meaning for those
+    names. Names shorter than MIN_SEED_NAME_LEN are skipped to avoid
+    noise-prone single-token collisions. Deterministic: node ids are visited
+    in ascending order, so the returned seed list is always ascending too."""
     lowered_query = query_text.lower()
     seeds = []
     for idx in sorted(skb.node_info.keys()):
         name = skb.node_info[idx].get("name")
         if not isinstance(name, str) or len(name) < MIN_SEED_NAME_LEN:
             continue
-        if name.lower() in lowered_query:
+        pattern = r"(?<![A-Za-z0-9])" + re.escape(name.lower()) + r"(?![A-Za-z0-9])"
+        if re.search(pattern, lowered_query):
             seeds.append(idx)
     return seeds
 

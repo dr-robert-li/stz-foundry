@@ -9,7 +9,7 @@
  * argument -- same house rule as `test/foundry-collaborative-scoring-bridge.test.ts`.
  */
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +29,7 @@ import {
   HANDOFF_OUTCOME_KINDS,
   MIN_SUBGRAPH_NODES,
   MAX_SUBGRAPH_NODES,
+  MAX_SUBGRAPH_EDGES,
   SUBGRAPH_SCHEMA_VERSION,
   NEIGHBORHOOD_ONE_REL,
   NEIGHBORHOOD_HOPS,
@@ -477,6 +478,20 @@ describe("canonicalSubgraphBytes / hashSubgraphArtifact — D-05 ratified canoni
     };
     expect(hashSubgraphArtifact(base)).toBe(hashSubgraphArtifact(reordered));
   });
+
+  it("two byte-different, semantically-identical serializations produce DIFFERENT raw digests but the SAME hashSubgraphArtifact (WR-05/D-05's replay/audit property)", () => {
+    const reordered: SubgraphArtifactV1 = {
+      ...base,
+      nodes: [...base.nodes].reverse(),
+      edges: [...base.edges].reverse(),
+    };
+    const rawBytes1 = Buffer.from(JSON.stringify(base));
+    const rawBytes2 = Buffer.from(JSON.stringify(reordered, null, 2)); // differing whitespace too
+    const rawDigest1 = createHash("sha256").update(rawBytes1).digest("hex");
+    const rawDigest2 = createHash("sha256").update(rawBytes2).digest("hex");
+    expect(rawDigest1).not.toBe(rawDigest2);
+    expect(hashSubgraphArtifact(base)).toBe(hashSubgraphArtifact(reordered));
+  });
 });
 
 // ── D-05: closed schema — parseSubgraphArtifact ─────────────────────────
@@ -536,6 +551,42 @@ describe("parseSubgraphArtifact — D-05 closed, ids-only schema (Plan 22-02 Tas
     expect(result.ok).toBe(false);
     expect(!result.ok && result.violation).toContain("98");
   });
+
+  // ── CR-01a/T-22-12: duplicate node ids padded past MIN_SUBGRAPH_NODES ──
+
+  it("rejects a nodes array containing a duplicate id, naming the field (CR-01a)", () => {
+    const result = parseSubgraphArtifact({ ...validRaw, nodes: [11, 12, 11] });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.violation).toContain("nodes");
+  });
+
+  // ── CR-01b: the edge list is bounded at the schema layer ────────────────
+
+  it("rejects an edges array containing a repeated [src, dst, rel] triple, naming the triple (CR-01b)", () => {
+    const result = parseSubgraphArtifact({
+      ...validRaw,
+      edges: [
+        [11, 12, 1],
+        [11, 12, 1],
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.violation).toContain("11");
+    expect(!result.ok && result.violation).toContain("12");
+  });
+
+  it("rejects an edges array longer than MAX_SUBGRAPH_EDGES, naming the count and the cap (CR-01b)", () => {
+    // Every generated triple must be distinct so this fails on the CAP, not
+    // the duplicate-triple check -- vary the relation id per entry.
+    const overCapEdges: [number, number, number][] = Array.from(
+      { length: MAX_SUBGRAPH_EDGES + 1 },
+      (_, i) => [11, 12, i + 1],
+    );
+    const result = parseSubgraphArtifact({ ...validRaw, edges: overCapEdges });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.violation).toContain(String(overCapEdges.length));
+    expect(!result.ok && result.violation).toContain(String(MAX_SUBGRAPH_EDGES));
+  });
 });
 
 // ── D-08: HandoffOutcome — named, exhaustive, fail-closed ───────────────
@@ -569,6 +620,7 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
         violation: { condition: "below-minimum", nodeCount: 2 },
       },
       "bridge-non-success": { kind: "bridge-non-success", scoringOutcomeKind: "timeout" },
+      "artifact-unreadable": { kind: "artifact-unreadable", path: "/tmp/nowhere-readable", code: "EISDIR" },
     };
     expect(Object.keys(sampleByKind).sort()).toEqual([...HANDOFF_OUTCOME_KINDS].sort());
     const descriptions = HANDOFF_OUTCOME_KINDS.map((kind) => describeHandoffOutcome(sampleByKind[kind]!));
@@ -590,6 +642,7 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
       kbRevision: "rev",
       artifactPath: absentPath,
       artifactSha256: "irrelevant",
+      canonicalSha256: "c1",
     };
     const artifactAbsent = verifyHandoffAtRead(1, absentRecord);
     expect(artifactAbsent.kind).toBe("artifact-absent");
@@ -621,6 +674,7 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
       kbRevision: "rev",
       artifactPath: mismatchPath,
       artifactSha256: "0".repeat(64), // deliberately wrong
+      canonicalSha256: "c4",
     };
     const hashMismatch = verifyHandoffAtRead(4, mismatchRecord);
     expect(hashMismatch.kind).toBe("hash-mismatch");
@@ -648,10 +702,137 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
       kbRevision: ADMISSION_RECORD.revisionSha,
       artifactPath: path,
       artifactSha256: createHash("sha256").update(bytes).digest("hex"),
+      canonicalSha256: "c5",
     };
     const result = verifyHandoffAtRead(5, record);
     expect(result.kind).toBe("success");
     expect(result.kind === "success" && result.artifact.queryId).toBe(5);
+  });
+
+  // ── WR-01/WR-02: verifyHandoffAtRead validates BOTH identity bindings ──
+
+  it("a record whose own queryId disagrees with the requested queryId is record-corrupt, naming both numbers (WR-02)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "stz-collab-handoff-recordid-"));
+    const path = join(dir, "artifact.json");
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 9,
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      nodes: [1, 2],
+      edges: [[1, 2, 1]],
+    };
+    const bytes = Buffer.from(JSON.stringify(artifact));
+    writeFileSync(path, bytes);
+    const record: HandoffRecord = {
+      queryId: 9, // the record's own (trusted) binding
+      attemptId: "a9",
+      definitionHash: "d9",
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      artifactPath: path,
+      artifactSha256: createHash("sha256").update(bytes).digest("hex"),
+      canonicalSha256: "c9",
+    };
+    const result = verifyHandoffAtRead(4, record); // requested a DIFFERENT queryId
+    expect(result.kind).toBe("record-corrupt");
+    expect(result.kind === "record-corrupt" && result.violation).toContain("9");
+    expect(result.kind === "record-corrupt" && result.violation).toContain("4");
+  });
+
+  it("the existing missing-binding corrupt-record case still resolves on the missing binding even when the record is ALSO mis-keyed -- binding presence runs first (FA-C)", () => {
+    // Mirrors the pre-existing corrupt-record fixture above: attemptId is
+    // empty (missing binding) AND record.queryId (1) disagrees with the
+    // requested queryId (3). The missing-binding check must win.
+    const dir = mkdtempSync(join(tmpdir(), "stz-collab-handoff-both-"));
+    const path = join(dir, "never-written.json");
+    const record: HandoffRecord = {
+      queryId: 1,
+      attemptId: "",
+      definitionHash: "d1",
+      kbRevision: "rev",
+      artifactPath: path,
+      artifactSha256: "irrelevant",
+      canonicalSha256: "c1b",
+    };
+    const result = verifyHandoffAtRead(3, record);
+    expect(result.kind).toBe("record-corrupt");
+    expect(result.kind === "record-corrupt" && result.violation).toContain("attemptId");
+  });
+
+  it("an artifact whose own queryId field disagrees with the requested queryId is schema-invalid, naming the field and both numbers (WR-01)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "stz-collab-handoff-artifactid-"));
+    const path = join(dir, "artifact.json");
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 999, // the artifact's OWN claimed queryId -- builder-controlled, wrong
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      nodes: [1, 2],
+      edges: [[1, 2, 1]],
+    };
+    const bytes = Buffer.from(JSON.stringify(artifact));
+    writeFileSync(path, bytes);
+    const record: HandoffRecord = {
+      queryId: 6, // the record's own (trusted) binding -- matches the request
+      attemptId: "a6",
+      definitionHash: "d6",
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      artifactPath: path,
+      artifactSha256: createHash("sha256").update(bytes).digest("hex"),
+      canonicalSha256: "c6",
+    };
+    const result = verifyHandoffAtRead(6, record);
+    expect(result.kind).toBe("schema-invalid");
+    expect(result.kind === "schema-invalid" && result.violation).toContain("queryId");
+    expect(result.kind === "schema-invalid" && result.violation).toContain("999");
+    expect(result.kind === "schema-invalid" && result.violation).toContain("6");
+  });
+
+  // ── WR-04: an unreadable path is not reported as an absent one ─────────
+
+  it("a record whose artifactPath resolves to a DIRECTORY yields artifact-unreadable (not artifact-absent), carrying the path and a non-empty errno code (WR-04)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "stz-collab-handoff-unreadable-"));
+    const unreadablePath = join(dir, "not-a-file");
+    mkdirSync(unreadablePath);
+    const record: HandoffRecord = {
+      queryId: 7,
+      attemptId: "a7",
+      definitionHash: "d7",
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      artifactPath: unreadablePath,
+      artifactSha256: "irrelevant",
+      canonicalSha256: "c7",
+    };
+    const result = verifyHandoffAtRead(7, record);
+    expect(result.kind).toBe("artifact-unreadable");
+    expect(result.kind === "artifact-unreadable" && result.path).toBe(unreadablePath);
+    expect(result.kind === "artifact-unreadable" && result.code.length).toBeGreaterThan(0);
+  });
+
+  // ── WR-05: canonicalSha256 is a required handoff-record binding ────────
+
+  it("a record whose canonicalSha256 is empty is record-corrupt, named like every other missing binding (WR-05)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "stz-collab-handoff-canonical-"));
+    const path = join(dir, "artifact.json");
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 8,
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      nodes: [1, 2],
+      edges: [[1, 2, 1]],
+    };
+    const bytes = Buffer.from(JSON.stringify(artifact));
+    writeFileSync(path, bytes);
+    const record: HandoffRecord = {
+      queryId: 8,
+      attemptId: "a8",
+      definitionHash: "d8",
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      artifactPath: path,
+      artifactSha256: createHash("sha256").update(bytes).digest("hex"),
+      canonicalSha256: "",
+    };
+    const result = verifyHandoffAtRead(8, record);
+    expect(result.kind).toBe("record-corrupt");
+    expect(result.kind === "record-corrupt" && result.violation).toContain("canonicalSha256");
   });
 });
 
@@ -903,6 +1084,104 @@ describe("validateSubgraphAgainstNeighborhood — CD-05 structural bounds (Plan 
     };
     expect(validateSubgraphAgainstNeighborhood(artifact, neighborhood).ok).toBe(true);
   });
+
+  // ── CR-02/T-22-12: artifact edges verified against the KB's real edges ──
+
+  it("rejects a fabricated relation between two real, in-neighbourhood, connected nodes -- a relation id the neighbourhood never records at all (CR-02)", () => {
+    const neighborhood: KbNeighborhood = {
+      queryId: 9005,
+      seeds: [1],
+      nodes: [1, 2, 3].map((id) => ({ id, label: `n${id}`, type: "gene" })),
+      edges: [
+        [1, 2, 1],
+        [2, 3, 2],
+      ],
+      relationNames: { "1": "assoc", "2": "part" },
+    };
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 9005,
+      kbRevision: "rev",
+      nodes: [1, 2, 3],
+      edges: [
+        [1, 2, 1],
+        [2, 3, 2],
+        [1, 3, 99], // fabricated: relation 99 never recorded between 1 and 3
+      ],
+    };
+    const result = validateSubgraphAgainstNeighborhood(artifact, neighborhood);
+    if (result.ok) throw new Error("expected failure");
+    expect(result.violation.condition).toBe("fabricated-edge");
+    if (result.violation.condition !== "fabricated-edge") throw new Error("wrong condition");
+    expect(result.violation.src).toBe(1);
+    expect(result.violation.dst).toBe(3);
+    expect(result.violation.relationId).toBe(99);
+  });
+
+  it("rejects a wrong relation between two nodes that ARE adjacent in the neighbourhood, using a relation id that is real elsewhere (CR-02)", () => {
+    const neighborhood: KbNeighborhood = {
+      queryId: 9006,
+      seeds: [1],
+      nodes: [1, 2, 3].map((id) => ({ id, label: `n${id}`, type: "gene" })),
+      edges: [
+        [1, 2, 1],
+        [2, 3, 2],
+      ],
+      relationNames: { "1": "assoc", "2": "part" },
+    };
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 9006,
+      kbRevision: "rev",
+      nodes: [1, 2, 3],
+      edges: [
+        [1, 2, 1],
+        [2, 3, 1], // real nodes, really adjacent (via relation 2) -- but relation 1 is wrong here
+      ],
+    };
+    const result = validateSubgraphAgainstNeighborhood(artifact, neighborhood);
+    if (result.ok) throw new Error("expected failure");
+    expect(result.violation.condition).toBe("fabricated-edge");
+    if (result.violation.condition !== "fabricated-edge") throw new Error("wrong condition");
+    expect(result.violation.src).toBe(2);
+    expect(result.violation.dst).toBe(3);
+    expect(result.violation.relationId).toBe(1);
+  });
+
+  it("accepts an artifact edge listed in the opposite orientation to the neighbourhood's own triple (FA-E, undirected comparison)", () => {
+    const neighborhood: KbNeighborhood = {
+      queryId: 9007,
+      seeds: [11],
+      nodes: [11, 12, 13].map((id) => ({ id, label: `n${id}`, type: "gene" })),
+      edges: [
+        [11, 12, 1],
+        [12, 13, 2],
+      ],
+      relationNames: { "1": "assoc", "2": "part" },
+    };
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 9007,
+      kbRevision: "rev",
+      nodes: [11, 12, 13],
+      edges: [
+        [12, 11, 1], // opposite orientation to the neighbourhood's [11, 12, 1]
+        [12, 13, 2],
+      ],
+    };
+    expect(validateSubgraphAgainstNeighborhood(artifact, neighborhood).ok).toBe(true);
+  });
+
+  it("describeHandoffOutcome renders a fabricated-edge violation to a non-empty string naming the two node ids and the relation id", () => {
+    const description = describeHandoffOutcome({
+      kind: "cd05-violation",
+      violation: { condition: "fabricated-edge", src: 7, dst: 8, relationId: 42 },
+    });
+    expect(description.length).toBeGreaterThan(0);
+    expect(description).toContain("7");
+    expect(description).toContain("8");
+    expect(description).toContain("42");
+  });
 });
 
 describe("runCollaborativeBattery — CD-05 wired at handoff, D-03 denominator (Plan 22-02 Task 2)", () => {
@@ -944,6 +1223,58 @@ describe("runCollaborativeBattery — CD-05 wired at handoff, D-03 denominator (
     // handoff never reaches the bridge at all.
     expect(scoreCalls).toBe(4);
   });
+
+  it("a builder-padded artifact (a real 2-node subgraph repeating one id to read as 3) resolves to schema-invalid, not cd05-violation -- proof the duplicate-id rejection precedes the count check (CR-01a/T-22-12), while other tasks still score", async () => {
+    const taskD: CollaborativeBatteryTask = {
+      id: "task-d",
+      queryId: 1004,
+      prompt: "Which entity does this describe (task D)?",
+    };
+    const { provider: normalProvider } = makeProvider({ 1001: [11], 1002: [21], 1004: [41] });
+    const paddedNodeProvider: Provider = {
+      kind: "openai",
+      baseUrl: "http://test-provider.invalid",
+      async chat(req: ChatRequest): Promise<ChatResponse> {
+        const system = req.system ?? "";
+        const userText = req.messages[0]?.content ?? "";
+        const match = userText.match(/QUERY_ID: (\d+)/);
+        const queryId = match ? Number(match[1]) : NaN;
+        if (system.includes("BUILDER-ROLE") && queryId === 1004) {
+          // Fixture 1004 really has 2 nodes (41, 42) -- padding 41 a second
+          // time reads as 3 entries (>= MIN_SUBGRAPH_NODES) under a raw
+          // array-length count, the exact CR-01a bypass.
+          const artifact = {
+            schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+            queryId,
+            kbRevision: ADMISSION_RECORD.revisionSha,
+            nodes: [41, 42, 41],
+            edges: [[41, 42, 3]],
+          };
+          return {
+            text: "```path=subgraph.json\n" + JSON.stringify(artifact) + "\n```",
+            model: req.model,
+            usage: ZERO_USAGE,
+          };
+        }
+        return normalProvider.chat(req);
+      },
+    };
+    const record = await runCollaborativeBattery(
+      baseArgs({
+        tasks: [...TASKS, taskD],
+        execFn: makeExecFn({ 1001: 1, 1002: 1, 1004: 1 }),
+        runOpts: { providerImpl: paddedNodeProvider },
+      }),
+    );
+    const outcomeD = record.outcomes.find((o) => o.queryId === 1004)!;
+    expect(outcomeD.handoffOutcome.kind).toBe("schema-invalid");
+    expect(outcomeD.hit1).toBe(0);
+    expect(outcomeD.attempt).toBeUndefined();
+    const outcomeA = record.outcomes.find((o) => o.queryId === 1001)!;
+    const outcomeB = record.outcomes.find((o) => o.queryId === 1002)!;
+    expect(outcomeA.attempt).toBeDefined();
+    expect(outcomeB.attempt).toBeDefined();
+  });
 });
 
 // ── D-06: frozen inputs, the early behavioural half of SC-1 (Task 2) ────
@@ -958,6 +1289,53 @@ describe("runCollaborativeBattery — D-06 frozen inputs (Plan 22-02 Task 2)", (
       expect(task.prompt).not.toContain(BUILDER_SENTINEL);
     }
     expect(JSON.stringify(record)).not.toContain(BUILDER_SENTINEL);
+  });
+});
+
+// ── WR-05/IN-03: canonicalSha256 recorded, task-id guarded (Plan 22-06 Task 3) ──
+
+describe("runCollaborativeBattery — WR-05 canonicalSha256 recorded, IN-03 task-id guard (Plan 22-06 Task 3)", () => {
+  it("every surviving handoff record's canonicalSha256 equals hashSubgraphArtifact over the verified artifact, and artifactSha256 still equals the on-disk raw bytes' own digest (WR-05/FA-A)", async () => {
+    const { provider } = makeProvider({ 1001: [11], 1002: [21] });
+    const record = await runCollaborativeBattery(
+      baseArgs({ execFn: makeExecFn({ 1001: 1, 1002: 1 }), runOpts: { providerImpl: provider } }),
+    );
+    expect(record.handoffRecords.length).toBeGreaterThan(0);
+    for (const handoff of record.handoffRecords) {
+      const onDiskBytes = readFileSync(handoff.artifactPath);
+      expect(handoff.artifactSha256).toBe(createHash("sha256").update(onDiskBytes).digest("hex"));
+      const parsedArtifact: unknown = JSON.parse(onDiskBytes.toString("utf8"));
+      const schemaResult = parseSubgraphArtifact(parsedArtifact);
+      expect(schemaResult.ok).toBe(true);
+      expect(handoff.canonicalSha256).toBe(schemaResult.ok ? hashSubgraphArtifact(schemaResult.artifact) : undefined);
+    }
+  });
+
+  it("rejects a task whose id contains a traversal sequence, naming the id, before any provider call is made (IN-03)", async () => {
+    const { provider, callCount } = makeProvider({});
+    const badTask: CollaborativeBatteryTask = {
+      id: "../evil",
+      queryId: 1001,
+      prompt: "Which entity does this describe?",
+    };
+    const err = await thrownAsync(() =>
+      runCollaborativeBattery(baseArgs({ tasks: [badTask], runOpts: { providerImpl: provider } })),
+    );
+    expect(err.message).toContain("../evil");
+    expect(callCount()).toBe(0);
+  });
+
+  it("accepts the real pool's stark-prime:<query_id> task id shape (FA-B)", async () => {
+    const realIdTask: CollaborativeBatteryTask = {
+      id: "stark-prime:1001",
+      queryId: 1001,
+      prompt: "Which entity does this describe?",
+    };
+    const { provider } = makeProvider({ 1001: [11] });
+    const record = await runCollaborativeBattery(
+      baseArgs({ tasks: [realIdTask], execFn: makeExecFn({ 1001: 1 }), runOpts: { providerImpl: provider } }),
+    );
+    expect(record.outcomes).toHaveLength(1);
   });
 });
 
