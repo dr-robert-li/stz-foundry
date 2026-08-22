@@ -754,14 +754,23 @@ describe("promoteWinnerSubgraphs — CD-03 winner-only promotion (Task 2)", () =
       runOpts: { providerImpl: makeProvider() },
     });
 
-    expect(() =>
+    let thrown: Error | null = null;
+    try {
       promoteWinnerSubgraphs({
         archiveRoot,
         slot: "../../evil",
         winnerVariantId: "abc123abc123abcd",
         promotionRun,
-      }),
-    ).toThrow();
+      });
+    } catch (e) {
+      thrown = e as Error;
+    }
+    expect(thrown).not.toBeNull();
+    // WR-03: asserts on the guard's own label and its path-traversal
+    // wording, taken verbatim from taxonomy.ts's assertSafePathSegment --
+    // never merely that something threw.
+    expect(thrown!.message).toContain("component slot");
+    expect(thrown!.message).toMatch(/path-traversal guard/);
     // Nothing was created under archiveRoot -- the guard fires before mkdirSync.
     expect(readdirSync(archiveRoot)).toHaveLength(0);
   });
