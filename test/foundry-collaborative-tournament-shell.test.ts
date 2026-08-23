@@ -928,3 +928,64 @@ describe("SC-2 verbatim reuse — imports and gate vocabulary (Task 3)", () => {
     }
   });
 });
+
+// ── T-23-08: a round in which no pair produces a valid artifact ──────────
+
+describe("runCollaborativeRound tolerates a pair whose handoffs all fail (T-23-08)", () => {
+  it("completes the round with no winner and no promotion instead of crashing on a zero-task answerer battery", async () => {
+    const archiveRoot = scratchDir();
+    // Every builder response is unparseable, for every candidate and every
+    // query -- the live shape Plan 23-06's probe measured (0/30 structurally
+    // valid artifacts). Before this fix, `makeBattery`'s zero-task refusal
+    // propagated out of the runner and killed the whole round here.
+    const brokenBuilderProvider: Provider = {
+      kind: "openai",
+      baseUrl: "http://test-provider.invalid",
+      async chat(req: ChatRequest): Promise<ChatResponse> {
+        return {
+          text: "```path=subgraph.json\nNOT VALID JSON{{{\n```",
+          model: req.model,
+          usage: ZERO_USAGE,
+        };
+      },
+    };
+
+    const result = await runCollaborativeRound({
+      candidates: [WINNER, LOSER],
+      tasks: TASKS,
+      runDir: scratchDir(),
+      gateThreshold: 0.05,
+      kbNeighborhoodFn,
+      poolManifest: POOL_MANIFEST,
+      fingerprintManifest: FINGERPRINT_MANIFEST,
+      warmUp: { queryId: 1001, predDict: { "11": 1 } },
+      incumbentFrontmatter: null,
+      incumbentFitness: null,
+      diversityFloor: 0,
+      archive: { root: archiveRoot, slot: "all-handoffs-failed-slot" },
+      execFn: makeExecFn(),
+      readFileFn: readFileFnFixture,
+      hubCacheRoot: HUB_CACHE_ROOT,
+      runOpts: { providerImpl: brokenBuilderProvider },
+    });
+
+    // A pair with no valid artifacts scores 0, fails the accuracy gate, and
+    // is eliminated before ranking -- so the round is a no-winner round, and
+    // the promotion/archive half never runs.
+    expect(result.winner).toBeNull();
+    expect(result.promotion).toBeNull();
+    expect(result.promotionRun).toBeNull();
+    expect(result.archiveEntry).toBeNull();
+    expect(result.promoted).toEqual([]);
+
+    // Each search run is an ordinary record the shell could aggregate:
+    // every task counted, every hit@1 zero, the answerer pass marked skipped.
+    for (const candidate of [WINNER, LOSER]) {
+      const run = result.searchRuns.get(candidate.id)!;
+      expect(run.answererBatterySkipped).toEqual({ reason: "all-handoffs-failed" });
+      expect(run.outcomes).toHaveLength(2); // the search half of four tasks
+      for (const o of run.outcomes) expect(o.hit1).toBe(0);
+      expect(run.fitnessRun.result.testPassRate).toBe(0);
+    }
+  });
+});

@@ -32,8 +32,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   runAgentBattery,
+  resolveProviderSelection,
+  DEFAULT_BATTERY_MODEL,
   type CandidateAgent,
   type BatteryRun,
+  type ProviderSelection,
   type RunBatteryOptions,
 } from "./agent-runner.js";
 import {
@@ -1052,8 +1055,20 @@ export interface CollaborativeRunRecord {
    *  see `builderBattery`'s doc comment above; the two fields are absent or
    *  present together. */
   builderRun?: BatteryRun;
-  /** The driver's own answerer result -- diagnostics only (D-09 Pitfall 1). */
+  /** The driver's own answerer result -- diagnostics only (D-09 Pitfall 1).
+   *  When `answererBatterySkipped` is present this run was never dispatched:
+   *  its `tasks` and `records` are empty and its `result` is the honest zero. */
   answererRun: BatteryRun;
+  /**
+   * T-23-08: present exactly when every task failed at handoff, so no
+   * answerer pass was dispatched at all. `answererBattery` is still a real,
+   * receipt-rooted mint (the shell reads `answererBattery.receipt` on the
+   * promotion path, and `promoteComponentWinner`'s seal gate reads its task
+   * ids), but nothing in this record claims a provider call that never
+   * happened: `attempts` is empty, `handoffRecords` is empty, and every
+   * entry in `outcomes` carries its own named failure kind with hit@1 of 0.
+   */
+  answererBatterySkipped?: { reason: "all-handoffs-failed" };
   /** The adapter fitness handed to selection/promotion (D-09). */
   fitnessRun: BatteryRun;
   attempts: ScoringAttempt[];
@@ -1109,6 +1124,60 @@ export interface RunCollaborativeBatteryArgs {
 const SUBGRAPH_ARTIFACT_REL_PATH = "subgraph.json";
 const ANSWER_ARTIFACT_REL_PATH = "answer.json";
 const CD01_MAX_ENTRIES = 20;
+
+/** The placeholder prompt on a skipped answerer battery's tasks (T-23-08).
+ *  Never sent to a provider -- `makeBattery` refuses an empty prompt, and a
+ *  battery that is minted but never dispatched still has to be a valid one. */
+const SKIPPED_ANSWERER_PROMPT =
+  "(no answerer pass was dispatched for this task -- every handoff in this run failed structurally)";
+
+/**
+ * The `BatteryRun` for an answerer pass that was SKIPPED, not run (T-23-08).
+ * `tasks` and `records` are empty because no task was dispatched and no
+ * specimen record exists -- a run that did not happen is never fabricated
+ * into results. `provider` and `bounds` mirror `runAgentBattery`'s own
+ * REPORTED (never probed) resolution of the same options object, so the
+ * record says which provider this pass would have used rather than
+ * inventing one; `resolveProviderSelection` is a pure function of the
+ * caller's own config. `result` is the honest zero: nothing passed, so the
+ * gate is not cleared.
+ */
+function skippedAnswererRun(
+  specimen: SpecimenId,
+  battery: AgentBattery,
+  runOpts: RunBatteryOptions | undefined,
+): BatteryRun {
+  const impl = runOpts?.providerImpl;
+  const provider: ProviderSelection = impl
+    ? {
+        kind: impl.kind,
+        baseUrl: impl.baseUrl,
+        model: runOpts?.provider?.model ?? DEFAULT_BATTERY_MODEL,
+        source: "explicit",
+      }
+    : resolveProviderSelection(runOpts?.provider);
+  return {
+    result: {
+      specimen,
+      passedGate: false,
+      testPassRate: 0,
+      coverage: 0,
+      mutationScore: 0,
+      codeHealth: 0,
+      hackFindings: [],
+    },
+    receipt: battery.receipt,
+    provider,
+    tasks: [],
+    records: [],
+    bounds: {
+      concurrency: runOpts?.concurrency ?? 1,
+      taskTimeoutMs: runOpts?.taskTimeoutMs,
+      deadlineMs: runOpts?.deadlineMs,
+    },
+    cost: undefined,
+  };
+}
 
 /**
  * IN-03: `task.id` is joined into artifact paths below and must be guarded
@@ -1511,16 +1580,47 @@ export async function runCollaborativeBattery(
       },
     ],
   }));
+  // T-23-08: every task failed at handoff. The answerer pass is SKIPPED --
+  // there is no verified subgraph to answer from, so dispatching one would
+  // spend a provider call per task on a prompt that cannot be rendered --
+  // but the run still returns an ordinary, well-formed record: every task
+  // carries its own named failure outcome with hit@1 of zero (the loop
+  // below already does exactly that for a failed task), the adapter fitness
+  // is an honest 0, and selection's own `evalGate` eliminates the candidate
+  // on `passedGate` (`gateThreshold` is validated > 0 at battery
+  // construction, so a 0 pass rate can never clear it). This replaces the
+  // zero-task `makeBattery` refusal that used to abort the whole battery --
+  // a wholly-failed pair now simply scores 0 and loses, which is what
+  // COLLAB-DESIGN.md §7's misses-for-non-completions rule requires.
+  const allHandoffsFailed = survivingTasks.length === 0;
+
   // Explicit gateThreshold, never left to default -- an absent threshold is
   // the perfection bar, which eliminates every realistic candidate at the
-  // eval gate (checkpoint decision 3a). NOTE: if every task fails at
-  // handoff, `survivingTasks` is empty and `makeBattery` itself refuses a
-  // zero-task battery (`battery-types.ts`) -- a documented boundary this
-  // plan does not build machinery around, since a wholly-failed run has
-  // nothing left to score or select on.
+  // eval gate (checkpoint decision 3a).
   const answererBattery = makeBattery({
     id: `${args.batteryIdPrefix}:answerer`,
-    tasks: answererTasks,
+    // The skipped-pass placeholder keeps the run's OWN task ids (never a
+    // synthetic id): `promoteComponentWinner`'s seal gate compares the
+    // search and promotion batteries' task-id sets for disjointness, and
+    // the shell's own split already guarantees that for these ids. The
+    // prompt says plainly that no pass was dispatched -- `answererRun.tasks`
+    // is empty and `answererBatterySkipped` is recorded, so nothing here
+    // claims a call that never happened.
+    tasks: allHandoffsFailed
+      ? args.tasks.map((task) => ({
+          id: task.id,
+          prompt: SKIPPED_ANSWERER_PROMPT,
+          checks: [
+            {
+              checkId: "ranked-answer-present",
+              kind: "file-invariant" as const,
+              input: ANSWER_ARTIFACT_REL_PATH,
+              expect: "true",
+              description: "the answerer emitted a ranked-answer artifact at the expected path",
+            },
+          ],
+        }))
+      : answererTasks,
     receipt: args.receipt,
     gateThreshold: args.gateThreshold,
   });
@@ -1531,10 +1631,12 @@ export async function runCollaborativeBattery(
     id: args.candidate.id,
     systemPrompt: args.candidate.answererPrompt,
   };
-  const answererRun = await runAgentBattery(answererCandidate, answererBattery, {
-    ...args.runOpts,
-    artifactDir: answererArtifactDir,
-  });
+  const answererRun = allHandoffsFailed
+    ? skippedAnswererRun(args.candidate.id, answererBattery, args.runOpts)
+    : await runAgentBattery(answererCandidate, answererBattery, {
+        ...args.runOpts,
+        artifactDir: answererArtifactDir,
+      });
 
   // 7/8/9. Ranked list -> predDict (CD-01) -> bridge score -> outcome. Tasks
   // that already failed at handoff are recorded here too, with hit1 = 0 and
@@ -1627,5 +1729,6 @@ export async function runCollaborativeBattery(
     outcomes,
     handoffRecords,
     preflight,
+    ...(allHandoffsFailed ? { answererBatterySkipped: { reason: "all-handoffs-failed" as const } } : {}),
   };
 }

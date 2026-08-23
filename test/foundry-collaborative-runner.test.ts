@@ -930,10 +930,10 @@ describe("runCollaborativeBattery — D-03 per-task fail-closed, run continues (
   });
 
   it("unparseable bytes (not JSON) and a JSON value that is not an object both yield the unparseable outcome, distinguishing the two reasons", async () => {
-    // A third, surviving task (query 1003, present in the fixture) is
-    // required here: if every task in the run fails at handoff, the
-    // answerer battery has zero tasks and `makeBattery` itself refuses
-    // (a documented boundary, not something this test exercises).
+    // A third, surviving task (query 1003, present in the fixture) keeps
+    // this test on the ordinary path: if every task in the run failed at
+    // handoff the run would take the all-miss branch instead (T-23-08,
+    // covered by its own tests below), which is not what this test is about.
     const taskC: CollaborativeBatteryTask = {
       id: "task-c",
       queryId: 1003,
@@ -2111,5 +2111,90 @@ describe("kbNeighborhoodFn refusal is a per-task miss, never a battery crash (T-
     expect(calls).toBe(0);
     expect(record.outcomes).toHaveLength(2);
     for (const o of record.outcomes) expect(o.handoffOutcome.kind).toBe("success");
+  });
+});
+
+// ── T-23-08: an all-failed run returns an all-miss record ───────────────
+
+/** Builder emits bytes that cannot parse, for every query -- so every task
+ *  fails at hash-at-handoff and nothing survives to the answerer. Counts
+ *  answerer-role calls so a skipped pass can be proven to be skipped. */
+function makeAllHandoffsFailProvider(): { provider: Provider; answererCalls: () => number } {
+  let answererCalls = 0;
+  const provider: Provider = {
+    kind: "openai",
+    baseUrl: "http://test-provider.invalid",
+    async chat(req: ChatRequest): Promise<ChatResponse> {
+      const system = req.system ?? "";
+      if (system.includes("ANSWERER-ROLE")) answererCalls++;
+      return {
+        text: "```path=subgraph.json\nNOT VALID JSON{{{\n```",
+        model: req.model,
+        usage: ZERO_USAGE,
+      };
+    },
+  };
+  return { provider, answererCalls: () => answererCalls };
+}
+
+describe("all handoffs failed yields an all-miss record, never a zero-task battery refusal (T-23-08)", () => {
+  it("returns a well-formed record with every task recorded as a miss instead of throwing, and dispatches no answerer call", async () => {
+    const { provider, answererCalls } = makeAllHandoffsFailProvider();
+    const record = await runCollaborativeBattery(
+      baseArgs({ execFn: makeExecFn({}), runOpts: { providerImpl: provider } }),
+    );
+
+    expect(record.answererBatterySkipped).toEqual({ reason: "all-handoffs-failed" });
+    expect(answererCalls()).toBe(0);
+    expect(record.outcomes).toHaveLength(TASKS.length);
+    for (const o of record.outcomes) {
+      expect(o.handoffOutcome.kind).toBe("unparseable");
+      expect(o.hit1).toBe(0);
+      expect(o.attempt).toBeUndefined();
+    }
+    // Nothing that did not happen is fabricated: no scoring attempt, no
+    // handoff record, no answerer task result, no specimen record.
+    expect(record.attempts).toEqual([]);
+    expect(record.handoffRecords).toEqual([]);
+    expect(record.answererRun.tasks).toEqual([]);
+    expect(record.answererRun.records).toEqual([]);
+    // The adapter fitness is an honest zero and cannot clear the gate.
+    expect(record.fitnessRun.result.testPassRate).toBe(0);
+    expect(record.fitnessRun.result.passedGate).toBe(false);
+    // The shell reads both of these on the promotion path -- the battery is
+    // a real receipt-rooted mint over the run's own task ids, and the
+    // fitness run carries that battery's OWN receipt object (D-10/SC-3).
+    expect(record.answererBattery.tasks.map((t) => t.id)).toEqual(TASKS.map((t) => t.id));
+    expect(Object.is(record.fitnessRun.receipt, record.answererBattery.receipt)).toBe(true);
+    expect(Object.is(record.answererRun.receipt, record.answererBattery.receipt)).toBe(true);
+  });
+
+  it("a run in which EVERY neighbourhood refuses returns the same all-miss record with no builder pass and no provider call at all", async () => {
+    const { provider, answererCalls } = makeAllHandoffsFailProvider();
+    const record = await runCollaborativeBattery(
+      baseArgs({
+        kbNeighborhoodFn: (queryId: number) => {
+          throw seedRefusalError(queryId);
+        },
+        execFn: makeExecFn({}),
+        runOpts: { providerImpl: provider },
+      }),
+    );
+    expect(record.answererBatterySkipped).toEqual({ reason: "all-handoffs-failed" });
+    expect(record.builderBattery).toBeUndefined();
+    expect(record.builderRun).toBeUndefined();
+    expect(answererCalls()).toBe(0);
+    expect(record.outcomes).toHaveLength(TASKS.length);
+    for (const o of record.outcomes) expect(o.handoffOutcome.kind).toBe("neighbourhood-refused");
+    expect(record.fitnessRun.result.testPassRate).toBe(0);
+  });
+
+  it("non-vacuity control: a healthy run carries no answererBatterySkipped marker and does dispatch its answerer pass", async () => {
+    const { provider } = makeProvider({ 1001: [11], 1002: [21] });
+    const record = await runCollaborativeBattery(
+      baseArgs({ execFn: makeExecFn({ 1001: 1, 1002: 1 }), runOpts: { providerImpl: provider } }),
+    );
+    expect(record.answererBatterySkipped).toBeUndefined();
+    expect(record.answererRun.tasks).toHaveLength(TASKS.length);
   });
 });
