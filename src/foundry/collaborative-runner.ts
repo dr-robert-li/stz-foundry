@@ -116,6 +116,38 @@ export const NEIGHBORHOOD_ONE_REL = "tools/stark-eval/neighborhood_one.py";
 export const NEIGHBORHOOD_HOPS = 2;
 export const NEIGHBORHOOD_MAX_NODES = 400;
 
+/**
+ * The ONE spelling of FA-7's empty-seed refusal, used at BOTH ends of the
+ * only narrow match this module makes on its own error text: the violation
+ * string `parseNeighborhoodStdout` builds when the helper returns zero
+ * seeds, and `isNeighbourhoodSeedRefusal`'s test for that exact condition.
+ * A single constant so the two cannot drift -- rewording the message
+ * without touching the matcher would otherwise silently turn every
+ * empty-seed refusal back into a round-killing crash (T-23-08).
+ */
+export const NEIGHBOURHOOD_EMPTY_SEED_MARKER = "found no seed entity for this query";
+
+/**
+ * True for exactly ONE condition: a `kbNeighborhoodFn` dispatch that
+ * refused because the KB helper matched no seed entity for the query text
+ * (FA-7). Deliberately NARROWER than the driver-side `"kbNeighborhoodFn:"`
+ * prefix catch one altitude up (`_collab-round.ts`'s `runOneUnit`): a
+ * timeout, an ENOBUFS overrun, a signal kill, an unreachable process, a
+ * non-zero exit and any other malformed-output violation are ENVIRONMENT
+ * faults, not this query's problem, and stay hard errors that abort the
+ * battery. The empty-seed refusal is different in kind -- it is a property
+ * of the query text itself, deterministic across every retry, and is
+ * therefore this one task's miss (COLLAB-DESIGN.md §7's
+ * misses-for-non-completions rule).
+ */
+function isNeighbourhoodSeedRefusal(e: unknown): boolean {
+  return (
+    e instanceof CollaborativeRunnerError &&
+    e.message.includes("kbNeighborhoodFn:") &&
+    e.message.includes(NEIGHBOURHOOD_EMPTY_SEED_MARKER)
+  );
+}
+
 /** T-23-XX (Phase 23 Plan 06 continuation): Node's `spawnSync` default
  *  `maxBuffer` is 1 MiB. A live query measured against the pinned model
  *  (query 1528, 2-hop/400-node cap) serialises 2,168,562 bytes of
@@ -211,7 +243,7 @@ export function parseNeighborhoodStdout(raw: string): ParseNeighborhoodResult {
     return {
       ok: false,
       violation:
-        `the helper found no seed entity for this query -- ${reason} (an empty seed set is a refusal, ` +
+        `the helper ${NEIGHBOURHOOD_EMPTY_SEED_MARKER} -- ${reason} (an empty seed set is a refusal, ` +
         `never an empty-but-successful neighbourhood)`,
     };
   }
@@ -598,6 +630,16 @@ export type HandoffOutcome =
   | { kind: "record-corrupt"; violation: string }
   | { kind: "hash-mismatch"; recordedSha256: string; observedSha256: string }
   | { kind: "cd05-violation"; violation: Cd05Violation }
+  /**
+   * T-23-08: the graph arm's neighbourhood could not be extracted for this
+   * query because the KB helper matched no seed entity (FA-7). Recorded
+   * BEFORE any builder call is made, so the task never reaches the builder,
+   * the handoff, or the bridge -- it costs this query hit@1 of zero and the
+   * battery continues with the rest. Only the empty-seed refusal lands here
+   * (`isNeighbourhoodSeedRefusal`); every other `kbNeighborhoodFn` failure
+   * mode is an environment fault and still aborts the battery.
+   */
+  | { kind: "neighbourhood-refused"; queryId: number; reason: string }
   | { kind: "bridge-non-success"; scoringOutcomeKind: string };
 
 export type HandoffOutcomeKind = HandoffOutcome["kind"];
@@ -620,6 +662,7 @@ const ALL_HANDOFF_OUTCOME_KINDS: Record<HandoffOutcomeKind, true> = {
   "record-corrupt": true,
   "hash-mismatch": true,
   "cd05-violation": true,
+  "neighbourhood-refused": true,
   "bridge-non-success": true,
 };
 
@@ -674,6 +717,8 @@ export function describeHandoffOutcome(outcome: HandoffOutcome): string {
       return `fail-closed: artifact hash mismatch -- recorded ${outcome.recordedSha256}, observed ${outcome.observedSha256}`;
     case "cd05-violation":
       return `fail-closed: CD-05 structural violation -- ${describeCd05Violation(outcome.violation)}`;
+    case "neighbourhood-refused":
+      return `fail-closed: no KB neighbourhood for query ${outcome.queryId} -- ${outcome.reason}`;
     case "bridge-non-success":
       return `fail-closed: bridge did not score -- outcome "${outcome.scoringOutcomeKind}"`;
     default: {
@@ -980,7 +1025,7 @@ export type CollaborativeArm = "graph" | "no-subgraph";
 export interface CollaborativeTaskOutcome {
   queryId: number;
   /** The named, fail-closed outcome (D-03/D-08): `"success"` when the
-   *  bridge scored the task, one of the eight failure kinds otherwise. */
+   *  bridge scored the task, one of the named failure kinds otherwise. */
   handoffOutcome: HandoffOutcome;
   /** Present only when the task actually reached the bridge -- a task that
    *  fails at handoff is never sent to `scorePrediction` (D-03), so it never
@@ -996,9 +1041,11 @@ export interface CollaborativeTaskOutcome {
 
 export interface CollaborativeRunRecord {
   candidateId: SpecimenId;
-  /** Absent exactly when the run used the no-subgraph condition (D-05) --
-   *  no builder pass happened, and a run that did not happen is never
-   *  fabricated into the record. Present under the graph condition. */
+  /** Absent when no builder pass happened -- the no-subgraph condition
+   *  (D-05), or (T-23-08) a graph run in which EVERY task's neighbourhood
+   *  refused, leaving nothing to build from. A run that did not happen is
+   *  never fabricated into the record. Present for any graph run that made
+   *  at least one builder call. */
   builderBattery?: AgentBattery;
   answererBattery: AgentBattery;
   /** Absent exactly when the run used the no-subgraph condition (D-05) --
@@ -1290,11 +1337,31 @@ export async function runCollaborativeBattery(
   if (arm === "graph") {
     const neighbourhoodByTask = new Map<string, KbNeighborhood>();
     for (const task of args.tasks) {
-      neighbourhoodByTask.set(task.id, args.kbNeighborhoodFn(task.queryId));
+      // T-23-08: FA-7's empty-seed refusal is THIS query's miss, never the
+      // battery's crash -- see `isNeighbourhoodSeedRefusal` for why the
+      // match is narrower than the driver's own prefix catch, and why every
+      // other kbNeighborhoodFn failure mode still rethrows here.
+      try {
+        neighbourhoodByTask.set(task.id, args.kbNeighborhoodFn(task.queryId));
+      } catch (e) {
+        if (!isNeighbourhoodSeedRefusal(e)) throw e;
+        failedOutcomeByTaskId.set(task.id, {
+          kind: "neighbourhood-refused",
+          queryId: task.queryId,
+          reason: (e as Error).message,
+        });
+      }
     }
 
+    // Only tasks that HAVE a neighbourhood reach the builder. Empty exactly
+    // when every task refused above -- in which case no builder battery is
+    // minted and no builder call is made at all, and every task already
+    // carries its own recorded outcome (the all-handoffs-failed branch
+    // below returns the resulting all-miss record).
+    const buildableTasks = args.tasks.filter((task) => !failedOutcomeByTaskId.has(task.id));
+
     // 2/3. Builder battery + pass 1.
-    const builderTasks: BatteryTask[] = args.tasks.map((task) => ({
+    const builderTasks: BatteryTask[] = buildableTasks.map((task) => ({
       id: task.id,
       prompt: buildBuilderTaskPrompt(task, neighbourhoodByTask.get(task.id)!, kbRevision),
       checks: [
@@ -1307,23 +1374,35 @@ export async function runCollaborativeBattery(
         },
       ],
     }));
-    builderBattery = makeBattery({
-      id: `${args.batteryIdPrefix}:builder`,
-      tasks: builderTasks,
-      receipt: args.receipt,
-    });
     const builderArtifactDir = join(args.artifactDir, "builder");
-    const builderCandidate: CandidateAgent = { id: args.candidate.id, systemPrompt: args.candidate.builderPrompt };
-    builderRun = await runAgentBattery(builderCandidate, builderBattery, {
-      ...args.runOpts,
-      artifactDir: builderArtifactDir,
-    });
+    // T-23-08: a builder battery is minted only when at least one task has a
+    // neighbourhood to build from. `builderBattery`/`builderRun` therefore
+    // stay absent when EVERY task's neighbourhood refused -- the same
+    // "a run that did not happen is never fabricated" rule the no-subgraph
+    // arm follows, applied to a builder pass that genuinely never ran.
+    if (builderTasks.length > 0) {
+      builderBattery = makeBattery({
+        id: `${args.batteryIdPrefix}:builder`,
+        tasks: builderTasks,
+        receipt: args.receipt,
+      });
+      const builderCandidate: CandidateAgent = { id: args.candidate.id, systemPrompt: args.candidate.builderPrompt };
+      builderRun = await runAgentBattery(builderCandidate, builderBattery, {
+        ...args.runOpts,
+        artifactDir: builderArtifactDir,
+      });
+    }
 
     // 4. Hash at handoff -- the runner hashes, never the builder. A task whose
     // artifact is absent, unparseable, or schema-invalid gets its outcome
     // recorded here and never proceeds to verify-at-read or the answerer pass
     // (D-03: no scoring call is ever made for a structurally invalid subgraph).
-    for (const task of args.tasks) {
+    // Iterates `buildableTasks`, never `args.tasks`: a task whose
+    // neighbourhood refused already carries its own outcome and has no
+    // builder artifact to look for -- reading one would overwrite the
+    // recorded `neighbourhood-refused` kind with a misleading
+    // `artifact-absent` (T-23-08).
+    for (const task of buildableTasks) {
       const artifactPath = join(builderArtifactDir, task.id, SUBGRAPH_ARTIFACT_REL_PATH);
       const read = readSubgraphArtifact(artifactPath);
       if (read.status === "absent") {
@@ -1368,7 +1447,7 @@ export async function runCollaborativeBattery(
     // joined against the SAME pre-extracted neighbourhood (D-06). Only tasks
     // that survived step 4 are attempted here -- a task already failed never
     // reaches verify-at-read, let alone the answerer pass or the bridge.
-    for (const task of args.tasks) {
+    for (const task of buildableTasks) {
       if (failedOutcomeByTaskId.has(task.id)) continue;
       const verify = verifyHandoffAtRead(task.queryId, handoffRecordByTaskId.get(task.id));
       if (verify.kind !== "success") {

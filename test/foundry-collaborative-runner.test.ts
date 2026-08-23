@@ -36,6 +36,8 @@ import {
   NEIGHBORHOOD_HOPS,
   NEIGHBORHOOD_MAX_NODES,
   NEIGHBORHOOD_MAX_BUFFER_BYTES,
+  NEIGHBOURHOOD_EMPTY_SEED_MARKER,
+  CollaborativeRunnerError,
   type CollaborativeCandidate,
   type KbNeighborhood,
   type KbNeighborhoodFn,
@@ -624,6 +626,14 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
         violation: { condition: "below-minimum", nodeCount: 2 },
       },
       "bridge-non-success": { kind: "bridge-non-success", scoringOutcomeKind: "timeout" },
+      // T-23-08: added deliberately with the union's new member -- this
+      // assertion pins the kind list, so growing the union without a sample
+      // here is a failing test, by design.
+      "neighbourhood-refused": {
+        kind: "neighbourhood-refused",
+        queryId: 1384,
+        reason: "the helper found no seed entity for this query -- no KB node name matched the query text",
+      },
       "artifact-unreadable": { kind: "artifact-unreadable", path: "/tmp/nowhere-readable", code: "EISDIR" },
     };
     expect(Object.keys(sampleByKind).sort()).toEqual([...HANDOFF_OUTCOME_KINDS].sort());
@@ -1986,5 +1996,120 @@ describe("makeDefaultKbNeighborhoodFn — the real dispatch behind the seam (Pla
     expect(err.message).toContain(String(NEIGHBORHOOD_MAX_BUFFER_BYTES));
     expect(err.message).not.toContain("killed by signal");
     expect(err.message).not.toContain("did not parse as JSON");
+  });
+});
+
+// ── T-23-08: a KB-neighbourhood refusal is one task's miss ──────────────
+
+/** The exact message shape `makeDefaultKbNeighborhoodFn` throws for FA-7's
+ *  empty-seed refusal (asserted against the real dispatch in the
+ *  empty-seed test above, so this double cannot drift silently). */
+function seedRefusalError(queryId: number): CollaborativeRunnerError {
+  return new CollaborativeRunnerError(
+    `kbNeighborhoodFn: neighbourhood extraction for query ${queryId} produced invalid output -- ` +
+      `the helper ${NEIGHBOURHOOD_EMPTY_SEED_MARKER} -- no KB node name matched the query text via ` +
+      `query-text seeding (FA-7) (an empty seed set is a refusal, never an empty-but-successful neighbourhood)`,
+  );
+}
+
+const TASK_C: CollaborativeBatteryTask = {
+  id: "task-c",
+  queryId: 1003,
+  prompt: "Which entity does this describe (task C)?",
+};
+
+describe("kbNeighborhoodFn refusal is a per-task miss, never a battery crash (T-23-08)", () => {
+  it("one refusing query out of three is recorded as neighbourhood-refused with hit@1 0, and the other two run normally", async () => {
+    const { provider } = makeProvider({ 1001: [11], 1003: [31] });
+    const refusingFn = (queryId: number): KbNeighborhood => {
+      if (queryId === 1002) throw seedRefusalError(1002);
+      return kbNeighborhoodFn(queryId);
+    };
+    const record = await runCollaborativeBattery(
+      baseArgs({
+        tasks: [...TASKS, TASK_C],
+        kbNeighborhoodFn: refusingFn,
+        execFn: makeExecFn({ 1001: 1, 1003: 1 }),
+        runOpts: { providerImpl: provider },
+      }),
+    );
+
+    // D-03's denominator is not gamed: the refused task is still counted.
+    expect(record.outcomes).toHaveLength(3);
+    const refused = record.outcomes.find((o) => o.queryId === 1002)!;
+    expect(refused.handoffOutcome.kind).toBe("neighbourhood-refused");
+    expect(refused.hit1).toBe(0);
+    expect(refused.attempt).toBeUndefined();
+    if (refused.handoffOutcome.kind === "neighbourhood-refused") {
+      expect(refused.handoffOutcome.queryId).toBe(1002);
+      expect(refused.handoffOutcome.reason).toContain(NEIGHBOURHOOD_EMPTY_SEED_MARKER);
+    }
+    for (const queryId of [1001, 1003]) {
+      const ok = record.outcomes.find((o) => o.queryId === queryId)!;
+      expect(ok.handoffOutcome.kind).toBe("success");
+      expect(ok.hit1).toBe(1);
+    }
+    // The refused task never reaches the builder, so it is not a battery
+    // task and no artifact of it is ever looked for.
+    expect(record.builderBattery!.tasks.map((t) => t.id)).toEqual(["task-a", "task-c"]);
+    expect(record.answererBattery.tasks.map((t) => t.id)).toEqual(["task-a", "task-c"]);
+    expect(record.handoffRecords.map((h) => h.queryId)).toEqual([1001, 1003]);
+  });
+
+  it("the refused task keeps its own kind -- it is never overwritten by the artifact-absent read of a builder output that was never produced", async () => {
+    const { provider } = makeProvider({ 1001: [11] });
+    const record = await runCollaborativeBattery(
+      baseArgs({
+        kbNeighborhoodFn: (queryId: number) => {
+          if (queryId === 1002) throw seedRefusalError(1002);
+          return kbNeighborhoodFn(queryId);
+        },
+        execFn: makeExecFn({ 1001: 1 }),
+        runOpts: { providerImpl: provider },
+      }),
+    );
+    expect(record.outcomes.find((o) => o.queryId === 1002)!.handoffOutcome.kind).toBe("neighbourhood-refused");
+  });
+
+  it("every OTHER kbNeighborhoodFn failure mode stays a hard error -- a timeout, a signal kill and a non-seed parse violation are environment faults, not one query's miss", async () => {
+    const { provider } = makeProvider({ 1001: [11], 1002: [21] });
+    const messages = [
+      "kbNeighborhoodFn: neighbourhood extraction for query 1002 timed out after 900000ms",
+      "kbNeighborhoodFn: neighbourhood extraction for query 1002 was killed by signal SIGTERM",
+      "kbNeighborhoodFn: neighbourhood extraction for query 1002 produced invalid output -- field \"nodes\" must be an array",
+    ];
+    for (const message of messages) {
+      await expect(
+        runCollaborativeBattery(
+          baseArgs({
+            kbNeighborhoodFn: (queryId: number) => {
+              if (queryId === 1002) throw new CollaborativeRunnerError(message);
+              return kbNeighborhoodFn(queryId);
+            },
+            execFn: makeExecFn({}),
+            runOpts: { providerImpl: provider },
+          }),
+        ),
+      ).rejects.toThrow(CollaborativeRunnerError);
+    }
+  });
+
+  it("the no-subgraph null arm never calls kbNeighborhoodFn at all -- a refusing extractor cannot affect the null arm's pairing", async () => {
+    const { provider } = makeProvider({ 1001: [11], 1002: [21] });
+    let calls = 0;
+    const record = await runCollaborativeBattery(
+      baseArgs({
+        arm: "no-subgraph",
+        kbNeighborhoodFn: (queryId: number) => {
+          calls++;
+          throw seedRefusalError(queryId);
+        },
+        execFn: makeExecFn({ 1001: 1, 1002: 1 }),
+        runOpts: { providerImpl: provider },
+      }),
+    );
+    expect(calls).toBe(0);
+    expect(record.outcomes).toHaveLength(2);
+    for (const o of record.outcomes) expect(o.handoffOutcome.kind).toBe("success");
   });
 });
