@@ -388,4 +388,29 @@ describe("_collab-probe.ts source-text guards", () => {
     expect(chdirIdx).toBeGreaterThan(0);
     expect(loopIdx).toBeGreaterThan(chdirIdx);
   });
+
+  // Regression for the first REAL relaunch after the two fixes above: this
+  // probe calls `runCollaborativeBattery` with exactly ONE task per unit, so
+  // a single handoff failure is a 100%-of-batch handoff failure, and
+  // `makeBattery` refuses a zero-task answerer battery by design -- every
+  // real structural-validity miss (the exact thing D-03 measures the RATE
+  // of) crashed the whole probe until this was caught. Structural, not
+  // behavioral: driving the real throw would need exec-seam plumbing
+  // `runOneUnit` does not expose, and is not worth adding for this check.
+  it("catches the single-task all-handoffs-failed battery-shape boundary instead of letting it crash the whole probe", () => {
+    expect(probeSourceText).toContain("BatteryShapeError");
+    expect(probeSourceText).toMatch(/e instanceof BatteryShapeError\s*&&\s*e\.message\.includes\(["']has zero tasks["']\)/);
+    // The narrow message match must sit inside a try/catch around the
+    // `runCollaborativeBattery` call, not a bare top-level check -- an
+    // unrelated BatteryShapeError (a real shape bug) must still propagate.
+    const tryIdx = probeSourceText.indexOf("try {");
+    const catchIdx = probeSourceText.indexOf("} catch (e) {");
+    const boundaryCheckIdx = probeSourceText.indexOf("e instanceof BatteryShapeError");
+    expect(tryIdx).toBeGreaterThan(0);
+    expect(catchIdx).toBeGreaterThan(tryIdx);
+    expect(boundaryCheckIdx).toBeGreaterThan(catchIdx);
+    // The synthesized unit result must never fabricate a preflight figure
+    // that was never actually observed once the throw ate the record.
+    expect(probeSourceText).toContain("preflightWarmUpWallMs: null");
+  });
 });

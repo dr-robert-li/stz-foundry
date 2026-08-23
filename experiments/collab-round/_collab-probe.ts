@@ -65,6 +65,7 @@ import {
   type FingerprintManifest,
 } from "../../src/foundry/collaborative-scoring-bridge.js";
 import { createProvider, type Provider } from "../../src/foundry/provider.js";
+import { BatteryShapeError } from "../../src/foundry/battery-types.js";
 import { loadCommittedPairs, type CommittedPair } from "./_collab-pairs.js";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -112,8 +113,13 @@ export interface ProbeUnitResult {
   /** Whole wall time for this unit's own `runCollaborativeBattery` call,
    *  raw milliseconds, never rounded or converted. */
   wallMs: number;
-  /** The preflight's own warm-up scoring call, raw milliseconds. */
-  preflightWarmUpWallMs: number;
+  /** The preflight's own warm-up scoring call, raw milliseconds -- `null`
+   *  when the unit's `runCollaborativeBattery` call threw before returning a
+   *  `record` at all (the all-handoffs-failed battery-shape boundary below),
+   *  so the figure that WAS observed is simply unrecoverable. Never
+   *  fabricated as `0` -- a `0` here would look like a real, fast preflight
+   *  instead of "not measured". */
+  preflightWarmUpWallMs: number | null;
   /** The scoring bridge's own call for this unit's prediction, raw
    *  milliseconds -- `null` when the unit never reached scoring (a
    *  handoff failure short-circuits before any scoring call is made). */
@@ -271,56 +277,97 @@ async function runOneUnit(
   kbNeighborhoodFn: KbNeighborhoodFn,
 ): Promise<ProbeUnitResult> {
   const startedAt = Date.now();
-  const record = await runCollaborativeBattery({
-    candidate: pair.candidate,
-    tasks: [task],
-    batteryIdPrefix: `collab-probe:${pair.candidate.id}`,
-    receipt: mintCollaborativeReceipt(),
-    gateThreshold: PROBE_GATE_THRESHOLD,
-    artifactDir: mkdtempSync(join(tmpdir(), "collab-probe-artifact-")),
-    scoringOutputDir: mkdtempSync(join(tmpdir(), "collab-probe-scoring-")),
-    kbNeighborhoodFn,
-    poolManifest: POOL_MANIFEST,
-    fingerprintManifest: FINGERPRINT_MANIFEST,
-    warmUp: { queryId: warmUpQueryId, predDict: { "0": 1.0 } },
-    // Concurrency of exactly 1, and only ever 1 -- the single local
-    // inference slot, one request in flight always (the round's own
-    // equal-treatment invariant, applied here too).
-    //
-    // `provider` here is NOT redundant with `providerImpl`: `providerImpl`
-    // supplies the transport (the already-constructed `Provider`, so
-    // `runAgentBattery` skips its own `createProvider` call), but the
-    // *model name* sent on every chat request comes from
-    // `providerSelection.model`, which `agent-runner.ts` resolves as
-    // `opts.provider?.model ?? DEFAULT_BATTERY_MODEL` whenever
-    // `providerImpl` is set (agent-runner.ts:348-355). Omitting `provider`
-    // here silently falls through to `DEFAULT_BATTERY_MODEL` -- currently
-    // `"granite4.1:30b"`, D-13's un-pinned model -- on every single call.
-    // Fixed post-launch-invalidation: the first probe run (2026-08-23) ran
-    // entirely on granite because this field was missing.
-    runOpts: {
-      providerImpl: provider,
-      concurrency: 1,
-      provider: { kind: "openai", baseUrl: COLLAB_PROBE_BASE_URL, model: COLLAB_PROBE_MODEL },
-    },
-  });
-  const wallMs = Date.now() - startedAt;
-  const outcome = record.outcomes[0]!;
-  const attempt = record.attempts[0];
-  const nodeCount = outcome.handoffOutcome.kind === "success" ? outcome.handoffOutcome.artifact.nodes.length : null;
-  const edgeCount = outcome.handoffOutcome.kind === "success" ? outcome.handoffOutcome.artifact.edges.length : null;
-  return {
-    pairId: pair.candidate.id,
-    pairRelPath: pair.relPath,
-    queryId: task.queryId,
-    wallMs,
-    preflightWarmUpWallMs: record.preflight.warmUpWallTimeMs,
-    scoringWallMs: attempt ? attempt.wallTimeMs : null,
-    handoffOutcomeKind: outcome.handoffOutcome.kind,
-    hit1: outcome.hit1,
-    nodeCount,
-    edgeCount,
-  };
+  try {
+    const record = await runCollaborativeBattery({
+      candidate: pair.candidate,
+      tasks: [task],
+      batteryIdPrefix: `collab-probe:${pair.candidate.id}`,
+      receipt: mintCollaborativeReceipt(),
+      gateThreshold: PROBE_GATE_THRESHOLD,
+      artifactDir: mkdtempSync(join(tmpdir(), "collab-probe-artifact-")),
+      scoringOutputDir: mkdtempSync(join(tmpdir(), "collab-probe-scoring-")),
+      kbNeighborhoodFn,
+      poolManifest: POOL_MANIFEST,
+      fingerprintManifest: FINGERPRINT_MANIFEST,
+      warmUp: { queryId: warmUpQueryId, predDict: { "0": 1.0 } },
+      // Concurrency of exactly 1, and only ever 1 -- the single local
+      // inference slot, one request in flight always (the round's own
+      // equal-treatment invariant, applied here too).
+      //
+      // `provider` here is NOT redundant with `providerImpl`: `providerImpl`
+      // supplies the transport (the already-constructed `Provider`, so
+      // `runAgentBattery` skips its own `createProvider` call), but the
+      // *model name* sent on every chat request comes from
+      // `providerSelection.model`, which `agent-runner.ts` resolves as
+      // `opts.provider?.model ?? DEFAULT_BATTERY_MODEL` whenever
+      // `providerImpl` is set (agent-runner.ts:348-355). Omitting `provider`
+      // here silently falls through to `DEFAULT_BATTERY_MODEL` -- currently
+      // `"granite4.1:30b"`, D-13's un-pinned model -- on every single call.
+      // Fixed post-launch-invalidation: the first probe run (2026-08-23) ran
+      // entirely on granite because this field was missing.
+      runOpts: {
+        providerImpl: provider,
+        concurrency: 1,
+        provider: { kind: "openai", baseUrl: COLLAB_PROBE_BASE_URL, model: COLLAB_PROBE_MODEL },
+      },
+    });
+    const wallMs = Date.now() - startedAt;
+    const outcome = record.outcomes[0]!;
+    const attempt = record.attempts[0];
+    const nodeCount = outcome.handoffOutcome.kind === "success" ? outcome.handoffOutcome.artifact.nodes.length : null;
+    const edgeCount = outcome.handoffOutcome.kind === "success" ? outcome.handoffOutcome.artifact.edges.length : null;
+    return {
+      pairId: pair.candidate.id,
+      pairRelPath: pair.relPath,
+      queryId: task.queryId,
+      wallMs,
+      preflightWarmUpWallMs: record.preflight.warmUpWallTimeMs,
+      scoringWallMs: attempt ? attempt.wallTimeMs : null,
+      handoffOutcomeKind: outcome.handoffOutcome.kind,
+      hit1: outcome.hit1,
+      nodeCount,
+      edgeCount,
+    };
+  } catch (e) {
+    // `runCollaborativeBattery` is called here with exactly ONE task per
+    // unit (this probe's own design), so "this unit's task failed handoff"
+    // and "every task in the batch failed handoff" are the same event --
+    // and `makeBattery` refuses a zero-task answerer battery by design (see
+    // `collaborative-runner.ts`'s own comment above `answererBattery`: "a
+    // documented boundary this plan does not build machinery around").
+    // Every single handoff failure would otherwise crash this whole probe,
+    // which defeats D-03's own purpose -- measuring the RATE at which the
+    // builder emits structurally valid artifacts necessarily requires
+    // surviving some failures. Narrowly matched on the exact message this
+    // boundary throws (this repo's own house rule: inspect thrown message
+    // content, never a bare instanceof-only catch), so an unrelated
+    // BatteryShapeError (a real shape bug, e.g. Plan 07's shared code path)
+    // still propagates and crashes the probe as it should.
+    if (e instanceof BatteryShapeError && e.message.includes("has zero tasks")) {
+      const wallMs = Date.now() - startedAt;
+      console.log(
+        `  [unit failed] pair=${pair.candidate.id} query=${task.queryId}: all handoffs failed for this unit ` +
+          `(runCollaborativeBattery refused a zero-task answerer battery) -- recorded as a structural-validity miss`,
+      );
+      return {
+        pairId: pair.candidate.id,
+        pairRelPath: pair.relPath,
+        queryId: task.queryId,
+        wallMs,
+        // Not fabricated as 0 -- the preflight DID run inside the throwing
+        // call, but its figure is unrecoverable once the exception ate the
+        // `record` it would have lived on. `null` means "not measured",
+        // never "measured as instant".
+        preflightWarmUpWallMs: null,
+        scoringWallMs: null,
+        handoffOutcomeKind: "all-handoffs-failed-battery-refused",
+        hit1: 0,
+        nodeCount: null,
+        edgeCount: null,
+      };
+    }
+    throw e;
+  }
 }
 
 // ══════════════════════════════════ main ═══════════════════════════════
