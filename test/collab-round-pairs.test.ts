@@ -347,4 +347,29 @@ describe("_collab-probe.ts source-text guards", () => {
   it("declares a strictly positive gate threshold", () => {
     expect(CollabProbe.PROBE_GATE_THRESHOLD).toBeGreaterThan(0);
   });
+
+  // Regression for the 2026-08-23 invalid first probe run: `runOneUnit`
+  // passed `runOpts: { providerImpl: provider, concurrency: 1 }` with no
+  // `provider` field, so `agent-runner.ts`'s `opts.provider?.model ??
+  // DEFAULT_BATTERY_MODEL` fell through to `DEFAULT_BATTERY_MODEL`
+  // ("granite4.1:30b") on every call -- the un-pinned model, D-13's
+  // violation. `providerImpl` supplies transport; `provider.model` is the
+  // separate, required field that names the model sent on the wire.
+  it("wires COLLAB_PROBE_MODEL into runOpts.provider.model on the battery call, so DEFAULT_BATTERY_MODEL never applies", () => {
+    const runOptsBlocks = [...probeSourceText.matchAll(/runOpts:\s*\{[\s\S]*?\n {2}\}\);/g)];
+    expect(runOptsBlocks.length).toBeGreaterThan(0);
+    for (const block of runOptsBlocks) {
+      const text = block[0];
+      expect(text).toContain("providerImpl: provider");
+      expect(text).toMatch(/provider:\s*\{[^}]*model:\s*COLLAB_PROBE_MODEL[^}]*\}/);
+    }
+  });
+
+  it("the run-config's recorded model and the wire model are the SAME constant symbol, never two literals that can drift apart", () => {
+    const occurrences = [...probeSourceText.matchAll(/model:\s*COLLAB_PROBE_MODEL\b/g)];
+    // One inside captureRunConfig's returned runConfig, one inside
+    // runOpts.provider -- both referencing the identical exported const,
+    // so a future edit to one cannot silently orphan the other.
+    expect(occurrences.length).toBeGreaterThanOrEqual(2);
+  });
 });

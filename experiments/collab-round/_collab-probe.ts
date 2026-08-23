@@ -286,7 +286,23 @@ async function runOneUnit(
     // Concurrency of exactly 1, and only ever 1 -- the single local
     // inference slot, one request in flight always (the round's own
     // equal-treatment invariant, applied here too).
-    runOpts: { providerImpl: provider, concurrency: 1 },
+    //
+    // `provider` here is NOT redundant with `providerImpl`: `providerImpl`
+    // supplies the transport (the already-constructed `Provider`, so
+    // `runAgentBattery` skips its own `createProvider` call), but the
+    // *model name* sent on every chat request comes from
+    // `providerSelection.model`, which `agent-runner.ts` resolves as
+    // `opts.provider?.model ?? DEFAULT_BATTERY_MODEL` whenever
+    // `providerImpl` is set (agent-runner.ts:348-355). Omitting `provider`
+    // here silently falls through to `DEFAULT_BATTERY_MODEL` -- currently
+    // `"granite4.1:30b"`, D-13's un-pinned model -- on every single call.
+    // Fixed post-launch-invalidation: the first probe run (2026-08-23) ran
+    // entirely on granite because this field was missing.
+    runOpts: {
+      providerImpl: provider,
+      concurrency: 1,
+      provider: { kind: "openai", baseUrl: COLLAB_PROBE_BASE_URL, model: COLLAB_PROBE_MODEL },
+    },
   });
   const wallMs = Date.now() - startedAt;
   const outcome = record.outcomes[0]!;
