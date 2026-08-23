@@ -372,4 +372,20 @@ describe("_collab-probe.ts source-text guards", () => {
     // so a future edit to one cannot silently orphan the other.
     expect(occurrences.length).toBeGreaterThanOrEqual(2);
   });
+
+  // Regression for the same invalid run: the first launch died on an
+  // ENOENT spawning the Python scoring toolchain because
+  // `_launch-collab.sh` runs this script with cwd = experiments/collab-round/
+  // (not the repo root) and the scoring bridge's own repo-root-relative
+  // path constants (see `src/foundry/collaborative-scoring-bridge.ts` and
+  // `collaborative-runner.ts`'s neighbourhood-script constant) resolve
+  // against `process.cwd()` with no override.
+  it("resolves statePath from SCRIPT_DIR (never process.cwd()) and chdirs to the repo root before the battery loop", () => {
+    expect(probeSourceText).toMatch(/const statePath = join\(SCRIPT_DIR,\s*requireEnvVar\(COLLAB_STATE_ENV_VAR\)\)/);
+    expect(probeSourceText).toContain("process.chdir(repoRoot)");
+    const chdirIdx = probeSourceText.indexOf("process.chdir(repoRoot)");
+    const loopIdx = probeSourceText.indexOf("for (const pair of pairs)");
+    expect(chdirIdx).toBeGreaterThan(0);
+    expect(loopIdx).toBeGreaterThan(chdirIdx);
+  });
 });

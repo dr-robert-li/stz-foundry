@@ -364,12 +364,33 @@ function writeVerdict(data: unknown): void {
 }
 
 async function main(): Promise<void> {
-  const statePath = requireEnvVar(COLLAB_STATE_ENV_VAR);
+  // Resolved against SCRIPT_DIR (this file's own on-disk location, from
+  // `import.meta.url`), never against `process.cwd()` -- the launcher's
+  // `COLLAB_STATE` env var carries a bare filename (e.g.
+  // "collab-probe-state.json") meant to live beside this script, and the
+  // chdir below moves `process.cwd()` to the repo root before this path is
+  // used for any read/write.
+  const statePath = join(SCRIPT_DIR, requireEnvVar(COLLAB_STATE_ENV_VAR));
   const pairsCommit = requireEnvVar(COLLAB_PAIRS_COMMIT_ENV_VAR);
   console.log(
     `# COLLAB PROBE — state: ${statePath} · pairs commit: ${pairsCommit} · model: ${COLLAB_PROBE_MODEL} · ` +
       `sample size: ${PROBE_SAMPLE_SIZE} · gate threshold: ${PROBE_GATE_THRESHOLD}`,
   );
+
+  // `_launch-collab.sh` (D-14, copied in shape from the paired arm's
+  // launcher) does `cd "$(dirname "$0")"` before spawning `tsx`, so this
+  // process starts with cwd = experiments/collab-round/, not the repo
+  // root. `collaborative-scoring-bridge.ts`'s VENV_PYTHON_REL/
+  // SCORE_ONE_REL/SKB_DATA_ROOT_REL (and collaborative-runner.ts's
+  // NEIGHBORHOOD_ONE_REL) are bare repo-root-relative strings passed to
+  // `spawnSync`/`readFileSync` with no `cwd:` override -- they resolve
+  // against `process.cwd()`. Every path this file itself touches above
+  // this line is already absolute (SCRIPT_DIR/repoRoot-derived), so moving
+  // cwd here is safe and unblocks every scoring/neighbourhood call below
+  // without editing the bridge (out of this plan's scope). Replaces the
+  // prior `experiments/collab-round/tools -> ../../tools` symlink
+  // workaround, which is no longer needed.
+  process.chdir(repoRoot);
 
   const state = loadProbeState(statePath);
   if (!state.runConfig) {
