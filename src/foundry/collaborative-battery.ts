@@ -51,26 +51,66 @@ interface StarkFixture {
 }
 
 /**
- * The pure transform, separately testable and free of I/O. Refuses unless
- * `fixture.meta.pool` is exactly `"selection"` — an allowlist, so an
- * unrecognised or absent pool value (including the sealed heldout pool) is
- * refused just as firmly as any other (D-06). Builds each task by naming its
- * three fields explicitly, never by spreading the parsed pair, so gold ids
- * and any future fixture field cannot ride along into the task record (D-08).
- * Derives the task `id` from the pair's own `query_id`, never the loop index
- * (the Phase-18 spike measured `query_id` and subscript diverging on real
- * split data).
+ * One pool's validation identity: the marker `tasksForPool` checks
+ * `fixture.meta.pool` against, and the refusal message to raise when it
+ * disagrees. Kept as data (not a branch inside the shared helper) so the
+ * selection and heldout callers can carry their own refusal wording without
+ * the shared guard sequence needing to know which caller it is running for.
+ */
+interface PoolIdentity {
+  marker: string;
+  buildRefusalMessage: (observedPool: unknown) => string;
+}
+
+const SELECTION_POOL: PoolIdentity = {
+  marker: "selection",
+  buildRefusalMessage: (observedPool) =>
+    `fixture pool ${JSON.stringify(observedPool)} is not "selection" — only the sealed ` +
+    `selection pool may be materialised into tasks; the heldout pool stays out of every ` +
+    `search-side code path until Phase 23 (D-05, D-06)`,
+};
+
+// D-07's opt-in door. "heldout" is `HELDOUT_POOL.marker` itself and appears
+// in this message purely as the expected value being named alongside the
+// observed one (the behaviour Task 1 of 23-03-PLAN.md requires) — it is not
+// a second place the marker is hardcoded for comparison purposes.
+const HELDOUT_POOL: PoolIdentity = {
+  marker: "heldout",
+  buildRefusalMessage: (observedPool) =>
+    `fixture pool ${JSON.stringify(observedPool)} is not "heldout" — only the sealed heldout ` +
+    `pool may be materialised by this loader (D-07)`,
+};
+
+/**
+ * The shared validation body both public loaders delegate to (Task 1 of
+ * 23-03-PLAN.md). Everything `tasksFromFixture` performed before Phase 23 —
+ * the meta-object check, the pool check, the kb check, the revision check,
+ * the sample-size-versus-actual-pair-count check, and the per-pair field
+ * checks with the duplicate-query-id set — lives here unchanged in sequence
+ * and in every message except the pool check, which now reads its expected
+ * marker and refusal wording from `pool` rather than a hardcoded literal.
+ * Builds each task by naming its three fields explicitly, never by spreading
+ * the parsed pair, so gold ids and any future fixture field cannot ride
+ * along into the task record (D-08). Derives the task `id` from the pair's
+ * own `query_id`, never the loop index (the Phase-18 spike measured
+ * `query_id` and subscript diverging on real split data). Sorts the
+ * returned tasks by ascending `query_id` before returning — both committed
+ * fixtures already carry their pairs in that order, so this is a documented
+ * guarantee rather than a behaviour change, and it is what lets a caller
+ * (the detached round driver) interleave per-query without re-deriving
+ * order itself.
  *
  * `expectedRevisionSha` is required, not optional (G-20-1/T-20-15): an
  * optional pin is a pin a future direct caller silently skips, the same
- * "routed around" species this guard closes. The value must come from
- * `buildCollaborativeBattery`'s own `record.revisionSha` read — the admission
+ * "routed around" species this guard closes. The value must come from the
+ * calling public loader's own `record.revisionSha` read — the admission
  * record stays its single typed home (D-04) — so the check cannot be routed
  * around by a second literal either.
  */
-export function tasksFromFixture(
+function tasksForPool(
   fixture: StarkFixture,
   expectedRevisionSha: string,
+  pool: PoolIdentity,
 ): CollaborativeBatteryTask[] {
   if (typeof fixture?.meta !== "object" || fixture.meta === null) {
     throw new CollaborativeBatteryRefusedError(
@@ -82,12 +122,8 @@ export function tasksFromFixture(
       `fixture.pairs is ${JSON.stringify(fixture.pairs)}, expected an array`,
     );
   }
-  if (fixture.meta.pool !== "selection") {
-    throw new CollaborativeBatteryRefusedError(
-      `fixture pool ${JSON.stringify(fixture.meta.pool)} is not "selection" — only the sealed ` +
-        `selection pool may be materialised into tasks; the heldout pool stays out of every ` +
-        `search-side code path until Phase 23 (D-05, D-06)`,
-    );
+  if (fixture.meta.pool !== pool.marker) {
+    throw new CollaborativeBatteryRefusedError(pool.buildRefusalMessage(fixture.meta.pool));
   }
   // Allowlist on STaRK's own kb name for the single admitted row, same shape
   // as the pool guard above — an unrecognised value is refused as firmly as
@@ -152,13 +188,34 @@ export function tasksFromFixture(
       );
     }
     seen.add(pair.query_id);
+    // D-08: every field is named explicitly. A `...pair` spread here would
+    // let `answer_ids` — the gold set this fixture also carries — ride along
+    // into a task an agent can see. Add a field to the task by naming it,
+    // never by widening this construction to a spread.
     tasks.push({
       id: `stark-prime:${pair.query_id}`,
       queryId: pair.query_id,
       prompt: pair.query,
     });
   });
+  tasks.sort((a, b) => a.queryId - b.queryId);
   return tasks;
+}
+
+/**
+ * The pure transform, separately testable and free of I/O. Refuses unless
+ * `fixture.meta.pool` is exactly `"selection"` — an allowlist, so an
+ * unrecognised or absent pool value (including the sealed heldout pool) is
+ * refused just as firmly as any other (D-06). Delegates the full guard
+ * sequence to `tasksForPool` with the selection pool identity (Task 1 of
+ * 23-03-PLAN.md) — same name, same signature, same behaviour as before
+ * Phase 23 from every caller's perspective.
+ */
+export function tasksFromFixture(
+  fixture: StarkFixture,
+  expectedRevisionSha: string,
+): CollaborativeBatteryTask[] {
+  return tasksForPool(fixture, expectedRevisionSha, SELECTION_POOL);
 }
 
 /**
@@ -208,6 +265,25 @@ export function buildCollaborativeBattery(): CollaborativeBatteryTask[] {
   const record = requireCollaborativeAdmitted("stark-prime");
   const fixture = readFixtureOrRefuse(record.selectionFixturePath);
   return tasksFromFixture(fixture, record.revisionSha);
+}
+
+/**
+ * D-07's explicitly separate opt-in entry point to the sealed heldout pool.
+ * Only the detached round driver (`experiments/collab-round/_collab-round.ts`,
+ * Plan 23-07) may import this function. It exists as its own named export
+ * rather than as a pool parameter on `tasksFromFixture` precisely so a
+ * structural scan — `test/collaborative-heldout-import-boundary.test.ts` —
+ * can distinguish the two doors by name rather than by inspecting call
+ * arguments. Phase 20's D-05 and D-06 sealed this pool until Phase 23;
+ * calling `requireCollaborativeAdmitted` first and reading the fixture from
+ * the admission record's own `heldoutFixturePath` (never a second literal,
+ * D-04) mirrors `buildCollaborativeBattery` exactly, so the two loaders
+ * differ only in which pool identity and which fixture path they carry.
+ */
+export function buildCollaborativeHeldoutBattery(): CollaborativeBatteryTask[] {
+  const record = requireCollaborativeAdmitted("stark-prime");
+  const fixture = readFixtureOrRefuse(record.heldoutFixturePath);
+  return tasksForPool(fixture, record.revisionSha, HELDOUT_POOL);
 }
 
 /**
