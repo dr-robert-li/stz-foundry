@@ -498,6 +498,9 @@ describe("toAblationUnits -- folds 150 unit results into 75 paired units", () =>
     const state: CollabRoundState = { units: {}, retries: [] };
     const cases: Array<[string, Partial<CollabUnitResult>]> = [
       ["cd05-violation", { handoffOutcomeKind: "cd05-violation", hit1: 0 }],
+      // Phase 23-08: an over-budget builder prompt is a structural miss for
+      // its unit, exactly like a refusal -- never a retry, never a crash.
+      ["builder-prompt-over-budget", { handoffOutcomeKind: "builder-prompt-over-budget", hit1: 0 }],
       ["bridge-non-success", { handoffOutcomeKind: "bridge-non-success", hit1: 0 }],
       ["timeout", { status: "timeout", handoffOutcomeKind: "bridge-non-success", hit1: 0 }],
       ["error", { status: "error", handoffOutcomeKind: "bridge-non-success", hit1: 0 }],
@@ -552,6 +555,13 @@ describe("assembleVerdict -- completion marker only when every expected unit exi
     const verdict = assembleVerdict(state, selection, runConfig, Array.from({ length: ABLATION_SUITE_SIZE }, (_, i) => i));
     expect(Object.keys(verdict.diagnostics.handoffOutcomeTally)).toHaveLength(HANDOFF_OUTCOME_KINDS.length);
     for (const kind of HANDOFF_OUTCOME_KINDS) expect(verdict.diagnostics.handoffOutcomeTally).toHaveProperty(kind);
+  });
+
+  it("builder-prompt-over-budget tallies under its own name, never bucketed (Phase 23-08)", () => {
+    const state = fullState("w");
+    state.units[unitKey("graph", "w", 20)] = { arm: "graph", queryId: 20, candidateId: "w", status: "ok", handoffOutcomeKind: "builder-prompt-over-budget", hit1: 0, wallMs: 1, diagnostics: {} };
+    const verdict = assembleVerdict(state, selection, runConfig, Array.from({ length: ABLATION_SUITE_SIZE }, (_, i) => i));
+    expect(verdict.diagnostics.handoffOutcomeTally["builder-prompt-over-budget"]).toBe(1);
   });
 });
 

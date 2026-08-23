@@ -35,6 +35,10 @@ import {
   NEIGHBORHOOD_ONE_REL,
   NEIGHBORHOOD_HOPS,
   NEIGHBORHOOD_MAX_NODES,
+  NEIGHBORHOOD_MAX_RENDERED_EDGES,
+  BUILDER_PROMPT_MAX_CHARS,
+  renderNeighbourhoodLines,
+  buildBuilderTaskPrompt,
   NEIGHBORHOOD_MAX_BUFFER_BYTES,
   NEIGHBOURHOOD_EMPTY_SEED_MARKER,
   CollaborativeRunnerError,
@@ -635,6 +639,13 @@ describe("HandoffOutcome — D-08 named outcome vocabulary (Plan 22-02 Task 1)",
         reason: "the helper found no seed entity for this query -- no KB node name matched the query text",
       },
       "artifact-unreadable": { kind: "artifact-unreadable", path: "/tmp/nowhere-readable", code: "EISDIR" },
+      // Phase 23-08: added deliberately with the union's new member -- same
+      // pinning rule as neighbourhood-refused above.
+      "builder-prompt-over-budget": {
+        kind: "builder-prompt-over-budget",
+        queryId: 1384,
+        reason: "builder prompt is 481203 chars, over BUILDER_PROMPT_MAX_CHARS (180000)",
+      },
     };
     expect(Object.keys(sampleByKind).sort()).toEqual([...HANDOFF_OUTCOME_KINDS].sort());
     const descriptions = HANDOFF_OUTCOME_KINDS.map((kind) => describeHandoffOutcome(sampleByKind[kind]!));
@@ -2196,5 +2207,135 @@ describe("all handoffs failed yields an all-miss record, never a zero-task batte
     );
     expect(record.answererBatterySkipped).toBeUndefined();
     expect(record.answererRun.tasks).toHaveLength(TASKS.length);
+  });
+});
+
+// ── Phase 23-08: render cap + hard prompt budget (option b fix) ─────────
+
+/** Deterministic synthetic neighbourhood: 400 nodes (ids 0..399), unique
+ *  edges generated as (i % 400) -> (src + 1 + floor(i/400)) % 400, seed
+ *  node 7. Unique per (src, k) so canonical order is just array order. */
+function syntheticNb(queryId: number, edgeCount: number, labelPad = ""): KbNeighborhood {
+  const nodes = Array.from({ length: 400 }, (_, id) => ({ id, label: `n${id}${labelPad}`, type: "t" }));
+  const edges: [number, number, number][] = [];
+  for (let i = 0; i < edgeCount; i++) {
+    const src = i % 400;
+    const dst = (src + 1 + Math.floor(i / 400)) % 400;
+    edges.push([src, dst, 0]);
+  }
+  return { queryId, seeds: [7], nodes, edges, relationNames: { "0": "rel0" } };
+}
+
+describe("renderNeighbourhoodLines -- Phase 23-08 render cap, seed-first, deterministic", () => {
+  it("NEIGHBORHOOD_MAX_RENDERED_EDGES >= MAX_SUBGRAPH_EDGES -- a maximal legal artifact must be fully renderable", () => {
+    expect(NEIGHBORHOOD_MAX_RENDERED_EDGES).toBeGreaterThanOrEqual(MAX_SUBGRAPH_EDGES);
+  });
+
+  it("5,000 edges render exactly the cap count of edge lines, every seed-incident edge present, footer appended, deterministic", () => {
+    const nb = syntheticNb(9001, 5000);
+    const rendered = renderNeighbourhoodLines(nb);
+    const edgeLines = rendered.split("\n").filter((l) => /^  - \d+ -\[/.test(l));
+    expect(edgeLines).toHaveLength(NEIGHBORHOOD_MAX_RENDERED_EDGES);
+    const seedIncident = nb.edges.filter(([s, d]) => s === 7 || d === 7);
+    expect(seedIncident.length).toBeGreaterThan(0);
+    expect(seedIncident.length).toBeLessThan(NEIGHBORHOOD_MAX_RENDERED_EDGES);
+    for (const [s, d] of seedIncident) {
+      expect(rendered).toContain(`  - ${s} -[rel0]-> ${d}`);
+    }
+    expect(rendered).toContain(
+      `(${NEIGHBORHOOD_MAX_RENDERED_EDGES} of 5000 induced edges shown; the ${5000 - NEIGHBORHOOD_MAX_RENDERED_EDGES} omitted edges are still valid for the artifact)`,
+    );
+    // Deterministic and replayable: same neighbourhood in, same bytes out.
+    expect(renderNeighbourhoodLines(nb)).toBe(rendered);
+  });
+
+  it("at or under the cap, every edge renders and no footer appears", () => {
+    const nb = kbNeighborhoodFn(1001);
+    const rendered = renderNeighbourhoodLines(nb);
+    const edgeLines = rendered.split("\n").filter((l) => /^  - \d+ -\[/.test(l));
+    expect(edgeLines).toHaveLength(nb.edges.length);
+    expect(rendered).not.toContain("induced edges shown");
+  });
+});
+
+describe("buildBuilderTaskPrompt -- capped render keeps the prompt inside the hard budget", () => {
+  it("a 400-node / 20,000-edge neighbourhood stays under BUILDER_PROMPT_MAX_CHARS with the task prompt and QUERY_ID first", () => {
+    const nb = syntheticNb(9002, 20_000);
+    const task: CollaborativeBatteryTask = { id: "task-huge", queryId: 9002, prompt: "Which entity does this describe (huge)?" };
+    const prompt = buildBuilderTaskPrompt(task, nb, ADMISSION_RECORD.revisionSha);
+    expect(prompt.length).toBeLessThan(BUILDER_PROMPT_MAX_CHARS);
+    const lines = prompt.split("\n");
+    expect(lines[0]).toBe(task.prompt);
+    expect(lines[1]).toBe("QUERY_ID: 9002");
+  });
+});
+
+describe("verification is a superset check -- a real-but-unrendered edge still verifies (Phase 23-08)", () => {
+  it("an artifact using an edge beyond the render cap passes validateSubgraphAgainstNeighborhood", () => {
+    const nb = syntheticNb(9003, 5000);
+    // The generator's last edge: src = 4999 % 400 = 199, k = 12, dst = 212.
+    const unrendered: [number, number, number] = [199, 212, 0];
+    expect(nb.edges.at(-1)).toEqual(unrendered);
+    // Prove it is genuinely not rendered under the cap...
+    expect(renderNeighbourhoodLines(nb)).not.toContain("  - 199 -[rel0]-> 212");
+    // ...yet an artifact built on it (chained to [212, 213, 0], edge index
+    // 212 of the generator) verifies against the FULL neighbourhood.
+    const artifact: SubgraphArtifactV1 = {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 9003,
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      nodes: [199, 212, 213],
+      edges: [unrendered, [212, 213, 0]],
+    };
+    const result = validateSubgraphAgainstNeighborhood(artifact, nb);
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe("builder-prompt-over-budget is a per-task miss, never a battery crash (Phase 23-08)", () => {
+  // Labels padded so the 400 node lines alone blow the character budget --
+  // the render cap cannot save a prompt whose NODE list is oversized, which
+  // is exactly the tripwire case the budget exists for.
+  const hugeLabelFn: KbNeighborhoodFn = (queryId) =>
+    queryId === 1002 ? syntheticNb(1002, 10, "x".repeat(600)) : kbNeighborhoodFn(queryId);
+
+  it("the over-budget task is recorded with hit@1 0 and no attempt; the other task runs normally", async () => {
+    const { provider } = makeProvider({ 1001: [11] });
+    const record = await runCollaborativeBattery(
+      baseArgs({
+        kbNeighborhoodFn: hugeLabelFn,
+        execFn: makeExecFn({ 1001: 1 }),
+        runOpts: { providerImpl: provider },
+      }),
+    );
+    expect(record.outcomes).toHaveLength(2);
+    const overBudget = record.outcomes.find((o) => o.queryId === 1002)!;
+    expect(overBudget.handoffOutcome.kind).toBe("builder-prompt-over-budget");
+    expect(overBudget.hit1).toBe(0);
+    expect(overBudget.attempt).toBeUndefined();
+    if (overBudget.handoffOutcome.kind === "builder-prompt-over-budget") {
+      expect(overBudget.handoffOutcome.queryId).toBe(1002);
+      expect(overBudget.handoffOutcome.reason).toContain(`over BUILDER_PROMPT_MAX_CHARS (${BUILDER_PROMPT_MAX_CHARS})`);
+    }
+    const ok = record.outcomes.find((o) => o.queryId === 1001)!;
+    expect(ok.handoffOutcome.kind).toBe("success");
+    expect(ok.hit1).toBe(1);
+    // The over-budget task never becomes a battery task -- no provider call
+    // is spent on a prompt the model would silently truncate.
+    expect(record.builderBattery!.tasks.map((t) => t.id)).toEqual(["task-a"]);
+    expect(record.answererBattery.tasks.map((t) => t.id)).toEqual(["task-a"]);
+    expect(record.handoffRecords.map((h) => h.queryId)).toEqual([1001]);
+  });
+
+  it("the recorded kind is never overwritten by the artifact-absent read of a builder output that was never requested", async () => {
+    const { provider } = makeProvider({ 1001: [11] });
+    const record = await runCollaborativeBattery(
+      baseArgs({
+        kbNeighborhoodFn: hugeLabelFn,
+        execFn: makeExecFn({ 1001: 1 }),
+        runOpts: { providerImpl: provider },
+      }),
+    );
+    expect(record.outcomes.find((o) => o.queryId === 1002)!.handoffOutcome.kind).toBe("builder-prompt-over-budget");
   });
 });

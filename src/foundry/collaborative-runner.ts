@@ -643,6 +643,18 @@ export type HandoffOutcome =
    * mode is an environment fault and still aborts the battery.
    */
   | { kind: "neighbourhood-refused"; queryId: number; reason: string }
+  /**
+   * Phase 23-08 fix: this task's builder (or answerer) prompt exceeded the
+   * hard budget that keeps every prompt under ollama's silent-truncation
+   * limit (`truncating input prompt limit=65538` -- the model keeps the
+   * first 4 tokens + the last 65,534, dropping the task prompt itself and
+   * recording garbage as a valid outcome). Recorded as THIS query's miss,
+   * never a battery crash, exactly like `"neighbourhood-refused"` above --
+   * the tripwire fires either on the pre-dispatch character budget
+   * (`BUILDER_PROMPT_MAX_CHARS`) or on the provider-reported
+   * `prompt_tokens` (`PROMPT_TOKENS_TRUNCATION_LIMIT`).
+   */
+  | { kind: "builder-prompt-over-budget"; queryId: number; reason: string }
   | { kind: "bridge-non-success"; scoringOutcomeKind: string };
 
 export type HandoffOutcomeKind = HandoffOutcome["kind"];
@@ -666,6 +678,7 @@ const ALL_HANDOFF_OUTCOME_KINDS: Record<HandoffOutcomeKind, true> = {
   "hash-mismatch": true,
   "cd05-violation": true,
   "neighbourhood-refused": true,
+  "builder-prompt-over-budget": true,
   "bridge-non-success": true,
 };
 
@@ -722,6 +735,8 @@ export function describeHandoffOutcome(outcome: HandoffOutcome): string {
       return `fail-closed: CD-05 structural violation -- ${describeCd05Violation(outcome.violation)}`;
     case "neighbourhood-refused":
       return `fail-closed: no KB neighbourhood for query ${outcome.queryId} -- ${outcome.reason}`;
+    case "builder-prompt-over-budget":
+      return `fail-closed: prompt over budget for query ${outcome.queryId} -- ${outcome.reason}`;
     case "bridge-non-success":
       return `fail-closed: bridge did not score -- outcome "${outcome.scoringOutcomeKind}"`;
     default: {
@@ -1209,17 +1224,59 @@ function assertSafeTaskId(id: string): void {
   }
 }
 
-function renderNeighbourhoodLines(nb: KbNeighborhood): string {
+/** Phase 23-08 fix: the neighbourhood's induced edge list is unbounded
+ *  (a 2-hop/400-node neighbourhood has been measured at >2 MiB of JSON)
+ *  and a prompt over ~65k tokens is silently tail-truncated by ollama,
+ *  dropping the task prompt itself. Render at most this many edges.
+ *  Must stay >= MAX_SUBGRAPH_EDGES (2000): the builder may legitimately
+ *  submit up to that many edges, every one "taken from the neighbourhood
+ *  above", so the rendered list must be able to show them all. */
+export const NEIGHBORHOOD_MAX_RENDERED_EDGES = 2000;
+
+/** Phase 23-08 fix, the hard tripwire behind the render cap above: a
+ *  builder prompt must stay under this many characters before it is ever
+ *  dispatched. At ~3 chars/token for id-heavy text this is ~60k tokens,
+ *  under ollama's 65,538 truncation limit with margin; the normal capped
+ *  render is ~120k chars, so this asserts, it does not govern. A breach
+ *  records a `"builder-prompt-over-budget"` per-task miss -- never a
+ *  thrown battery (the "crash at query 1384" lesson, T-23-08). */
+export const BUILDER_PROMPT_MAX_CHARS = 180_000;
+
+/**
+ * Phase 23-08 render cap: edges incident to a seed node first (in the
+ * helper's own canonical order, which sorts by node id), then the
+ * remaining edges in that same order, truncated to
+ * `NEIGHBORHOOD_MAX_RENDERED_EDGES`. Seed-first because a plain prefix of
+ * the id-sorted list would bias toward low node ids and could drop every
+ * seed-incident edge. Deterministic and replayable: same neighbourhood in,
+ * same rendered lines out. ONLY the rendering is capped -- the
+ * `KbNeighborhood` object itself is untouched, so `verifySubgraphArtifact`
+ * still verifies against the FULL induced edge set (a builder that emits a
+ * real-but-unrendered edge is not falsely rejected).
+ */
+export function renderNeighbourhoodLines(nb: KbNeighborhood): string {
   const nodeLines = nb.nodes
     .map((n) => `  - id=${n.id} label=${JSON.stringify(n.label)} type=${JSON.stringify(n.type)}`)
     .join("\n");
-  const edgeLines = nb.edges
+  let renderedEdges = nb.edges;
+  let truncationNote = "";
+  if (nb.edges.length > NEIGHBORHOOD_MAX_RENDERED_EDGES) {
+    const seeds = new Set(nb.seeds);
+    const seedIncident: [number, number, number][] = [];
+    const rest: [number, number, number][] = [];
+    for (const e of nb.edges) (seeds.has(e[0]) || seeds.has(e[1]) ? seedIncident : rest).push(e);
+    renderedEdges = [...seedIncident, ...rest].slice(0, NEIGHBORHOOD_MAX_RENDERED_EDGES);
+    truncationNote =
+      `\n(${renderedEdges.length} of ${nb.edges.length} induced edges shown; the ` +
+      `${nb.edges.length - renderedEdges.length} omitted edges are still valid for the artifact)`;
+  }
+  const edgeLines = renderedEdges
     .map(([src, dst, rel]) => `  - ${src} -[${nb.relationNames[String(rel)] ?? rel}]-> ${dst}`)
     .join("\n");
-  return `Seeds: ${nb.seeds.join(", ")}\nNodes:\n${nodeLines}\nEdges:\n${edgeLines}`;
+  return `Seeds: ${nb.seeds.join(", ")}\nNodes:\n${nodeLines}\nEdges:\n${edgeLines}${truncationNote}`;
 }
 
-function buildBuilderTaskPrompt(
+export function buildBuilderTaskPrompt(
   task: CollaborativeBatteryTask,
   nb: KbNeighborhood,
   kbRevision: string,
@@ -1429,20 +1486,36 @@ export async function runCollaborativeBattery(
     // below returns the resulting all-miss record).
     const buildableTasks = args.tasks.filter((task) => !failedOutcomeByTaskId.has(task.id));
 
-    // 2/3. Builder battery + pass 1.
-    const builderTasks: BatteryTask[] = buildableTasks.map((task) => ({
-      id: task.id,
-      prompt: buildBuilderTaskPrompt(task, neighbourhoodByTask.get(task.id)!, kbRevision),
-      checks: [
-        {
-          checkId: "subgraph-artifact-present",
-          kind: "file-invariant",
-          input: SUBGRAPH_ARTIFACT_REL_PATH,
-          expect: "true",
-          description: "the builder emitted a subgraph artifact at the expected path",
-        },
-      ],
-    }));
+    // 2/3. Builder battery + pass 1. Phase 23-08: every prompt passes the
+    // hard character budget BEFORE it is dispatched -- an over-budget
+    // prompt would be silently tail-truncated by ollama (task prompt and
+    // node list gone, edge tail kept) and its artifact recorded as a valid
+    // outcome. A breach is THIS task's miss; the battery continues.
+    const builderTasks: BatteryTask[] = [];
+    for (const task of buildableTasks) {
+      const prompt = buildBuilderTaskPrompt(task, neighbourhoodByTask.get(task.id)!, kbRevision);
+      if (prompt.length > BUILDER_PROMPT_MAX_CHARS) {
+        failedOutcomeByTaskId.set(task.id, {
+          kind: "builder-prompt-over-budget",
+          queryId: task.queryId,
+          reason: `builder prompt is ${prompt.length} chars, over BUILDER_PROMPT_MAX_CHARS (${BUILDER_PROMPT_MAX_CHARS})`,
+        });
+        continue;
+      }
+      builderTasks.push({
+        id: task.id,
+        prompt,
+        checks: [
+          {
+            checkId: "subgraph-artifact-present",
+            kind: "file-invariant",
+            input: SUBGRAPH_ARTIFACT_REL_PATH,
+            expect: "true",
+            description: "the builder emitted a subgraph artifact at the expected path",
+          },
+        ],
+      });
+    }
     const builderArtifactDir = join(args.artifactDir, "builder");
     // T-23-08: a builder battery is minted only when at least one task has a
     // neighbourhood to build from. `builderBattery`/`builderRun` therefore
@@ -1472,6 +1545,12 @@ export async function runCollaborativeBattery(
     // recorded `neighbourhood-refused` kind with a misleading
     // `artifact-absent` (T-23-08).
     for (const task of buildableTasks) {
+      // A task that already carries an outcome (over-budget above, or the
+      // point-4 prompt_tokens tripwire) has no artifact to look for --
+      // reading one would overwrite its recorded kind with a misleading
+      // `artifact-absent` (the same T-23-08 trap the neighbourhood-refused
+      // path documents on `buildableTasks` itself).
+      if (failedOutcomeByTaskId.has(task.id)) continue;
       const artifactPath = join(builderArtifactDir, task.id, SUBGRAPH_ARTIFACT_REL_PATH);
       const read = readSubgraphArtifact(artifactPath);
       if (read.status === "absent") {
