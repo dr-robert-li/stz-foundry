@@ -54,6 +54,7 @@ import {
   runCollaborativeBattery,
   mintCollaborativeReceipt,
   makeDefaultKbNeighborhoodFn,
+  CollaborativeRunnerError,
   type KbNeighborhood,
   type KbNeighborhoodFn,
 } from "../../src/foundry/collaborative-runner.js";
@@ -361,6 +362,51 @@ async function runOneUnit(
         preflightWarmUpWallMs: null,
         scoringWallMs: null,
         handoffOutcomeKind: "all-handoffs-failed-battery-refused",
+        hit1: 0,
+        nodeCount: null,
+        edgeCount: null,
+      };
+    }
+    // Regression for launch attempt 4 (2026-08-23): `runCollaborativeBattery`
+    // calls `args.kbNeighborhoodFn(task.queryId)` directly inside its own
+    // per-task neighbourhood-fetch loop (collaborative-runner.ts:1268),
+    // BEFORE the builder battery is even minted -- so `makeDefaultKbNeighborhoodFn`'s
+    // FA-7 empty-seed-set refusal reaches this same try/catch as a bare
+    // `CollaborativeRunnerError`, never wrapped in a `BatteryShapeError`. A
+    // KB-neighbourhood refusal ("no KB node name matched the query text via
+    // query-text seeding") is a deterministic non-completion of THIS unit --
+    // the model asked about something the KB has no seed for -- not a
+    // harness fault, and not a reason to kill the whole probe. Narrowly
+    // matched on BOTH the "kbNeighborhoodFn" dispatch-site marker AND the
+    // "no seed entity" empty-seed marker (this repo's own house rule:
+    // inspect thrown message content, never a bare instanceof-only catch),
+    // so a genuine harness fault at the identical dispatch site -- a
+    // timeout, a killed subprocess, a spawn error, malformed stdout --
+    // still propagates and crashes the probe as it should; only the
+    // specific, deterministic empty-seed refusal is recorded as a miss.
+    if (
+      e instanceof CollaborativeRunnerError &&
+      e.message.includes("kbNeighborhoodFn") &&
+      e.message.includes("no seed entity")
+    ) {
+      const wallMs = Date.now() - startedAt;
+      console.log(
+        `  [unit failed] pair=${pair.candidate.id} query=${task.queryId}: KB-neighbourhood refusal ` +
+          `(no seed entity matched this query -- FA-7 empty seed set) -- recorded as a structural-validity miss`,
+      );
+      return {
+        pairId: pair.candidate.id,
+        pairRelPath: pair.relPath,
+        queryId: task.queryId,
+        wallMs,
+        // Not fabricated as 0 -- the preflight DID run inside the throwing
+        // call (it runs before the neighbourhood fetch), but its figure is
+        // unrecoverable once the exception ate the `record` it would have
+        // lived on. `null` means "not measured", never "measured as instant"
+        // -- mirrors the battery-shape branch above.
+        preflightWarmUpWallMs: null,
+        scoringWallMs: null,
+        handoffOutcomeKind: "neighbourhood-refused",
         hit1: 0,
         nodeCount: null,
         edgeCount: null,

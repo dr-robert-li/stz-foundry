@@ -413,4 +413,37 @@ describe("_collab-probe.ts source-text guards", () => {
     // that was never actually observed once the throw ate the record.
     expect(probeSourceText).toContain("preflightWarmUpWallMs: null");
   });
+
+  // Regression for the launch-4 crash (2026-08-23): query 1384's builder
+  // handoff never even reached the battery-shape boundary above --
+  // `runCollaborativeBattery` calls `kbNeighborhoodFn` directly, before
+  // minting any battery, and `makeDefaultKbNeighborhoodFn` throws a bare
+  // `CollaborativeRunnerError` (not a `BatteryShapeError`) on the FA-7
+  // empty-seed-set refusal, which propagated past the existing catch and
+  // killed the whole probe at unit 9/30. Structural, not behavioral, for
+  // the same reason as the boundary check above: driving the real throw
+  // needs exec-seam plumbing `runOneUnit` does not expose.
+  it("catches a KB-neighbourhood refusal (CollaborativeRunnerError, FA-7 empty seed) as a miss instead of crashing the probe", () => {
+    expect(probeSourceText).toContain("CollaborativeRunnerError");
+    expect(probeSourceText).toMatch(
+      /e instanceof CollaborativeRunnerError\s*&&\s*e\.message\.includes\(["']kbNeighborhoodFn["']\)\s*&&\s*e\.message\.includes\(["']no seed entity["']\)/,
+    );
+    // The narrow message match must sit inside the SAME try/catch around
+    // the `runCollaborativeBattery` call as the battery-shape branch, not a
+    // bare top-level check -- a genuine harness fault at the identical
+    // dispatch site (timeout, killed subprocess, spawn error, malformed
+    // stdout) must still propagate and crash the probe as it should.
+    const tryIdx = probeSourceText.indexOf("try {");
+    const catchIdx = probeSourceText.indexOf("} catch (e) {");
+    const boundaryCheckIdx = probeSourceText.indexOf("e instanceof CollaborativeRunnerError");
+    expect(tryIdx).toBeGreaterThan(0);
+    expect(catchIdx).toBeGreaterThan(tryIdx);
+    expect(boundaryCheckIdx).toBeGreaterThan(catchIdx);
+    // The synthesized unit result carries its own outcome kind (tolerated
+    // by summariseGroup's generic Record<string, number> tally, alongside
+    // "all-handoffs-failed-battery-refused") and never fabricates the
+    // preflight figure -- the preflight DID run before the neighbourhood
+    // fetch, but its figure is unrecoverable once the throw ate the record.
+    expect(probeSourceText).toContain('handoffOutcomeKind: "neighbourhood-refused"');
+  });
 });
