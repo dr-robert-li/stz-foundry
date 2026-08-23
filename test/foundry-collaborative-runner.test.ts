@@ -35,6 +35,7 @@ import {
   NEIGHBORHOOD_ONE_REL,
   NEIGHBORHOOD_HOPS,
   NEIGHBORHOOD_MAX_NODES,
+  NEIGHBORHOOD_MAX_BUFFER_BYTES,
   type CollaborativeCandidate,
   type KbNeighborhood,
   type KbNeighborhoodFn,
@@ -1958,5 +1959,32 @@ describe("makeDefaultKbNeighborhoodFn — the real dispatch behind the seam (Pla
     const execFn: ScoringExecFn = () => fakeResult({ stdout: raw });
     const err = thrown(() => makeDefaultKbNeighborhoodFn({ execFn })(42));
     expect(err.message).toContain("no seed entity");
+  });
+
+  // Regression (Phase 23 Plan 06 continuation #3): Node's spawnSync default
+  // maxBuffer is 1 MiB; a live query's neighbourhood was measured at
+  // 2,168,562 bytes and silently SIGTERM'd every relaunch until this fix.
+  it("passes an explicit maxBuffer at or above NEIGHBORHOOD_MAX_BUFFER_BYTES to the exec seam", () => {
+    let capturedOpts: { input: string; timeout: number; encoding: "utf8"; maxBuffer?: number } | undefined;
+    const execFn: ScoringExecFn = (file, args, opts) => {
+      capturedOpts = opts;
+      return fakeResult({ stdout: NEIGHBORHOOD_HAPPY_STDOUT });
+    };
+    makeDefaultKbNeighborhoodFn({ execFn })(42);
+    expect(capturedOpts?.maxBuffer).toBeDefined();
+    expect(capturedOpts!.maxBuffer!).toBeGreaterThanOrEqual(NEIGHBORHOOD_MAX_BUFFER_BYTES);
+  });
+
+  it("an ENOBUFS exec result (maxBuffer overrun) is classified as a buffer-cap refusal naming the cap, never a bare signal-terminated message -- ENOBUFS also sets `signal`, the same trap ETIMEDOUT sets", () => {
+    const execFn: ScoringExecFn = () =>
+      fakeResult({
+        error: Object.assign(new Error("spawnSync ENOBUFS"), { code: "ENOBUFS" }) as NodeJS.ErrnoException,
+        signal: "SIGTERM",
+        stdout: "this would fail to parse as JSON",
+      });
+    const err = thrown(() => makeDefaultKbNeighborhoodFn({ execFn })(42));
+    expect(err.message).toContain(String(NEIGHBORHOOD_MAX_BUFFER_BYTES));
+    expect(err.message).not.toContain("killed by signal");
+    expect(err.message).not.toContain("did not parse as JSON");
   });
 });

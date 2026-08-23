@@ -18,6 +18,7 @@ import {
   VENV_PYTHON_REL,
   SCORE_ONE_REL,
   SKB_DATA_ROOT_REL,
+  SCORING_MAX_BUFFER_BYTES,
   SCORING_OUTCOME_KINDS,
   parsePoolManifest,
   preFilterPredictions,
@@ -131,6 +132,23 @@ describe("scorePrediction — end to end happy path (Task 1)", () => {
       "--hf-revision",
       requireCollaborativeAdmitted("stark-prime").revisionSha,
     ]);
+  });
+
+  // Symmetry with collaborative-runner.ts's NEIGHBORHOOD_MAX_BUFFER_BYTES
+  // fix (Phase 23 Plan 06 continuation #3) -- applied here as defence in
+  // depth, not a fix for an observed failure: score_one.py's stdout is a
+  // small metrics dict, never a multi-megabyte subgraph.
+  it("passes an explicit maxBuffer at or above SCORING_MAX_BUFFER_BYTES to the exec seam", () => {
+    const outputDir = scratchDir();
+    const manifest = boundsManifest(0, 999);
+    let capturedOpts: { input: string; timeout: number; encoding: "utf8"; maxBuffer?: number } | undefined;
+    const execFn: ScoringExecFn = (file, args, opts) => {
+      capturedOpts = opts;
+      return fakeResult({ stdout: HAPPY_STDOUT });
+    };
+    scorePrediction({ queryId: 523, predDict: { "1": 0.9 }, outputDir, poolManifest: manifest, execFn });
+    expect(capturedOpts?.maxBuffer).toBeDefined();
+    expect(capturedOpts!.maxBuffer!).toBeGreaterThanOrEqual(SCORING_MAX_BUFFER_BYTES);
   });
 
   it("passes opts.input equal to JSON.stringify(filteredPredDict) and opts.timeout equal to SCORING_TIMEOUT_MS by default", () => {

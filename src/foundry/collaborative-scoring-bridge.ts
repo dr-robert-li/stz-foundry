@@ -95,8 +95,16 @@ export class ScoringPreflightError extends Error {
 export type ScoringExecFn = (
   file: string,
   args: string[],
-  opts: { input: string; timeout: number; encoding: "utf8" },
+  opts: { input: string; timeout: number; encoding: "utf8"; maxBuffer?: number },
 ) => SpawnSyncReturns<string>;
+
+/** Explicit cap, applied for symmetry with `collaborative-runner.ts`'s
+ *  `NEIGHBORHOOD_MAX_BUFFER_BYTES` (a live query's neighbourhood was
+ *  measured serialising 2.17 MB and got silently SIGTERM'd at Node's 1 MiB
+ *  `spawnSync` default). `score_one.py`'s own stdout is small -- a metrics
+ *  dict, not a subgraph -- so this is defence in depth, not a fix for an
+ *  observed failure here. */
+export const SCORING_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
 const defaultScoringExecFn: ScoringExecFn = (file, args, opts) => spawnSync(file, args, opts);
 
@@ -430,6 +438,7 @@ export function scorePrediction(args: ScorePredictionArgs): ScoringAttempt {
     input: JSON.stringify(filtered),
     timeout: args.timeoutMs ?? SCORING_TIMEOUT_MS,
     encoding: "utf8",
+    maxBuffer: SCORING_MAX_BUFFER_BYTES,
   });
   const wallTimeMs = Date.now() - startedAt;
 

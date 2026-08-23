@@ -116,6 +116,19 @@ export const NEIGHBORHOOD_ONE_REL = "tools/stark-eval/neighborhood_one.py";
 export const NEIGHBORHOOD_HOPS = 2;
 export const NEIGHBORHOOD_MAX_NODES = 400;
 
+/** T-23-XX (Phase 23 Plan 06 continuation): Node's `spawnSync` default
+ *  `maxBuffer` is 1 MiB. A live query measured against the pinned model
+ *  (query 1528, 2-hop/400-node cap) serialises 2,168,562 bytes of
+ *  neighbourhood JSON on stdout -- well over that default. Exceeding
+ *  `maxBuffer` kills the child (default signal SIGTERM) and sets
+ *  `error.code === "ENOBUFS"`, which -- unclassified -- fell into the
+ *  branch below reading `result.signal !== null` and was misreported as a
+ *  generic "killed by signal SIGTERM", indistinguishable from an external
+ *  kill (this is exactly what stalled the probe's resume: every relaunch
+ *  died identically on query 1528, a query with a large but entirely valid
+ *  neighbourhood). 64 MiB leaves >29x headroom over the measured worst case. */
+export const NEIGHBORHOOD_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
+
 /** The admission table's kb name ("stark-prime") and STaRK's own kb name
  *  ("prime", the argv value the Python helper takes) differ -- carry the
  *  mapping explicitly, mirroring `collaborative-scoring-bridge.ts`'s own
@@ -286,15 +299,27 @@ export function makeDefaultKbNeighborhoodFn(opts: MakeDefaultKbNeighborhoodFnOpt
       input: "",
       timeout: timeoutMs,
       encoding: "utf8",
+      maxBuffer: NEIGHBORHOOD_MAX_BUFFER_BYTES,
     });
 
     // SAME branch order as scorePrediction (T-22-19): timeout, signal,
     // spawn error, non-zero exit, only THEN a stdout parse -- never
-    // reordered, never a second idiom for a second dispatch site.
+    // reordered, never a second idiom for a second dispatch site. ENOBUFS
+    // is checked immediately after ETIMEDOUT and before the generic signal
+    // branch for the identical reason ETIMEDOUT is checked first: a
+    // maxBuffer overrun ALSO sets `result.signal` (the child is killed), so
+    // an unclassified signal check would misreport it as a bare "killed by
+    // signal" with no indication the real cause was an output cap.
     const errorCode = result.error !== undefined ? (result.error as NodeJS.ErrnoException).code : undefined;
     if (errorCode === "ETIMEDOUT") {
       throw new CollaborativeRunnerError(
         `kbNeighborhoodFn: neighbourhood extraction for query ${queryId} timed out after ${timeoutMs}ms`,
+      );
+    }
+    if (errorCode === "ENOBUFS") {
+      throw new CollaborativeRunnerError(
+        `kbNeighborhoodFn: neighbourhood extraction for query ${queryId} exceeded the ${NEIGHBORHOOD_MAX_BUFFER_BYTES}-byte stdout buffer cap -- ` +
+          `the neighbourhood is larger than this cap allows, not a harness fault or an external kill`,
       );
     }
     if (result.signal !== null) {
