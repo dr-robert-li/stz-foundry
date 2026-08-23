@@ -1,0 +1,460 @@
+{
+  "units": {
+    "cd79c7867f6b28cc:97": {
+      "pairId": "cd79c7867f6b28cc",
+      "pairRelPath": "_pair-conservative-prune.md",
+      "queryId": 97,
+      "wallMs": 92763,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null
+    },
+    "cd79c7867f6b28cc:131": {
+      "pairId": "cd79c7867f6b28cc",
+      "pairRelPath": "_pair-conservative-prune.md",
+      "queryId": 131,
+      "wallMs": 73085,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null
+    },
+    "cd79c7867f6b28cc:482": {
+      "pairId": "cd79c7867f6b28cc",
+      "pairRelPath": "_pair-conservative-prune.md",
+      "queryId": 482,
+      "wallMs": 102799,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null
+    },
+    "cd79c7867f6b28cc:586": {
+      "pairId": "cd79c7867f6b28cc",
+      "pairRelPath": "_pair-conservative-prune.md",
+      "queryId": 586,
+      "wallMs": 68304,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null
+    },
+    "cd79c7867f6b28cc:843": {
+      "pairId": "cd79c7867f6b28cc",
+      "pairRelPath": "_pair-conservative-prune.md",
+      "queryId": 843,
+      "wallMs": 175529,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null
+    },
+    "cd79c7867f6b28cc:1040": {
+      "pairId": "cd79c7867f6b28cc",
+      "pairRelPath": "_pair-conservative-prune.md",
+      "queryId": 1040,
+      "wallMs": 97610,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null
+    },
+    "cd79c7867f6b28cc:1199": {
+      "pairId": "cd79c7867f6b28cc",
+      "pairRelPath": "_pair-conservative-prune.md",
+      "queryId": 1199,
+      "wallMs": 236591,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null
+    },
+    "cd79c7867f6b28cc:1297": {
+      "pairId": "cd79c7867f6b28cc",
+      "pairRelPath": "_pair-conservative-prune.md",
+      "queryId": 1297,
+      "wallMs": 164386,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null
+    },
+    "cd79c7867f6b28cc:1384": {
+      "pairId": "cd79c7867f6b28cc",
+      "pairRelPath": "_pair-conservative-prune.md",
+      "queryId": 1384,
+      "wallMs": 23118,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "neighbourhood-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null
+    },
+    "cd79c7867f6b28cc:1528": {
+      "pairId": "cd79c7867f6b28cc",
+      "pairRelPath": "_pair-conservative-prune.md",
+      "queryId": 1528,
+      "wallMs": 113297,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "unparseable"
+      ],
+      "handoffFailureDetail": "not valid JSON: Unexpected token '/', ...\"th\"],\n    // (All ed\"... is not valid JSON"
+    },
+    "2ae32511d7b45fb3:97": {
+      "pairId": "2ae32511d7b45fb3",
+      "pairRelPath": "_pair-relation-focused.md",
+      "queryId": 97,
+      "wallMs": 127984,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "artifact-absent"
+      ],
+      "handoffFailureDetail": "no artifact at /tmp/collab-probe-artifact-NQKz4A/builder/stark-prime:97/subgraph.json"
+    },
+    "2ae32511d7b45fb3:131": {
+      "pairId": "2ae32511d7b45fb3",
+      "pairRelPath": "_pair-relation-focused.md",
+      "queryId": 131,
+      "wallMs": 83868,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "cd05-violation"
+      ],
+      "handoffFailureDetail": "{\"condition\":\"disconnected\",\"unreachableNodeId\":822}"
+    },
+    "2ae32511d7b45fb3:482": {
+      "pairId": "2ae32511d7b45fb3",
+      "pairRelPath": "_pair-relation-focused.md",
+      "queryId": 482,
+      "wallMs": 132888,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "cd05-violation"
+      ],
+      "handoffFailureDetail": "{\"condition\":\"fabricated-edge\",\"src\":209,\"dst\":64551,\"relationId\":\"expression present\"}"
+    },
+    "2ae32511d7b45fb3:586": {
+      "pairId": "2ae32511d7b45fb3",
+      "pairRelPath": "_pair-relation-focused.md",
+      "queryId": 586,
+      "wallMs": 137552,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "artifact-absent"
+      ],
+      "handoffFailureDetail": "no artifact at /tmp/collab-probe-artifact-uIU3Ai/builder/stark-prime:586/subgraph.json"
+    },
+    "2ae32511d7b45fb3:843": {
+      "pairId": "2ae32511d7b45fb3",
+      "pairRelPath": "_pair-relation-focused.md",
+      "queryId": 843,
+      "wallMs": 94488,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "artifact-absent"
+      ],
+      "handoffFailureDetail": "no artifact at /tmp/collab-probe-artifact-nfr1RX/builder/stark-prime:843/subgraph.json"
+    },
+    "2ae32511d7b45fb3:1040": {
+      "pairId": "2ae32511d7b45fb3",
+      "pairRelPath": "_pair-relation-focused.md",
+      "queryId": 1040,
+      "wallMs": 254390,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "cd05-violation"
+      ],
+      "handoffFailureDetail": "{\"condition\":\"fabricated-edge\",\"src\":10807,\"dst\":250,\"relationId\":\"ppi\"}"
+    },
+    "2ae32511d7b45fb3:1199": {
+      "pairId": "2ae32511d7b45fb3",
+      "pairRelPath": "_pair-relation-focused.md",
+      "queryId": 1199,
+      "wallMs": 178988,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "artifact-absent"
+      ],
+      "handoffFailureDetail": "no artifact at /tmp/collab-probe-artifact-F4kAg9/builder/stark-prime:1199/subgraph.json"
+    },
+    "2ae32511d7b45fb3:1297": {
+      "pairId": "2ae32511d7b45fb3",
+      "pairRelPath": "_pair-relation-focused.md",
+      "queryId": 1297,
+      "wallMs": 196349,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "cd05-violation"
+      ],
+      "handoffFailureDetail": "{\"condition\":\"below-minimum\",\"nodeCount\":2}"
+    },
+    "2ae32511d7b45fb3:1384": {
+      "pairId": "2ae32511d7b45fb3",
+      "pairRelPath": "_pair-relation-focused.md",
+      "queryId": 1384,
+      "wallMs": 22861,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "neighbourhood-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "neighbourhood-refused"
+      ],
+      "handoffFailureDetail": "[foundry:collaborative-runner] kbNeighborhoodFn: neighbourhood extraction for query 1384 produced invalid output -- the helper found no seed entity for this query -- no KB node name matched the query text via query-text seeding (FA-7) (an empty seed set is a refusal, never an empty-but-successful neighbourhood)"
+    },
+    "2ae32511d7b45fb3:1528": {
+      "pairId": "2ae32511d7b45fb3",
+      "pairRelPath": "_pair-relation-focused.md",
+      "queryId": 1528,
+      "wallMs": 166873,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "unparseable"
+      ],
+      "handoffFailureDetail": "not valid JSON: Unexpected token '.', ...\"6,1],\n    ...\n  ]\n}\" is not valid JSON"
+    },
+    "b1534c69c00e8d08:97": {
+      "pairId": "b1534c69c00e8d08",
+      "pairRelPath": "_pair-breadth.md",
+      "queryId": 97,
+      "wallMs": 103031,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "artifact-absent"
+      ],
+      "handoffFailureDetail": "no artifact at /tmp/collab-probe-artifact-yRfkGy/builder/stark-prime:97/subgraph.json"
+    },
+    "b1534c69c00e8d08:131": {
+      "pairId": "b1534c69c00e8d08",
+      "pairRelPath": "_pair-breadth.md",
+      "queryId": 131,
+      "wallMs": 82684,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "artifact-absent"
+      ],
+      "handoffFailureDetail": "no artifact at /tmp/collab-probe-artifact-8r7XRy/builder/stark-prime:131/subgraph.json"
+    },
+    "b1534c69c00e8d08:482": {
+      "pairId": "b1534c69c00e8d08",
+      "pairRelPath": "_pair-breadth.md",
+      "queryId": 482,
+      "wallMs": 132815,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "cd05-violation"
+      ],
+      "handoffFailureDetail": "{\"condition\":\"disconnected\",\"unreachableNodeId\":23368}"
+    },
+    "b1534c69c00e8d08:586": {
+      "pairId": "b1534c69c00e8d08",
+      "pairRelPath": "_pair-breadth.md",
+      "queryId": 586,
+      "wallMs": 90177,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "artifact-absent"
+      ],
+      "handoffFailureDetail": "no artifact at /tmp/collab-probe-artifact-40Krxa/builder/stark-prime:586/subgraph.json"
+    },
+    "b1534c69c00e8d08:843": {
+      "pairId": "b1534c69c00e8d08",
+      "pairRelPath": "_pair-breadth.md",
+      "queryId": 843,
+      "wallMs": 123837,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "cd05-violation"
+      ],
+      "handoffFailureDetail": "{\"condition\":\"below-minimum\",\"nodeCount\":0}"
+    },
+    "b1534c69c00e8d08:1040": {
+      "pairId": "b1534c69c00e8d08",
+      "pairRelPath": "_pair-breadth.md",
+      "queryId": 1040,
+      "wallMs": 127415,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "cd05-violation"
+      ],
+      "handoffFailureDetail": "{\"condition\":\"fabricated-edge\",\"src\":10807,\"dst\":250,\"relationId\":\"ppi\"}"
+    },
+    "b1534c69c00e8d08:1199": {
+      "pairId": "b1534c69c00e8d08",
+      "pairRelPath": "_pair-breadth.md",
+      "queryId": 1199,
+      "wallMs": 152440,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "artifact-absent"
+      ],
+      "handoffFailureDetail": "no artifact at /tmp/collab-probe-artifact-ZuYqj6/builder/stark-prime:1199/subgraph.json"
+    },
+    "b1534c69c00e8d08:1297": {
+      "pairId": "b1534c69c00e8d08",
+      "pairRelPath": "_pair-breadth.md",
+      "queryId": 1297,
+      "wallMs": 82799,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "cd05-violation"
+      ],
+      "handoffFailureDetail": "{\"condition\":\"disconnected\",\"unreachableNodeId\":25836}"
+    },
+    "b1534c69c00e8d08:1384": {
+      "pairId": "b1534c69c00e8d08",
+      "pairRelPath": "_pair-breadth.md",
+      "queryId": 1384,
+      "wallMs": 22920,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "neighbourhood-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "neighbourhood-refused"
+      ],
+      "handoffFailureDetail": "[foundry:collaborative-runner] kbNeighborhoodFn: neighbourhood extraction for query 1384 produced invalid output -- the helper found no seed entity for this query -- no KB node name matched the query text via query-text seeding (FA-7) (an empty seed set is a refusal, never an empty-but-successful neighbourhood)"
+    },
+    "b1534c69c00e8d08:1528": {
+      "pairId": "b1534c69c00e8d08",
+      "pairRelPath": "_pair-breadth.md",
+      "queryId": 1528,
+      "wallMs": 375305,
+      "preflightWarmUpWallMs": null,
+      "scoringWallMs": null,
+      "handoffOutcomeKind": "all-handoffs-failed-battery-refused",
+      "hit1": 0,
+      "nodeCount": null,
+      "edgeCount": null,
+      "handoffFailureKinds": [
+        "artifact-absent"
+      ],
+      "handoffFailureDetail": "no artifact at /tmp/collab-probe-artifact-WvMU5z/builder/stark-prime:1528/subgraph.json"
+    }
+  },
+  "retries": [],
+  "runConfig": {
+    "repositoryCommit": "e68de5be59ddda82c0670e61b1d31ae4181fe154",
+    "pairFilesCommit": "3a1e80981af5d2b56c10ac19e6af84110e767020",
+    "model": "gpt-oss:latest",
+    "modelDigest": "17052f91a42e",
+    "baseUrl": "http://localhost:11434/v1",
+    "sampleSize": 10,
+    "concurrency": 1,
+    "gateThreshold": 0.01,
+    "startedAt": "2026-08-23T06:11:13.711Z"
+  }
+}

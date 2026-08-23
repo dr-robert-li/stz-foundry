@@ -1,0 +1,109 @@
+{
+  "complete": true,
+  "summary": {
+    "overall": {
+      "unitCount": 30,
+      "outcomeCounts": {
+        "all-handoffs-failed-battery-refused": 27,
+        "neighbourhood-refused": 3
+      },
+      "structuralValidity": {
+        "successCount": 0,
+        "totalCount": 30
+      },
+      "wallMs": {
+        "min": 22861,
+        "median": 118567,
+        "max": 375305
+      },
+      "handoffFailureKindCounts": {
+        "unparseable": 2,
+        "artifact-absent": 9,
+        "cd05-violation": 8,
+        "neighbourhood-refused": 2
+      }
+    },
+    "byPair": [
+      {
+        "pairId": "cd79c7867f6b28cc",
+        "pairRelPath": "_pair-conservative-prune.md",
+        "unitCount": 10,
+        "outcomeCounts": {
+          "all-handoffs-failed-battery-refused": 9,
+          "neighbourhood-refused": 1
+        },
+        "structuralValidity": {
+          "successCount": 0,
+          "totalCount": 10
+        },
+        "wallMs": {
+          "min": 23118,
+          "median": 100204.5,
+          "max": 236591
+        },
+        "handoffFailureKindCounts": {
+          "unparseable": 1
+        }
+      },
+      {
+        "pairId": "2ae32511d7b45fb3",
+        "pairRelPath": "_pair-relation-focused.md",
+        "unitCount": 10,
+        "outcomeCounts": {
+          "all-handoffs-failed-battery-refused": 9,
+          "neighbourhood-refused": 1
+        },
+        "structuralValidity": {
+          "successCount": 0,
+          "totalCount": 10
+        },
+        "wallMs": {
+          "min": 22861,
+          "median": 135220,
+          "max": 254390
+        },
+        "handoffFailureKindCounts": {
+          "artifact-absent": 4,
+          "cd05-violation": 4,
+          "neighbourhood-refused": 1,
+          "unparseable": 1
+        }
+      },
+      {
+        "pairId": "b1534c69c00e8d08",
+        "pairRelPath": "_pair-breadth.md",
+        "unitCount": 10,
+        "outcomeCounts": {
+          "all-handoffs-failed-battery-refused": 9,
+          "neighbourhood-refused": 1
+        },
+        "structuralValidity": {
+          "successCount": 0,
+          "totalCount": 10
+        },
+        "wallMs": {
+          "min": 22920,
+          "median": 113434,
+          "max": 375305
+        },
+        "handoffFailureKindCounts": {
+          "artifact-absent": 5,
+          "cd05-violation": 4,
+          "neighbourhood-refused": 1
+        }
+      }
+    ]
+  },
+  "runConfig": {
+    "repositoryCommit": "e68de5be59ddda82c0670e61b1d31ae4181fe154",
+    "pairFilesCommit": "3a1e80981af5d2b56c10ac19e6af84110e767020",
+    "model": "gpt-oss:latest",
+    "modelDigest": "17052f91a42e",
+    "baseUrl": "http://localhost:11434/v1",
+    "sampleSize": 10,
+    "concurrency": 1,
+    "gateThreshold": 0.01,
+    "startedAt": "2026-08-23T06:11:13.711Z"
+  },
+  "retries": []
+}
