@@ -275,3 +275,122 @@ describe("_collab-report.ts -- Task 1: a verdict object renders, gate block firs
     expect(a).toBe(b);
   });
 });
+
+describe("_collab-report.ts -- Task 2: not-meaningful labelling, promotion refusal, full diagnostic set", () => {
+  function buildFailingVerdict(overrides: Partial<CollabRoundVerdict> = {}): CollabRoundVerdict {
+    return buildBaselineVerdict({
+      outcome: "GATE-FAIL",
+      gate: FAILING_GATE,
+      headline: {
+        graphHit1Count: FAILING_GATE.counts.graphHits,
+        graphHit1Rate: FAILING_GATE.counts.graphHits / FAILING_GATE.counts.pairs,
+        nullHit1Count: FAILING_GATE.counts.nullHits,
+        nullHit1Rate: FAILING_GATE.counts.nullHits / FAILING_GATE.counts.pairs,
+        meaningful: false,
+      },
+      ...overrides,
+    });
+  }
+
+  it("labels every occurrence of either arm's hit@1 figure on the same line when the primary gate failed", () => {
+    const md = renderCollabRoundReport(buildFailingVerdict());
+    const headlineSection = md.slice(md.indexOf("## Headline"), md.indexOf("## Diagnostics"));
+    const figureLines = headlineSection
+      .split("\n")
+      .filter((line) => line.includes("hit@1:"));
+    expect(figureLines.length).toBeGreaterThanOrEqual(2);
+    for (const line of figureLines) {
+      expect(line).toContain("NOT MEANINGFUL");
+      expect(line).toContain("bypass-defense");
+    }
+  });
+
+  it("renders no not-meaningful label anywhere when the primary gate passed", () => {
+    const md = renderCollabRoundReport(buildBaselineVerdict());
+    expect(md).not.toContain("NOT MEANINGFUL");
+  });
+
+  it("a promotion-refusal verdict renders the terminal outcome, the refusal reason, and the unspent-suite statement, with no paired counts or headline figures", () => {
+    const verdict = buildBaselineVerdict({
+      outcome: "PROMOTION-REFUSED",
+      diagnostics: buildDiagnostics({
+        selection: {
+          pairs: [
+            { specimenId: "conservative-prune", pairFileBasename: "_pair-conservative-prune.md", searchFitness: 0.42 },
+            { specimenId: "relation-focused", pairFileBasename: "_pair-relation-focused.md", searchFitness: 0.51 },
+            { specimenId: "breadth", pairFileBasename: "_pair-breadth.md", searchFitness: 0.38 },
+          ],
+          winner: "relation-focused",
+          promotionVerdict: { promote: false, reason: "does-not-beat-incumbent; hack-findings-on-own-outputs" },
+        },
+      }),
+    });
+    const md = renderCollabRoundReport(verdict);
+    expect(md).toContain("PROMOTION-REFUSED");
+    expect(md).toContain("does-not-beat-incumbent; hack-findings-on-own-outputs");
+    expect(md).toMatch(/never spent|never .*evaluated|were never/i);
+    expect(md).not.toContain("## Gate");
+    expect(md).not.toContain("## Headline");
+    expect(md).not.toContain(`${PASSING_GATE.counts.graphHits}/${PASSING_GATE.counts.pairs}`);
+  });
+
+  it("the diagnostics section renders every handoff-outcome kind the runner declares, including zero counts", () => {
+    const verdict = buildBaselineVerdict({
+      diagnostics: buildDiagnostics({ handoffOutcomeTally: buildHandoffTally({ success: 75 }) }),
+    });
+    const md = renderCollabRoundReport(verdict);
+    for (const kind of HANDOFF_OUTCOME_KINDS) {
+      expect(md).toContain(kind);
+    }
+  });
+
+  it("the degeneracy tally is labelled as a diagnostic and states it is never a verdict", () => {
+    const md = renderCollabRoundReport(buildBaselineVerdict());
+    const diagnosticsSection = md.slice(md.indexOf("## Diagnostics"), md.indexOf("## Per-unit records"));
+    expect(diagnosticsSection).toMatch(/degeneracy/i);
+    expect(diagnosticsSection).toContain("diagnostic");
+    expect(diagnosticsSection).toMatch(/never a verdict/i);
+  });
+
+  it("an underpowered sign test renders its own statement plus the primary-gate-still-evaluated sentence in the gate block", () => {
+    const verdict = buildBaselineVerdict({
+      outcome: "GATE-FAIL",
+      gate: UNDERPOWERED_GATE,
+      headline: {
+        graphHit1Count: UNDERPOWERED_GATE.counts.graphHits,
+        graphHit1Rate: UNDERPOWERED_GATE.counts.graphHits / UNDERPOWERED_GATE.counts.pairs,
+        nullHit1Count: UNDERPOWERED_GATE.counts.nullHits,
+        nullHit1Rate: UNDERPOWERED_GATE.counts.nullHits / UNDERPOWERED_GATE.counts.pairs,
+        meaningful: false,
+      },
+    });
+    const md = renderCollabRoundReport(verdict);
+    const gateSection = md.slice(md.indexOf("## Gate"), md.indexOf("## Headline"));
+    expect(gateSection).toContain("UNDERPOWERED");
+    expect(gateSection).toContain("primary margin gate");
+    expect(gateSection).toContain("still evaluated");
+  });
+
+  it("the per-unit table's data-row count equals the unit-record array's length (fifty-record fixture)", () => {
+    const records = buildUnitRecords(50);
+    const verdict = buildBaselineVerdict({ unitRecords: records });
+    const md = renderCollabRoundReport(verdict);
+    const tableSection = md.slice(md.indexOf("## Per-unit records"), md.indexOf("## Retries"));
+    const dataRows = tableSection
+      .split("\n")
+      .filter((line) => line.startsWith("|") && !line.includes("---") && !line.includes("query id"));
+    expect(dataRows.length).toBe(50);
+  });
+
+  it("the selection-round section renders per-pair search fitness, the winner, and the promotion verdict", () => {
+    const md = renderCollabRoundReport(buildBaselineVerdict());
+    const selectionSection = md.slice(md.indexOf("## Selection round"), md.indexOf("## Run configuration"));
+    expect(selectionSection).toContain("conservative-prune");
+    expect(selectionSection).toContain("relation-focused");
+    expect(selectionSection).toContain("breadth");
+    expect(selectionSection).toContain("0.4200");
+    expect(selectionSection).toContain("Winner: relation-focused");
+    expect(selectionSection).toContain("PROMOTED");
+    expect(selectionSection).toMatch(/compressed adapter reward/);
+  });
+});

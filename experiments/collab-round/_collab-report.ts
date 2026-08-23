@@ -259,29 +259,152 @@ function renderHeadlineSection(verdict: CollabRoundVerdict): string[] {
   return lines;
 }
 
-// ── Stub sections (filled by Task 2) ─────────────────────────────────────
-// Emitting their headings now so section ordering is testable in Task 1 and
-// the ordering assertions do not have to be rewritten once Task 2 fills
-// these in.
+// ── Promotion-refusal terminal state (D-12) ──────────────────────────────
 
-function renderDiagnosticsSection(_verdict: CollabRoundVerdict): string[] {
-  return ["## Diagnostics", "", "_(rendered in full by Task 2)_", ""];
+/** D-12: a promotion-refusal round renders as its own named terminal
+ *  outcome, the refusal reason carried through, and an explicit statement
+ *  that the sealed heldout suite was never spent -- no gate block, no
+ *  headline figures, because there are none. */
+function renderPromotionRefusal(verdict: CollabRoundVerdict): string[] {
+  const pv = verdict.diagnostics.selection.promotionVerdict;
+  return [
+    "## Terminal outcome",
+    "",
+    `PROMOTION-REFUSED -- the selection round's winner was not promoted. Reason: ${pv.reason}`,
+    "",
+    "The sealed heldout suite `prime-heldout.json` and its no-subgraph null arm were never spent for this " +
+      "round -- no query in the heldout suite was evaluated by either arm, so no gate block or headline " +
+      "figure is rendered below.",
+    "",
+  ];
 }
 
-function renderPerUnitTable(_verdict: CollabRoundVerdict): string[] {
-  return ["## Per-unit records", "", "_(rendered in full by Task 2)_", ""];
+// ── Diagnostics section (D-11) ────────────────────────────────────────────
+
+function renderArmDiagnosticsLine(label: string, d: CollabRoundArmDiagnostics, total: number): string {
+  return (
+    `${label}: MRR=${d.meanReciprocalRank.toFixed(4)}, hit@5=${d.hitAt5Count}/${total}, ` +
+    `recall@20=${d.recallAt20.toFixed(4)}, input tokens=${d.inputTokenCount}, errors=${d.errorCount}/${total}, ` +
+    `non-completions=${d.nonCompletionCount}/${total}.`
+  );
 }
 
-function renderRetriesSection(_verdict: CollabRoundVerdict): string[] {
-  return ["## Retries", "", "_(rendered in full by Task 2)_", ""];
+/** D-11's full secondary diagnostic set: per-arm MRR/hit@5/recall@20/token
+ *  count/error and non-completion counts, the per-query handoff-outcome
+ *  tally (D-08's degeneracy diagnostic among its rows, one row per kind the
+ *  runner declares -- `HANDOFF_OUTCOME_KINDS` -- so an absent kind is
+ *  visibly zero rather than silently missing). */
+function renderDiagnosticsSection(verdict: CollabRoundVerdict): string[] {
+  const total = verdict.gate.counts.pairs;
+  const d = verdict.diagnostics;
+  const lines: string[] = ["## Diagnostics", ""];
+
+  lines.push(renderArmDiagnosticsLine("Graph-handoff arm", d.graph, total));
+  lines.push(renderArmDiagnosticsLine("No-subgraph null arm", d.nullArm, total));
+  lines.push("");
+
+  lines.push("### Handoff-outcome tally");
+  lines.push("");
+  lines.push("| kind | count |");
+  lines.push("|---|---|");
+  for (const kind of HANDOFF_OUTCOME_KINDS) {
+    lines.push(`| ${kind} | ${d.handoffOutcomeTally[kind] ?? 0} |`);
+  }
+  lines.push("");
+
+  lines.push("### Degeneracy diagnostic (CD-05 structural bounds)");
+  lines.push("");
+  lines.push(
+    `Structural-bounds violations (\`cd05-violation\`): ${d.handoffOutcomeTally["cd05-violation"] ?? 0} of ${total}. ` +
+      "This is a diagnostic reading of the structural-bounds arm (design §5's harmonizing reading) -- a " +
+      "diagnostic family member, never a verdict.",
+  );
+  lines.push("");
+  return lines;
 }
 
-function renderSelectionSection(_verdict: CollabRoundVerdict): string[] {
-  return ["## Selection round", "", "_(rendered in full by Task 2)_", ""];
+/** One row per unit record, in the order the records appear -- mirrors
+ *  `_paired-report.ts`'s per-unit table column style. */
+function renderPerUnitTable(verdict: CollabRoundVerdict): string[] {
+  const lines: string[] = [
+    "## Per-unit records",
+    "",
+    "| query id | arm | handoff outcome | hit@1 | wall time (ms) |",
+    "|---|---|---|---|---|",
+  ];
+  for (const u of verdict.unitRecords) {
+    lines.push(`| ${u.queryId} | ${u.arm} | ${u.handoffOutcomeKind} | ${u.hit1} | ${u.wallTimeMs} |`);
+  }
+  lines.push("");
+  return lines;
 }
 
-function renderRunConfigSection(_verdict: CollabRoundVerdict): string[] {
-  return ["## Run configuration", "", "_(rendered in full by Task 2)_", ""];
+/** One line per recorded retry -- states that a retried unit still appears
+ *  exactly once in the per-unit table, so a reader does not double-count
+ *  (D-16). */
+function renderRetriesSection(verdict: CollabRoundVerdict): string[] {
+  const lines: string[] = ["## Retries", ""];
+  if (verdict.retries.length === 0) {
+    lines.push("No retries were recorded for this round.");
+  } else {
+    for (const r of verdict.retries) {
+      lines.push(`- ${r} -- the retried unit still appears exactly once in the per-unit table above.`);
+    }
+  }
+  lines.push("");
+  return lines;
+}
+
+/** The selection-round section: per pair, the specimen id, the pair file's
+ *  basename and the search-half fitness; then the winner; then the
+ *  promotion verdict with its reason. The reward-scale caution names that
+ *  the fitness figure is the compressed adapter reward, not raw hit@1. */
+function renderSelectionSection(verdict: CollabRoundVerdict): string[] {
+  const sel = verdict.diagnostics.selection;
+  const lines: string[] = [
+    "## Selection round",
+    "",
+    "| specimen id | pair file | search fitness |",
+    "|---|---|---|",
+  ];
+  for (const p of sel.pairs) {
+    lines.push(`| ${p.specimenId} | ${p.pairFileBasename} | ${p.searchFitness.toFixed(4)} |`);
+  }
+  lines.push("");
+  lines.push(`Winner: ${sel.winner ?? "none"}.`);
+  lines.push(
+    `Promotion verdict: ${sel.promotionVerdict.promote ? "PROMOTED" : "REFUSED"} -- ${sel.promotionVerdict.reason}`,
+  );
+  lines.push("");
+  lines.push(
+    "Reward-scale caution: the search fitness figure above is the compressed adapter reward, not raw hit@1 -- " +
+      "do not compare it directly against a hit rate.",
+  );
+  lines.push("");
+  return lines;
+}
+
+/** A definition list over the run-config fields, human-readable without
+ *  opening the JSON artifact. */
+function renderRunConfigSection(verdict: CollabRoundVerdict): string[] {
+  const c = verdict.runConfig;
+  return [
+    "## Run configuration",
+    "",
+    `- Repository commit: ${c.repoCommit}`,
+    `- Pair-file commit: ${c.pairFileCommit}`,
+    `- Model: ${c.modelName} @ ${c.modelDigest}`,
+    `- Per-call ceiling: ${c.perCallCeilingMs}ms`,
+    `- Concurrency: ${c.concurrency}`,
+    `- Accuracy-gate threshold: ${c.gateThreshold}`,
+    `- Interleaving: ${c.interleaving}`,
+    `- Manifest hashes: ${JSON.stringify(c.manifestHashes)}`,
+    `- Critical-value table hash: ${c.criticalValueTableHash}`,
+    `- Archive: ${c.archiveRoot} / slot ${c.archiveSlot}`,
+    `- Warm-up query id: ${c.warmUpQueryId}`,
+    `- Arm commits: graph=${verdict.armCommits.graph}, no-subgraph=${verdict.armCommits["no-subgraph"]}`,
+    "",
+  ];
 }
 
 // ── The renderer ─────────────────────────────────────────────────────────
@@ -289,8 +412,11 @@ function renderRunConfigSection(_verdict: CollabRoundVerdict): string[] {
 /**
  * Renders the round's verdict artifact as markdown. Its first action is the
  * completion-marker refusal: a partial run (`complete !== true`) cannot be
- * rendered as a result. Then the gate block, always ahead of every headline
- * figure (D-09), followed by the remaining sections (Task 2 fills them in).
+ * rendered as a result. A `PROMOTION-REFUSED` round renders only the
+ * terminal-outcome, selection-round and run-configuration sections (D-12) --
+ * there is no gate block and no headline figure because none were spent.
+ * Every other outcome renders the gate block first (D-09), ahead of every
+ * headline figure, followed by the full diagnostic set (D-11).
  */
 export function renderCollabRoundReport(verdict: CollabRoundVerdict): string {
   if (verdict.complete !== true) {
@@ -302,6 +428,14 @@ export function renderCollabRoundReport(verdict: CollabRoundVerdict): string {
 
   const lines: string[] = [];
   lines.push(...renderTitle());
+
+  if (verdict.outcome === "PROMOTION-REFUSED") {
+    lines.push(...renderPromotionRefusal(verdict));
+    lines.push(...renderSelectionSection(verdict));
+    lines.push(...renderRunConfigSection(verdict));
+    return lines.join("\n");
+  }
+
   lines.push(...renderGateSection(verdict));
   lines.push(...renderHeadlineSection(verdict));
   lines.push(...renderDiagnosticsSection(verdict));
