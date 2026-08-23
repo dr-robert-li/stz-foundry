@@ -25,6 +25,7 @@ import {
   buildRunConfig,
   toAblationUnits,
   runSelectionRound,
+  resolveStatePath,
   runHeldoutUnits,
   assembleVerdict,
   main,
@@ -587,6 +588,44 @@ describe("runSelectionRound -- calls the shell once, returns its result unaltere
     expect(captured!.incumbentFitness).toBeNull();
     expect(captured!.warmUp).toEqual({ queryId: 1, predDict: { "0": 1 } });
     expect(result.winner).toBe("a");
+    // T-23-08: the neighbourhood function reaches the shell by IDENTITY --
+    // the driver never wraps it in a per-task guard of its own. Refusals are
+    // handled one altitude down, inside runCollaborativeBattery, which is
+    // the only place a refusal can become one task's miss rather than the
+    // whole selection round's crash.
+    expect(Object.is(captured!.kbNeighborhoodFn, args.kbNeighborhoodFn)).toBe(true);
+  });
+});
+
+// ── T-23-08: the state path accepts the launcher's own env-var name ──────
+
+describe("resolveStatePath -- launcher-compatible state path resolution (T-23-08)", () => {
+  const SCRIPT_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "experiments", "collab-round");
+
+  it("accepts the launcher's COLLAB_STATE when COLLAB_ROUND_STATE is unset, resolved beside the script", () => {
+    expect(resolveStatePath({ COLLAB_STATE: "collab-round-state.json" })).toBe(
+      join(SCRIPT_DIR, "collab-round-state.json"),
+    );
+  });
+
+  it("COLLAB_ROUND_STATE still wins when both are set -- every previously documented invocation keeps working", () => {
+    expect(
+      resolveStatePath({ COLLAB_ROUND_STATE: "explicit.json", COLLAB_STATE: "launcher.json" }),
+    ).toBe(join(SCRIPT_DIR, "explicit.json"));
+  });
+
+  it("an absolute path is passed through untouched", () => {
+    expect(resolveStatePath({ COLLAB_ROUND_STATE: "/tmp/somewhere/state.json" })).toBe("/tmp/somewhere/state.json");
+  });
+
+  it("a relative name never resolves against the process cwd -- main() chdirs to the repo root before the first state write", () => {
+    const resolved = resolveStatePath({ COLLAB_STATE: "collab-round-state.json" });
+    expect(resolved).not.toBe(join(process.cwd(), "collab-round-state.json"));
+    expect(resolved.startsWith(SCRIPT_DIR)).toBe(true);
+  });
+
+  it("refuses by name, naming BOTH accepted variables, when neither is set", () => {
+    expect(() => resolveStatePath({})).toThrow(/COLLAB_ROUND_STATE.*COLLAB_STATE/s);
   });
 });
 

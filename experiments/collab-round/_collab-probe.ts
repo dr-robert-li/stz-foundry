@@ -372,6 +372,14 @@ export async function runOneUnit(
       handoffFailureDetail: null,
     };
   } catch (e) {
+    // DEFENSE IN DEPTH since T-23-08: the runner no longer throws for
+    // either condition below -- an all-failed run now returns an ordinary
+    // all-miss record, and an FA-7 empty-seed refusal is a per-task
+    // `neighbourhood-refused` outcome -- so both branches reach the tallies
+    // through the success path above, carrying the SAME kind strings these
+    // branches synthesize. They are kept because an older runner, or an
+    // unforeseen path, must still degrade to a miss rather than crash.
+    //
     // `runCollaborativeBattery` is called here with exactly ONE task per
     // unit (this probe's own design), so "this unit's task failed handoff"
     // and "every task in the batch failed handoff" are the same event --

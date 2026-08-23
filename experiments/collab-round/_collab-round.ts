@@ -27,9 +27,13 @@
  *   COLLAB_ROUND_ARCHIVE_ROOT=<path> COLLAB_ROUND_ARCHIVE_SLOT=<slot> \
  *   bash _launch-collab.sh _collab-round.ts collab-round-state.json collab-round.log
  *
- * (`COLLAB_ROUND_STATE` is set by the launcher itself from its own second
- * argument -- an operator invoking this script directly, outside the
- * launcher, must set `COLLAB_ROUND_STATE` too.)
+ * (The state path comes from the launcher's own `COLLAB_STATE` -- set from
+ * its second argument -- or from `COLLAB_ROUND_STATE`, which takes
+ * precedence when both are set. A relative name is resolved against THIS
+ * script's directory, never the process cwd: `main()` chdirs to the repo
+ * root before the first state write, so a cwd-relative name would land the
+ * state file at the repo root instead of beside the script, which is
+ * exactly what the crashed 23-08 launch did. See `resolveStatePath`.)
  *
  * ONE REQUEST IN FLIGHT AT A TIME, ALWAYS -- every battery call in this file
  * passes `concurrency: 1`, and there is no knob anywhere in this file to
@@ -61,7 +65,7 @@ import { execSync } from "node:child_process";
 import { readFileSync, renameSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   runCollaborativeBattery,
@@ -147,6 +151,10 @@ const FINGERPRINT_MANIFEST: FingerprintManifest = parseFingerprintManifest(readM
 // ── required inputs (D-16, no default anywhere) ─────────────────────────
 
 const STATE_PATH_ENV_VAR = "COLLAB_ROUND_STATE";
+/** The name `_launch-collab.sh` actually exports, from its own second
+ *  argument (`COLLAB_STATE="$STATE" nohup ...`) -- one launcher serves both
+ *  this driver and `_collab-probe.ts`, and the probe reads that name. */
+const LAUNCHER_STATE_PATH_ENV_VAR = "COLLAB_STATE";
 const PAIRS_COMMIT_ENV_VAR = "COLLAB_PAIRS_COMMIT";
 const CEILING_MS_ENV_VAR = "COLLAB_ROUND_CEILING_MS";
 const ARCHIVE_ROOT_ENV_VAR = "COLLAB_ROUND_ARCHIVE_ROOT";
@@ -162,6 +170,30 @@ export function requireEnv(name: string, env: NodeJS.ProcessEnv = process.env): 
     throw new Error(`[collab-round] ${name} must be set explicitly (no default)`);
   }
   return v;
+}
+
+/**
+ * The state file's absolute path. Accepts either env-var name so a launch
+ * through `_launch-collab.sh` needs no extra export (the launcher sets
+ * `COLLAB_STATE`; `COLLAB_ROUND_STATE` wins when both are present, so every
+ * previously-documented invocation keeps working unchanged).
+ *
+ * A relative name is joined against `SCRIPT_DIR`, the same anchor the
+ * verdict and report files use -- never `process.cwd()`, because `main()`
+ * chdirs to the repo root (the scoring bridge resolves `tools/stark-eval/...`
+ * from there) BEFORE the first `loadState`/`saveState` call. Under the old
+ * cwd-relative resolution the 23-08 launch wrote `collab-round-state.json`
+ * to the repo root while every operator check looked for it beside the
+ * script; an absolute value is passed through untouched.
+ */
+export function resolveStatePath(env: NodeJS.ProcessEnv = process.env): string {
+  const raw = env[STATE_PATH_ENV_VAR] || env[LAUNCHER_STATE_PATH_ENV_VAR];
+  if (!raw) {
+    throw new Error(
+      `[collab-round] ${STATE_PATH_ENV_VAR} (or the launcher's ${LAUNCHER_STATE_PATH_ENV_VAR}) must be set explicitly (no default)`,
+    );
+  }
+  return isAbsolute(raw) ? raw : join(SCRIPT_DIR, raw);
 }
 
 /**
@@ -194,13 +226,14 @@ export interface CollabUnitResult {
   status: "ok" | "timeout" | "error";
   /**
    * Loosely typed as `string`, never `HandoffOutcomeKind` (mirrors
-   * `_collab-probe.ts`'s own `ProbeUnitResult.handoffOutcomeKind`): this
-   * driver's own single-task-per-call shape can observe TWO non-completion
-   * events the runner's closed 10-member union has no member for --
-   * `"all-handoffs-failed-battery-refused"` (the zero-surviving-tasks
-   * battery-shape boundary) and `"neighbourhood-refused"` (a deterministic
-   * kbNeighborhoodFn refusal). Every real `HandoffOutcomeKind` value passes
-   * through unchanged. See `runOneUnit`'s catch clauses.
+   * `_collab-probe.ts`'s own `ProbeUnitResult.handoffOutcomeKind`): one
+   * non-completion event remains that the runner's own union has no member
+   * for -- `"all-handoffs-failed-battery-refused"`, the zero-surviving-tasks
+   * battery-shape boundary, now reachable only through the defense-in-depth
+   * catch in `runOneUnit`. `"neighbourhood-refused"` used to be the second
+   * such event; since T-23-08 it is a real `HandoffOutcomeKind` the runner
+   * records per task, so it arrives through the ordinary success path. Every
+   * real `HandoffOutcomeKind` value passes through unchanged.
    */
   handoffOutcomeKind: string;
   /** 0 or 1 -- a non-completion is already folded to 0 here, by construction
@@ -466,12 +499,19 @@ export interface HeldoutRunConfig {
   hubCacheRoot?: string;
 }
 
-/** Kinds this driver's own single-task-per-call shape can observe that the
- *  runner's closed `HandoffOutcomeKind` union has no member for. Both are
- *  non-completions (never a harness fault, never retried); see the two
- *  narrow catch clauses in `runOneUnit` below. */
+/** The all-handoffs-failed non-completion. Since T-23-08 the runner returns
+ *  an ordinary all-miss record for that case instead of throwing, so a unit
+ *  now normally reports its own real failure kind (`artifact-absent`,
+ *  `cd05-violation`, ...) and this label appears only if some older or
+ *  unforeseen path still throws the zero-task battery refusal -- the catch
+ *  below is kept as defense in depth, not as the expected route. */
 const ALL_HANDOFFS_FAILED_KIND = "all-handoffs-failed-battery-refused";
-const NEIGHBOURHOOD_REFUSED_KIND = "neighbourhood-refused";
+/** Since T-23-08 this IS a member of the runner's own `HandoffOutcome`
+ *  union, so a refused unit tallies under its own name rather than being
+ *  bucketed. Typed as `HandoffOutcomeKind` so the two spellings cannot
+ *  drift: if the runner ever renames the member, this line fails to
+ *  typecheck. */
+const NEIGHBOURHOOD_REFUSED_KIND: HandoffOutcomeKind = "neighbourhood-refused";
 
 async function runOneUnit(
   candidate: CollaborativeCandidate,
@@ -535,6 +575,17 @@ async function runOneUnit(
       hit1: outcome.hit1,
       wallMs,
       ...(outcome.attempt ? { scoringAttemptWallMs: outcome.attempt.wallTimeMs } : {}),
+      // T-23-08: the runner skipped the answerer pass because this unit's
+      // only task failed at handoff. Recorded as a reason on an ordinary
+      // miss -- the outcome kind above already says WHICH structural
+      // failure it was, which the old thrown-refusal path could not.
+      ...(record.answererBatterySkipped
+        ? {
+            failureReason:
+              `no answerer pass was dispatched (${record.answererBatterySkipped.reason}) -- ` +
+              `recorded as a structural-validity miss, never a crash`,
+          }
+        : {}),
       diagnostics: outcome.diagnostics,
     };
   } catch (e) {
@@ -665,16 +716,16 @@ export function toAblationUnits(state: CollabRoundState, winnerId: string, query
 // ── diagnostics + verdict assembly ───────────────────────────────────────
 
 /** Maps ANY observed unit kind to a real `HandoffOutcomeKind` for TALLY
- *  purposes only -- both of this driver's own synthetic non-completion
- *  kinds (`all-handoffs-failed-battery-refused`, `neighbourhood-refused`)
- *  bucket under `"bridge-non-success"` here ("never reached a scored
- *  state" is the least-false available label among the runner's closed
- *  10-member union) so the tally's key COUNT stays exactly 10 -- the
- *  per-unit table (`unitRecords`, built separately below) keeps the
- *  honest, un-bucketed string, so no audit fidelity is lost overall. Never
- *  bucketed under `"cd05-violation"` -- that would corrupt the D-08
- *  degeneracy reading with events that were never a structural-bounds
- *  violation. */
+ *  purposes only. `"neighbourhood-refused"` is now a real member and maps
+ *  to itself (T-23-08); only this driver's remaining synthetic kind,
+ *  `"all-handoffs-failed-battery-refused"`, still buckets under
+ *  `"bridge-non-success"` ("never reached a scored state" is the least-false
+ *  available label) so the tally's key count always equals
+ *  `HANDOFF_OUTCOME_KINDS.length` -- the per-unit table (`unitRecords`,
+ *  built separately below) keeps the honest, un-bucketed string, so no audit
+ *  fidelity is lost overall. Never bucketed under `"cd05-violation"` -- that
+ *  would corrupt the D-08 degeneracy reading with events that were never a
+ *  structural-bounds violation. */
 function tallyKindFor(observed: string): HandoffOutcomeKind {
   return (HANDOFF_OUTCOME_KINDS as readonly string[]).includes(observed) ? (observed as HandoffOutcomeKind) : "bridge-non-success";
 }
@@ -908,7 +959,7 @@ export interface CollabRoundDeps {
  */
 export async function main(deps: CollabRoundDeps = {}): Promise<CollabRoundVerdict> {
   const env = deps.env ?? process.env;
-  const statePath = requireEnv(STATE_PATH_ENV_VAR, env);
+  const statePath = resolveStatePath(env);
   const pairFileCommit = requireEnv(PAIRS_COMMIT_ENV_VAR, env);
   const ceilingMs = requirePositiveIntegerEnv(CEILING_MS_ENV_VAR, env);
   const archiveRoot = requireEnv(ARCHIVE_ROOT_ENV_VAR, env);

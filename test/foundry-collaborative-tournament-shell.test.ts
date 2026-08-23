@@ -24,6 +24,7 @@ import {
   makeCollaborativeCandidate,
   runCollaborativeBattery,
   mintCollaborativeReceipt,
+  CollaborativeRunnerError,
   SUBGRAPH_SCHEMA_VERSION,
   type CollaborativeCandidate,
   type KbNeighborhood,
@@ -987,5 +988,55 @@ describe("runCollaborativeRound tolerates a pair whose handoffs all fail (T-23-0
       for (const o of run.outcomes) expect(o.hit1).toBe(0);
       expect(run.fitnessRun.result.testPassRate).toBe(0);
     }
+  });
+});
+
+describe("runCollaborativeRound tolerates a query whose KB neighbourhood refuses (T-23-08)", () => {
+  it("records the refusing query as one miss and still completes the round, selecting and promoting a winner", async () => {
+    const archiveRoot = scratchDir();
+    // Query 1001 is the first in ascending order, so it lands in the search
+    // half -- the exact position query 1384 held in the live selection pool
+    // when its FA-7 empty-seed refusal killed the whole round at T+82s.
+    const refusingNeighbourhoodFn = (queryId: number): KbNeighborhood => {
+      if (queryId === 1001) {
+        throw new CollaborativeRunnerError(
+          `kbNeighborhoodFn: neighbourhood extraction for query ${queryId} produced invalid output -- ` +
+            `the helper found no seed entity for this query -- no KB node name matched the query text ` +
+            `via query-text seeding (FA-7) (an empty seed set is a refusal, never an empty-but-successful neighbourhood)`,
+        );
+      }
+      return kbNeighborhoodFn(queryId);
+    };
+
+    const result = await runCollaborativeRound({
+      candidates: [WINNER, LOSER],
+      tasks: TASKS,
+      runDir: scratchDir(),
+      gateThreshold: 0.05,
+      kbNeighborhoodFn: refusingNeighbourhoodFn,
+      poolManifest: POOL_MANIFEST,
+      fingerprintManifest: FINGERPRINT_MANIFEST,
+      warmUp: { queryId: 1002, predDict: { "21": 1 } },
+      incumbentFrontmatter: null,
+      incumbentFitness: null,
+      diversityFloor: 0,
+      archive: { root: archiveRoot, slot: "refusing-neighbourhood-slot" },
+      execFn: makeExecFn(),
+      readFileFn: readFileFnFixture,
+      hubCacheRoot: HUB_CACHE_ROOT,
+      runOpts: { providerImpl: makeProvider() },
+    });
+
+    expect(result.winner).toBe(WINNER.id);
+    const winnerSearchRun = result.searchRuns.get(WINNER.id)!;
+    const refused = winnerSearchRun.outcomes.find((o) => o.queryId === 1001)!;
+    expect(refused.handoffOutcome.kind).toBe("neighbourhood-refused");
+    expect(refused.hit1).toBe(0);
+    // The refusal costs one query, not the round: the other search-half
+    // query still scored, and the promotion half ran to a verdict.
+    expect(winnerSearchRun.outcomes).toHaveLength(2);
+    expect(winnerSearchRun.outcomes.find((o) => o.queryId === 1003)!.hit1).toBe(1);
+    expect(result.promotionRun).not.toBeNull();
+    expect(result.archiveEntry).not.toBeNull();
   });
 });
