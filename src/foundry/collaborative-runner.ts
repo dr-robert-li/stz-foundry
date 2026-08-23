@@ -1242,6 +1242,14 @@ export const NEIGHBORHOOD_MAX_RENDERED_EDGES = 2000;
  *  thrown battery (the "crash at query 1384" lesson, T-23-08). */
 export const BUILDER_PROMPT_MAX_CHARS = 180_000;
 
+/** Phase 23-08 point 4, the post-hoc tripwire behind the character budget:
+ *  ollama silently truncates any prompt at 65,538 tokens (first 4 + last
+ *  65,534 kept), so a provider-reported `prompt_tokens` at or above this
+ *  limit means the model never saw the whole prompt and the call's output
+ *  is untrusted -- recorded as a `"builder-prompt-over-budget"` per-task
+ *  miss. Catches tokenizer drift the char budget cannot see. */
+export const PROMPT_TOKENS_TRUNCATION_LIMIT = 65_000;
+
 /**
  * Phase 23-08 render cap: edges incident to a seed node first (in the
  * helper's own canonical order, which sorts by node id), then the
@@ -1401,6 +1409,29 @@ function rankedListToPredDict(
  * a subprocess per task for evidence that cannot change mid-run, so the cost
  * is paid once, up front, before anything else is spent.
  */
+/** Phase 23-08 point 4: fold every task whose chat call reported a prompt
+ *  at or above `PROMPT_TOKENS_TRUNCATION_LIMIT` into the shared per-task
+ *  miss map, keyed by the SAME `"builder-prompt-over-budget"` kind the
+ *  pre-dispatch character budget uses. Tasks with no reported usage (call
+ *  never returned, or a provider that reports none) are left alone --
+ *  their own status/outcome paths already handle them. */
+function recordTruncatedPromptMisses(
+  taskResults: { taskId: string; inputTokens?: number }[],
+  tasks: readonly CollaborativeBatteryTask[],
+  failedOutcomeByTaskId: Map<string, HandoffOutcome>,
+  role: "builder" | "answerer",
+): void {
+  const queryIdByTaskId = new Map(tasks.map((t) => [t.id, t.queryId] as const));
+  for (const t of taskResults) {
+    if (t.inputTokens === undefined || t.inputTokens < PROMPT_TOKENS_TRUNCATION_LIMIT) continue;
+    failedOutcomeByTaskId.set(t.taskId, {
+      kind: "builder-prompt-over-budget",
+      queryId: queryIdByTaskId.get(t.taskId)!,
+      reason: `${role} call reported prompt_tokens ${t.inputTokens}, at or over PROMPT_TOKENS_TRUNCATION_LIMIT (${PROMPT_TOKENS_TRUNCATION_LIMIT}) -- the model silently truncated the prompt`,
+    });
+  }
+}
+
 export async function runCollaborativeBattery(
   args: RunCollaborativeBatteryArgs,
 ): Promise<CollaborativeRunRecord> {
@@ -1533,6 +1564,12 @@ export async function runCollaborativeBattery(
         ...args.runOpts,
         artifactDir: builderArtifactDir,
       });
+      // Phase 23-08 point 4: a builder call whose provider-reported prompt
+      // size reached the truncation limit produced output the model never
+      // saw the whole prompt for -- its artifact is untrusted and the task
+      // is THIS query's miss (the step-4 read below skips it, so the kind
+      // is never overwritten by artifact-absent).
+      recordTruncatedPromptMisses(builderRun.tasks, args.tasks, failedOutcomeByTaskId, "builder");
     }
 
     // 4. Hash at handoff -- the runner hashes, never the builder. A task whose
@@ -1716,6 +1753,13 @@ export async function runCollaborativeBattery(
         ...args.runOpts,
         artifactDir: answererArtifactDir,
       });
+  // Phase 23-08 point 4, answerer side of the same tripwire. Structurally
+  // the answerer prompt is bounded (<= MAX_SUBGRAPH_NODES nodes +
+  // MAX_SUBGRAPH_EDGES edges), so this only ever fires on tokenizer drift.
+  // Like a verify-at-read failure, an affected task's handoff record is
+  // dropped by the outcome loop below -- existing precedent, and hit@1 is
+  // an honest 0 rather than a score parsed from a truncated call.
+  recordTruncatedPromptMisses(answererRun.tasks, args.tasks, failedOutcomeByTaskId, "answerer");
 
   // 7/8/9. Ranked list -> predDict (CD-01) -> bridge score -> outcome. Tasks
   // that already failed at handoff are recorded here too, with hit1 = 0 and

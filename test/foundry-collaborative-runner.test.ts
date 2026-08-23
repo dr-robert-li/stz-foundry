@@ -37,6 +37,7 @@ import {
   NEIGHBORHOOD_MAX_NODES,
   NEIGHBORHOOD_MAX_RENDERED_EDGES,
   BUILDER_PROMPT_MAX_CHARS,
+  PROMPT_TOKENS_TRUNCATION_LIMIT,
   renderNeighbourhoodLines,
   buildBuilderTaskPrompt,
   NEIGHBORHOOD_MAX_BUFFER_BYTES,
@@ -2337,5 +2338,75 @@ describe("builder-prompt-over-budget is a per-task miss, never a battery crash (
       }),
     );
     expect(record.outcomes.find((o) => o.queryId === 1002)!.handoffOutcome.kind).toBe("builder-prompt-over-budget");
+  });
+});
+
+describe("prompt_tokens truncation tripwire -- Phase 23-08 point 4", () => {
+  /** Wraps the standard provider double so chosen (role, queryId) calls
+   *  report an over-limit prompt_tokens, exactly what ollama's usage block
+   *  shows AFTER it silently truncated the prompt. */
+  function withReportedPromptTokens(
+    inner: Provider,
+    tokensFor: (system: string, queryId: number) => number,
+  ): Provider {
+    return {
+      ...inner,
+      async chat(req: ChatRequest): Promise<ChatResponse> {
+        const res = await inner.chat(req);
+        const queryId = Number((req.messages[0]?.content ?? "").match(/QUERY_ID: (\d+)/)?.[1] ?? NaN);
+        return { ...res, usage: { ...res.usage, inputTokens: tokensFor(req.system ?? "", queryId) } };
+      },
+    };
+  }
+
+  it("a builder call reporting over-limit prompt_tokens becomes that task's builder-prompt-over-budget miss; the other task survives", async () => {
+    const { provider } = makeProvider({ 1001: [11], 1002: [21] });
+    const wrapped = withReportedPromptTokens(provider, (system, queryId) =>
+      system.includes("BUILDER-ROLE") && queryId === 1002 ? PROMPT_TOKENS_TRUNCATION_LIMIT : 1234,
+    );
+    const record = await runCollaborativeBattery(
+      baseArgs({ execFn: makeExecFn({ 1001: 1 }), runOpts: { providerImpl: wrapped } }),
+    );
+    expect(record.outcomes).toHaveLength(2);
+    const truncated = record.outcomes.find((o) => o.queryId === 1002)!;
+    expect(truncated.handoffOutcome.kind).toBe("builder-prompt-over-budget");
+    expect(truncated.hit1).toBe(0);
+    if (truncated.handoffOutcome.kind === "builder-prompt-over-budget") {
+      expect(truncated.handoffOutcome.reason).toContain("builder call reported prompt_tokens");
+    }
+    const ok = record.outcomes.find((o) => o.queryId === 1001)!;
+    expect(ok.handoffOutcome.kind).toBe("success");
+    expect(ok.hit1).toBe(1);
+    // The surfaced usage is visible on the run itself.
+    expect(record.builderRun!.tasks.find((t) => t.taskId === "task-a")!.inputTokens).toBe(1234);
+  });
+
+  it("an answerer call reporting over-limit prompt_tokens is the same miss -- its parsed answer is never scored as real", async () => {
+    const { provider } = makeProvider({ 1001: [11], 1002: [21] });
+    const wrapped = withReportedPromptTokens(provider, (system, queryId) =>
+      system.includes("ANSWERER-ROLE") && queryId === 1002 ? PROMPT_TOKENS_TRUNCATION_LIMIT + 5 : 999,
+    );
+    const record = await runCollaborativeBattery(
+      baseArgs({ execFn: makeExecFn({ 1001: 1, 1002: 1 }), runOpts: { providerImpl: wrapped } }),
+    );
+    const truncated = record.outcomes.find((o) => o.queryId === 1002)!;
+    expect(truncated.handoffOutcome.kind).toBe("builder-prompt-over-budget");
+    expect(truncated.hit1).toBe(0);
+    if (truncated.handoffOutcome.kind === "builder-prompt-over-budget") {
+      expect(truncated.handoffOutcome.reason).toContain("answerer call reported prompt_tokens");
+    }
+    expect(record.outcomes.find((o) => o.queryId === 1001)!.hit1).toBe(1);
+  });
+
+  it("under-limit usage changes nothing -- both tasks score normally", async () => {
+    const { provider } = makeProvider({ 1001: [11], 1002: [21] });
+    const wrapped = withReportedPromptTokens(provider, () => PROMPT_TOKENS_TRUNCATION_LIMIT - 1);
+    const record = await runCollaborativeBattery(
+      baseArgs({ execFn: makeExecFn({ 1001: 1, 1002: 1 }), runOpts: { providerImpl: wrapped } }),
+    );
+    for (const o of record.outcomes) {
+      expect(o.handoffOutcome.kind).toBe("success");
+      expect(o.hit1).toBe(1);
+    }
   });
 });

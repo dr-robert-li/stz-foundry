@@ -53,6 +53,12 @@ export interface BatteryTaskResult {
   status: "ok" | "timeout" | "error";
   failureReason: string | null;
   receipt: OracleReceipt;
+  /** Provider-reported prompt size (`usage.prompt_tokens` /
+   *  `input_tokens`) for this task's chat call, when the call completed.
+   *  Phase 23-08: surfaced so a caller can detect a prompt the model
+   *  silently truncated (ollama keeps first 4 + last 65,534 tokens and
+   *  says nothing in-band). Absent for a task whose call never returned. */
+  inputTokens?: number;
 }
 
 /**
@@ -371,6 +377,8 @@ export async function runAgentBattery(
   // Safe under any concurrency: each task id is written exactly once, by the
   // worker that owns it.
   const rawResponses = new Map<string, string>();
+  // Phase 23-08: provider-reported prompt sizes, keyed like rawResponses.
+  const promptTokensByStrategy = new Map<string, number>();
 
   // `Specimen`-shaped adapter (RESEARCH "Reusing spawnSpecimens", option 1a):
   // here `strategy` IS the battery task id, and `specimen` is the candidate
@@ -409,6 +417,7 @@ export async function runAgentBattery(
         opts.costMeter.add("battery", providerSelection.model, res.usage, candidateAgent.id);
       }
       rawResponses.set(strategy, res.text);
+      promptTokensByStrategy.set(strategy, res.usage.inputTokens);
       const files = parseArtifactsForTask(res.text, task);
       // An escaping key throws here — uncaught, converted by spawnSpecimens's
       // existing catch into an attributable `status: "error"` record with the
@@ -484,6 +493,9 @@ export async function runAgentBattery(
       status: "ok",
       failureReason: null,
       receipt: battery.receipt,
+      ...(promptTokensByStrategy.has(record.strategy)
+        ? { inputTokens: promptTokensByStrategy.get(record.strategy)! }
+        : {}),
     };
   });
 
