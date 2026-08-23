@@ -938,6 +938,20 @@ export function mintCollaborativeReceipt(): OracleReceipt {
 
 // ── the run ──────────────────────────────────────────────────────────────
 
+/**
+ * D-05: the two arms `runCollaborativeBattery` can run. `"graph"` is the
+ * default and is byte-compatible with Phase 22's shipped behaviour --
+ * builder pass, neighbourhood extraction, hash-at-handoff and
+ * verify-at-read all run as before. `"no-subgraph"` is §7's pre-registered
+ * null control: the builder pass, every neighbourhood-extraction call and
+ * the handoff steps are skipped entirely, and the SAME exported
+ * `buildAnswererTaskPrompt` renders the answerer prompt from an empty
+ * synthetic artifact and an empty synthetic neighbourhood, so equal
+ * treatment between the two arms holds by construction -- one code path,
+ * never two.
+ */
+export type CollaborativeArm = "graph" | "no-subgraph";
+
 export interface CollaborativeTaskOutcome {
   queryId: number;
   /** The named, fail-closed outcome (D-03/D-08): `"success"` when the
@@ -957,15 +971,24 @@ export interface CollaborativeTaskOutcome {
 
 export interface CollaborativeRunRecord {
   candidateId: SpecimenId;
-  builderBattery: AgentBattery;
+  /** Absent exactly when the run used the no-subgraph condition (D-05) --
+   *  no builder pass happened, and a run that did not happen is never
+   *  fabricated into the record. Present under the graph condition. */
+  builderBattery?: AgentBattery;
   answererBattery: AgentBattery;
-  builderRun: BatteryRun;
+  /** Absent exactly when the run used the no-subgraph condition (D-05) --
+   *  see `builderBattery`'s doc comment above; the two fields are absent or
+   *  present together. */
+  builderRun?: BatteryRun;
   /** The driver's own answerer result -- diagnostics only (D-09 Pitfall 1). */
   answererRun: BatteryRun;
   /** The adapter fitness handed to selection/promotion (D-09). */
   fitnessRun: BatteryRun;
   attempts: ScoringAttempt[];
   outcomes: CollaborativeTaskOutcome[];
+  /** Empty under the no-subgraph condition (D-05) -- no handoff occurred,
+   *  so no `HandoffRecord` is fabricated for it; populated under the graph
+   *  condition exactly as before. */
   handoffRecords: HandoffRecord[];
   preflight: PreflightReport;
 }
@@ -976,6 +999,10 @@ export interface RunCollaborativeBatteryArgs {
   batteryIdPrefix: string;
   receipt: OracleReceipt;
   gateThreshold: number;
+  /** D-05: which arm this run takes. Defaults to `"graph"`, byte-compatible
+   *  with Phase 22's shipped behaviour -- omitting this field or passing
+   *  `"graph"` explicitly produce identical behaviour. */
+  arm?: CollaborativeArm;
   artifactDir: string;
   scoringOutputDir: string;
   kbNeighborhoodFn: KbNeighborhoodFn;
@@ -1077,8 +1104,13 @@ function buildBuilderTaskPrompt(
  * neighbourhood, never from builder-authored text -- the artifact only ever
  * supplies ids (enforced structurally by `parseSubgraphArtifact`'s type
  * checks, which reject anything but numbers in `nodes`/`edges`).
+ *
+ * D-05: both the graph and no-subgraph arms call this SAME function -- the
+ * no-subgraph condition supplies an artifact with empty `nodes`/`edges`
+ * arrays together with an empty neighbourhood, so the two renders differ
+ * only inside the subgraph block below, never in the surrounding template.
  */
-function buildAnswererTaskPrompt(
+export function buildAnswererTaskPrompt(
   task: CollaborativeBatteryTask,
   artifact: SubgraphArtifactV1,
   nb: KbNeighborhood,
@@ -1192,6 +1224,12 @@ export async function runCollaborativeBattery(
     assertSafeTaskId(task.id);
   }
 
+  // D-05: resolve the arm once, here -- after both refusals above so they
+  // apply identically to both arms, and before the preflight so the
+  // preflight itself stays unconditional (D-11's per-call preflight record
+  // is unchanged by which arm runs).
+  const arm: CollaborativeArm = args.arm ?? "graph";
+
   // 1. Preflight once (D-11), before any provider call and before the
   // builder battery is minted.
   const preflightArgs = {
@@ -1208,103 +1246,150 @@ export async function runCollaborativeBattery(
   const record = requireCollaborativeAdmitted("stark-prime");
   const kbRevision = record.revisionSha;
 
-  const neighbourhoodByTask = new Map<string, KbNeighborhood>();
-  for (const task of args.tasks) {
-    neighbourhoodByTask.set(task.id, args.kbNeighborhoodFn(task.queryId));
-  }
-
-  // 2/3. Builder battery + pass 1.
-  const builderTasks: BatteryTask[] = args.tasks.map((task) => ({
-    id: task.id,
-    prompt: buildBuilderTaskPrompt(task, neighbourhoodByTask.get(task.id)!, kbRevision),
-    checks: [
-      {
-        checkId: "subgraph-artifact-present",
-        kind: "file-invariant",
-        input: SUBGRAPH_ARTIFACT_REL_PATH,
-        expect: "true",
-        description: "the builder emitted a subgraph artifact at the expected path",
-      },
-    ],
-  }));
-  const builderBattery = makeBattery({
-    id: `${args.batteryIdPrefix}:builder`,
-    tasks: builderTasks,
-    receipt: args.receipt,
-  });
-  const builderArtifactDir = join(args.artifactDir, "builder");
-  const builderCandidate: CandidateAgent = { id: args.candidate.id, systemPrompt: args.candidate.builderPrompt };
-  const builderRun = await runAgentBattery(builderCandidate, builderBattery, {
-    ...args.runOpts,
-    artifactDir: builderArtifactDir,
-  });
-
-  // 4. Hash at handoff -- the runner hashes, never the builder. A task whose
-  // artifact is absent, unparseable, or schema-invalid gets its outcome
-  // recorded here and never proceeds to verify-at-read or the answerer pass
-  // (D-03: no scoring call is ever made for a structurally invalid subgraph).
+  // D-05: the arm branch is confined to exactly the region that produces
+  // the per-task answerer prompt and the per-task handoff outcome (steps
+  // 2-5 below) -- everything from the answerer battery mint onward (step 6
+  // and after) is shared, unconditional code for both arms. The branch
+  // lives here, as an internal conditional, rather than in a second module,
+  // because the runner's import set is pinned by an exact-equality boundary
+  // test (`PINNED_RUNNER_IMPORT_ALLOWLIST`) and a separate null-arm module
+  // would need its own import set and its own prompt-parity proof. This
+  // branch adds no import.
+  let builderBattery: AgentBattery | undefined;
+  let builderRun: BatteryRun | undefined;
   const handoffRecordByTaskId = new Map<string, HandoffRecord>();
   const failedOutcomeByTaskId = new Map<string, HandoffOutcome>();
-
-  for (const task of args.tasks) {
-    const artifactPath = join(builderArtifactDir, task.id, SUBGRAPH_ARTIFACT_REL_PATH);
-    const read = readSubgraphArtifact(artifactPath);
-    if (read.status === "absent") {
-      failedOutcomeByTaskId.set(task.id, { kind: "artifact-absent", path: artifactPath });
-      continue;
-    }
-    if (read.status === "unreadable") {
-      failedOutcomeByTaskId.set(task.id, { kind: "artifact-unreadable", path: artifactPath, code: read.code });
-      continue;
-    }
-    if (read.status === "unparseable") {
-      failedOutcomeByTaskId.set(task.id, { kind: "unparseable", reason: read.reason, path: artifactPath });
-      continue;
-    }
-    const schemaResult = parseSubgraphArtifact(read.value);
-    if (!schemaResult.ok) {
-      failedOutcomeByTaskId.set(task.id, { kind: "schema-invalid", violation: schemaResult.violation });
-      continue;
-    }
-    // CD-05 (D-07): checked immediately after schema validation, before any
-    // answerer prompt is composed from the artifact.
-    const cd05 = validateSubgraphAgainstNeighborhood(schemaResult.artifact, neighbourhoodByTask.get(task.id)!);
-    if (!cd05.ok) {
-      failedOutcomeByTaskId.set(task.id, { kind: "cd05-violation", violation: cd05.violation });
-      continue;
-    }
-    handoffRecordByTaskId.set(task.id, {
-      queryId: task.queryId,
-      attemptId: randomUUID(),
-      definitionHash: args.candidate.id,
-      kbRevision: schemaResult.artifact.kbRevision,
-      artifactPath,
-      artifactSha256: read.sha256,
-      // WR-05: D-05's canonical hash gains its production call site here --
-      // recorded BESIDE the raw-bytes artifactSha256 above, never in place
-      // of it (FA-A/see hashSubgraphArtifact's doc comment).
-      canonicalSha256: hashSubgraphArtifact(schemaResult.artifact),
-    });
-  }
-
-  // 5. Verify at read, then render the answerer's prompt from verified ids
-  // joined against the SAME pre-extracted neighbourhood (D-06). Only tasks
-  // that survived step 4 are attempted here -- a task already failed never
-  // reaches verify-at-read, let alone the answerer pass or the bridge.
   const answererPromptByTask = new Map<string, string>();
   const verifiedArtifactByTask = new Map<string, SubgraphArtifactV1>();
-  for (const task of args.tasks) {
-    if (failedOutcomeByTaskId.has(task.id)) continue;
-    const verify = verifyHandoffAtRead(task.queryId, handoffRecordByTaskId.get(task.id));
-    if (verify.kind !== "success") {
-      failedOutcomeByTaskId.set(task.id, verify);
-      continue;
+
+  if (arm === "graph") {
+    const neighbourhoodByTask = new Map<string, KbNeighborhood>();
+    for (const task of args.tasks) {
+      neighbourhoodByTask.set(task.id, args.kbNeighborhoodFn(task.queryId));
     }
-    verifiedArtifactByTask.set(task.id, verify.artifact);
-    answererPromptByTask.set(
-      task.id,
-      buildAnswererTaskPrompt(task, verify.artifact, neighbourhoodByTask.get(task.id)!),
-    );
+
+    // 2/3. Builder battery + pass 1.
+    const builderTasks: BatteryTask[] = args.tasks.map((task) => ({
+      id: task.id,
+      prompt: buildBuilderTaskPrompt(task, neighbourhoodByTask.get(task.id)!, kbRevision),
+      checks: [
+        {
+          checkId: "subgraph-artifact-present",
+          kind: "file-invariant",
+          input: SUBGRAPH_ARTIFACT_REL_PATH,
+          expect: "true",
+          description: "the builder emitted a subgraph artifact at the expected path",
+        },
+      ],
+    }));
+    builderBattery = makeBattery({
+      id: `${args.batteryIdPrefix}:builder`,
+      tasks: builderTasks,
+      receipt: args.receipt,
+    });
+    const builderArtifactDir = join(args.artifactDir, "builder");
+    const builderCandidate: CandidateAgent = { id: args.candidate.id, systemPrompt: args.candidate.builderPrompt };
+    builderRun = await runAgentBattery(builderCandidate, builderBattery, {
+      ...args.runOpts,
+      artifactDir: builderArtifactDir,
+    });
+
+    // 4. Hash at handoff -- the runner hashes, never the builder. A task whose
+    // artifact is absent, unparseable, or schema-invalid gets its outcome
+    // recorded here and never proceeds to verify-at-read or the answerer pass
+    // (D-03: no scoring call is ever made for a structurally invalid subgraph).
+    for (const task of args.tasks) {
+      const artifactPath = join(builderArtifactDir, task.id, SUBGRAPH_ARTIFACT_REL_PATH);
+      const read = readSubgraphArtifact(artifactPath);
+      if (read.status === "absent") {
+        failedOutcomeByTaskId.set(task.id, { kind: "artifact-absent", path: artifactPath });
+        continue;
+      }
+      if (read.status === "unreadable") {
+        failedOutcomeByTaskId.set(task.id, { kind: "artifact-unreadable", path: artifactPath, code: read.code });
+        continue;
+      }
+      if (read.status === "unparseable") {
+        failedOutcomeByTaskId.set(task.id, { kind: "unparseable", reason: read.reason, path: artifactPath });
+        continue;
+      }
+      const schemaResult = parseSubgraphArtifact(read.value);
+      if (!schemaResult.ok) {
+        failedOutcomeByTaskId.set(task.id, { kind: "schema-invalid", violation: schemaResult.violation });
+        continue;
+      }
+      // CD-05 (D-07): checked immediately after schema validation, before any
+      // answerer prompt is composed from the artifact.
+      const cd05 = validateSubgraphAgainstNeighborhood(schemaResult.artifact, neighbourhoodByTask.get(task.id)!);
+      if (!cd05.ok) {
+        failedOutcomeByTaskId.set(task.id, { kind: "cd05-violation", violation: cd05.violation });
+        continue;
+      }
+      handoffRecordByTaskId.set(task.id, {
+        queryId: task.queryId,
+        attemptId: randomUUID(),
+        definitionHash: args.candidate.id,
+        kbRevision: schemaResult.artifact.kbRevision,
+        artifactPath,
+        artifactSha256: read.sha256,
+        // WR-05: D-05's canonical hash gains its production call site here --
+        // recorded BESIDE the raw-bytes artifactSha256 above, never in place
+        // of it (FA-A/see hashSubgraphArtifact's doc comment).
+        canonicalSha256: hashSubgraphArtifact(schemaResult.artifact),
+      });
+    }
+
+    // 5. Verify at read, then render the answerer's prompt from verified ids
+    // joined against the SAME pre-extracted neighbourhood (D-06). Only tasks
+    // that survived step 4 are attempted here -- a task already failed never
+    // reaches verify-at-read, let alone the answerer pass or the bridge.
+    for (const task of args.tasks) {
+      if (failedOutcomeByTaskId.has(task.id)) continue;
+      const verify = verifyHandoffAtRead(task.queryId, handoffRecordByTaskId.get(task.id));
+      if (verify.kind !== "success") {
+        failedOutcomeByTaskId.set(task.id, verify);
+        continue;
+      }
+      verifiedArtifactByTask.set(task.id, verify.artifact);
+      answererPromptByTask.set(
+        task.id,
+        buildAnswererTaskPrompt(task, verify.artifact, neighbourhoodByTask.get(task.id)!),
+      );
+    }
+  } else {
+    // D-05 no-subgraph condition: §7's pre-registered null control. No
+    // builder pass, no neighbourhood-extraction call, no artifact write or
+    // read, no hash-at-handoff or verify-at-read step. Each task's answerer
+    // prompt is rendered by the SAME exported `buildAnswererTaskPrompt`
+    // renderer, given a synthetic artifact with empty `nodes`/`edges` and a
+    // synthetic neighbourhood with empty seeds/nodes/edges/relationNames, so
+    // the render differs from the graph arm only inside the subgraph block.
+    // The per-task handoff outcome is recorded as the success member
+    // carrying that synthetic artifact, so the outcome shape below is
+    // identical to the graph condition's -- but `handoffRecordByTaskId`
+    // stays empty for this arm: no handoff occurred, and a run that did not
+    // happen is never fabricated into the record.
+    for (const task of args.tasks) {
+      const syntheticArtifact: SubgraphArtifactV1 = {
+        schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+        queryId: task.queryId,
+        kbRevision,
+        nodes: [],
+        edges: [],
+      };
+      const syntheticNeighbourhood: KbNeighborhood = {
+        queryId: task.queryId,
+        seeds: [],
+        nodes: [],
+        edges: [],
+        relationNames: {},
+      };
+      verifiedArtifactByTask.set(task.id, syntheticArtifact);
+      answererPromptByTask.set(
+        task.id,
+        buildAnswererTaskPrompt(task, syntheticArtifact, syntheticNeighbourhood),
+      );
+    }
   }
 
   const survivingTasks = args.tasks.filter((task) => !failedOutcomeByTaskId.has(task.id));
@@ -1360,8 +1445,12 @@ export async function runCollaborativeBattery(
       outcomes.push({ queryId: task.queryId, handoffOutcome: failedOutcome, hit1: 0, diagnostics: {} });
       continue;
     }
-    const handoffRecord = handoffRecordByTaskId.get(task.id)!;
-    handoffRecords.push(handoffRecord);
+    // D-05: under the no-subgraph condition no handoff record exists for
+    // this task (handoffRecordByTaskId stays empty for that arm) -- pushed
+    // only when one is present, so `handoffRecords` stays empty for that
+    // arm too, never a fabricated entry for a handoff that never happened.
+    const handoffRecord = handoffRecordByTaskId.get(task.id);
+    if (handoffRecord) handoffRecords.push(handoffRecord);
 
     const answerPath = join(answererArtifactDir, task.id, ANSWER_ARTIFACT_REL_PATH);
     let rawList: unknown[] = [];

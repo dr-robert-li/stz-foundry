@@ -36,6 +36,7 @@ import {
   NEIGHBORHOOD_MAX_NODES,
   type CollaborativeCandidate,
   type KbNeighborhood,
+  type KbNeighborhoodFn,
   type RunCollaborativeBatteryArgs,
   type SubgraphArtifactV1,
   type HandoffOutcome,
@@ -324,7 +325,8 @@ describe("runCollaborativeBattery — end to end, offline (Task 2)", () => {
     // that was passed in, and the fitness run's receipt is the SAME object
     // as the answerer battery's own — the identity `promoteComponentWinner`'s
     // frozen `provenanceOk` gate actually requires.
-    expect(record.builderBattery.receipt).toEqual(receipt);
+    expect(record.builderBattery).toBeDefined();
+    expect(record.builderBattery!.receipt).toEqual(receipt);
     expect(record.answererBattery.receipt).toEqual(receipt);
     expect(Object.is(record.fitnessRun.receipt, record.answererBattery.receipt)).toBe(true);
   });
@@ -1405,6 +1407,116 @@ describe("runCollaborativeBattery — D-11 preflight cadence (Plan 22-02 Task 3)
     );
     expect(err.message).toContain("tasks is empty");
     expect(preflightCalls).toBe(0);
+  });
+});
+
+// ── D-05: no-subgraph condition (Plan 23-02 Task 1) ─────────────────────
+
+describe("runCollaborativeBattery — D-05 no-subgraph condition (Plan 23-02 Task 1)", () => {
+  const ONE_TASK: CollaborativeBatteryTask[] = [
+    { id: "task-a", queryId: 1001, prompt: "Which entity does this describe (task A)?" },
+  ];
+
+  function neighbourhoodSpy(): { fn: KbNeighborhoodFn; callCount: () => number } {
+    let calls = 0;
+    return {
+      fn: (queryId: number) => {
+        calls++;
+        return kbNeighborhoodFn(queryId);
+      },
+      callCount: () => calls,
+    };
+  }
+
+  it("a one-task no-subgraph run returns a run record with one outcome carrying the same field set as a graph-condition outcome", async () => {
+    const { provider: noSubgraphProvider } = makeProvider({ 1001: [11] });
+    const noSubgraphRecord = await runCollaborativeBattery(
+      baseArgs({
+        tasks: ONE_TASK,
+        arm: "no-subgraph",
+        execFn: makeExecFn({ 1001: 1 }),
+        runOpts: { providerImpl: noSubgraphProvider },
+      }),
+    );
+    const { provider: graphProvider } = makeProvider({ 1001: [11] });
+    const graphRecord = await runCollaborativeBattery(
+      baseArgs({
+        tasks: ONE_TASK,
+        arm: "graph",
+        execFn: makeExecFn({ 1001: 1 }),
+        runOpts: { providerImpl: graphProvider },
+      }),
+    );
+    expect(noSubgraphRecord.outcomes).toHaveLength(1);
+    expect(graphRecord.outcomes).toHaveLength(1);
+    expect(Object.keys(noSubgraphRecord.outcomes[0]!).sort()).toEqual(
+      Object.keys(graphRecord.outcomes[0]!).sort(),
+    );
+  });
+
+  it("calls the injected neighbourhood function zero times under the no-subgraph condition", async () => {
+    const { provider } = makeProvider({ 1001: [11] });
+    const spy = neighbourhoodSpy();
+    await runCollaborativeBattery(
+      baseArgs({
+        tasks: ONE_TASK,
+        arm: "no-subgraph",
+        kbNeighborhoodFn: spy.fn,
+        execFn: makeExecFn({ 1001: 1 }),
+        runOpts: { providerImpl: provider },
+      }),
+    );
+    expect(spy.callCount()).toBe(0);
+  });
+
+  it("makes exactly one provider battery call under the no-subgraph condition, not two", async () => {
+    const { provider, callCount } = makeProvider({ 1001: [11] });
+    await runCollaborativeBattery(
+      baseArgs({
+        tasks: ONE_TASK,
+        arm: "no-subgraph",
+        execFn: makeExecFn({ 1001: 1 }),
+        runOpts: { providerImpl: provider },
+      }),
+    );
+    expect(callCount()).toBe(1);
+  });
+
+  it("builderRun and builderBattery are absent under the no-subgraph condition and present under the graph condition", async () => {
+    const { provider: noSubgraphProvider } = makeProvider({ 1001: [11] });
+    const noSubgraphRecord = await runCollaborativeBattery(
+      baseArgs({
+        tasks: ONE_TASK,
+        arm: "no-subgraph",
+        execFn: makeExecFn({ 1001: 1 }),
+        runOpts: { providerImpl: noSubgraphProvider },
+      }),
+    );
+    expect(noSubgraphRecord.builderBattery).toBeUndefined();
+    expect(noSubgraphRecord.builderRun).toBeUndefined();
+
+    const { provider: graphProvider } = makeProvider({ 1001: [11] });
+    const graphRecord = await runCollaborativeBattery(
+      baseArgs({
+        tasks: ONE_TASK,
+        arm: "graph",
+        execFn: makeExecFn({ 1001: 1 }),
+        runOpts: { providerImpl: graphProvider },
+      }),
+    );
+    expect(graphRecord.builderBattery).toBeDefined();
+    expect(graphRecord.builderRun).toBeDefined();
+  });
+
+  it("a zero-task no-subgraph run throws before the injected provider is called", async () => {
+    const { provider, callCount } = makeProvider({});
+    const err = await thrownAsync(() =>
+      runCollaborativeBattery(
+        baseArgs({ tasks: [], arm: "no-subgraph", runOpts: { providerImpl: provider } }),
+      ),
+    );
+    expect(err.message).toContain("tasks is empty");
+    expect(callCount()).toBe(0);
   });
 });
 
