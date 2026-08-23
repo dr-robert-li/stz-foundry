@@ -12,7 +12,8 @@
  * `.toThrow()`.
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -25,12 +26,20 @@ import {
   CollabPairsError,
   type GitShowFn,
 } from "../experiments/collab-round/_collab-pairs.js";
-import { makeCollaborativeCandidate } from "../src/foundry/collaborative-runner.js";
+import {
+  makeCollaborativeCandidate,
+  SUBGRAPH_SCHEMA_VERSION,
+  type KbNeighborhood,
+  type KbNeighborhoodFn,
+} from "../src/foundry/collaborative-runner.js";
+import type { CollaborativeBatteryTask } from "../src/foundry/collaborative-battery.js";
+import { requireCollaborativeAdmitted } from "../src/foundry/collaborative-admission.js";
 import * as CollabProbe from "../experiments/collab-round/_collab-probe.js";
 import {
   PROBE_SAMPLE_SIZE,
   probeUnitKey,
   summariseProbe,
+  classifyBuilderArtifactFailure,
   type ProbeState,
   type ProbeUnitResult,
 } from "../experiments/collab-round/_collab-probe.js";
@@ -319,6 +328,144 @@ describe("summariseProbe — pure, no filesystem access", () => {
     expect(summary.overall.wallMs).toEqual({ min: 0, median: 0, max: 0 });
     expect(summary.byPair).toEqual([]);
   });
+
+  // Regression: the 9 units checkpointed by earlier continuations of this
+  // plan (before `handoffFailureKinds` existed) carry no such key at all --
+  // never an empty array with a different meaning. `summariseProbe` must
+  // not throw or silently miscount when reading them.
+  it("tolerates units checkpointed before handoffFailureKinds existed, and tallies the field where present", () => {
+    const preDiagnosticUnit = unit({ queryId: 3, handoffOutcomeKind: "all-handoffs-failed-battery-refused" });
+    delete (preDiagnosticUnit as Partial<ProbeUnitResult>).handoffFailureKinds;
+    const state: ProbeState = {
+      units: {
+        "pair-a:1": preDiagnosticUnit,
+        "pair-a:2": unit({
+          queryId: 2,
+          handoffOutcomeKind: "all-handoffs-failed-battery-refused",
+          handoffFailureKinds: ["unparseable"],
+        }),
+      },
+      retries: [],
+    };
+    const summary = summariseProbe(state);
+    expect(summary.overall.unitCount).toBe(2);
+    expect(summary.overall.handoffFailureKindCounts).toEqual({ unparseable: 1 });
+  });
+});
+
+describe("classifyBuilderArtifactFailure — per-handoff failure diagnostics (go/no-go for Plan 08)", () => {
+  const ADMISSION_RECORD = requireCollaborativeAdmitted("stark-prime");
+  const TASK: CollaborativeBatteryTask = { id: "task-a", queryId: 97, prompt: "irrelevant to this test" };
+
+  const NEIGHBOURHOOD: KbNeighborhood = {
+    queryId: 97,
+    seeds: [1],
+    nodes: [
+      { id: 1, label: "Node One", type: "entity" },
+      { id: 2, label: "Node Two", type: "entity" },
+      { id: 3, label: "Node Three", type: "entity" },
+    ],
+    edges: [
+      [1, 2, 10],
+      [2, 3, 10],
+    ],
+    relationNames: { "10": "related_to" },
+  };
+  const kbNeighborhoodFn: KbNeighborhoodFn = () => NEIGHBOURHOOD;
+
+  function builderArtifactDir(): string {
+    return mkdtempSync(join(tmpdir(), "collab-probe-diagnostic-test-"));
+  }
+
+  function writeSubgraphFile(dir: string, contents: string): void {
+    const taskDir = join(dir, TASK.id);
+    mkdirSync(taskDir, { recursive: true });
+    writeFileSync(join(taskDir, "subgraph.json"), contents);
+  }
+
+  it("no artifact on disk -> artifact-absent", () => {
+    const dir = builderArtifactDir();
+    const { kinds, detail } = classifyBuilderArtifactFailure(dir, TASK, kbNeighborhoodFn);
+    expect(kinds).toEqual(["artifact-absent"]);
+    expect(detail).toContain("subgraph.json");
+  });
+
+  // Matches the exact scenario a scripted provider produces when the
+  // builder emits non-JSON text where the artifact is expected -- the
+  // scenario this diagnostic feature exists to distinguish from every
+  // other failure bucket.
+  it("bytes that are not JSON -> unparseable", () => {
+    const dir = builderArtifactDir();
+    writeSubgraphFile(dir, "NOT VALID JSON{{{");
+    const { kinds, detail } = classifyBuilderArtifactFailure(dir, TASK, kbNeighborhoodFn);
+    expect(kinds).toEqual(["unparseable"]);
+    expect(detail).toContain("not valid JSON");
+  });
+
+  it("a JSON value that is not an object -> unparseable", () => {
+    const dir = builderArtifactDir();
+    writeSubgraphFile(dir, "[1,2,3]");
+    const { kinds } = classifyBuilderArtifactFailure(dir, TASK, kbNeighborhoodFn);
+    expect(kinds).toEqual(["unparseable"]);
+  });
+
+  it("an artifact carrying an unknown key -> schema-invalid (mirrors the runner's own exact-key-set rejection)", () => {
+    const dir = builderArtifactDir();
+    writeSubgraphFile(
+      dir,
+      JSON.stringify({
+        schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+        queryId: 97,
+        kbRevision: ADMISSION_RECORD.revisionSha,
+        nodes: [1, 2, 3],
+        edges: [[1, 2, 10]],
+        extra: "smuggled free text",
+      }),
+    );
+    const { kinds, detail } = classifyBuilderArtifactFailure(dir, TASK, kbNeighborhoodFn);
+    expect(kinds).toEqual(["schema-invalid"]);
+    expect(detail).toContain("extra");
+  });
+
+  it("a well-formed artifact naming a node outside the neighbourhood -> cd05-violation", () => {
+    const dir = builderArtifactDir();
+    writeSubgraphFile(
+      dir,
+      JSON.stringify({
+        schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+        queryId: 97,
+        kbRevision: ADMISSION_RECORD.revisionSha,
+        nodes: [1, 2, 999],
+        edges: [
+          [1, 2, 10],
+          [2, 999, 10],
+        ],
+      }),
+    );
+    const { kinds, detail } = classifyBuilderArtifactFailure(dir, TASK, kbNeighborhoodFn);
+    expect(kinds).toEqual(["cd05-violation"]);
+    expect(detail).toContain("outside-neighborhood");
+  });
+
+  it("a well-formed, CD-05-valid artifact still reaching this classifier lands in the honest fallback bucket, never a guess", () => {
+    const dir = builderArtifactDir();
+    writeSubgraphFile(
+      dir,
+      JSON.stringify({
+        schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+        queryId: 97,
+        kbRevision: ADMISSION_RECORD.revisionSha,
+        nodes: [1, 2, 3],
+        edges: [
+          [1, 2, 10],
+          [2, 3, 10],
+        ],
+      }),
+    );
+    const { kinds, detail } = classifyBuilderArtifactFailure(dir, TASK, kbNeighborhoodFn);
+    expect(kinds).toEqual(["schema-and-cd05-valid-but-battery-refused"]);
+    expect(detail).toContain("verify-at-read");
+  });
 });
 
 describe("_collab-probe.ts source-text guards", () => {
@@ -412,6 +559,22 @@ describe("_collab-probe.ts source-text guards", () => {
     // The synthesized unit result must never fabricate a preflight figure
     // that was never actually observed once the throw ate the record.
     expect(probeSourceText).toContain("preflightWarmUpWallMs: null");
+  });
+
+  // Diagnostic capture (Phase 23 Plan 06 continuation #3): the
+  // battery-refused catch above must call `classifyBuilderArtifactFailure`
+  // (behaviorally verified against real bytes on disk in the
+  // "classifyBuilderArtifactFailure" describe block above) and thread its
+  // result onto the returned unit, never leaving the eight (and counting)
+  // "all-handoffs-failed-battery-refused" misses opaque.
+  it("wires classifyBuilderArtifactFailure into the battery-refused catch and threads its result onto the unit", () => {
+    const boundaryCheckIdx = probeSourceText.indexOf("e instanceof BatteryShapeError");
+    const classifyCallIdx = probeSourceText.indexOf("classifyBuilderArtifactFailure(");
+    const returnIdx = probeSourceText.indexOf("handoffOutcomeKind: \"all-handoffs-failed-battery-refused\"");
+    expect(classifyCallIdx).toBeGreaterThan(boundaryCheckIdx);
+    expect(returnIdx).toBeGreaterThan(classifyCallIdx);
+    expect(probeSourceText).toContain("handoffFailureKinds: kinds");
+    expect(probeSourceText).toContain("handoffFailureDetail: detail");
   });
 
   // Regression for the launch-4 crash (2026-08-23): query 1384's builder

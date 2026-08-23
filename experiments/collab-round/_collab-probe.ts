@@ -46,7 +46,7 @@
  * exported pure functions directly.
  */
 import { execSync } from "node:child_process";
-import { readFileSync, renameSync, writeFileSync, mkdtempSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -54,9 +54,11 @@ import {
   runCollaborativeBattery,
   mintCollaborativeReceipt,
   makeDefaultKbNeighborhoodFn,
+  validateSubgraphAgainstNeighborhood,
   CollaborativeRunnerError,
   type KbNeighborhood,
   type KbNeighborhoodFn,
+  type SubgraphArtifactV1,
 } from "../../src/foundry/collaborative-runner.js";
 import { buildCollaborativeBattery, type CollaborativeBatteryTask } from "../../src/foundry/collaborative-battery.js";
 import {
@@ -131,6 +133,17 @@ export interface ProbeUnitResult {
    *  (structural-validity evidence); `null` on any handoff failure. */
   nodeCount: number | null;
   edgeCount: number | null;
+  /** Diagnostic for Plan 08's go/no-go: what actually went wrong on a
+   *  failure. Empty on success. Optional -- units checkpointed before this
+   *  field existed have no key at all, never an empty array with different
+   *  meaning; `summariseGroup` below reads `?? []`. See
+   *  `classifyBuilderArtifactFailure`'s own doc comment for what this can
+   *  and cannot distinguish. */
+  handoffFailureKinds?: string[];
+  /** First violation string for the classified failure, or `null` when
+   *  none was recoverable (or the unit succeeded). Optional for the same
+   *  pre-existing-checkpoint reason as `handoffFailureKinds`. */
+  handoffFailureDetail?: string | null;
 }
 
 export interface ProbeState {
@@ -197,6 +210,12 @@ export interface ProbeGroupSummary {
    *  rule) -- the reader divides, this file never rounds it for them. */
   structuralValidity: { successCount: number; totalCount: number };
   wallMs: ProbeOrderStats;
+  /** Tally of `handoffFailureKinds` across every unit in the group (a unit
+   *  contributes to at most one key today -- `handoffFailureKinds` is
+   *  always 0 or 1 elements long as this file constructs it, never
+   *  double-counted). Absent on pre-diagnostic checkpointed units, which
+   *  contribute nothing here (not a fabricated "unknown" bucket). */
+  handoffFailureKindCounts: Record<string, number>;
 }
 
 export interface ProbePairSummary extends ProbeGroupSummary {
@@ -219,16 +238,22 @@ function orderStats(values: number[]): ProbeOrderStats {
 
 function summariseGroup(units: ProbeUnitResult[]): ProbeGroupSummary {
   const outcomeCounts: Record<string, number> = {};
+  const handoffFailureKindCounts: Record<string, number> = {};
   let successCount = 0;
   for (const u of units) {
     outcomeCounts[u.handoffOutcomeKind] = (outcomeCounts[u.handoffOutcomeKind] ?? 0) + 1;
     if (u.handoffOutcomeKind === "success") successCount++;
+    // `?? []` tolerates units checkpointed before this field existed.
+    for (const kind of u.handoffFailureKinds ?? []) {
+      handoffFailureKindCounts[kind] = (handoffFailureKindCounts[kind] ?? 0) + 1;
+    }
   }
   return {
     unitCount: units.length,
     outcomeCounts,
     structuralValidity: { successCount, totalCount: units.length },
     wallMs: orderStats(units.map((u) => u.wallMs)),
+    handoffFailureKindCounts,
   };
 }
 
@@ -278,6 +303,12 @@ async function runOneUnit(
   kbNeighborhoodFn: KbNeighborhoodFn,
 ): Promise<ProbeUnitResult> {
   const startedAt = Date.now();
+  // Hoisted out of the call's inline options object so the catch below can
+  // read the builder's own artifact directory after a battery refusal --
+  // `runCollaborativeBattery` writes (or fails to write) the builder's
+  // subgraph artifact here BEFORE the zero-task refusal can ever fire, so
+  // the directory is populated by the time any catch branch runs.
+  const artifactDir = mkdtempSync(join(tmpdir(), "collab-probe-artifact-"));
   try {
     const record = await runCollaborativeBattery({
       candidate: pair.candidate,
@@ -285,7 +316,7 @@ async function runOneUnit(
       batteryIdPrefix: `collab-probe:${pair.candidate.id}`,
       receipt: mintCollaborativeReceipt(),
       gateThreshold: PROBE_GATE_THRESHOLD,
-      artifactDir: mkdtempSync(join(tmpdir(), "collab-probe-artifact-")),
+      artifactDir,
       scoringOutputDir: mkdtempSync(join(tmpdir(), "collab-probe-scoring-")),
       kbNeighborhoodFn,
       poolManifest: POOL_MANIFEST,
@@ -328,6 +359,8 @@ async function runOneUnit(
       hit1: outcome.hit1,
       nodeCount,
       edgeCount,
+      handoffFailureKinds: outcome.handoffOutcome.kind === "success" ? [] : [outcome.handoffOutcome.kind],
+      handoffFailureDetail: null,
     };
   } catch (e) {
     // `runCollaborativeBattery` is called here with exactly ONE task per
@@ -346,9 +379,19 @@ async function runOneUnit(
     // still propagates and crashes the probe as it should.
     if (e instanceof BatteryShapeError && e.message.includes("has zero tasks")) {
       const wallMs = Date.now() - startedAt;
+      // Diagnostic capture (Phase 23 Plan 06 continuation #3): the runner's
+      // own real classification (`failedOutcomeByTaskId`) is a local
+      // variable, thrown away when `makeBattery` refuses -- see
+      // `classifyBuilderArtifactFailure`'s own doc comment. This reads the
+      // SAME on-disk builder artifact the runner already wrote (or did
+      // not) for this unit's one task, best-effort, so Plan 08's go/no-go
+      // is not stuck reading eight identical opaque
+      // "all-handoffs-failed-battery-refused" rows with no further detail.
+      const { kinds, detail } = classifyBuilderArtifactFailure(join(artifactDir, "builder"), task, kbNeighborhoodFn);
       console.log(
         `  [unit failed] pair=${pair.candidate.id} query=${task.queryId}: all handoffs failed for this unit ` +
-          `(runCollaborativeBattery refused a zero-task answerer battery) -- recorded as a structural-validity miss`,
+          `(runCollaborativeBattery refused a zero-task answerer battery) -- recorded as a structural-validity ` +
+          `miss, classified as ${JSON.stringify(kinds)}: ${detail}`,
       );
       return {
         pairId: pair.candidate.id,
@@ -365,6 +408,8 @@ async function runOneUnit(
         hit1: 0,
         nodeCount: null,
         edgeCount: null,
+        handoffFailureKinds: kinds,
+        handoffFailureDetail: detail,
       };
     }
     // Regression for launch attempt 4 (2026-08-23): `runCollaborativeBattery`
@@ -410,10 +455,114 @@ async function runOneUnit(
         hit1: 0,
         nodeCount: null,
         edgeCount: null,
+        // Already fully diagnosed by the narrow catch condition itself --
+        // no on-disk artifact to read (this throw fires before the builder
+        // battery is even minted), so no classifier call is needed here.
+        handoffFailureKinds: ["neighbourhood-refused"],
+        handoffFailureDetail: e.message,
       };
     }
     throw e;
   }
+}
+
+// ── per-handoff failure diagnostics (go/no-go for Plan 08) ─────────────
+//
+// Defined AFTER `runOneUnit` (not before it, and not co-located with the
+// other helpers above `runOneUnit`) so this function's own `try`/`catch`
+// (the JSON.parse guard below) never shifts the FIRST `try {` / `} catch
+// (e) {` occurrence in this file away from `runOneUnit`'s own -- the
+// existing structural regression tests in
+// `test/collab-round-pairs.test.ts` locate that boundary by the file's
+// first occurrence of each string.
+
+/**
+ * Best-effort, probe-side reconstruction of WHY a single-task
+ * `runCollaborativeBattery` call refused. D-03's own "battery-refused"
+ * boundary (see `runCollaborativeBattery`'s comment above `answererBattery`
+ * in `collaborative-runner.ts`) throws a bare `BatteryShapeError` once the
+ * answerer battery has zero surviving tasks -- the runner's real per-task
+ * classification (`failedOutcomeByTaskId`, computed a few lines earlier in
+ * the SAME function) is a local variable, never attached to the throw.
+ * Before this fix every miss in this bucket was recorded only as the
+ * opaque `"all-handoffs-failed-battery-refused"` outcome kind, with no way
+ * to tell "the model cannot produce a valid artifact with these prompts"
+ * (round is pointless) from "one structural bound is mis-tuned".
+ *
+ * Reads the SAME on-disk artifact the runner already wrote (or did not
+ * write) before throwing, at the same path the runner itself resolves
+ * (`builderArtifactDir/<taskId>/subgraph.json` -- `SUBGRAPH_ARTIFACT_REL_PATH`,
+ * a private constant one module over, duplicated here as the literal
+ * string rather than reached into), and reproduces the runner's own early
+ * checks closely enough to distinguish the buckets that matter for a
+ * go/no-go call: file absence, a parse failure, an unexpected shape
+ * (mirrors `parseSubgraphArtifact`'s exact-key-set rejection of an unknown
+ * field, D-05's smuggling-channel closure), and CD-05 structural
+ * violations -- via the runner's own exported
+ * `validateSubgraphAgainstNeighborhood`, given a freshly-fetched
+ * neighbourhood. Cheap here: `kbNeighborhoodFn` is memoised
+ * (`memoizeKbNeighborhoodFn` above) and this queryId was already fetched
+ * once inside the failed call, so this second call hits the cache.
+ *
+ * NOT exhaustive: cannot distinguish `record-absent`/`record-corrupt`/
+ * `hash-mismatch` (D-08's verify-at-read step) from a genuinely valid
+ * artifact -- those cannot fail for a same-process artifact the runner
+ * itself just wrote and read, so if a well-formed, CD-05-valid artifact
+ * still lands here, the fallback bucket says so explicitly rather than
+ * guessing at a kind this function cannot actually observe.
+ */
+export function classifyBuilderArtifactFailure(
+  builderArtifactDir: string,
+  task: CollaborativeBatteryTask,
+  kbNeighborhoodFn: KbNeighborhoodFn,
+): { kinds: string[]; detail: string } {
+  const artifactPath = join(builderArtifactDir, task.id, "subgraph.json");
+  if (!existsSync(artifactPath)) {
+    return { kinds: ["artifact-absent"], detail: `no artifact at ${artifactPath}` };
+  }
+  const raw = readFileSync(artifactPath, "utf8");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    return { kinds: ["unparseable"], detail: `not valid JSON: ${e instanceof Error ? e.message : String(e)}` };
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return { kinds: ["unparseable"], detail: "parsed JSON value is not an object" };
+  }
+  const obj = parsed as Record<string, unknown>;
+  const EXPECTED_KEYS = ["edges", "kbRevision", "nodes", "queryId", "schemaVersion"];
+  const actualKeys = Object.keys(obj).sort();
+  const shapeOk =
+    obj.schemaVersion === 1 &&
+    typeof obj.queryId === "number" &&
+    typeof obj.kbRevision === "string" &&
+    Array.isArray(obj.nodes) &&
+    Array.isArray(obj.edges) &&
+    actualKeys.length === EXPECTED_KEYS.length &&
+    EXPECTED_KEYS.every((k, i) => actualKeys[i] === k);
+  if (!shapeOk) {
+    return { kinds: ["schema-invalid"], detail: `unexpected artifact shape (keys: ${actualKeys.join(", ")})` };
+  }
+  const artifact: SubgraphArtifactV1 = {
+    schemaVersion: 1,
+    queryId: obj.queryId as number,
+    kbRevision: obj.kbRevision as string,
+    nodes: obj.nodes as number[],
+    edges: obj.edges as [number, number, number][],
+  };
+  const neighbourhood = kbNeighborhoodFn(task.queryId);
+  const cd05 = validateSubgraphAgainstNeighborhood(artifact, neighbourhood);
+  if (!cd05.ok) {
+    return { kinds: ["cd05-violation"], detail: JSON.stringify(cd05.violation) };
+  }
+  return {
+    kinds: ["schema-and-cd05-valid-but-battery-refused"],
+    detail:
+      "artifact parses, has the exact expected key set, and passes CD-05 -- the refusal must be at " +
+      "verify-at-read (record-absent/record-corrupt/hash-mismatch), which this probe-side reconstruction " +
+      "cannot distinguish without the runner's own internal HandoffRecord map",
+  };
 }
 
 // ══════════════════════════════════ main ═══════════════════════════════
