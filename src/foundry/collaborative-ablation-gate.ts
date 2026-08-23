@@ -119,11 +119,6 @@ const ALL_ABLATION_SIGN_TEST_RESULTS: Record<AblationSignTestResult, true> = {
   INDISTINGUISHABLE: true,
   UNDERPOWERED: true,
 };
-/** Stable-order discriminant list, in the order documented above -- kept so
- *  the exhaustiveness record itself is read, not merely typechecked. */
-export const ABLATION_SIGN_TEST_RESULT_KINDS: readonly AblationSignTestResult[] = Object.keys(
-  ALL_ABLATION_SIGN_TEST_RESULTS,
-) as AblationSignTestResult[];
 
 // ── Data shapes ──────────────────────────────────────────────────────────
 
