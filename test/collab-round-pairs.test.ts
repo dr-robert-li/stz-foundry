@@ -1,8 +1,11 @@
 /**
- * Offline suite for `experiments/collab-round/_collab-pairs.ts` (D-02) --
- * Phase 23, Plan 23-04, Task 1. Every case here stays offline: the
- * committed-read path is driven through an injected `GitShowFn` stub,
- * never the real `git` binary or the working tree.
+ * Offline suite for `experiments/collab-round/_collab-pairs.ts` (D-02) and
+ * `experiments/collab-round/_collab-probe.ts` (D-03) -- Phase 23, Plan
+ * 23-04. Every case here stays offline: the committed-read path is driven
+ * through an injected `GitShowFn` stub, never the real `git` binary or the
+ * working tree; the probe module is only ever imported and its pure
+ * functions called directly, never run (no env var is set anywhere in this
+ * file).
  *
  * House rule (mirrors `test/foundry-collaborative-battery.test.ts`): every
  * throwing assertion inspects the thrown message's content, never a bare
@@ -23,6 +26,14 @@ import {
   type GitShowFn,
 } from "../experiments/collab-round/_collab-pairs.js";
 import { makeCollaborativeCandidate } from "../src/foundry/collaborative-runner.js";
+import * as CollabProbe from "../experiments/collab-round/_collab-probe.js";
+import {
+  PROBE_SAMPLE_SIZE,
+  probeUnitKey,
+  summariseProbe,
+  type ProbeState,
+  type ProbeUnitResult,
+} from "../experiments/collab-round/_collab-probe.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const collabRoundDir = join(repoRoot, "experiments", "collab-round");
@@ -236,5 +247,104 @@ describe("_collab-pairs.ts import specifiers", () => {
     for (const line of importLines) {
       expect(line).not.toContain("paired-comparison-arm");
     }
+  });
+});
+
+// ══════════════════════════════ the probe (Task 3) ═══════════════════════
+
+describe("_collab-probe.ts — import-safety and exported constants", () => {
+  it("importing the module does not throw and does not start a run (no env var set)", () => {
+    expect(delete process.env.COLLAB_STATE).toBe(true);
+    expect(delete process.env.COLLAB_PAIRS_COMMIT).toBe(true);
+    expect(CollabProbe).toBeTruthy();
+    expect(typeof CollabProbe.summariseProbe).toBe("function");
+  });
+
+  it("exports PROBE_SAMPLE_SIZE as a small positive constant", () => {
+    expect(PROBE_SAMPLE_SIZE).toBeGreaterThan(0);
+    expect(PROBE_SAMPLE_SIZE).toBeLessThanOrEqual(20);
+  });
+
+  it("probeUnitKey combines the pair id and the query id", () => {
+    expect(probeUnitKey("abc123", 42)).toBe("abc123:42");
+  });
+});
+
+describe("summariseProbe — pure, no filesystem access", () => {
+  function unit(overrides: Partial<ProbeUnitResult> = {}): ProbeUnitResult {
+    return {
+      pairId: "pair-a",
+      pairRelPath: "_pair-conservative-prune.md",
+      queryId: 1,
+      wallMs: 1000,
+      preflightWarmUpWallMs: 100,
+      scoringWallMs: 200,
+      handoffOutcomeKind: "success",
+      hit1: 1,
+      nodeCount: 10,
+      edgeCount: 15,
+      ...overrides,
+    };
+  }
+
+  it("returns per-pair unit counts, an outcome-kind tally, structural validity and order statistics", () => {
+    const state: ProbeState = {
+      units: {
+        "pair-a:1": unit({ pairId: "pair-a", queryId: 1, wallMs: 1000 }),
+        "pair-a:2": unit({ pairId: "pair-a", queryId: 2, wallMs: 3000, handoffOutcomeKind: "artifact-absent", nodeCount: null, edgeCount: null }),
+        "pair-b:1": unit({ pairId: "pair-b", pairRelPath: "_pair-breadth.md", queryId: 1, wallMs: 2000 }),
+      },
+      retries: [],
+    };
+    const summary = summariseProbe(state);
+
+    expect(summary.overall.unitCount).toBe(3);
+    expect(summary.overall.outcomeCounts.success).toBe(2);
+    expect(summary.overall.outcomeCounts["artifact-absent"]).toBe(1);
+    expect(summary.overall.structuralValidity).toEqual({ successCount: 2, totalCount: 3 });
+    expect(summary.overall.wallMs).toEqual({ min: 1000, median: 2000, max: 3000 });
+
+    expect(summary.byPair).toHaveLength(2);
+    const pairA = summary.byPair.find((p) => p.pairId === "pair-a")!;
+    expect(pairA.unitCount).toBe(2);
+    expect(pairA.structuralValidity).toEqual({ successCount: 1, totalCount: 2 });
+    const pairB = summary.byPair.find((p) => p.pairId === "pair-b")!;
+    expect(pairB.unitCount).toBe(1);
+    expect(pairB.structuralValidity).toEqual({ successCount: 1, totalCount: 1 });
+  });
+
+  it("returns zeroed order statistics for an empty state, never throwing on division", () => {
+    const summary = summariseProbe({ units: {}, retries: [] });
+    expect(summary.overall.unitCount).toBe(0);
+    expect(summary.overall.wallMs).toEqual({ min: 0, median: 0, max: 0 });
+    expect(summary.byPair).toEqual([]);
+  });
+});
+
+describe("_collab-probe.ts source-text guards", () => {
+  const probeSourceText = readSourceText("_collab-probe.ts");
+
+  it("no import resolves into the paired-comparison study directory", () => {
+    const importLines = probeSourceText.split("\n").filter((line) => /^\s*import\s/.test(line) || /\brequire\(/.test(line));
+    for (const line of importLines) {
+      expect(line).not.toContain("paired-comparison-arm");
+    }
+  });
+
+  it("never spells the sealed heldout fixture's file name or a heldout loader's export name", () => {
+    expect(probeSourceText).not.toContain("prime-heldout.json");
+    expect(probeSourceText).not.toContain("buildCollaborativeHeldoutBattery");
+  });
+
+  it("passes a concurrency of exactly 1 everywhere the source text mentions concurrency", () => {
+    const matches = [...probeSourceText.matchAll(/concurrency:\s*([^,\s}]+)/g)];
+    expect(matches.length).toBeGreaterThan(0);
+    for (const m of matches) {
+      expect(m[1]).toBe("1");
+    }
+  });
+
+  it("declares a strictly positive gate threshold", () => {
+    expect(CollabProbe.PROBE_GATE_THRESHOLD).toBeGreaterThan(0);
   });
 });
