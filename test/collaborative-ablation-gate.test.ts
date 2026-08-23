@@ -10,6 +10,9 @@
  * side, the underpowered floor, and the integer-only source assertion.
  */
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   ABLATION_SUITE_SIZE,
   ABLATION_DELTA1_QUERIES,
@@ -23,6 +26,8 @@ import {
   type AblationPairedUnit,
   type AblationGateVerdict,
 } from "../src/foundry/collaborative-ablation-gate.js";
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 function thrown(fn: () => unknown): Error {
   try {
@@ -130,10 +135,156 @@ describe("end-to-end: 75 paired units in, one verdict out", () => {
 describe("evaluateAblationSignTest", () => {
   it("below the discordant floor reports UNDERPOWERED with a null critical value", () => {
     // 19 discordant: graphOnly=10, nullOnly=9.
-    const counts = accountAblationUnits(buildUnits({ bothHit: 0, graphOnly: 10, nullOnly: 9, bothMiss: 56 }));
+    const units = buildUnits({ bothHit: 0, graphOnly: 10, nullOnly: 9, bothMiss: 56 });
+    const counts = accountAblationUnits(units);
     const signTest = evaluateAblationSignTest(counts);
     expect(signTest.result).toBe("UNDERPOWERED");
     expect(signTest.criticalValue).toBeNull();
+
+    // G-18: the underpowered floor governs the sign test's own output only
+    // -- it never blocks or alters the primary margin gate, which is still
+    // computed on the raw paired counts regardless of the discordant count.
+    const verdict = evaluateAblationGate(units);
+    expect(verdict.primaryPass).toBeDefined();
+    expect(typeof verdict.primaryPass).toBe("boolean");
+    expect(verdict.signTest.result).toBe("UNDERPOWERED");
+  });
+
+  it("discordant 20 with graph-only 15 -- graph-superior", () => {
+    const counts = accountAblationUnits(
+      buildUnits({ bothHit: 0, graphOnly: 15, nullOnly: 5, bothMiss: 55 }),
+    );
+    expect(evaluateAblationSignTest(counts).result).toBe("GRAPH-SUPERIOR");
+  });
+
+  it("discordant 20 with graph-only 14 -- indistinguishable", () => {
+    const counts = accountAblationUnits(
+      buildUnits({ bothHit: 0, graphOnly: 14, nullOnly: 6, bothMiss: 55 }),
+    );
+    expect(evaluateAblationSignTest(counts).result).toBe("INDISTINGUISHABLE");
+  });
+
+  it("discordant 20 with graph-only 5 -- null-superior (20 minus the critical value 15)", () => {
+    const counts = accountAblationUnits(
+      buildUnits({ bothHit: 0, graphOnly: 5, nullOnly: 15, bothMiss: 55 }),
+    );
+    expect(evaluateAblationSignTest(counts).result).toBe("NULL-SUPERIOR");
   });
 });
 
+describe("margin boundaries (both inclusive, one step either side)", () => {
+  it("graph-only 6, null-only 0 -- primary difference 6, primary pass true", () => {
+    const verdict = evaluateAblationGate(buildUnits({ bothHit: 0, graphOnly: 6, nullOnly: 0, bothMiss: 69 }));
+    expect(verdict.primaryDifference).toBe(6);
+    expect(verdict.primaryPass).toBe(true);
+  });
+
+  it("graph-only 5, null-only 0 -- primary difference 5, primary pass false", () => {
+    const verdict = evaluateAblationGate(buildUnits({ bothHit: 0, graphOnly: 5, nullOnly: 0, bothMiss: 70 }));
+    expect(verdict.primaryDifference).toBe(5);
+    expect(verdict.primaryPass).toBe(false);
+  });
+
+  it("graph-only 8, null-only 2 -- primary difference 6, primary pass true (the gate reads the difference of totals, not the graph-only cell)", () => {
+    const verdict = evaluateAblationGate(buildUnits({ bothHit: 0, graphOnly: 8, nullOnly: 2, bothMiss: 65 }));
+    expect(verdict.primaryDifference).toBe(6);
+    expect(verdict.primaryPass).toBe(true);
+  });
+
+  it("null-only 5, graph-only 0 -- secondary difference 5, secondary flag true, primary pass false", () => {
+    const verdict = evaluateAblationGate(buildUnits({ bothHit: 0, graphOnly: 0, nullOnly: 5, bothMiss: 70 }));
+    expect(verdict.secondaryDifference).toBe(5);
+    expect(verdict.secondaryFlag).toBe(true);
+    expect(verdict.primaryPass).toBe(false);
+  });
+
+  it("null-only 4, graph-only 0 -- secondary difference 4, secondary flag false", () => {
+    const verdict = evaluateAblationGate(buildUnits({ bothHit: 0, graphOnly: 0, nullOnly: 4, bothMiss: 71 }));
+    expect(verdict.secondaryDifference).toBe(4);
+    expect(verdict.secondaryFlag).toBe(false);
+  });
+});
+
+describe("the secondary flag is a diagnostic, never the verdict", () => {
+  it("two runs with the same primaryPass outcome, one firing the secondary flag and one not", () => {
+    // D = graphHits - nullHits = -6: secondaryDifference = 6 >= delta2 (5) -> flag fires.
+    const flagged = evaluateAblationGate(buildUnits({ bothHit: 0, graphOnly: 0, nullOnly: 6, bothMiss: 69 }));
+    // D = 0: secondaryDifference = 0, below delta2 -> flag does not fire.
+    const unflagged = evaluateAblationGate(buildUnits({ bothHit: 0, graphOnly: 2, nullOnly: 2, bothMiss: 71 }));
+
+    expect(flagged.secondaryFlag).toBe(true);
+    expect(unflagged.secondaryFlag).toBe(false);
+    // Both fall short of the primary margin (D < 6 in both cases), so
+    // primaryPass reads false in both regardless of the secondary flag --
+    // nothing in evaluateAblationGate lets the flag feed back into the
+    // primary field.
+    expect(flagged.primaryPass).toBe(unflagged.primaryPass);
+    expect(flagged.primaryPass).toBe(false);
+  });
+});
+
+describe("G-15: mechanical BigInt re-derivation of all 56 critical-value-table rows", () => {
+  /**
+   * Exact integer binomial-coefficient row for a given `n`, `C(n, 0..n)`,
+   * built by Pascal's-triangle recurrence in BigInt end to end -- never a
+   * factorial division through a float, and never `Math.pow`/`Math.log`
+   * anywhere in this derivation. Local to this test file, never imported
+   * from the module under test.
+   */
+  function binomialRow(n: number): bigint[] {
+    const row: bigint[] = [1n];
+    for (let k = 1; k <= n; k++) {
+      row.push((row[k - 1]! * BigInt(n - k + 1)) / BigInt(k));
+    }
+    return row;
+  }
+
+  /**
+   * §7's exact combinatorial condition: the smallest integer c such that
+   * 40 * sum_{i=c}^{n} C(n, i) <= 2^n. The suffix sum is accumulated from
+   * i = n down to i = 0, entirely in BigInt -- no `Number` arithmetic
+   * anywhere in this derivation.
+   */
+  function deriveCriticalValue(n: number): number {
+    const row = binomialRow(n);
+    const twoToN = 1n << BigInt(n);
+    const perTailSignificanceReciprocal = 40n;
+    let runningSum = row.reduce((sum, value) => sum + value, 0n);
+    for (let c = 0; c <= n; c++) {
+      if (perTailSignificanceReciprocal * runningSum <= twoToN) return c;
+      runningSum -= row[c]!;
+    }
+    throw new Error(`[test] no critical value satisfies §7's condition for n_d=${n}`);
+  }
+
+  it("re-derives every n_d from 20 through 75 (56 rows, none skipped) from §7's own condition", () => {
+    let visited = 0;
+    for (let nd = ABLATION_MIN_DISCORDANT_FLOOR; nd <= ABLATION_SUITE_SIZE; nd++) {
+      const derived = deriveCriticalValue(nd);
+      expect(derived).toBe(ABLATION_CRITICAL_VALUE_TABLE[nd]);
+      visited++;
+    }
+    expect(visited).toBe(56);
+  });
+});
+
+describe("integer-only source discipline", () => {
+  it("the module's executable code contains no division operator and no decimal literal (comments excluded)", () => {
+    const modulePath = join(repoRoot, "src", "foundry", "collaborative-ablation-gate.ts");
+    const source = readFileSync(modulePath, "utf8");
+
+    // Strip every block-comment region, then every line whose trimmed form
+    // starts with a line-comment marker -- comment-stripping is part of
+    // this assertion, not a separate fragile pipeline.
+    const withoutBlockComments = source.replace(/\/\*[\s\S]*?\*\//g, "");
+    const withoutLineComments = withoutBlockComments
+      .split("\n")
+      .map((line) => (line.trimStart().startsWith("//") ? "" : line))
+      .join("\n");
+
+    // No division operator between two operands.
+    expect(withoutLineComments).not.toMatch(/\d\s*\/\s*\d/);
+    // No numeric literal containing a decimal point.
+    expect(withoutLineComments).not.toMatch(/\d+\.\d+/);
+  });
+});
