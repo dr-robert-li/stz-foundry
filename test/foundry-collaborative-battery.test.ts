@@ -11,18 +11,53 @@
  * throwing assertion inspects the thrown message's content, never a bare
  * `.toThrow()`.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildCollaborativeBattery,
+  buildCollaborativeHeldoutBattery,
   tasksFromFixture,
   taskForQueryId,
   readFixtureOrRefuse,
   CollaborativeBatteryRefusedError,
 } from "../src/foundry/collaborative-battery.js";
 import { requireCollaborativeAdmitted } from "../src/foundry/collaborative-admission.js";
+
+// The heldout-door tests below (D-07) need to drive `buildCollaborativeHeldoutBattery`
+// -- which reads its fixture path from the sealed admission record, never a
+// parameter -- against SYNTHETIC fixture bytes, the same "valid except the
+// field under test" rule the rest of this suite already follows for
+// `tasksFromFixture`. `readFileSync` is the one disk seam `readFixtureOrRefuse`
+// already isolates for exactly this purpose (its own doc comment: "a future
+// refactor... without needing to delete the real committed fixture to
+// exercise the failure branch"). Mocked here with a pass-through default, so
+// every pre-existing case in this file keeps reading the real committed
+// fixtures unmodified; overridden per-test, exactly once, only for the
+// heldout fixture's own resolved path. The loader itself still runs
+// unmodified against whatever bytes come back -- this is not a route around
+// it.
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return { ...actual, readFileSync: vi.fn(actual.readFileSync) };
+});
+
+const mockedReadFileSync = vi.mocked(readFileSync);
+
+// Overrides exactly one `readFileSync` call -- the one reading the sealed
+// heldout fixture's own resolved path -- with `rawOverride`; every other
+// call (including the same call if the loader is invoked twice) passes
+// through to the real filesystem.
+function mockHeldoutFixtureOnce(rawOverride: string): void {
+  const record = requireCollaborativeAdmitted("stark-prime");
+  const heldoutAbsPath = join(repoRoot, record.heldoutFixturePath);
+  const impl = (path: unknown, ...rest: unknown[]): unknown => {
+    if (path === heldoutAbsPath) return rawOverride;
+    return (readFileSync as unknown as (...a: unknown[]) => unknown)(path, ...rest);
+  };
+  mockedReadFileSync.mockImplementationOnce(impl as unknown as typeof readFileSync);
+}
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureDir = join(repoRoot, "test", "fixtures", "stark");
@@ -328,6 +363,82 @@ describe("buildCollaborativeBattery — routed through the admission record's ow
     const expected = tasksFromFixture(fixture, record.revisionSha);
     const actual = buildCollaborativeBattery();
     expect(actual).toStrictEqual(expected);
+  });
+});
+
+describe("buildCollaborativeHeldoutBattery — D-07's separate opt-in door to the sealed heldout pool", () => {
+  it("returns 75 tasks, each Object.keys exactly {id, queryId, prompt} (exact set, not a subset check), strictly ascending by queryId", () => {
+    const tasks = buildCollaborativeHeldoutBattery();
+    expect(tasks.length).toBe(75);
+    for (const task of tasks) {
+      expect(new Set(Object.keys(task))).toStrictEqual(new Set(["id", "queryId", "prompt"]));
+    }
+    for (let i = 1; i < tasks.length; i++) {
+      expect(tasks[i]!.queryId).toBeGreaterThan(tasks[i - 1]!.queryId);
+    }
+  });
+
+  it("the constructed queryId set equals the heldout fixture's own query_id set, both size 75, and meta.sample_size agrees", () => {
+    const fixture = loadFixture("prime-heldout.json") as {
+      meta: { sample_size: number };
+      pairs: { query_id: number }[];
+    };
+    const tasks = buildCollaborativeHeldoutBattery();
+    const taskIds = new Set(tasks.map((t) => t.queryId));
+    const fixtureIds = new Set(fixture.pairs.map((p) => p.query_id));
+    expect(taskIds.size).toBe(75);
+    expect(fixtureIds.size).toBe(75);
+    expect(taskIds).toStrictEqual(fixtureIds);
+    expect(fixture.meta.sample_size).toBe(75);
+  });
+
+  it("no returned task carries answer_ids, anywhere in the serialised list (D-08)", () => {
+    const tasks = buildCollaborativeHeldoutBattery();
+    expect(JSON.stringify(tasks)).not.toContain("answer_ids");
+    for (const task of tasks) {
+      expect(Object.keys(task)).not.toContain("answer_ids");
+    }
+  });
+
+  it("is routed through the admission record's own heldoutFixturePath: task ids and length track the real committed fixture", () => {
+    const record = requireCollaborativeAdmitted("stark-prime");
+    const fixture = readFixtureOrRefuse(record.heldoutFixturePath) as unknown as { pairs: { query_id: number }[] };
+    const tasks = buildCollaborativeHeldoutBattery();
+    expect(tasks.length).toBe(fixture.pairs.length);
+    expect(tasks[0]!.id).toBe(`stark-prime:${tasks[0]!.queryId}`);
+  });
+
+  it("a fixture whose pool marker is the selection marker is refused, message naming both the observed and the expected marker", () => {
+    const selectionRaw = readFileSync(join(fixtureDir, "prime-selection.json"), "utf8");
+    mockHeldoutFixtureOnce(selectionRaw);
+    const err = thrown(() => buildCollaborativeHeldoutBattery());
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("selection");
+    expect(err.message).toContain("heldout");
+  });
+
+  it("a fixture whose pinned revision disagrees with the admission record is refused, message naming both shas", () => {
+    const record = requireCollaborativeAdmitted("stark-prime");
+    const fixture = loadFixture("prime-heldout.json");
+    const tampered = {
+      ...fixture,
+      meta: { ...fixture.meta, hf_revision: "0000000000000000000000000000000000000000" },
+    };
+    mockHeldoutFixtureOnce(JSON.stringify(tampered));
+    const err = thrown(() => buildCollaborativeHeldoutBattery());
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("0000000000000000000000000000000000000000");
+    expect(err.message).toContain(record.revisionSha);
+  });
+
+  it("a fixture whose declared sample size disagrees with its actual pair count is refused, naming both numbers", () => {
+    const fixture = loadFixture("prime-heldout.json") as { meta: Record<string, unknown>; pairs: unknown[] };
+    const tampered = { ...fixture, meta: { ...fixture.meta, sample_size: 74 } };
+    mockHeldoutFixtureOnce(JSON.stringify(tampered));
+    const err = thrown(() => buildCollaborativeHeldoutBattery());
+    expect(err).toBeInstanceOf(CollaborativeBatteryRefusedError);
+    expect(err.message).toContain("74");
+    expect(err.message).toContain(String(fixture.pairs.length));
   });
 });
 
