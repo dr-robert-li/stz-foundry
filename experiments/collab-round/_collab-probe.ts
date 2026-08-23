@@ -295,7 +295,16 @@ function memoizeKbNeighborhoodFn(fn: KbNeighborhoodFn): KbNeighborhoodFn {
   };
 }
 
-async function runOneUnit(
+// Exported (not `main()`-internal) so a throwaway, uncommitted diagnose
+// script can call it directly against a single already-checkpointed unit
+// for a live re-measurement -- WITHOUT going through `onceProbe`/`main`'s
+// state-file write, so the diagnostic run never touches
+// `collab-probe-state.json`. Still never driven through vitest: no
+// execFn/preflightFn injection point exists here, so a live call still
+// spawns the real Python scoring toolchain (see
+// `classifyBuilderArtifactFailure`'s own tests for why the offline suite
+// tests that function directly instead).
+export async function runOneUnit(
   pair: CommittedPair,
   task: CollaborativeBatteryTask,
   provider: Provider,
