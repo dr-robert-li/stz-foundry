@@ -183,23 +183,49 @@ describe("loadCommittedPairs — the three-pair collision guard", () => {
   });
 });
 
-// ── the real, committed pair file this task adds ────────────────────────
+// ── the three real, committed pair files ────────────────────────────────
 
-describe("the real _pair-conservative-prune.md file", () => {
-  it("contains both role markers, each followed by a fenced block", () => {
-    const markdown = readRealPairFile("_pair-conservative-prune.md");
-    expect(() => extractRolePromptFromPairFile(markdown, BUILDER_PROMPT_MARKER)).not.toThrow();
-    expect(() => extractRolePromptFromPairFile(markdown, ANSWERER_PROMPT_MARKER)).not.toThrow();
+describe("the three real pair files under experiments/collab-round/", () => {
+  const realPairs = PAIR_FILES.map((relPath) => {
+    const markdown = readRealPairFile(relPath);
+    return {
+      relPath,
+      builderPrompt: extractRolePromptFromPairFile(markdown, BUILDER_PROMPT_MARKER),
+      answererPrompt: extractRolePromptFromPairFile(markdown, ANSWERER_PROMPT_MARKER),
+    };
+  });
+
+  it("each real file contains both role markers, each followed by a fenced block", () => {
+    for (const relPath of PAIR_FILES) {
+      const markdown = readRealPairFile(relPath);
+      expect(() => extractRolePromptFromPairFile(markdown, BUILDER_PROMPT_MARKER)).not.toThrow();
+      expect(() => extractRolePromptFromPairFile(markdown, ANSWERER_PROMPT_MARKER)).not.toThrow();
+    }
   });
 
   it("extraction of the builder prompt does not contain the answerer marker, and vice versa", () => {
-    const markdown = readRealPairFile("_pair-conservative-prune.md");
-    const builder = extractRolePromptFromPairFile(markdown, BUILDER_PROMPT_MARKER);
-    const answerer = extractRolePromptFromPairFile(markdown, ANSWERER_PROMPT_MARKER);
-    expect(builder.length).toBeGreaterThan(0);
-    expect(builder).not.toContain(ANSWERER_PROMPT_MARKER);
-    expect(answerer.length).toBeGreaterThan(0);
-    expect(answerer).not.toContain(BUILDER_PROMPT_MARKER);
+    for (const relPath of PAIR_FILES) {
+      const markdown = readRealPairFile(relPath);
+      const builder = extractRolePromptFromPairFile(markdown, BUILDER_PROMPT_MARKER);
+      const answerer = extractRolePromptFromPairFile(markdown, ANSWERER_PROMPT_MARKER);
+      expect(builder.length).toBeGreaterThan(0);
+      expect(builder).not.toContain(ANSWERER_PROMPT_MARKER);
+      expect(answerer.length).toBeGreaterThan(0);
+      expect(answerer).not.toContain(BUILDER_PROMPT_MARKER);
+    }
+  });
+
+  it("the three real files' extracted prompts feed the candidate constructor into three distinct specimen ids", () => {
+    const candidates = realPairs.map((p) => makeCollaborativeCandidate(p.builderPrompt, p.answererPrompt));
+    const ids = candidates.map((c) => c.id);
+    expect(new Set(ids).size).toBe(3);
+  });
+
+  it("the three builder prompts are pairwise unequal, and the three answerer prompts are pairwise unequal", () => {
+    const builders = realPairs.map((p) => p.builderPrompt);
+    const answerers = realPairs.map((p) => p.answererPrompt);
+    expect(new Set(builders).size).toBe(3);
+    expect(new Set(answerers).size).toBe(3);
   });
 });
 
