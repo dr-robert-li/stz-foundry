@@ -18,6 +18,7 @@ import type { SpawnSyncReturns } from "node:child_process";
 import {
   runCollaborativeBattery,
   makeCollaborativeCandidate,
+  buildAnswererTaskPrompt,
   canonicalSubgraphBytes,
   hashSubgraphArtifact,
   parseSubgraphArtifact,
@@ -1517,6 +1518,244 @@ describe("runCollaborativeBattery — D-05 no-subgraph condition (Plan 23-02 Tas
     );
     expect(err.message).toContain("tasks is empty");
     expect(callCount()).toBe(0);
+  });
+});
+
+// ── D-05: prompt parity + default preservation (Plan 23-02 Task 2) ──────
+
+describe("runCollaborativeBattery — D-05 prompt parity + default preservation (Plan 23-02 Task 2)", () => {
+  const PARITY_TASK: CollaborativeBatteryTask = {
+    id: "task-a",
+    queryId: 1001,
+    prompt: "Which entity does this describe (task A)?",
+  };
+
+  const EMPTY_ARTIFACT: SubgraphArtifactV1 = {
+    schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+    queryId: 1001,
+    kbRevision: ADMISSION_RECORD.revisionSha,
+    nodes: [],
+    edges: [],
+  };
+  const EMPTY_NEIGHBOURHOOD: KbNeighborhood = {
+    queryId: 1001,
+    seeds: [],
+    nodes: [],
+    edges: [],
+    relationNames: {},
+  };
+
+  function threeNodeArtifact(): SubgraphArtifactV1 {
+    return {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 1001,
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      nodes: [11, 12, 13],
+      edges: [
+        [11, 12, 1],
+        [12, 13, 2],
+      ],
+    };
+  }
+
+  /** A SECOND, DIFFERENT non-empty artifact -- same task/neighbourhood, a
+   *  disjoint node/edge set. Used (with `threeNodeArtifact`) to derive the
+   *  template's true artifact-independent boundary WITHOUT ever rendering
+   *  the no-subgraph condition -- see `templateBoundary` below for why this
+   *  avoids the tautology a graph-vs-null-only comparison would risk. */
+  function twoNodeArtifact(): SubgraphArtifactV1 {
+    return {
+      schemaVersion: SUBGRAPH_SCHEMA_VERSION,
+      queryId: 1001,
+      kbRevision: ADMISSION_RECORD.revisionSha,
+      nodes: [14, 15],
+      edges: [[14, 15, 3]],
+    };
+  }
+
+  /**
+   * Splits two renders into (shared prefix, divergent middle, shared
+   * suffix) purely structurally -- by walking matching lines forward from
+   * the start and backward from the end -- rather than by hardcoding the
+   * shared template's prose.
+   */
+  function splitStructuralParity(a: string, b: string) {
+    const linesA = a.split("\n");
+    const linesB = b.split("\n");
+    let prefixLen = 0;
+    while (
+      prefixLen < linesA.length &&
+      prefixLen < linesB.length &&
+      linesA[prefixLen] === linesB[prefixLen]
+    ) {
+      prefixLen++;
+    }
+    let suffixLen = 0;
+    while (
+      suffixLen < linesA.length - prefixLen &&
+      suffixLen < linesB.length - prefixLen &&
+      linesA[linesA.length - 1 - suffixLen] === linesB[linesB.length - 1 - suffixLen]
+    ) {
+      suffixLen++;
+    }
+    return {
+      prefixLen,
+      suffixLen,
+      prefixA: linesA.slice(0, prefixLen).join("\n"),
+      prefixB: linesB.slice(0, prefixLen).join("\n"),
+      suffixA: linesA.slice(linesA.length - suffixLen).join("\n"),
+      suffixB: linesB.slice(linesB.length - suffixLen).join("\n"),
+      middleA: linesA.slice(prefixLen, linesA.length - suffixLen),
+      middleB: linesB.slice(prefixLen, linesB.length - suffixLen),
+    };
+  }
+
+  /**
+   * Derives the shared template's artifact-independent prefix/suffix from
+   * TWO DIFFERENT NON-EMPTY artifacts (never from the no-subgraph render
+   * itself). This is the tautology guard: if a boundary were instead
+   * derived by diffing the graph render directly against the null render,
+   * a bug that changed the outer template ONLY for the empty-artifact case
+   * would just shift where the two renders first diverge -- the "boundary"
+   * would silently move to swallow the bug, and the parity assertion below
+   * would still pass. Deriving the boundary from two non-empty variants
+   * instead means the reference boundary can only ever reflect genuine
+   * artifact-independent template text, so it stays a fixed target the
+   * null render's own prefix/suffix must still hit.
+   */
+  function templateBoundary() {
+    const refA = buildAnswererTaskPrompt(PARITY_TASK, threeNodeArtifact(), kbNeighborhoodFn(1001));
+    const refB = buildAnswererTaskPrompt(PARITY_TASK, twoNodeArtifact(), kbNeighborhoodFn(1001));
+    return { refA, refB, ...splitStructuralParity(refA, refB) };
+  }
+
+  it("the graph and no-subgraph renders are identical before the subgraph block and from the emit instruction onward, and are not equal overall", () => {
+    const boundary = templateBoundary();
+    // non-degenerate boundary: the derived shared prefix/suffix are not
+    // accidentally the whole string or empty.
+    expect(boundary.prefixLen).toBeGreaterThan(0);
+    expect(boundary.suffixLen).toBeGreaterThan(0);
+    expect(boundary.prefixA).toContain(PARITY_TASK.prompt);
+    expect(boundary.prefixA).toContain("QUERY_ID: 1001");
+    expect(boundary.suffixA).toContain("most likely answer first");
+
+    const nullPrompt = buildAnswererTaskPrompt(PARITY_TASK, EMPTY_ARTIFACT, EMPTY_NEIGHBOURHOOD);
+    const nullLines = nullPrompt.split("\n");
+    const nullPrefix = nullLines.slice(0, boundary.prefixLen).join("\n");
+    const nullSuffix = nullLines.slice(nullLines.length - boundary.suffixLen).join("\n");
+    expect(nullPrefix).toBe(boundary.prefixA);
+    expect(nullSuffix).toBe(boundary.suffixA);
+    expect(boundary.refA).not.toBe(nullPrompt);
+  });
+
+  it("the no-subgraph render contains the task's own question text and its query-id line", () => {
+    const nullPrompt = buildAnswererTaskPrompt(PARITY_TASK, EMPTY_ARTIFACT, EMPTY_NEIGHBOURHOOD);
+    expect(nullPrompt).toContain(PARITY_TASK.prompt);
+    expect(nullPrompt).toContain("QUERY_ID: 1001");
+  });
+
+  it("the no-subgraph render contains no node line and no edge line", () => {
+    const nullPrompt = buildAnswererTaskPrompt(PARITY_TASK, EMPTY_ARTIFACT, EMPTY_NEIGHBOURHOOD);
+    expect(nullPrompt).not.toMatch(/id=\d+/);
+    expect(nullPrompt).not.toMatch(/-\[.*\]->/);
+  });
+
+  it("the no-subgraph render's subgraph block (the segment between the independently-derived template boundary) is empty of id-bearing node lines and edge lines", () => {
+    const boundary = templateBoundary();
+    const nullPrompt = buildAnswererTaskPrompt(PARITY_TASK, EMPTY_ARTIFACT, EMPTY_NEIGHBOURHOOD);
+    const nullLines = nullPrompt.split("\n");
+    const nullMiddle = nullLines.slice(boundary.prefixLen, nullLines.length - boundary.suffixLen);
+    expect(nullMiddle.length).toBeGreaterThan(0);
+    for (const line of nullMiddle) {
+      expect(line).not.toMatch(/id=\d+/);
+      expect(line).not.toMatch(/-\[.*\]->/);
+    }
+  });
+
+  it("omitting the arm field and passing the graph member explicitly produce equal outcomes (deterministic fields) for the same inputs, and the no-subgraph member differs in exactly the expected way", async () => {
+    function comparableOutcomes(record: Awaited<ReturnType<typeof runCollaborativeBattery>>) {
+      return record.outcomes.map((o) => ({
+        queryId: o.queryId,
+        hit1: o.hit1,
+        diagnostics: o.diagnostics,
+        handoffOutcome: o.handoffOutcome,
+        attemptOutcome: o.attempt?.outcome,
+        submittedPredDict: o.attempt?.submittedPredDict,
+      }));
+    }
+
+    const { provider: omittedProvider } = makeProvider({ 1001: [11] });
+    const omittedRecord = await runCollaborativeBattery(
+      baseArgs({
+        tasks: [PARITY_TASK],
+        execFn: makeExecFn({ 1001: 1 }),
+        runOpts: { providerImpl: omittedProvider },
+      }),
+    );
+    const { provider: graphProvider } = makeProvider({ 1001: [11] });
+    const graphRecord = await runCollaborativeBattery(
+      baseArgs({
+        tasks: [PARITY_TASK],
+        arm: "graph",
+        execFn: makeExecFn({ 1001: 1 }),
+        runOpts: { providerImpl: graphProvider },
+      }),
+    );
+    expect(comparableOutcomes(omittedRecord)).toEqual(comparableOutcomes(graphRecord));
+    expect(omittedRecord.builderBattery).toBeDefined();
+    expect(omittedRecord.builderRun).toBeDefined();
+    expect(graphRecord.builderBattery).toBeDefined();
+    expect(graphRecord.builderRun).toBeDefined();
+
+    let neighbourhoodCalls = 0;
+    const spyFn: KbNeighborhoodFn = (queryId) => {
+      neighbourhoodCalls++;
+      return kbNeighborhoodFn(queryId);
+    };
+    const { provider: nullProvider } = makeProvider({ 1001: [11] });
+    const nullRecord = await runCollaborativeBattery(
+      baseArgs({
+        tasks: [PARITY_TASK],
+        arm: "no-subgraph",
+        kbNeighborhoodFn: spyFn,
+        execFn: makeExecFn({ 1001: 1 }),
+        runOpts: { providerImpl: nullProvider },
+      }),
+    );
+    expect(nullRecord.builderBattery).toBeUndefined();
+    expect(nullRecord.builderRun).toBeUndefined();
+    expect(neighbourhoodCalls).toBe(0);
+  });
+
+  it("under the no-subgraph condition, a non-completing answerer (no parseable ranked list) still yields an outcome with hit1 of zero and a named non-success outcome, present in the outcomes array", async () => {
+    const { provider } = makeProvider({ 1001: [] }); // no parseable ranked-list entries
+    const record = await runCollaborativeBattery(
+      baseArgs({
+        tasks: [PARITY_TASK],
+        arm: "no-subgraph",
+        execFn: makeExecFn({ 1001: 0 }),
+        runOpts: { providerImpl: provider },
+      }),
+    );
+    expect(record.outcomes).toHaveLength(1);
+    expect(record.outcomes[0]!.hit1).toBe(0);
+    expect(record.outcomes[0]!.handoffOutcome.kind).not.toBe("success");
+    expect(record.outcomes.some((o) => o.queryId === PARITY_TASK.queryId)).toBe(true);
+  });
+
+  it("the no-subgraph condition's actual answerer prompt (run through runCollaborativeBattery) equals the shared renderer's direct output on an empty artifact and empty neighbourhood -- proving the branch calls buildAnswererTaskPrompt itself rather than assembling its own copy", async () => {
+    const { provider } = makeProvider({ 1001: [11] });
+    const record = await runCollaborativeBattery(
+      baseArgs({
+        tasks: [PARITY_TASK],
+        arm: "no-subgraph",
+        execFn: makeExecFn({ 1001: 1 }),
+        runOpts: { providerImpl: provider },
+      }),
+    );
+    const actualPrompt = record.answererBattery.tasks.find((t) => t.id === PARITY_TASK.id)!.prompt;
+    const expectedPrompt = buildAnswererTaskPrompt(PARITY_TASK, EMPTY_ARTIFACT, EMPTY_NEIGHBOURHOOD);
+    expect(actualPrompt).toBe(expectedPrompt);
   });
 });
 
