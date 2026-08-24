@@ -4,7 +4,9 @@
     "overall": {
       "unitCount": 30,
       "outcomeCounts": {
-        "all-handoffs-failed-battery-refused": 27,
+        "artifact-absent": 17,
+        "schema-invalid": 7,
+        "cd05-violation": 3,
         "neighbourhood-refused": 3
       },
       "structuralValidity": {
@@ -12,15 +14,15 @@
         "totalCount": 30
       },
       "wallMs": {
-        "min": 22861,
-        "median": 118567,
-        "max": 375305
+        "min": 22207,
+        "median": 54858,
+        "max": 137574
       },
       "handoffFailureKindCounts": {
-        "unparseable": 2,
-        "artifact-absent": 9,
-        "cd05-violation": 8,
-        "neighbourhood-refused": 2
+        "artifact-absent": 17,
+        "schema-invalid": 7,
+        "cd05-violation": 3,
+        "neighbourhood-refused": 3
       }
     },
     "byPair": [
@@ -29,7 +31,9 @@
         "pairRelPath": "_pair-conservative-prune.md",
         "unitCount": 10,
         "outcomeCounts": {
-          "all-handoffs-failed-battery-refused": 9,
+          "artifact-absent": 5,
+          "schema-invalid": 2,
+          "cd05-violation": 2,
           "neighbourhood-refused": 1
         },
         "structuralValidity": {
@@ -37,12 +41,15 @@
           "totalCount": 10
         },
         "wallMs": {
-          "min": 23118,
-          "median": 100204.5,
-          "max": 236591
+          "min": 22528,
+          "median": 60440.5,
+          "max": 137574
         },
         "handoffFailureKindCounts": {
-          "unparseable": 1
+          "artifact-absent": 5,
+          "schema-invalid": 2,
+          "cd05-violation": 2,
+          "neighbourhood-refused": 1
         }
       },
       {
@@ -50,7 +57,8 @@
         "pairRelPath": "_pair-relation-focused.md",
         "unitCount": 10,
         "outcomeCounts": {
-          "all-handoffs-failed-battery-refused": 9,
+          "artifact-absent": 7,
+          "schema-invalid": 2,
           "neighbourhood-refused": 1
         },
         "structuralValidity": {
@@ -58,15 +66,14 @@
           "totalCount": 10
         },
         "wallMs": {
-          "min": 22861,
-          "median": 135220,
-          "max": 254390
+          "min": 22207,
+          "median": 40915,
+          "max": 63509
         },
         "handoffFailureKindCounts": {
-          "artifact-absent": 4,
-          "cd05-violation": 4,
-          "neighbourhood-refused": 1,
-          "unparseable": 1
+          "artifact-absent": 7,
+          "schema-invalid": 2,
+          "neighbourhood-refused": 1
         }
       },
       {
@@ -74,7 +81,9 @@
         "pairRelPath": "_pair-breadth.md",
         "unitCount": 10,
         "outcomeCounts": {
-          "all-handoffs-failed-battery-refused": 9,
+          "artifact-absent": 5,
+          "schema-invalid": 3,
+          "cd05-violation": 1,
           "neighbourhood-refused": 1
         },
         "structuralValidity": {
@@ -82,20 +91,21 @@
           "totalCount": 10
         },
         "wallMs": {
-          "min": 22920,
-          "median": 113434,
-          "max": 375305
+          "min": 22609,
+          "median": 50080.5,
+          "max": 130684
         },
         "handoffFailureKindCounts": {
           "artifact-absent": 5,
-          "cd05-violation": 4,
+          "schema-invalid": 3,
+          "cd05-violation": 1,
           "neighbourhood-refused": 1
         }
       }
     ]
   },
   "runConfig": {
-    "repositoryCommit": "e68de5be59ddda82c0670e61b1d31ae4181fe154",
+    "repositoryCommit": "5e1754381768e2efd1610fe8e799fcbc44894d4f",
     "pairFilesCommit": "3a1e80981af5d2b56c10ac19e6af84110e767020",
     "model": "gpt-oss:latest",
     "modelDigest": "17052f91a42e",
@@ -103,7 +113,7 @@
     "sampleSize": 10,
     "concurrency": 1,
     "gateThreshold": 0.01,
-    "startedAt": "2026-08-23T06:11:13.711Z"
+    "startedAt": "2026-08-24T01:45:01.498Z"
   },
   "retries": []
 }

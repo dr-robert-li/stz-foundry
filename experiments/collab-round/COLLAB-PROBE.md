@@ -124,3 +124,43 @@ No repeated harness fault appears in `state.retries` (empty in the completed ver
 ## 6. Advice, not a gate
 
 This note is advice the operator reads before choosing the round's per-call ceiling and before deciding whether to launch the powered round at all. **Nothing in the round driver reads this file or the probe's artifacts (`collab-probe-verdict.json`, `collab-probe-state.json`).** The round's entry conditions remain exactly the frozen ones (D-03's boundary); the 0/30 structural-validity finding above is reported for Plan 08's go/no-go decision, not wired into it — Plan 08 evaluates the real round's own entry conditions independently, and a likely outcome given this probe's finding is a D-12 promotion refusal once the selection round runs its own structural-validity accounting over the real, larger query set.
+
+---
+
+## Addendum: re-run under the capped renderer (2026-08-24)
+
+The original probe above ran BEFORE the Phase 23-08 prompt-budget fix
+(`dc786f4`/`1af4571`): the ollama journal for its boot shows `truncating
+input prompt` lines, so every builder measurement above was taken on
+prompts the model saw only a truncated tail of. Per the operator's
+directive the probe re-ran under the capped renderer before any round
+relaunch decision.
+
+**Re-run configuration:** same launcher, same pinned pairs commit
+`3a1e80981af5d2b56c10ac19e6af84110e767020` (verified byte-identical at
+re-run HEAD), same model `gpt-oss:latest` (`17052f91a42e`), sample size
+10 × 3 pairs, repository commit `5e1754381768e2efd1610fe8e799fcbc44894d4f`,
+started 2026-08-24T01:45:01Z, finished 02:13Z. Host telemetry sidecar ran
+throughout; no host instability.
+
+**Field acceptance of the fix: PASSED.** Zero `truncating input prompt`
+lines in the ollama journal across the entire re-run (checked live via a
+journal follow and again post-completion over the full window). Median
+per-unit wall time fell from 118,567 ms to 54,858 ms (max 375,305 →
+137,574 ms) — consistent with prompts that no longer carry a ~65k-token
+truncated prefill.
+
+**Merit result: structural validity is 0/30 AGAIN — now on intact
+prompts.** Failure mix (per-task handoff kinds): `artifact-absent` 17,
+`schema-invalid` 7, `cd05-violation` 3, `neighbourhood-refused` 3. All
+three pairs 0/10. No retries.
+
+**Reading.** The original 0/30 is now decontaminated: it was NOT an
+artifact of truncation. `gpt-oss:latest` fails to emit a structurally
+valid subgraph artifact even when it sees the full task prompt, node list
+and capped edge list. The 23-07 go/no-go therefore stands on real
+evidence: the powered round was NOT relaunched — a graph arm measured at
+0/30 would burn the sealed heldout suite on a candidate known to produce
+an all-miss arm. Paths forward (operator decision): a different builder
+model, iterated pair prompts re-probed under this same protocol, or
+accepting the no-go as this study's result.
