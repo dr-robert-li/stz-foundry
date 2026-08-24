@@ -1214,7 +1214,23 @@ survey (16 sources, every claim independently re-fetched), three oracle-gated
 candidate directions, and a human-selected direction: **C-01,
 knowledge-graph-mediated retrieval QA scored against STaRK's constructed gold
 node ids** (`experiments/graph-engineering-harness/SELECTION.md`). Item-8
-phase 5 (harness-level evolve) remains gated and not built. Full design:
+phase 5 (harness-level evolve) remains gated and not built.
+
+**2026-08-24 status (v2.0.0, in progress).** The C-01 collaborative mode is
+built on the kept backbone: PAPER.md follow-up addendum (Phase 17), the
+stark_qa oracle spike with byte-reproducible harvested fixtures (Phase 18),
+`COLLAB-DESIGN.md` rev-2 panel-frozen at commit `3569d25` with a
+red-proven freeze test (Phase 19), sibling collaborative admission + battery
+contract + strict freeze-ancestry guard (Phase 20), the fail-closed
+gold-id-stripping scoring bridge (Phase 21), and the two-pass
+builder/answerer runner + tournament shell (Phase 22). Phase 23's powered
+STaRK-prime round (ablation-gated, null-control before any score is read as
+meaningful) is pending: three launch attempts died in silent host hard
+crashes (firmware-level, MSI EdgeXpert — firmware since updated), and the
+post-mortem exposed an uncapped neighbourhood-edge render that let ollama
+silently truncate builder prompts; both are fixed (render cap + hard prompt
+budget, commits `dc786f4`/`1af4571`). The calibration probe re-runs under
+the capped renderer before relaunch. No StaRK score is reported yet. Full design:
 `docs/development/harness-factory.md`. The abstraction ladder: STZ makes code →
 the same tournament machinery can make *agents* (specimens write `agents/*.md`
 instead of implementations) → the factory assembles tournament-won components

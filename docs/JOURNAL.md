@@ -2186,3 +2186,68 @@ their pre-phase state by blob hash, not asserted. The milestone is pushed at thi
 this phase and stay open, named rather than absorbed: the v1.24.0 milestone's own completion entry (closed
 independently at Phase 12) and the `_paired-arms.ts` task-prompt parameter-description item flagged at 14-02
 (recorded in `WINDOWS.md`).
+
+## Phases 17–23 (v2.0.0, in progress): the collaborative mode is built; the powered round is not yet run (2026-08-24)
+
+Consolidated catch-up entry — the journal fell behind the v2.0.0 milestone by seven phases, and I am
+writing them up together rather than pretending seven contemporaneous entries exist. Per-plan detail
+lives in `.planning/phases/17-*` through `23-*`; this entry records what shipped, what it rests on, and
+what has NOT happened yet.
+
+**Phase 17 (REQ-84).** `docs/PAPER.md` gained its follow-up-results addendum as Part III — the
+DUALFIX Stage-B NOT-MET, both TERMINATED-UNDERPOWERED paired rounds including the rev-3 anti-build
+null, and the C-01 pivot/selection — every claim cited to a committed study record, the existing paper
+body byte-preserved except pointer edits, and FA-2's §14 back-reference written inside Part III rather
+than as an edit to §14 (Part II's own zero-deletion precedent).
+
+**Phase 18 (REQ-77).** The oracle spike killed the dossier's `eval.py`-shell-out assumption before the
+freeze could inherit it: the real invocation is `stark_qa.Evaluator` in an isolated venv
+(`setuptools==77.0.3` pinned to keep `pkg_resources` importable), `answer_ids` as `torch.LongTensor`,
+stdout redirected at the fd level during loads so colbert/tdc progress noise cannot break the JSON-only
+stdout contract, and `query_id` resolved by full-dataset scan (it never coincides with subscript index
+on a real split). Gold fixtures were harvested byte-reproducibly, with the receipt landing beside them.
+
+**Phase 19 (REQ-76).** `COLLAB-DESIGN.md` froze at rev 2, commit `3569d25`, after a full five-lane
+panel round — 35 ADOPTED / 4 REJECTED of 39 findings — with `test/collab-design-freeze.test.ts` pinning
+the freeze commit in a separate commit (`912a189`), proven red on both a blob mutation and a
+working-tree edit before landing. PrimeKG was selected as the KB, the decision re-weighted to lead on
+the replay ground (already-harvested byte-reproducible fixtures), size and licence kept as honest
+non-discriminating context. CD-01..CD-05 bound the output shape (ranked list ≤20), joint lineage,
+winner-only artifact promotion, single definitionHash over the two-prompt bundle, and both structural
+bounds plus a degenerate-graph ablation arm.
+
+**Phases 20–22 (REQ-79, REQ-78, REQ-80).** The build, all of it behind the freeze (enforced by
+`git merge-base --is-ancestor`, not convention): `collaborative-admission.ts` as a sibling table — the
+sealed 5-member `Vertical` union untouched; the battery contract expansion (D-13); the fail-closed
+scoring bridge with committed pool + fingerprint manifests and a mutation-tested strip boundary so no
+`answer_ids` is reachable from any agent-visible path; then the two-pass runner
+(`collaborative-runner.ts`: builder → hash-at-handoff → verify-at-read → answerer → bridge, D-03
+per-task fail-closed throughout) and the tournament shell. The D-05 no-subgraph null arm renders
+through the same prompt template with an empty subgraph block, so the ablation comparison isolates the
+graph, not the prose. `package.json` dependencies stayed empty; the Python side lives wholly in its
+venv.
+
+**Phase 23 (REQ-81/82), where it stands.** The ablation gate and round driver exist
+(`experiments/collab-round/_collab-round.ts`, detached + checkpointed; verdict read only from a
+`complete: true` artifact, never wall-clock). The 23-06 calibration probe measured 0/30 structurally
+valid builder artifacts and derived the 1,560,000 ms per-call ceiling. The powered round itself has
+been launched three times and has completed zero times: all three launches died in silent host hard
+crashes mid-inference — no OOM, no Xid, no panic — a below-userspace GB10/firmware fault externally
+documented for this hardware class (MSI EdgeXpert MS-C931 / DGX Spark). The pending MSI firmware was
+flashed (EC 10800, SoC 10900) and a telemetry sidecar now records pre-death host state. The crash-3
+post-mortem then found the deeper software fault that firmware could never fix: the runner rendered
+every induced neighbourhood edge uncapped, producing 478k–1.8M-token builder prompts that ollama
+silently tail-truncated (first 4 + last 65,534 tokens kept) — the builder lost the task prompt and node
+list, and its garbage artifacts were verified and recorded as VALID outcomes. Three launches of data
+would have been quietly poisoned had any completed. The fix (commits `dc786f4`, `1af4571`, per
+`.planning/HANDOVER-collab-prompt-budget.md`): a deterministic seed-first render cap
+(`NEIGHBORHOOD_MAX_RENDERED_EDGES = 2000`, verification still a superset check against the full
+neighbourhood), a hard pre-dispatch character budget (`BUILDER_PROMPT_MAX_CHARS = 180,000`), and a
+post-hoc `prompt_tokens ≥ 65,000` tripwire on every builder/answerer call — all three recording a new
+`"builder-prompt-over-budget"` per-task miss, never a crash. Suite 1,730 green, shell byte-identical to
+its `0e8352c` freeze.
+
+What this entry does not claim: no StaRK score exists, the ablation gate has evaluated nothing, and the
+23-06 probe's numbers — including that 0/30 — were measured on truncated prompts, so the probe re-runs
+under the capped renderer before the round relaunches. v2.0.0 is not closed and nothing here says
+otherwise.
