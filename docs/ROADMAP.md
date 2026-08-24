@@ -1229,8 +1229,12 @@ meaningful) is pending: three launch attempts died in silent host hard
 crashes (firmware-level, MSI EdgeXpert — firmware since updated), and the
 post-mortem exposed an uncapped neighbourhood-edge render that let ollama
 silently truncate builder prompts; both are fixed (render cap + hard prompt
-budget, commits `dc786f4`/`1af4571`). The calibration probe re-runs under
-the capped renderer before relaunch. No StaRK score is reported yet. Full design:
+budget, commits `dc786f4`/`1af4571`). The calibration probe re-ran under
+the capped renderer 2026-08-24: the fix is field-accepted (zero truncation
+lines, median unit wall time halved), but structural validity is 0/30 again
+on intact prompts — so the round was NOT relaunched; the no-go now stands
+on decontaminated evidence (see `experiments/collab-round/COLLAB-PROBE.md`
+addendum). No StaRK score is reported. Full design:
 `docs/development/harness-factory.md`. The abstraction ladder: STZ makes code →
 the same tournament machinery can make *agents* (specimens write `agents/*.md`
 instead of implementations) → the factory assembles tournament-won components
